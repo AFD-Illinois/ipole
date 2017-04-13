@@ -270,8 +270,6 @@ void init_physical_quantities(void)
 			for (k = 0; k < N3; k++) {
 			  ne[i][j][k] = p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
 
-			  //			  bl_coord(X, &r, &th);
-
 			  bsq= bcon[i][j][k][0] * bcov[i][j][k][0] +
 			       bcon[i][j][k][1] * bcov[i][j][k][1] +
 			       bcon[i][j][k][2] * bcov[i][j][k][2] +
@@ -285,7 +283,8 @@ void init_physical_quantities(void)
 			  Ber[i][j][k]=Be;                           
 			  
 			  //for large scale jet old prescription
-			  //two_temp_gam = 0.5 * ((1. + 2. / 3. * (trat_d + 1.) / (trat_d + 2.)) + gam);                                                                                  			      //Thetae_unit = (two_temp_gam - 1.) * (MP / ME) / (1. + trat_d);  
+			  //two_temp_gam = 0.5 * ((1. + 2. / 3. * (trat_d + 1.) / (trat_d + 2.)) + gam);             
+			  //Thetae_unit = (two_temp_gam - 1.) * (MP / ME) / (1. + trat_d);  
 			  //simplified
 
 			  /*

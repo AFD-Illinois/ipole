@@ -9,6 +9,7 @@
 #include <gsl/gsl_sf.h>
 /******************************/
 
+
 /* 
 synchrotron "mixed" emissivity formula 
 interpolates between Petrosian limit and
@@ -34,10 +35,10 @@ double jnu_synch(double nu, double Ne, double Thetae, double B, double theta,dou
         f = pow( pow(x,1./2.) + pow(2.,11./12.)*pow(x,1./6.), 2 ) ;
 	j = (sqrt(2.)*M_PI*EE*EE*Ne*nus/(3.*CL*K2)) * f * exp(-pow(x,1./3.)) ;
 	
-	
+	//Jasons emissivity Stokes I
 	x=nu/Thetae/Thetae/(nuc*1.5*sth);                                                                                                                                     
 	j=Ne*EE*EE*nu/2./1.7/CL/Thetae/Thetae*2.5651*(1+1.92*pow(x,-1./3.)+0.9977*pow(x,-2./3.))*exp(-1.8899*pow(x,1./3.)); 
-        
+	
 	
 	//insert here the kappa function to simulate particle accelration k=3.5 w=theta
 	/*

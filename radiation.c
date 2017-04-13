@@ -24,7 +24,7 @@ double Bnu_inv(double nu, double Thetae)
 	//else
 	//  return((2.*HPL/(CL*CL))/(exp(x) - 1.)) ;
 	
-
+	//same as jasons
 	if(x < 1.e-6)	
 	  return ((2.*HPL/(CL*CL))/x);
 	else

@@ -16,6 +16,7 @@ struct of_traj {
 } traj[MAXNSTEP] ;
 
 
+
 extern double image[NX][NY];
 double image[NX][NY];
 extern double imageS[NX][NY][NDIM];
@@ -46,6 +47,7 @@ int main(int argc, char *argv[])
 	double complex N_coord[NDIM][NDIM];
 	double gdet;
 
+
 	if(argc < 6) {
 	  // fprintf(stderr,"usage: mibothros theta freq filename Munit theta_j trat_d\n") ;
 	  fprintf(stderr,"usage: mibothros theta freq filename Munit trat_j trat_d\n") ;
@@ -56,6 +58,7 @@ int main(int argc, char *argv[])
 	sscanf(argv[2],"%lf",&freqcgs) ;
 	sscanf(argv[4],"%lf",&M_unit) ;
 	sscanf(argv[5],"%lf",&trat_j) ;
+	//sscanf(argv[5],"%lf",&theta_j) ;
  	sscanf(argv[6],"%lf",&trat_d) ;
 
 	init_model(argv) ;
@@ -65,8 +68,8 @@ int main(int argc, char *argv[])
 
 	/* initialize local parameters */
 	/* fix camera worldline */
-	rcam = 100.;
-	phicam = 0.0;// -1.5708;//corresponds to +1.57 in grtrans
+	rcam = 240.;
+	phicam = -1.5708;//corresponds to +1.57 in grtrans
 	Xcam[0] = 0.0 ;
 	Xcam[1] = log(rcam);
 	Xcam[2] = root_find(thetacam/180.*M_PI);
@@ -88,22 +91,24 @@ int main(int argc, char *argv[])
 	
 	/* fix camera field of view */
 	/* size of field of view in the plane of the black hole, in units of GM/c^2 */
-	DX = 26.0 ;	
-	DY = 26.0 ;
+
+	DX = 40.0 ;	
+	DY = 40.0 ;
 
 	fovx = DX/rcam ;
 	fovy = DY/rcam ;
 
-	Dsource = DM87 ;
+	//	Dsource = DM87 ;
+	Dsource = DSGRA ;
 	scale=(DX*L_unit/NX)*(DY*L_unit/NY)/(Dsource*Dsource)/JY ;
 	fprintf(stderr,"scale=%g D=%g cm FOVx=%g FOVy=%g Lunit=%g %g\n",scale,Dsource,DX,DY,L_unit,4*M_PI*Dsource*Dsource/1e23) ;
 
 	for(i=0;i<NX;i++) {
-	  //for(i=84;i<85;i++) {
+	  //         for(i=0;i<1;i++) {
 	  fprintf(stderr," %d",i);
 #pragma omp parallel for default(none) private(j,k,l,ki,kf,ktau,ji,jf,jtau,nstep,dlsubstep,dl,X,Xhalf,Kcon,Kconhalf,Xi,Xf,Kconi,Kconf,traj,Intensity,tau,dltot,N_coord,Stokes_I,Stokes_Q,Stokes_U,Stokes_V,Gcov,Gcon,gdet,Kcam) shared(i,Xcam,Ucam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,th_beg,th_len,hslope) schedule(static,1) 
-	  //for(j=130;j<131;j++) {
-	          	    for(j=0;j<NY;j++) {
+	  //for(j=0;j<1;j++) {
+	       	  for(j=0;j<NY;j++) {
 
                   init(i,j,Xcam,Ucam,fovx,fovy,X,Kcon) ;
 
@@ -112,71 +117,72 @@ int main(int argc, char *argv[])
 		  
 		  while(!stop_backward_integration(X,Kcon,Xcam) ) {
 
-		    /* This stepsize function can be troublesome inside of R = 2M,and should be used cautiously in this region. */
+		    /* This stepsize function can be troublesome inside of R = 2M,
+		       and should be used cautiously in this region. */
 		    dl = stepsize(X,Kcon) ;
-		    
+
+		    /* move photon one step backwards, the procecure updates X 
+		       and Kcon full step and returns also values in the middle */
+		    push_photon(X,Kcon,-dl,Xhalf,Kconhalf) ;
+		    nstep++ ;
+		    		    
 		    traj[nstep].dl = dl;
 		    for(k=0;k<NDIM;k++) traj[nstep].X[k] = X[k] ;
 		    for(k=0;k<NDIM;k++) traj[nstep].Kcon[k] = Kcon[k] ;
-
-		    /* move photon */
-		    push_photon(X,Kcon,-dl,Xhalf,Kconhalf) ;
-
-		    nstep++ ;
 		    for(k=0;k<NDIM;k++) traj[nstep].Xhalf[k] = Xhalf[k] ;
 		    for(k=0;k<NDIM;k++) traj[nstep].Kconhalf[k] = Kconhalf[k] ;
-
+	    
+		    
 		    if(nstep > MAXNSTEP-2) {
 		      fprintf(stderr,"MAXNSTEP exceeded on j=%d i=%d\n",j,i) ;
 		      exit(1);
 		    }
 		    }
 		    nstep-- ;
-		    /* final step violated the "stop" condition,
-				   so don't record it */
+		    /* final step violated the "stop" condition,so don't record it */
 
-		    /* integrate forwards along trajectory, including
-		       radiative transfer equation */
-		    //init N, Intensity
+		    /* integrate forwards along trajectory, including radiative transfer equation */
+		    // init N, Intensity
 		    for(l=0;l<NDIM;l++) {
+		      
 		      Xi[l] = traj[nstep].X[l] ;
 		      Kconi[l] = traj[nstep].Kcon[l] ;
+		      
 		    }
+
 		    init_N(Xi,Kconi,N_coord);
 		    Intensity = 0.0 ;
 
-
-		    while(nstep > 0) {
+		    while(nstep > 1) {
 		      /* find start point emissivity */
 		  
 		      for(l=0;l<NDIM;l++) {
+			
 			Xi[l] = traj[nstep].X[l] ;
 			Kconi[l] = traj[nstep].Kcon[l] ;
 			Xhalf[l] = traj[nstep].Xhalf[l] ;
 			Kconhalf[l] = traj[nstep].Kconhalf[l] ;
+			Xf[l]=traj[nstep-1].X[l];
+			Kconf[l]=traj[nstep-1].Kcon[l];  	
 		      }
 		      get_jkinv(Xi,Kconi,&ji,&ki);
 		
-			/* loop over substeps.  stepsize really should
-			   be set adaptively */
+      		      /* loop over substeps. stepsize really should be set adaptively */
 		
-		      dlsubstep = traj[nstep-1].dl;
+		      //      dlsubstep = traj[nstep-1].dl;
+		      dlsubstep = traj[nstep].dl;
 
-		      	for(l=0;l<NDIM;l++) {
-			  Xf[l]=traj[nstep-1].X[l];
-			  Kconf[l]=traj[nstep-1].Kcon[l];  
-			}
+		      get_jkinv(Xf,Kconf,&jf,&kf);
 
-			get_jkinv(Xf,Kconf,&jf,&kf);
+		      //here i changed units of dlsubstep because I think this is more clear than original mibothros
+		      Intensity = approximate_solve(Intensity,ji,ki,jf,kf,dlsubstep*L_unit/freqcgs) ;
 
-			Intensity = approximate_solve(Intensity,ji,ki,jf,kf,dlsubstep*L_unit/freqcgs) ;
-		   
-			evolve_N(Xi,Kconi,Xhalf,Kconhalf,Xf,Kconf,dlsubstep,N_coord);
+		      evolve_N(Xi,Kconi,Xhalf,Kconhalf,Xf,Kconf,dlsubstep,N_coord);
 		    
-			/* swap start and finish */
-			ji = jf ;
-			ki = kf ;
-	    
+		      /* swap start and finish */
+		      ji = jf ;
+		      ki = kf ;
+		      
 		      nstep-- ;
 		    }
 		    
@@ -203,7 +209,7 @@ int main(int argc, char *argv[])
 	for(i=0;i<NX;i++)
 	  for(j=0;j<NY;j++) {
 	    //image[i][j] *= scale;
-	    Ftot += image[i][j]*scale ;//if this is Jansky per pix^2 then just adding up should give a total flux
+	    Ftot+= image[i][j]*scale ;//if this is Jansky per pix^2 then just adding up should give a total flux
 	    Iavg+=image[i][j];
 	    if(image[i][j]>Imax)
 	      {

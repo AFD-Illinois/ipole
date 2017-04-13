@@ -156,8 +156,6 @@ void get_connection(double X[4], double lconn[4][4][4])
 	r4 = r3*r1;
 
 	sincos(2.*M_PI*X[2], &sx, &cx);
-  
-  
 
 	/* HARM-2D MKS */
 	//th = M_PI*X[2] + 0.5*(1-hslope)*sx;
@@ -175,8 +173,6 @@ void get_connection(double X[4], double lconn[4][4][4])
 	//it should be same as in the old one
 	/*new from hotakarun*/
 	//is this for geodesics? should be independent of mhd model
-
-	  
   
 	th =  M_PI*X[2];
 	dthdx2 = M_PI;
@@ -294,143 +290,6 @@ void get_connection(double X[4], double lconn[4][4][4])
 	lconn[3][3][2] = lconn[3][2][3];
 	lconn[3][3][3] = (-a*r1sth2*rho22 + a3*sth4*fac1)*irho23;
 
-	/*
-	
-	double r1,r2,r3,r4,x2,sx,cx ;
-        double th,sth,cth,sth2,cth2,sth4,cth4,s2th,c2th,c4th ;
-        double a2,a3,a4,rho2,rho22,rho23,fac1,fac3,fac4,fac5,fac6,fac52 ;
-        double r1api,a2pr1r1m2,r1r1p1,r1fac1_rho23,r1_rho23,fac1_rho23,asth2,fac42_rho2 ;
-	
-	r1 = exp(X[1]) ;
-	r2 = r1*r1 ;
-	r3 = r2*r1 ;
-	r4 = r3*r1 ;
-
-	x2 = X[2] ;
-	sx = sin(2.*M_PI*x2) ;
-	cx = cos(2.*M_PI*x2) ;
-
-	
-
-	th = M_PI*X[2];// + (1. - hslope)*sx/2. ;
-	sth = sin(th) ;
-	cth = cos(th) ;
-	sth2 = sth*sth ;
-	cth2 = cth*cth ;
-	sth4 = sth2*sth2 ;
-	cth4 = cth2*cth2 ;
-	s2th = sin(2.*th) ;
-	c2th = cos(2.*th) ;
-	c4th = cth4 - 6.*cth2*sth2 + sth4 ;
-
-	a2 = a*a ;
-	a3 = a2*a ;
-	a4 = a2*a2 ;
-
-	rho2 = r2 + a2*cth2 ;
-	rho22 = rho2*rho2 ;
-	rho23 = rho22*rho2 ;
-
-	fac1 = r2 - a2*cth2 ;
-	fac3 = r1*(2.+r1) + a2*cth2 ;
-	fac4 = 1. + (1. - hslope)*cx ;
-	fac5 = a2 + 2.*r2 + a2*c2th ;
-	fac52 = fac5*fac5 ;
-	fac6 = a*r1*s2th/(M_PI*rho23*fac4) ;
-
-	r1api = r1*a*M_PI ;
-	a2pr1r1m2 = a2 + r1*(r1 - 2.) ;
-	r1r1p1 = r1*(r1 + 1.) ;
-	r1fac1_rho23 = r1*fac1/rho23 ;
-	r1_rho23 = r1/rho23;
-	fac1_rho23 = fac1/rho23 ;
-	asth2 = a*sth2 ;
-	fac42_rho2 = fac4*fac4/rho2;
-
-	lconn[0][0][0] = 2.*r1fac1_rho23 ;
-	lconn[0][0][1] = fac3*r1fac1_rho23 ;
-	lconn[0][0][2] = -r1api*a*fac4*s2th/rho22 ;
-	lconn[0][0][3] = -2.*asth2*r1fac1_rho23 ;
-
-	lconn[0][1][0] = lconn[0][0][1] ;
-	lconn[0][1][1] = 2.*r2*(r3 + r4 - a2*r1*cth2 - a4*cth4)/rho23 ;
-	lconn[0][1][2] = -a2*M_PI*r2*fac4*s2th/rho22 ;
-	lconn[0][1][3] = -asth2*r1fac1_rho23*fac3 ;
-
-	lconn[0][2][0] = lconn[0][0][2] ;
-	lconn[0][2][1] = lconn[0][1][2] ;
-	lconn[0][2][2] = -2.*r2*M_PI*M_PI*fac42_rho2 ;
-	lconn[0][2][3] = 2.*a2*r1api*cth*fac4*sth2*sth/rho22 ;
-
-	lconn[0][3][0] = lconn[0][0][3] ;
-	lconn[0][3][1] = lconn[0][1][3] ;
-	lconn[0][3][2] = lconn[0][2][3] ;
-	lconn[0][3][3] = 2.*r1_rho23*sth2*(-r1*rho22 + a2*fac1*sth2) ;
-
-	lconn[1][0][0] = fac1_rho23*a2pr1r1m2/r1 ;
-	lconn[1][0][1] = fac1_rho23*(-2.*r1 + a2*sth2) ;
-	lconn[1][0][2] = 0. ;
-	lconn[1][0][3] = -asth2*a2pr1r1m2*fac1_rho23/r1 ;
-
-	lconn[1][1][0] = lconn[1][0][1] ;
-	lconn[1][1][1] = 1. + 4.*r1*(a2 - 2.*r2 + a2*c2th)*(r1*(2.+r1)+a2*c2th)/(fac52*fac5) ;
-	lconn[1][1][2] = -a2*M_PI*fac4*s2th/fac5 ;
-	lconn[1][1][3] = asth2*(a4*r1*cth4 + r2*(2.*r1 + r3 - a2*sth2) + 
-				a2*cth2*(2.*r1*(r2 - 1.) + a2*sth2))/rho23 ;
-
-	lconn[1][2][0] = lconn[1][0][2] ;
-	lconn[1][2][1] = lconn[1][1][2] ;
-	lconn[1][2][2] = -M_PI*M_PI*a2pr1r1m2*fac42_rho2 ;
-	lconn[1][2][3] = 0. ;
-
-	lconn[1][3][0] = lconn[1][0][3] ;
-	lconn[1][3][1] = lconn[1][1][3] ;
-	lconn[1][3][2] = lconn[1][2][3] ;
-	lconn[1][3][3] = -(a2pr1r1m2*sth2*(r1*rho22 - a2*fac1*sth2))/(r1*rho23) ;
-
-	lconn[2][0][0] = -a*fac6 ;
-	lconn[2][0][1] = r1*lconn[2][0][0] ;
-	lconn[2][0][2] = 0. ;
-	lconn[2][0][3] = (a2 + r2)*fac6 ;
-
-	lconn[2][1][0] = lconn[2][0][1] ;
-	lconn[2][1][1] = -r2*a*fac6 ;
-	lconn[2][1][2] = r2/rho2 ;
-	lconn[2][1][3] = a*r1_rho23*cth*sth*(r3*(2.+r1) + a2*(2.*r1r1p1*cth2 + a2*cth4 + 2.*r1*sth2))/(M_PI*fac4) ;
-
-	lconn[2][2][0] = lconn[2][0][2] ;
-	lconn[2][2][1] = lconn[2][1][2] ;
-	lconn[2][2][2] = -4.*M_PI*(th - M_PI*x2)/fac4 - a2*M_PI*fac4*s2th/(2.*rho2) ;
-	lconn[2][2][3] = 0. ;
-
-	lconn[2][3][0] = lconn[2][0][3] ;
-	lconn[2][3][1] = lconn[2][1][3] ;
-	lconn[2][3][2] = lconn[2][2][3] ;
-	lconn[2][3][3] = -(cth*sth/(M_PI*fac4))*(1. + 2.*a4*r1_rho23*sth4 + 
-			sth2*(4.*a2*r1 + a2*r2 + a4*cth2)/rho22) ;
-
-	lconn[3][0][0] = a*fac1_rho23 ;
-	lconn[3][0][1] = a*r1fac1_rho23 ;
-	lconn[3][0][2] = -2.*r1api*fac4*cth/(sth*rho22) ;
-	lconn[3][0][3] = -a2*fac1_rho23*sth2 ;
-
-	lconn[3][1][0] = lconn[3][0][1] ;
-	lconn[3][1][1] = a*r2*fac1_rho23 ;
-	lconn[3][1][2] = -2.*r1api*(a2 + 2.*r1*(2.+r1) + a2*c2th)*fac4*cth/(sth*fac52) ;
-	lconn[3][1][3] = r1_rho23*(r1*rho22 - a2*fac1*sth2) ;
-
-	lconn[3][2][0] = lconn[3][0][2] ;
-	lconn[3][2][1] = lconn[3][1][2] ;
-	lconn[3][2][2] = -r1api*M_PI*fac42_rho2 ;
-	lconn[3][2][3] = M_PI*(3.*a4 + 8.*r4 + 8.*a2*r1r1p1 +
-			4.*a2*(a2 + 2.*r1*(r1-1.))*c2th + a4*c4th)*fac4*cth/(2.*sth*fac52) ;
-
-	lconn[3][3][0] = lconn[3][0][3] ;
-	lconn[3][3][1] = lconn[3][1][3] ;
-	lconn[3][3][2] = lconn[3][2][3] ;
-	lconn[3][3][3] = -asth2*r1_rho23*rho22 + a3*fac1_rho23*sth4 ;
-
-	*/	
 }
 
 /* Sets the spatial discretization in numerical derivatives : */
@@ -487,7 +346,7 @@ void conn_func(double X[NDIM], double conn[NDIM][NDIM][NDIM])
 #undef DEL
 
 
-#define EPS	0.005
+#define EPS	0.03
 
 double stepsize(double X[NDIM], double Kcon[NDIM])
 {
@@ -565,7 +424,7 @@ void get_model_ucov(double X[NDIM], double Ucov[NDIM])
 		return ;
 	}
 
-	//	get_model_ucon(X, Ucon);
+	//get_model_ucon(X, Ucon);
 	//lower(Ucon, gcov, Ucov);
 
 	interp_fourv(X, ucov, Ucov) ;
@@ -686,7 +545,6 @@ double get_model_ne(double X[NDIM])
 {
 	if(X[1] < startx[1] || 
 	   X[1] > stopx[1]  || 
-	   //	   X[1] > log(25.)  || 
 	   X[2] < startx[2] || 
 	   X[2] > stopx[2]) {
 	   	return(0.) ;

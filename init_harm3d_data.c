@@ -63,6 +63,7 @@ void init_harm3d_grid(char *fname)
 	//H5LTread_dataset_double(file_id,	"/Header/Grid/th_end",		&th_end);
 
 	/* Account for 3 ghost zones */
+
 	
 	startx[1] += 3*dx[1];
 	startx[2] += 3*dx[2];
@@ -75,7 +76,7 @@ void init_harm3d_grid(char *fname)
         startx[2] = th_cutout/M_PI ; 
 	*/
 
-	fprintf(stdout,"th_cutout: %g  \n",th_cutout);
+	fprintf(stdout,"th_cutout: %g  %d x %d x %d\n",th_cutout,N1,N2,N3);
 	
 
 	th_beg=th_cutout;
@@ -88,6 +89,7 @@ void init_harm3d_grid(char *fname)
 	stopx[3] = startx[3]+N3*dx[3];
 
 	fprintf(stdout,"stop: %g %g %g \n",stopx[1],stopx[2],stopx[3]);
+
 
 	init_storage();
 
@@ -192,43 +194,9 @@ void init_harm3d_data(char *fname)
 	      if(i <= 20) dMact += g * p[KRHO][i][j][k] * ucon[i][j][k][1] ;
 	      if(i >= 20 && i < 40) Ladv += g * p[UU][i][j][k] * ucon[i][j][k][1] * ucov[i][j][k][0] ;
 
-	      
-	      /* chose th and phi angles, 20 degrees (192 points in theta dx[2]) and 0 degrees */
-	      /* only within 50 Rg */
-	      /*
-	      if(j==17 && k==0 ){
-		ucovrm[0]=ucov[i][j][k][0];
-		ucovrm[1]=ucov[i][j][k][1];
-		ucovrm[2]=ucov[i][j][k][2];
-		ucovrm[3]=ucov[i][j][k][3];
-		Ne= p[KRHO][i][j][k]* RHO_unit/(MP+ME);
-		beta=p[UU][i][j][k]*(gam-1.)/0.5/BSQ;
-		b2=beta*beta;
-		trat = trat_d * b2/(1. + b2) + trat_j /(1. + b2);
-		Thetae_unit = (gam - 1.) * (MP / ME) / trat;
-		Thetae= (p[UU][i][j][k]/p[KRHO][i][j][k])* Thetae_unit;
-		theta=get_bk_angle(X,kcon,ucovrm);
-		B=sqrt(BSQ)*B_unit;
-		nu = get_fluid_nu(kcon,ucovrm);
-		delr=r*log(Rout/Rin)/N1;
-		frel=log(Thetae)/pow(Thetae,2)/2. * pow(Thetae,4)/(1+pow(Thetae,4)) + 1./(1.+pow(Thetae,4));
-		Omega0=EE*B/ME/CL;
-		omega=2.*M_PI*nu;
-		S2=1.4142; //sqrt(2)                                                                                                                                                       
-  		Xe=Thetae*sqrt(S2*sin(theta)*(1e3*Omega0/omega));
-		rhov=Ne*4.*M_PI*EE*EE*Omega0/ME/CL/pow(omega,2)*
-		  gsl_sf_bessel_Kn(0,1./Thetae)/gsl_sf_bessel_Kn(2,1./Thetae)*cos(theta)*gfun(Xe);
-		RM=frel*Ne*B*cos(theta)*(delr*L_unit*2.6312e-13);
-		RMacc=RM+RMacc;		  
-		fprintf(stdout," %g %g %g %g %g %g %g %g\n",r,delr,RMacc,Ne,B*cos(theta),Thetae,frel,rhov);
-		}*/
-	    
-
 	    }
 	  }
 	}
-	
-	//	exit(1);
 	
 	dMact *= dx[3]*dx[2] ;
 	dMact /= 21. ;
@@ -246,33 +214,5 @@ void init_harm3d_data(char *fname)
         fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Medd/MSUN*YEAR) ;
         fprintf(stderr,"Mdot: %g [Medd]\n",-dMact*M_unit/T_unit/Medd) ;
 	
-	/*read in the non-theraml emissivity tables*/
-	/*	
-        fp1 = fopen("Gtab.3.5.dat", "r");
-        if (fp1 == NULL) {
-	  fprintf(stderr,"can't open Gtab.dat data file\n");
-	  exit(1);
-        } else {
-	  fprintf(stderr,"successfully opened %s\n","Gtab.dat");
-        }
-	for(i=0;i<202;i++) {
-	  fscanf(fp1,"%lf %lf\n", &xtab[i], &Gtab[i]) ;
-	  }
-	fclose(fp1);
-
-
-        fp2 = fopen("Gatab.3.5.dat", "r");
-        if (fp2 == NULL) {
-	  fprintf(stderr,"can't open Gatab.dat data file\n");
-	  exit(1);
-        } else {
-	  fprintf(stderr,"successfully opened %s\n","Gatab.dat");
-        }
-	for(i=0;i<202;i++) {
-	  fscanf(fp2,"%lf %lf\n", &xatab[i], &Gatab[i]) ;
-	  }
-	fclose(fp2);
-	*/
-
 }
 
