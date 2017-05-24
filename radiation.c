@@ -98,8 +98,8 @@ double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM])
 		  Kcon[2] * Ucov[2] + 
 		  Kcon[3] * Ucov[3] );
 
-
-	nu = ener;//*mec2_h;
+	nu = ener*mec2_h;
+	//	nu = ener;//*mec2_h;
 
 	if(nu < 0.) {
 	  nu = 1. ;

@@ -16,7 +16,6 @@ struct of_traj {
 } traj[MAXNSTEP] ;
 
 
-
 extern double image[NX][NY];
 double image[NX][NY];
 extern double imageS[NX][NY][NDIM];
@@ -104,13 +103,15 @@ int main(int argc, char *argv[])
 	fprintf(stderr,"scale=%g D=%g cm FOVx=%g FOVy=%g Lunit=%g %g\n",scale,Dsource,DX,DY,L_unit,4*M_PI*Dsource*Dsource/1e23) ;
 
 	for(i=0;i<NX;i++) {
-	  //         for(i=0;i<1;i++) {
+	  //	  for(i=0;i<1;i++) {
 	  fprintf(stderr," %d",i);
 #pragma omp parallel for default(none) private(j,k,l,ki,kf,ktau,ji,jf,jtau,nstep,dlsubstep,dl,X,Xhalf,Kcon,Kconhalf,Xi,Xf,Kconi,Kconf,traj,Intensity,tau,dltot,N_coord,Stokes_I,Stokes_Q,Stokes_U,Stokes_V,Gcov,Gcon,gdet,Kcam) shared(i,Xcam,Ucam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,th_beg,th_len,hslope) schedule(static,1) 
-	  //for(j=0;j<1;j++) {
-	       	  for(j=0;j<NY;j++) {
+	  //	 for(j=0;j<1;j++) {
+	     for(j=0;j<NY;j++) {
 
-                  init(i,j,Xcam,Ucam,fovx,fovy,X,Kcon) ;
+	      init(i,j,Xcam,Ucam,fovx,fovy,X,Kcon) ;
+	      
+	      for(k=0;k<NDIM;k++) Kcon[k] *= freq ;
 
 		  /* integrate backwards along trajectory */
 		  nstep = 0;
@@ -126,7 +127,7 @@ int main(int argc, char *argv[])
 		    push_photon(X,Kcon,-dl,Xhalf,Kconhalf) ;
 		    nstep++ ;
 		    		    
-		    traj[nstep].dl = dl;
+		    traj[nstep].dl = dl*L_unit*HPL/(ME*CL*CL);
 		    for(k=0;k<NDIM;k++) traj[nstep].X[k] = X[k] ;
 		    for(k=0;k<NDIM;k++) traj[nstep].Kcon[k] = Kcon[k] ;
 		    for(k=0;k<NDIM;k++) traj[nstep].Xhalf[k] = Xhalf[k] ;
@@ -153,11 +154,9 @@ int main(int argc, char *argv[])
 		    init_N(Xi,Kconi,N_coord);
 		    Intensity = 0.0 ;
 
-		    while(nstep > 1) {
-		      /* find start point emissivity */
+		    while(nstep > 1) { /* find start point emissivity */
 		  
 		      for(l=0;l<NDIM;l++) {
-			
 			Xi[l] = traj[nstep].X[l] ;
 			Kconi[l] = traj[nstep].Kcon[l] ;
 			Xhalf[l] = traj[nstep].Xhalf[l] ;
@@ -168,14 +167,11 @@ int main(int argc, char *argv[])
 		      get_jkinv(Xi,Kconi,&ji,&ki);
 		
       		      /* loop over substeps. stepsize really should be set adaptively */
-		
-		      //      dlsubstep = traj[nstep-1].dl;
 		      dlsubstep = traj[nstep].dl;
 
 		      get_jkinv(Xf,Kconf,&jf,&kf);
-
 		      //here i changed units of dlsubstep because I think this is more clear than original mibothros
-		      Intensity = approximate_solve(Intensity,ji,ki,jf,kf,dlsubstep*L_unit/freqcgs) ;
+		      Intensity = approximate_solve(Intensity,ji,ki,jf,kf,dlsubstep) ;
 
 		      evolve_N(Xi,Kconi,Xhalf,Kconhalf,Xf,Kconf,dlsubstep,N_coord);
 		    
@@ -464,7 +460,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
 		return ;
 	}
 
-	nu = get_fluid_nu(Kcon,Ucov)*freqcgs1 ;	/* freq in Hz */
+	nu = get_fluid_nu(Kcon,Ucov);//*freqcgs1 ;	/* freq in Hz */
 
 	B = get_model_b(X) ;		/* field in G */
 	Thetae = get_model_thetae(X) ;	/* temp in e rest-mass units */
