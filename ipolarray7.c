@@ -242,7 +242,7 @@ void evolve_N(const double Xi[NDIM],const double Kconi[NDIM],
       
       //step1: 1st [1/2 ROT]
       
-      double x=dlam;
+      double x=dlam*0.5;
       
       rdS=rQ*SQ0+rU*SU0+rV*SV0;
       rho2=rQ*rQ+rU*rU+rV*rV;
@@ -281,7 +281,7 @@ void evolve_N(const double Xi[NDIM],const double Kconi[NDIM],
 		+ adj/(aI2 - aP2) *(-1 + (aI*sinh(aP*x) + aP*cosh(aP*x))/aP*exp(-aI*x))
 		+ aI*jI/(aI2 - aP2)* (1 - (aI*cosh(aP*x) + aP*sinh(aP*x))/aI*exp(-aI*x)));
 
-	  SQ2 = (SQ1*exp(-aI*x) +
+	  SQ2 = (SQ1*exp(-aI*x) 
 	       + ads0*aQ/aP2 *(-1 + cosh(aP*x))*exp(-aI *x)
 	       - aQ/aP*SI1*sinh(aP*x)*exp(-aI*x)
 	       + jQ*(1 - exp(-aI*x))/aI
@@ -290,7 +290,7 @@ void evolve_N(const double Xi[NDIM],const double Kconi[NDIM],
 	       + jI* aQ/(aP*(aI2 - aP2))* (-aP + (aP* cosh(aP* x) + aI* sinh(aP* x)) *exp(-aI* x)));
 
 
-	  SU2 = (SU1 *exp(-aI* x) +
+	  SU2 = (SU1 *exp(-aI* x) 
 		+ ads0 *aU/aP2* (-1 + cosh(aP* x))* exp(-aI *x)
 		- aU/aP * SI1 *sinh(aP* x) *exp(-aI* x)
 		+ jU *(1 - exp(-aI* x))/aI
@@ -298,7 +298,7 @@ void evolve_N(const double Xi[NDIM],const double Kconi[NDIM],
 					       - aI/aP2 *(aI* cosh(aP* x) + aP *sinh(aP* x))* exp(-aI* x))
 		+ jI *aU/(aP*(aI2 - aP2)) *(-aP + (aP* cosh(aP* x) + aI* sinh(aP* x))* exp(-aI* x)));
 
-	  SV2 = (SV1 *exp(-aI* x) +
+	  SV2 = (SV1 *exp(-aI* x) 
 	       + ads0* aV/aP2 *(-1 + cosh(aP* x))* exp(-aI* x)
 	       - aV/aP *SI1* sinh(aP* x) *exp(-aI *x)
 	       + jV *(1 - exp(-aI* x))/aI
