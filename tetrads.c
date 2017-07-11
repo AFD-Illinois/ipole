@@ -121,7 +121,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
     double dot = check_handedness(Econ, Gcov);
 
     if (fabs(fabs(dot) - 1.) > 1.e-12) {
-	fprintf(stderr, "that's odd...\n");
+	fprintf(stderr, "that's odd: %g\n", dot);
     }
 
     /* we expect dot = 1. for right-handed system.  
