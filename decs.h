@@ -15,8 +15,8 @@
 #define SYN (1) /*synchrotron radiation*/
 #define FF (0) /* emission from free-free transitions, all functions for bremsstrahlung defined in brem.c, uses gsl libraries to integrate j^{ee}*/
 
-#define NX   256
-#define NY   256
+#define NX   128
+#define NY   128
 
 #define NDIM	4
 #define NPRIM	8
@@ -38,8 +38,6 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
-
-extern int levi_civita[NDIM][NDIM][NDIM][NDIM];
 
 extern int pflag ;
 
@@ -143,17 +141,15 @@ void init_storage(void) ;
 /* tetrad related */
 void   coordinate_to_tetrad(double Ecov[NDIM][NDIM], double K[NDIM], double K_tetrad[NDIM]);
 void   tetrad_to_coordinate(double Ecov[NDIM][NDIM], double K_tetrad[NDIM], double K[NDIM]);
-void  set_levi_civita(void);
 double delta(int i, int j);
-void   make_tetrad(double t0[NDIM], double t1[NDIM], double t2[NDIM],
-	double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM], 
-	double Ecov[NDIM][NDIM]) ;
+void   make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM], double Ecov[NDIM][NDIM]) ;
+void   make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
+	double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM], double Ecov[NDIM][NDIM]) ;
 
 
 /* imaging */
 void make_ppm(double p[NX][NY], double freq, char filename[]) ;
-void john_pal(double data, double min, double max,
-	      int *pRed, int *pGreen, int *pBlue) ;
+void rainbow_palette(double data, double min, double max, int *pRed, int *pGreen, int *pBlue) ;
 
 /* radiation */
 double Bnu_inv(double nu, double Thetae) ;

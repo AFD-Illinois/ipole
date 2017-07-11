@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
     sscanf(argv[2], "%lf", &freqcgs);
     sscanf(argv[4], "%lf", &M_unit);
     sscanf(argv[5], "%lf", &trat_j);
+    //sscanf(argv[5],"%lf",&theta_j) ;
     sscanf(argv[6], "%lf", &trat_d);
 
     init_model(argv);
@@ -154,39 +155,47 @@ schedule(static,1)
 		}
 
 	    }
-	    nstep--; /* final step violated the "stop" condition,so don't record it */
-	    /* DONE geodesic integration */
+	    /* integrate geodesic backwards along trajectory */
+	    nstep--;
+	    /* final step violated the "stop" condition,so don't record it */
 
 	    /* integrate forwards along trajectory, including radiative transfer equation */
-	    // initialize N,Intensity; need X, K for this.
+	    // init N, Intensity
 	    for (l = 0; l < NDIM; l++) {
+
 		Xi[l] = traj[nstep].X[l];
 		Kconi[l] = traj[nstep].Kcon[l];
+
 	    }
+
 	    init_N(Xi, Kconi, N_coord);
 	    Intensity = 0.0;
 
-	    while (nstep > 1) {	
+	    while (nstep > 1) {	/* find start point emissivity */
 
-		/* initialize X,K */
 		for (l = 0; l < NDIM; l++) {
-		    Xi[l]       = traj[nstep].X[l];
-		    Kconi[l]    = traj[nstep].Kcon[l];
-		    Xhalf[l]    = traj[nstep].Xhalf[l];
+		    Xi[l] = traj[nstep].X[l];
+		    Kconi[l] = traj[nstep].Kcon[l];
+		    Xhalf[l] = traj[nstep].Xhalf[l];
 		    Kconhalf[l] = traj[nstep].Kconhalf[l];
-		    Xf[l]       = traj[nstep - 1].X[l];
-		    Kconf[l]    = traj[nstep - 1].Kcon[l];
+		    Xf[l] = traj[nstep - 1].X[l];
+		    Kconf[l] = traj[nstep - 1].Kcon[l];
 		}
-
-		/* solve total intensity equation alone */
 		get_jkinv(Xi, Kconi, &ji, &ki);
+
+		/* loop over substeps. stepsize really should be set adaptively */
+		dlsubstep = traj[nstep].dl;
+
 		get_jkinv(Xf, Kconf, &jf, &kf);
-		Intensity = approximate_solve(Intensity, ji, ki, jf, kf, traj[nstep].dl);
+		//here i changed units of dlsubstep for clarity
+		Intensity =
+		    approximate_solve(Intensity, ji, ki, jf, kf,
+				      dlsubstep);
 
-		/* solve polarized transport */
-		evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord);
+		evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dlsubstep,
+			 N_coord);
 
-                /* swap start and finish */
+		/* swap start and finish */
 		ji = jf;
 		ki = kf;
 

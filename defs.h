@@ -1,5 +1,4 @@
 
-int levi_civita[NDIM][NDIM][NDIM][NDIM];
 
 int pflag ;
 
