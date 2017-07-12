@@ -194,19 +194,23 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
     double Kcon[NDIM];
     double trial[NDIM];
 
-    gcov_func(X, Gcov);
 
-    /* might be better to use normal observer here;
-       at present, camera has dx^i/dtau = 0 */
+    /* could use normal observer here; at present, camera has dx^i/dtau = 0 */
     Ucam[0] = 1.;
     Ucam[1] = 0.;
     Ucam[2] = 0.;
     Ucam[3] = 0.;
 
-    Kcon[0] = 0.;
-    Kcon[1] = 1.;
-    Kcon[2] = 0.;
-    Kcon[3] = 0.;
+    /* this puts a photon with zero angular momentum in the center of
+       the field of view */
+    trial[0] = 1.;
+    trial[1] = 1.;
+    trial[2] = 0.;
+    trial[3] = 0.;
+    gcov_func(X, Gcov);
+    double Gcon[NDIM][NDIM];
+    gcon_func(Gcov, Gcon);
+    lower(trial, Gcon, Kcon);
 
     trial[0] = 0.;
     trial[1] = 0.;
