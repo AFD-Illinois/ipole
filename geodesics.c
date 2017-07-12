@@ -12,7 +12,6 @@ void push_photon(double X[NDIM], double Kcon[NDIM], double dl,double Xhalf[NDIM]
 {
 	double lconn[NDIM][NDIM][NDIM];
 	double dKcon[NDIM];
-	double gcov[NDIM][NDIM],Kcov[NDIM],E0,L0;
 	double Xh[NDIM], Kconh[NDIM];
 	int i, j, k;
 

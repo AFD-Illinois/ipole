@@ -15,7 +15,6 @@ double ****p;
 double ***ne;
 double ***thetae;
 double ***b;
-double ***Ber;
 
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
@@ -146,7 +145,7 @@ void get_connection(double X[4], double lconn[4][4][4])
 
   
 	double r1,r2,r3,r4,sx,cx;
-	double th,dthdx2,dthdx22,d2thdx22,sth,cth,sth2,cth2,sth4,cth4,s2th,c2th,c4th;
+	double th,dthdx2,dthdx22,d2thdx22,sth,cth,sth2,cth2,sth4,cth4,s2th,c2th;
 	double a2,a3,a4,rho2,irho2,rho22,irho22,rho23,irho23,irho23_dthdx2;
 	double fac1,fac1_rho23,fac2,fac3,a2cth2,a2sth2,r1sth2,a4cth4;
 
@@ -155,7 +154,8 @@ void get_connection(double X[4], double lconn[4][4][4])
 	r3 = r2*r1;
 	r4 = r3*r1;
 
-	sincos(2.*M_PI*X[2], &sx, &cx);
+	sx = sin(2.*M_PI*X[2]);
+	cx = cos(2.*M_PI*X[2]);
 
 	/* HARM-2D MKS */
 	//th = M_PI*X[2] + 0.5*(1-hslope)*sx;
@@ -180,7 +180,8 @@ void get_connection(double X[4], double lconn[4][4][4])
 
 	dthdx22 = dthdx2*dthdx2;
 
-	sincos(th, &sth, &cth);
+	sth = sin(th);
+	cth = cos(th);
 	sth2 = sth*sth;
 	r1sth2 = r1*sth2;
 	sth4 = sth2*sth2;
@@ -188,7 +189,6 @@ void get_connection(double X[4], double lconn[4][4][4])
 	cth4 = cth2*cth2;
 	s2th = 2.*sth*cth;
 	c2th = 2*cth2 - 1.;
-	c4th = cth4 - 6.*cth2*sth2 + sth4;
 
 	a2 = a*a;
 	a2sth2 = a2*sth2;
@@ -304,7 +304,6 @@ void conn_func(double X[NDIM], double conn[NDIM][NDIM][NDIM])
   double gcov[NDIM][NDIM];
   double gh[NDIM][NDIM];
   double gl[NDIM][NDIM];
-  double delta,deltah,deltal;
 
   gcov_func(X, gcov);
   gcon_func(gcov, gcon);
@@ -350,7 +349,6 @@ void conn_func(double X[NDIM], double conn[NDIM][NDIM][NDIM])
 
 double stepsize(double X[NDIM], double Kcon[NDIM])
 {
-	int i;
 	double dl, dlx1, dlx2, dlx3;
 	double idlx1,idlx2,idlx3 ;
 
@@ -370,30 +368,27 @@ double stepsize(double X[NDIM], double Kcon[NDIM])
 
 void init_model(char *args[])
 {
-	int i,j,k,l;
-	double X[NDIM],del[NDIM];
 	void init_harm3d_grid(char *);
 	void init_harm3d_data(char *);
 
-	fprintf(stderr, "\nreading data header...");
+	fprintf(stderr, "reading data header...\n");
 	/* Read in header and allocate space for grid data */
 	init_harm3d_grid(args[3]);
 	fprintf(stderr, "success\n");
-
 
 	/* find dimensional quantities from black hole
 		mass and its accretion rate */
 	set_units(args[4]);
 
-	fprintf(stderr, "reading data...");
+	fprintf(stderr, "reading data...\n");
 	/* Read in the grid data */
 	init_harm3d_data(args[3]);
 	fprintf(stderr, "success\n");
 
-
 	/* pre-compute densities, field strengths, etc. */
 	init_physical_quantities() ;
 
+	/* horizon radius */
 	Rh = 1 + sqrt(1. - a * a) ;
 
 }
@@ -406,7 +401,7 @@ void init_model(char *args[])
 
 void get_model_ucov(double X[NDIM], double Ucov[NDIM])
 {
-	double gcov[NDIM][NDIM], Ucon[NDIM] ;
+	double gcov[NDIM][NDIM];
 
 	gcov_func(X, gcov);
 
@@ -527,7 +522,6 @@ double get_model_thetae(double X[NDIM])
 //b field strength in Gauss
 double get_model_b(double X[NDIM])
 {
-  int i,j,k,del[3];
 
 	if(X[1] < startx[1] || 
 	   X[1] > stopx[1]  || 
@@ -537,8 +531,6 @@ double get_model_b(double X[NDIM])
 	}
 
 	return(interp_scalar(X, b)) ;
-	
-
 }
 
 double get_model_ne(double X[NDIM])
@@ -551,19 +543,5 @@ double get_model_ne(double X[NDIM])
 	}
 	
 	return(interp_scalar(X, ne)) ;
-}
-
-
-
-double get_model_Ber(double X[NDIM])
-{
-	if(X[1] < startx[1] || 
-	   X[1] > stopx[1]  || 
-	   X[2] < startx[2] || 
-	   X[2] > stopx[2]) {
-	   	return(0.) ;
-	}
-	
-	return(interp_scalar(X, Ber)) ;
 }
 

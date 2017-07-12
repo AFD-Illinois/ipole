@@ -7,12 +7,6 @@ all functions related to creation and manipulation of tetrads
 
 #include "decs.h"
 
-/* local functions & vars */
-double check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM]);
-void set_levi_civita(void);
-
-double levi_civita[NDIM][NDIM][NDIM][NDIM];
-
 /* input and vectors are contravariant (index up) */
 void coordinate_to_tetrad(double Ecov[NDIM][NDIM], double K[NDIM],
 			  double K_tetrad[NDIM])
@@ -20,9 +14,10 @@ void coordinate_to_tetrad(double Ecov[NDIM][NDIM], double K[NDIM],
     int k;
 
     for (k = 0; k < 4; k++) {
-	K_tetrad[k] =
-	    Ecov[k][0] * K[0] +
-	    Ecov[k][1] * K[1] + Ecov[k][2] * K[2] + Ecov[k][3] * K[3];
+	K_tetrad[k] = Ecov[k][0] * K[0] 
+	            + Ecov[k][1] * K[1] 
+	            + Ecov[k][2] * K[2] 
+	            + Ecov[k][3] * K[3];
     }
 }
 
@@ -33,9 +28,10 @@ void tetrad_to_coordinate(double Econ[NDIM][NDIM], double K_tetrad[NDIM],
     int l;
 
     for (l = 0; l < 4; l++) {
-	K[l] = Econ[0][l] * K_tetrad[0] +
-	    Econ[1][l] * K_tetrad[1] +
-	    Econ[2][l] * K_tetrad[2] + Econ[3][l] * K_tetrad[3];
+	K[l] = Econ[0][l] * K_tetrad[0] 
+	     + Econ[1][l] * K_tetrad[1] 
+	     + Econ[2][l] * K_tetrad[2] 
+	     + Econ[3][l] * K_tetrad[3];
     }
 
     return;
@@ -80,13 +76,15 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
     int k, l;
     void normalize(double *vcon, double Gcov[4][4]);
     void project_out(double *vcona, double *vconb, double Gcov[4][4]);
+    double check_handedness(double Econ[NDIM][NDIM],
+			    double Gcov[NDIM][NDIM]);
 
     /* start w/ time component parallel to U */
     void set_Econ_from_trial(double Econ[4], int defdir, double trial[4]);
     set_Econ_from_trial(Econ[0], 0, Ucon);
     normalize(Econ[0], Gcov);
 
-	/*** done w/ basis vector 0 ***/
+    /*** done w/ basis vector 0 ***/
 
     /* now use the trial vector in basis vector 3 */
     /* cast a suspicious eye on the trial vector... */
@@ -96,7 +94,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
     project_out(Econ[3], Econ[0], Gcov);
     normalize(Econ[3], Gcov);
 
-	/*** done w/ basis vector 3 ***/
+    /*** done w/ basis vector 3 ***/
 
     /* repeat for x2 unit basis vector */
     set_Econ_from_trial(Econ[2], 2, Bcon);
@@ -106,11 +104,11 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
     project_out(Econ[2], Econ[3], Gcov);
     normalize(Econ[2], Gcov);
 
-	/*** done w/ basis vector 2 ***/
+    /*** done w/ basis vector 2 ***/
 
     /* whatever is left is econ1 */
     for (k = 0; k < 4; k++)	/* trial vector */
-	Econ[1][k] = 1.;
+        Econ[1][k] = 1.;
     /* project out econ[0-2] */
     project_out(Econ[1], Econ[0], Gcov);
     project_out(Econ[1], Econ[2], Gcov);
@@ -120,8 +118,8 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
     /* check handedness */
     double dot = check_handedness(Econ, Gcov);
 
-    if (fabs(fabs(dot) - 1.) > 1.e-12) {
-	fprintf(stderr, "that's odd: %g\n", dot);
+    if (fabs(fabs(dot) - 1.) > 1.e-10) {
+	fprintf(stderr, "that's odd: %g\n", fabs(dot) - 1.);
     }
 
     /* we expect dot = 1. for right-handed system.  
@@ -131,7 +129,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
 	    Econ[1][k] *= -1.;
     }
 
-	/*** done w/ basis vector 3 ***/
+    /*** done w/ basis vector 3 ***/
 
     /* now make covariant version */
     for (k = 0; k < 4; k++) {
@@ -191,7 +189,6 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
 void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
 			double Ecov[NDIM][NDIM])
 {
-    int k, l;
     double Gcov[NDIM][NDIM];
     double Ucam[NDIM];
     double Kcon[NDIM];
@@ -221,6 +218,9 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
     /* done! */
 }
 
+/*
+    Kronecker delta
+*/
 double delta(int i, int j)
 {
     if (i == j)
@@ -252,6 +252,13 @@ void lower(double *ucon, double Gcov[NDIM][NDIM], double *ucov)
     return;
 }
 
+/* 
+
+    normalize input vector (and overwrite)
+    so that |v . v| = 1
+
+*/
+
 void normalize(double *vcon, double Gcov[4][4])
 {
     int k, l;
@@ -268,6 +275,18 @@ void normalize(double *vcon, double Gcov[4][4])
 
     return;
 }
+
+/*
+
+    project out vconb from vcona
+
+    both arguments are index up (contravariant)
+
+    covariant metric is third argument.
+
+    overwrite the first argument on return
+
+*/
 
 void project_out(double *vcona, double *vconb, double Gcov[4][4])
 {
@@ -291,6 +310,13 @@ void project_out(double *vcona, double *vconb, double Gcov[4][4])
     return;
 }
 
+/* 
+
+   copy the trial vector into a tetrad basis vector,
+   checking to see if it is null, and if it is null
+   setting to some default value 
+
+*/
 void set_Econ_from_trial(double Econ[4], int defdir, double trial[4])
 {
     double norm = 0.;
@@ -307,9 +333,49 @@ void set_Econ_from_trial(double Econ[4], int defdir, double trial[4])
     return;
 }
 
+/* 
+    check the handedness of a tetrad basis.
 
+    basis is assumed to be in form e^\mu_{(a)} = Econ[a][mu]
 
-void set_levi_civita(void)
+    levi_(ijkl) e0^i e1^j e2^k e3^l will be +1 if spatial
+    	components are right-handed, -1 if left-handed.
+
+    experience suggests that roundoff produces errors of
+    	order 10^{-12} in the result.
+
+*/
+
+double check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM])
+{
+    int i, j, k, l;
+    static int firstc = 1;
+    void set_levi_civita(double levi_civita[NDIM][NDIM][NDIM][NDIM]);
+    static double levi_civita[NDIM][NDIM][NDIM][NDIM];
+
+    if (firstc) {
+	firstc = 0;
+	set_levi_civita(levi_civita);
+    }
+
+    double g = gdet_func(Gcov);
+
+    /* check handedness */
+    double dot = 0.;
+    for (i = 0; i < 4; i++)
+	for (j = 0; j < 4; j++)
+	    for (l = 0; l < 4; l++)
+		for (k = 0; k < 4; k++) {
+		    dot += g * levi_civita[i][j][k][l] *
+			Econ[0][i] * Econ[1][j] * Econ[2][k] * Econ[3][l];
+		}
+
+    return (dot);
+}
+
+/* the completely antisymmetric symbol; not a tensor
+   in the coordinate basis */
+void set_levi_civita(double levi_civita[NDIM][NDIM][NDIM][NDIM])
 {
     int i, j, k, l, n, do_sort, n_perm, val, n_swap;
     int index[NDIM];
@@ -356,31 +422,4 @@ void set_levi_civita(void)
        fflush(stdout); 
        }       
      */
-
-}
-
-double check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM])
-{
-    int i, j, k, l;
-    static int firstc = 1;
-
-    if (firstc) {
-	firstc = 0;
-	set_levi_civita();
-    }
-
-    double g = gdet_func(Gcov);
-
-    /* check handedness */
-    double dot = 0.;
-    for (i = 0; i < 4; i++)
-	for (j = 0; j < 4; j++)
-	    for (l = 0; l < 4; l++)
-		for (k = 0; k < 4; k++) {
-		    dot +=
-			g * levi_civita[i][j][k][l] * Econ[0][i] *
-			Econ[1][j] * Econ[2][k] * Econ[3][l];
-		}
-
-    return (dot);
 }

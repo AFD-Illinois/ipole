@@ -1,4 +1,10 @@
+
+/* 
+    lu decomposition routines, from harm 
+*/
+
 /***********************************************************************************
+
     Copyright 2006 Charles F. Gammie, Jonathan C. McKinney, Scott C. Noble, 
                    Gabor Toth, and Luca Del Zanna
 
@@ -57,36 +63,44 @@
 
 *************************************************************************/
 
-int invert_matrix( double Am[][NDIM], double Aminv[][NDIM] )  
-{ 
+int invert_matrix(double Am[][NDIM], double Aminv[][NDIM])
+{
 
-  int i,j;
-  int n = NDIM;
-  int permute[NDIM]; 
-  double dxm[NDIM], Amtmp[NDIM][NDIM];
-  int LU_decompose( double A[][NDIM], int permute[] );
-  void LU_substitution( double A[][NDIM], double B[], int permute[] );
+    int i, j;
+    int n = NDIM;
+    int permute[NDIM];
+    double dxm[NDIM], Amtmp[NDIM][NDIM];
+    int LU_decompose(double A[][NDIM], int permute[]);
+    void LU_substitution(double A[][NDIM], double B[], int permute[]);
 
-  for( i = 0 ; i < NDIM*NDIM ; i++ ) {  Amtmp[0][i] = Am[0][i]; }
+    for (i = 0; i < NDIM; i++) 
+    for (j = 0; j < NDIM; j++) {
+	Amtmp[i][j] = Am[i][j];
+    }
 
-  // Get the LU matrix:
-  if( LU_decompose( Amtmp,  permute ) != 0  ) { 
-    fprintf(stderr, "invert_matrix(): singular matrix encountered! \n");
-    return(1);
-  }
+    // Get the LU matrix:
+    if (LU_decompose(Amtmp, permute) != 0) {
+	fprintf(stderr,
+		"invert_matrix(): singular matrix encountered! \n");
+	return (1);
+    }
 
-  for( i = 0; i < n; i++ ) { 
-    for( j = 0 ; j < n ; j++ ) { dxm[j] = 0. ; }
-    dxm[i] = 1.; 
-    
-    /* Solve the linear system for the i^th column of the inverse matrix: :  */
-    LU_substitution( Amtmp,  dxm, permute );
+    for (i = 0; i < n; i++) {
+	for (j = 0; j < n; j++) {
+	    dxm[j] = 0.;
+	}
+	dxm[i] = 1.;
 
-    for( j = 0 ; j < n ; j++ ) {  Aminv[j][i] = dxm[j]; }
+	/* Solve the linear system for the i^th column of the inverse matrix: :  */
+	LU_substitution(Amtmp, dxm, permute);
 
-  }
+	for (j = 0; j < n; j++) {
+	    Aminv[j][i] = dxm[j];
+	}
 
-  return(0);
+    }
+
+    return (0);
 }
 
 /*************************************************************************/
@@ -109,161 +123,160 @@ int invert_matrix( double Am[][NDIM], double Aminv[][NDIM] )
 *************************************************************************/
 
 
-int LU_decompose( double A[][NDIM], int permute[] )
+int LU_decompose(double A[][NDIM], int permute[])
 {
 
-  const  double absmin = 1.e-30; /* Value used instead of 0 for singular matrices */
+    const double absmin = 1.e-30;	/* Value used instead of 0 for singular matrices */
 
-  static double row_norm[NDIM];
-  double  absmax, maxtemp, mintemp;
+    static double row_norm[NDIM];
+    double absmax, maxtemp;
 
-  int i, j, k, max_row;
-  int n = NDIM;
+    int i, j, k, max_row;
+    int n = NDIM;
 
 
-  max_row = 0;
+    max_row = 0;
 
-  /* Find the maximum elements per row so that we can pretend later
-     we have unit-normalized each equation: */
+    /* Find the maximum elements per row so that we can pretend later
+       we have unit-normalized each equation: */
 
-  for( i = 0; i < n; i++ ) { 
-    absmax = 0.;
-    
-    for( j = 0; j < n ; j++ ) { 
-      
-      maxtemp = fabs( A[i][j] ); 
+    for (i = 0; i < n; i++) {
+	absmax = 0.;
 
-      if( maxtemp > absmax ) { 
-	absmax = maxtemp; 
-      }
+	for (j = 0; j < n; j++) {
+
+	    maxtemp = fabs(A[i][j]);
+
+	    if (maxtemp > absmax) {
+		absmax = maxtemp;
+	    }
+	}
+
+	/* Make sure that there is at least one non-zero element in this row: */
+	if (absmax == 0.) {
+	    fprintf(stderr, "LU_decompose(): row-wise singular matrix!\n");
+	    return (1);
+	}
+
+	row_norm[i] = 1. / absmax;	/* Set the row's normalization factor. */
     }
 
-    /* Make sure that there is at least one non-zero element in this row: */
-    if( absmax == 0. ) { 
-     fprintf(stderr, "LU_decompose(): row-wise singular matrix!\n");
-      return(1);
-    }
 
-    row_norm[i] = 1. / absmax ;   /* Set the row's normalization factor. */
-  }
+    /* The following the calculates the matrix composed of the sum 
+       of the lower (L) tridagonal matrix and the upper (U) tridagonal
+       matrix that, when multiplied, form the original maxtrix.  
+       This is what we call the LU decomposition of the maxtrix. 
+       It does this by a recursive procedure, starting from the 
+       upper-left, proceding down the column, and then to the next
+       column to the right.  The decomposition can be done in place 
+       since element {i,j} require only those elements with {<=i,<=j} 
+       which have already been computed.
+       See pg. 43-46 of "Num. Rec." for a more thorough description. 
+     */
 
+    /* For each of the columns, starting from the left ... */
+    for (j = 0; j < n; j++) {
 
-  /* The following the calculates the matrix composed of the sum 
-     of the lower (L) tridagonal matrix and the upper (U) tridagonal
-     matrix that, when multiplied, form the original maxtrix.  
-     This is what we call the LU decomposition of the maxtrix. 
-     It does this by a recursive procedure, starting from the 
-     upper-left, proceding down the column, and then to the next
-     column to the right.  The decomposition can be done in place 
-     since element {i,j} require only those elements with {<=i,<=j} 
-     which have already been computed.
-     See pg. 43-46 of "Num. Rec." for a more thorough description. 
-  */
+	/* For each of the rows starting from the top.... */
 
-  /* For each of the columns, starting from the left ... */
-  for( j = 0; j < n; j++ ) {
+	/* Calculate the Upper part of the matrix:  i < j :   */
+	for (i = 0; i < j; i++) {
+	    for (k = 0; k < i; k++) {
+		A[i][j] -= A[i][k] * A[k][j];
+	    }
+	}
 
-    /* For each of the rows starting from the top.... */
+	absmax = 0.0;
 
-    /* Calculate the Upper part of the matrix:  i < j :   */
-    for( i = 0; i < j; i++ ) {
-      for( k = 0; k < i; k++ ) { 
-	A[i][j] -= A[i][k] * A[k][j];
-      }
-    }
+	/* Calculate the Lower part of the matrix:  i <= j :   */
 
-    absmax = 0.0;
+	for (i = j; i < n; i++) {
 
-    /* Calculate the Lower part of the matrix:  i <= j :   */
+	    for (k = 0; k < j; k++) {
+		A[i][j] -= A[i][k] * A[k][j];
+	    }
 
-    for( i = j; i < n; i++ ) {
+	    /* Find the maximum element in the column given the implicit 
+	       unit-normalization (represented by row_norm[i]) of each row: 
+	     */
+	    maxtemp = fabs(A[i][j]) * row_norm[i];
 
-      for (k = 0; k < j; k++) { 
-	A[i][j] -= A[i][k] * A[k][j];
-      }
-
-      /* Find the maximum element in the column given the implicit 
-	 unit-normalization (represented by row_norm[i]) of each row: 
-      */
-      maxtemp = fabs(A[i][j]) * row_norm[i] ;
-
-      if( maxtemp >= absmax ) {
-	absmax = maxtemp;
-	max_row = i;
-      }
-
-    }
-
-    /* Swap the row with the largest element (of column j) with row_j.  absmax
-       This is the partial pivoting procedure that ensures we don't divide
-       by 0 (or a small number) when we solve the linear system.  
-       Also, since the procedure starts from left-right/top-bottom, 
-       the pivot values are chosen from a pool involving all the elements 
-       of column_j  in rows beneath row_j.  This ensures that 
-       a row  is not permuted twice, which would mess things up. 
-    */
-    if( max_row != j ) {
-
-      /* Don't swap if it will send a 0 to the last diagonal position. 
-	 Note that the last column cannot pivot with any other row, 
-	 so this is the last chance to ensure that the last two 
-	 columns have non-zero diagonal elements.
-       */
-
-      if( (j == (n-2)) && (A[j][j+1] == 0.) ) {
-	max_row = j;
-      }
-      else { 
-	for( k = 0; k < n; k++ ) { 
-
-	  maxtemp       = A[   j   ][k] ; 
-	  A[   j   ][k] = A[max_row][k] ;
-	  A[max_row][k] = maxtemp; 
+	    if (maxtemp >= absmax) {
+		absmax = maxtemp;
+		max_row = i;
+	    }
 
 	}
 
-	/* Don't forget to swap the normalization factors, too... 
-	   but we don't need the jth element any longer since we 
-	   only look at rows beneath j from here on out. 
-	*/
-	row_norm[max_row] = row_norm[j] ; 
-      }
+	/* Swap the row with the largest element (of column j) with row_j.  absmax
+	   This is the partial pivoting procedure that ensures we don't divide
+	   by 0 (or a small number) when we solve the linear system.  
+	   Also, since the procedure starts from left-right/top-bottom, 
+	   the pivot values are chosen from a pool involving all the elements 
+	   of column_j  in rows beneath row_j.  This ensures that 
+	   a row  is not permuted twice, which would mess things up. 
+	 */
+	if (max_row != j) {
+
+	    /* Don't swap if it will send a 0 to the last diagonal position. 
+	       Note that the last column cannot pivot with any other row, 
+	       so this is the last chance to ensure that the last two 
+	       columns have non-zero diagonal elements.
+	     */
+
+	    if ((j == (n - 2)) && (A[j][j + 1] == 0.)) {
+		max_row = j;
+	    } else {
+		for (k = 0; k < n; k++) {
+
+		    maxtemp = A[j][k];
+		    A[j][k] = A[max_row][k];
+		    A[max_row][k] = maxtemp;
+
+		}
+
+		/* Don't forget to swap the normalization factors, too... 
+		   but we don't need the jth element any longer since we 
+		   only look at rows beneath j from here on out. 
+		 */
+		row_norm[max_row] = row_norm[j];
+	    }
+	}
+
+	/* Set the permutation record s.t. the j^th element equals the 
+	   index of the row swapped with the j^th row.  Note that since 
+	   this is being done in successive columns, the permutation
+	   vector records the successive permutations and therefore
+	   index of permute[] also indexes the chronology of the 
+	   permutations.  E.g. permute[2] = {2,1} is an identity 
+	   permutation, which cannot happen here though. 
+	 */
+
+	permute[j] = max_row;
+
+	if (A[j][j] == 0.) {
+	    A[j][j] = absmin;
+	}
+
+
+	/* Normalize the columns of the Lower tridiagonal part by their respective 
+	   diagonal element.  This is not done in the Upper part because the 
+	   Lower part's diagonal elements were set to 1, which can be done w/o 
+	   any loss of generality.
+	 */
+	if (j != (n - 1)) {
+	    maxtemp = 1. / A[j][j];
+
+	    for (i = (j + 1); i < n; i++) {
+		A[i][j] *= maxtemp;
+	    }
+	}
+
     }
 
-    /* Set the permutation record s.t. the j^th element equals the 
-       index of the row swapped with the j^th row.  Note that since 
-       this is being done in successive columns, the permutation
-       vector records the successive permutations and therefore
-       index of permute[] also indexes the chronology of the 
-       permutations.  E.g. permute[2] = {2,1} is an identity 
-       permutation, which cannot happen here though. 
-    */
+    return (0);
 
-    permute[j] = max_row;
-
-    if( A[j][j] == 0. ) { 
-      A[j][j] = absmin;
-    }
-
-
-  /* Normalize the columns of the Lower tridiagonal part by their respective 
-     diagonal element.  This is not done in the Upper part because the 
-     Lower part's diagonal elements were set to 1, which can be done w/o 
-     any loss of generality.
-  */
-    if( j != (n-1) ) { 
-      maxtemp = 1. / A[j][j]  ;
-      
-      for( i = (j+1) ; i < n; i++ ) {
-	A[i][j] *= maxtemp;
-      }
-    }
-
-  }
-
-  return(0);
-
-  /* End of LU_decompose() */
+    /* End of LU_decompose() */
 
 }
 
@@ -284,41 +297,39 @@ int LU_decompose( double A[][NDIM], int permute[] )
 								     
 ************************************************************************/
 
-void LU_substitution( double A[][NDIM], double B[], int permute[] )
+void LU_substitution(double A[][NDIM], double B[], int permute[])
 {
-  int i, j ;
-  int n = NDIM;
-  double tmpvar,tmpvar2;
+    int i, j;
+    int n = NDIM;
+    double tmpvar;
 
-  
-  /* Perform the forward substitution using the LU matrix. 
-   */
-  for(i = 0; i < n; i++) {
 
-    /* Before doing the substitution, we must first permute the 
-       B vector to match the permutation of the LU matrix. 
-       Since only the rows above the currrent one matter for 
-       this row, we can permute one at a time. 
-    */
-    tmpvar        = B[permute[i]];
-    B[permute[i]] = B[    i     ];
-    for( j = (i-1); j >= 0 ; j-- ) { 
-      tmpvar -=  A[i][j] * B[j];
+    /* Perform the forward substitution using the LU matrix. 
+     */
+    for (i = 0; i < n; i++) {
+
+	/* Before doing the substitution, we must first permute the 
+	   B vector to match the permutation of the LU matrix. 
+	   Since only the rows above the currrent one matter for 
+	   this row, we can permute one at a time. 
+	 */
+	tmpvar = B[permute[i]];
+	B[permute[i]] = B[i];
+	for (j = (i - 1); j >= 0; j--) {
+	    tmpvar -= A[i][j] * B[j];
+	}
+	B[i] = tmpvar;
     }
-    B[i] = tmpvar; 
-  }
-	   
 
-  /* Perform the backward substitution using the LU matrix. 
-   */
-  for( i = (n-1); i >= 0; i-- ) { 
-    for( j = (i+1); j < n ; j++ ) { 
-      B[i] -=  A[i][j] * B[j];
+
+    /* Perform the backward substitution using the LU matrix. 
+     */
+    for (i = (n - 1); i >= 0; i--) {
+	for (j = (i + 1); j < n; j++) {
+	    B[i] -= A[i][j] * B[j];
+	}
+	B[i] /= A[i][i];
     }
-    B[i] /= A[i][i] ; 
-  }
 
-  /* End of LU_substitution() */
-
+    /* End of LU_substitution() */
 }
-

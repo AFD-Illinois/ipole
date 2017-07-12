@@ -17,17 +17,6 @@ extern double ****p;
 extern double ***ne;
 extern double ***thetae;
 extern double ***b;
-extern double ***Ber;
-
-/*emissivity functions and functions used for Faraday conversion and rotation*/
-/*from Dexter PhD thesis (checked with Leung harmony program, and Huang & Shcherbakov 2011*/
-double gfun(double Xe){
-  return 1.-0.11*log(1+0.035*Xe);
-}
-double hfun(double Xe){
-  return 2.011*exp(-pow(Xe,1.035)/4.7)-cos(Xe*0.5)*exp(-pow(Xe,1.2)/2.73)-0.011*exp(-Xe/47.2);
-}
-
 
 void init_harm3d_grid(char *fname)
 {
@@ -103,13 +92,8 @@ void init_harm3d_data(char *fname)
 	double X[NDIM],UdotU,ufac,udotB;
 	double gcov[NDIM][NDIM],gcon[NDIM][NDIM], g;
 	double dMact, Ladv, MBH;
-	double BSQ;
 	double r,th;
-	double Ne,beta,b2,trat,Thetae_unit,Thetae,theta,B,delr,frel,Omega0,omega,S2,Xe,rhov,RM,RMacc,kcon[NDIM],nu,ucovrm[NDIM];
-
 	FILE *fp;
-	FILE *fp1;
-	FILE *fp2;
 
 	fp = fopen("model_param.dat","r") ;
         if(fp == NULL) {
@@ -140,19 +124,12 @@ void init_harm3d_data(char *fname)
 	H5LTread_dataset_double(file_id, "B2",	&(p[B2][0][0][0]));
 	H5LTread_dataset_double(file_id, "B3",	&(p[B3][0][0][0]));
 
-
 	H5Fclose(file_id);
 	X[0] = 0.;
 	X[3] = 0.;
 
 	//fprintf(stderr,"reconstructing 4-vectors...\n");
 	dMact = Ladv = 0.;
-	RMacc=0.0;
-	//null normalized radial wavevector
-	kcon[0]=1;
-	kcon[1]=1;
-	kcon[2]=0;
-	kcon[3]=0;
 
 	//reconstruction of variables at the zone center!
 	for(i = 0; i < N1; i++){
@@ -184,13 +161,6 @@ void init_harm3d_data(char *fname)
 	      for(l = 1; l < NDIM; l++) bcon[i][j][k][l] = (p[B1+l-1][i][j][k] + ucon[i][j][k][l]*udotB)/ucon[i][j][k][0];
 	      lower(bcon[i][j][k], gcov, bcov[i][j][k]);
 
-	      Ber[i][j][k] = -(1.+ p[UU][i][j][k]/p[KRHO][i][j][k]*gam)*ucov[i][j][k][0];
-
-	      BSQ=bcon[i][j][k][0]*bcov[i][j][k][0] +
-		bcon[i][j][k][1]*bcov[i][j][k][1] +
-		bcon[i][j][k][2]*bcov[i][j][k][2] +
-		bcon[i][j][k][3]*bcov[i][j][k][3] ;
-	      
 	      if(i <= 20) dMact += g * p[KRHO][i][j][k] * ucon[i][j][k][1] ;
 	      if(i >= 20 && i < 40) Ladv += g * p[UU][i][j][k] * ucon[i][j][k][1] * ucov[i][j][k][0] ;
 
@@ -203,16 +173,14 @@ void init_harm3d_data(char *fname)
 	Ladv *= dx[3]*dx[2] ;
 	Ladv /= 21. ;
 
-	fprintf(stderr,"dMact: %g\n",dMact) ;
-	fprintf(stderr,"Ladv: %g\n",Ladv) ;
-        fprintf(stderr,"Lunit: %g %g %g\n",L_unit,T_unit,M_unit) ;
-        fprintf(stderr,"Mdot: %g x M_unit [MSUN/YR] \n",-dMact / T_unit / (MSUN / YEAR));
+	fprintf(stderr,"dMact: %g [code]\n",dMact) ;
+	fprintf(stderr,"Ladv: %g [code]\n",Ladv) ;
+	fprintf(stderr,"Mdot: %g [g/s] \n",-dMact*M_unit/T_unit) ;
 	fprintf(stderr,"Mdot: %g [MSUN/YR] \n",-dMact*M_unit/T_unit/(MSUN / YEAR)) ;
-        double Medd=4.*M_PI*GNEWT*MBH*MP/CL/0.1/SIGMA_THOMSON;
-	fprintf(stderr,"Mdot in Eddington units") ;
-        fprintf(stderr,"Mdotedd: %g [g/s]\n",Medd) ;
-        fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Medd/MSUN*YEAR) ;
-        fprintf(stderr,"Mdot: %g [Medd]\n",-dMact*M_unit/T_unit/Medd) ;
+        double Mdotedd=4.*M_PI*GNEWT*MBH*MP/CL/0.1/SIGMA_THOMSON;
+        fprintf(stderr,"Mdot: %g [Mdotedd]\n",-dMact*M_unit/T_unit/Mdotedd) ;
+        fprintf(stderr,"Mdotedd: %g [g/s]\n",Mdotedd) ;
+        fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Mdotedd/(MSUN/YEAR)) ;
 	
 }
 

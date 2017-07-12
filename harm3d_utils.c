@@ -11,7 +11,6 @@ extern double ****p;
 extern double ***ne;
 extern double ***thetae;
 extern double ***b;
-extern double ***Ber;
 
 void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]) ;
 
@@ -71,7 +70,7 @@ void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]){
 /* return	 scalar in cgs units */
 double interp_scalar(double X[NDIM], double ***var)
 {
-	double del[NDIM],b1,b2,i1,i2,i3,i4,i5,i6,i7,i8,interp;
+	double del[NDIM],b1,b2,interp;
 	int i, j, k, ip1, jp1, kp1;
 
 	/* find the current zone location and offsets del[0], del[1] */
@@ -119,7 +118,7 @@ double interp_scalar(double X[NDIM], double ***var)
 
 void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
 {
-  double phi,b3;
+  double phi;
 
 	/* Map X[3] into sim range, assume startx[3] = 0 */
 	phi = fmod(X[3], stopx[3]);
@@ -240,14 +239,12 @@ void set_units(char *munitstr)
 	    and derivative units **/
 	L_unit = GNEWT * MBH / (CL * CL);
 	T_unit = L_unit / CL;
-	fprintf(stderr,"UNITS\n") ;
-	fprintf(stderr,"L,T,M: %g %g %g\n",L_unit,T_unit,M_unit) ;
-
 	RHO_unit = M_unit / pow(L_unit, 3);
 	U_unit = RHO_unit * CL * CL;
 	B_unit = CL * sqrt(4.*M_PI*RHO_unit);
-	fprintf(stderr,"rho,u,B: %g %g %g\n",RHO_unit,U_unit,B_unit) ;
 
+	fprintf(stderr,"L,T,M units: %g [cm] %g [g] %g [sec]\n",L_unit,T_unit,M_unit) ;
+	fprintf(stderr,"rho,u,B units: %g [g cm^-3] %g [g cm^-1 sec^-2] %g [G] \n",RHO_unit,U_unit,B_unit) ;
 }
 
 
@@ -255,18 +252,10 @@ void set_units(char *munitstr)
 void init_physical_quantities(void)
 {
 	int i, j, k;
-	double gcov[NDIM][NDIM] ;
-        double gcon[NDIM][NDIM] ;
-        double X[NDIM],Be,lor,betaf,bsq;
-	double THETAE_MAX=500.;
-	double r,th,thmax,thmin,two_temp_gam,Thetae_unit,sigma_m,beta,b2,beta_trans;
-	double trat;
-	double Kin,Res,Epoynting;
+        double bsq,Thetae_unit,sigma_m,beta,b2,trat;
 
 	for (i = 0; i < N1; i++) {
-	  X[1] = startx[1] + ( i + 0.5)*dx[1];
 		for (j = 0; j < N2; j++) {
-		  X[2] = startx[2] + (j+0.5)*dx[2];
 			for (k = 0; k < N3; k++) {
 			  ne[i][j][k] = p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
 
@@ -278,37 +267,15 @@ void init_physical_quantities(void)
 			  b[i][j][k] = sqrt(bsq)*B_unit ;
 			  sigma_m=bsq/p[KRHO][i][j][k] ;
 
-			  //Hydro-bernoulli parameter
-			  Be = -(1.+ p[UU][i][j][k]/p[KRHO][i][j][k]*gam)*ucov[i][j][k][0]; //>1 
-			  Ber[i][j][k]=Be;                           
-			  
-			  //for large scale jet old prescription
-			  //two_temp_gam = 0.5 * ((1. + 2. / 3. * (trat_d + 1.) / (trat_d + 2.)) + gam);             
-			  //Thetae_unit = (two_temp_gam - 1.) * (MP / ME) / (1. + trat_d);  
-			  //simplified
-
-			  /*
-			  Thetae_unit = (gam - 1.) * (MP / ME) / trat_d;
-			  thetae[i][j][k] = (p[UU][i][j][k]/p[KRHO][i][j][k])* Thetae_unit;
-			  if(Be>=1.02) thetae[i][j][k] = theta_j;
-			  */
-
 			  // beta presciption
-			  
 			  beta=p[UU][i][j][k]*(gam-1.)/0.5/bsq;
 			  b2=pow(beta,2);
 			  trat = trat_d * b2/(1. + b2) + trat_j /(1. + b2);
 			  Thetae_unit = (gam - 1.) * (MP / ME) / trat;
 			  thetae[i][j][k] = (p[UU][i][j][k]/p[KRHO][i][j][k])* Thetae_unit;
 			  
-
-			  /*p=kappa-1*/
-			  Ber[i][j][k] = 7.5 * b2/(1. + b2) + 2.5 /(1. + b2);
-			  
-		  
 			  //strongly magnetized = empty, no shiny spine
 			  if(sigma_m > 2.0) ne[i][j][k]=0.0;
-
 			}
 		}
 	}
@@ -432,7 +399,6 @@ void init_storage(void)
 	ne = malloc_rank3(N1,N2,N3);
 	thetae = malloc_rank3(N1,N2,N3);
 	b = malloc_rank3(N1,N2,N3);
-	Ber = malloc_rank3(N1,N2,N3);
 
 	return;
 }

@@ -11,6 +11,10 @@
 #include "constants.h"
 #include <complex.h> 
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 /*chose radiative proces to simulate*/
 #define SYN (1) /*synchrotron radiation*/
 #define FF (0) /* emission from free-free transitions, all functions for bremsstrahlung defined in brem.c, uses gsl libraries to integrate j^{ee}*/
@@ -38,24 +42,13 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
-
-extern int pflag ;
-
 /* some coordinate parameters */
 extern double a;
-extern double freqcgs1;
 
-extern double delta_acc;
 extern double theta_j;
 extern double trat_j;
 extern double trat_d;
 //2d
-
-extern double Gtab[202];
-extern double Gatab[202];
-extern double xtab[202];
-extern double xatab[202];
-
 
 extern double R0 ;
 extern double Rin ;
@@ -79,8 +72,7 @@ extern int N1, N2, N3;
 
 /** model-independent subroutines **/
 /* core routines */
-void init(int i, int j, double Xcam[4], double Ucam[4], double fovx, double fovy,
-	double X[4], double Kcon[4]) ;
+void init(int i, int j, double Xcam[4], double fovx, double fovy, double X[4], double Kcon[4]) ;
 void null_normalize(double Kcon[NDIM], double fnorm) ;
 void normalize(double *vcon, double gcov[][NDIM]);
 double approximate_solve(double Ii, double ji, double ki, double jf, double kf, double dl) ;
@@ -111,7 +103,6 @@ void init_model(char *args[]) ;
 double get_model_thetae(double X[NDIM]) ;
 double get_model_b(double X[NDIM]) ;
 double get_model_ne(double X[NDIM]) ;
-double get_model_Ber(double X[NDIM]) ;
 void get_model_bcov(double X[NDIM], double Bcov[NDIM]) ;
 void get_model_bcon(double X[NDIM], double Bcon[NDIM]) ;
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]) ;
@@ -146,47 +137,30 @@ void   make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM], double Ecov[N
 void   make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
 	double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM], double Ecov[NDIM][NDIM]) ;
 
-
 /* imaging */
 void make_ppm(double p[NX][NY], double freq, char filename[]) ;
 void rainbow_palette(double data, double min, double max, int *pRed, int *pGreen, int *pBlue) ;
 
 /* radiation */
 double Bnu_inv(double nu, double Thetae) ;
-double jnu_inv(double nu, double Thetae, double Ne, double B, double theta,double Be) ;
-double anu_inv(double nu, double Thetae, double Ne, double B, double theta,double Be) ;
-double jnu_inv_nth(double nu, double Thetae, double Ne, double B, double theta, double Be) ;
-double anu_inv_nth(double nu, double Thetae, double Ne, double B, double theta, double Be) ;
+double jnu_inv(double nu, double Thetae, double Ne, double B, double theta) ;
 double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM]) ;
 double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM]) ;
 
 /* emissivity */ 
-double jnu_synch(double nu, double Ne, double Thetae, double B, double theta,double Be) ;
-double anu_synch(double nu, double Ne, double Thetae, double B, double theta,double Be) ;
-double jnu_synch_nth(double nu, double Ne, double Thetae, double B, double theta,double Be) ;
-double anu_synch_nth(double nu, double Ne, double Thetae, double B, double theta,double Be) ;
+double jnu_synch(double nu, double Ne, double Thetae, double B, double theta) ;
 
 #define DLOOP  for(k=0;k<NDIM;k++)for(l=0;l<NDIM;l++)
 
-
-/*bremsstralung functions added by Monika Moscibrodzka, brem.c and jnu_mixed.c*/
-/*in jnu_mixed.c*/
-double jnu_ff(double nu, double Ne, double Thetae, double B, double theta) ;
-/*in brem.c*/
-//double f1 (double gamma, void * p);
-double w_dsigma_dw(double w, double gamma);
-double jnu_ff_ee(double nu, double Ne, double Thetae);
-double G_ff(double x,double Thetae);
-double Bl(double x);
-double Ei(double xx);
-
-void init_N(const double Xi[NDIM],const double Kconi[NDIM],double complex Ncon[NDIM][NDIM]);
-void evolve_N(const double Xi[NDIM],const double Kconi[NDIM],
-	      const double Xf[NDIM],const double Kconf[NDIM],
-	      const double Xhalf[NDIM],const double Kconhalf[NDIM],
-	      const double dlam,
+void init_N(double Xi[NDIM],double Kconi[NDIM],double complex Ncon[NDIM][NDIM]);
+void evolve_N(double Xi[NDIM],double Kconi[NDIM],
+	      double Xf[NDIM],double Kconf[NDIM],
+	      double Xhalf[NDIM],double Kconhalf[NDIM],
+	      double dlam,
 	      double complex N_coord[NDIM][NDIM]);
-void project_N(const double X[NDIM],const double Kcon[NDIM],const double Ucam[NDIM],const double complex Ncon[NDIM][NDIM],double *Stokes_I,double *Stokes_Q,double *Stokes_U,double *Stokes_V);
+void project_N(double X[NDIM],double Kcon[NDIM],
+	double complex Ncon[NDIM][NDIM],
+	double *Stokes_I, double *Stokes_Q,double *Stokes_U,double *Stokes_V);
 
 
 

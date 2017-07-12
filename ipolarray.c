@@ -31,11 +31,10 @@ double jffunc(double Xe);
 double I_I(double x);
 double I_Q(double x);
 double I_V(double x);
-double Bnu(double nu, double Thetae);
 double besselk_asym(int n, double x);
 
 /* transfer coefficients in tetrad frame */
-void jar_calc(const double X[NDIM], const double Kcon[NDIM],
+void jar_calc(double X[NDIM], double Kcon[NDIM],
 	      double *jI, double *jQ, double *jU, double *jV,
 	      double *aI, double *aQ, double *aU, double *aV,
 	      double *rQ, double *rU, double *rV);
@@ -61,7 +60,7 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
 /***************************MAIN FUNCTIONS******************************/
 /* initialize tensor N in the coordinate frame at the bening of the *
 geodesics integration = it is zero */
-void init_N(const double X[NDIM], const double Kcon[NDIM],
+void init_N(double X[NDIM], double Kcon[NDIM],
 	    double complex N_coord[NDIM][NDIM])
 {
     int m, n;
@@ -69,44 +68,14 @@ void init_N(const double X[NDIM], const double Kcon[NDIM],
     MNLOOP N_coord[m][n] = 0.0 + I * 0.0;
 
     return;
-
-#if 0
-    int k, i, j, l;
-    double SI, SQ, SU, SV, SI0, SQ0, SU0, SV0;
-    double complex N_tetrad[NDIM][NDIM];
-    double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
-    double Ucon[NDIM], Ucov[NDIM], Kcov[NDIM], Bcon[NDIM];
-    double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
-
-    /* or this, in case if you want to test transport of 
-       Stokes parameters, and test transport part */
-    SI = 4.0;
-    SQ = 3.0;
-    SU = 2.0;
-    SV = 1.0;
-
-    stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
-
-    gcov_func(X, gcov);
-    get_model_ucon(X, Ucon);
-
-    double B = get_model_b(X);	/* field in G */
-    if (B > 0.) {
-        get_model_bcon(X, Bcon);
-    }
-    else {
-	Bcon[0] = 0.;
-	for (k = 1; k < NDIM; k++)
-	    Bcon[k] = 1.;
-    }
-    make_plasma_tetrad(Ucon, Kcon, Bcon, gcov, Econ, Ecov);
-
-    complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
-#endif
-
 }
 
 
+/*
+
+    parallel transport N over dl 
+
+*/
 void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 		double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
 		complex double Ni[NDIM][NDIM],
@@ -140,29 +109,26 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 /* and somehow rotate this along the geodesics knowing */
 /* first point and last point X and K*/
 
-void evolve_N(const double Xi[NDIM], const double Kconi[NDIM],
-	      const double Xhalf[NDIM], const double Kconhalf[NDIM],
-	      const double Xf[NDIM], const double Kconf[NDIM],
-	      const double dlam, double complex N_coord[NDIM][NDIM])
+void evolve_N(double Xi[NDIM], double Kconi[NDIM],
+	      double Xhalf[NDIM], double Kconhalf[NDIM],
+	      double Xf[NDIM], double Kconf[NDIM],
+	      double dlam, double complex N_coord[NDIM][NDIM])
 {
-    int i, j, k, l, m, n;
+    int k;
     double gcov[NDIM][NDIM];
-    double Ucon[NDIM];
-    double Bcon[NDIM], Bcov[NDIM];
+    double Ucon[NDIM],Bcon[NDIM];
     double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
-    double lconn[NDIM][NDIM][NDIM];
     double complex Nh[NDIM][NDIM];
-    double B;
     double complex N_tetrad[NDIM][NDIM];
+    double B;
     double jI, jQ, jU, jV;
     double aI, aQ, aU, aV;
-    double rV, rU, rQ, rho2, rho, rdS;
+    double rV, rU, rQ; 
+    double rho2, rho, rdS;
     double SI, SQ, SU, SV;
     double SI0, SQ0, SU0, SV0;
     double SI1, SQ1, SU1, SV1;
     double SI2, SQ2, SU2, SV2;
-    double SI3, SQ3, SU3, SV3;
-    double nu;
     int radiating_region(double X[4]);
 
     /* parallel transport N by a half, and then full, step */
@@ -274,7 +240,6 @@ void evolve_N(const double Xi[NDIM], const double Kconi[NDIM],
 	}
 	/* done absorption/emission full step */
 
-
 	/* apply second rotation half-step */
 	x = dlam * 0.5;
 	rdS = rQ * SQ2 + rU * SU2 + rV * SV2;
@@ -308,28 +273,18 @@ void evolve_N(const double Xi[NDIM], const double Kconi[NDIM],
 
 
 /* converts tensor N to Stokes parameters detected at the camera*/
-void project_N(const double X[NDIM], const double Kcon[NDIM],
-	       const double Ucam[NDIM],
-	       const double complex N_coord[NDIM][NDIM], double *Stokes_I,
+void project_N(double X[NDIM], double Kcon[NDIM],
+	       double complex N_coord[NDIM][NDIM], double *Stokes_I,
 	       double *Stokes_Q, double *Stokes_U, double *Stokes_V)
 {
-    int i, j, l, k, m, n;
-    double Gcov[NDIM][NDIM];
-    double Kcov[NDIM];
     double complex N_tetrad[NDIM][NDIM];
     double Econ[NDIM][NDIM], Ecov[NDIM][NDIM];
-    double trial1[NDIM], trial2[NDIM];
-    double SI, SQ, SU, SV;
 
     make_camera_tetrad(X, Econ, Ecov);
 
     complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
-    tensor_to_stokes(N_tetrad, &SI, &SQ, &SU, &SV);
 
-    *Stokes_I = SI;
-    *Stokes_Q = SQ;
-    *Stokes_U = SU;
-    *Stokes_V = SV;
+    tensor_to_stokes(N_tetrad, Stokes_I, Stokes_Q, Stokes_U, Stokes_V);
 
     return;
 
@@ -341,15 +296,14 @@ void project_N(const double X[NDIM], const double Kcon[NDIM],
 /*************************SUPPORTING FUNCTIONS******************************/
 
 /*invariant plasma emissivities/abs/rot in tetrad frame */
-void jar_calc(const double X[NDIM], const double Kcon[NDIM],
+void jar_calc(double X[NDIM], double Kcon[NDIM],
 	      double *jI, double *jQ, double *jU, double *jV,
 	      double *aI, double *aQ, double *aU, double *aV,
 	      double *rQ, double *rU, double *rV)
 {
-    int m, n, i, j, k, ii, jj, iii, jjj;
-    double nu, Thetae, Ne, B, theta, en, nusq;
-    double x, Xe, omega0, omega, nuc, nub;
-    double Bnu1, Binv;
+    double nu, Thetae, Ne, B, theta, nusq;
+    double x, Xe, omega0, nuc;
+    double Bnuinv;
     double Ucov[NDIM];
     double Thetaer, wp2;
 
@@ -374,9 +328,12 @@ void jar_calc(const double X[NDIM], const double Kcon[NDIM],
 
 	nu = get_fluid_nu(Kcon, Ucov);	/* freqcgs1;  freq in Hz */
 	wp2 = 4. * M_PI * Ne * EE * EE / ME;
+	B = get_model_b(X);		/* field in G                */
 	omega0 = EE * B / ME / CL;
 	Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
 	Thetaer = 1. / Thetae;
+					/* Faraday rotativities for thermal plasma */
+	Xe = Thetae * sqrt(S2 * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
 	*rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
 	    (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
 
@@ -387,7 +344,6 @@ void jar_calc(const double X[NDIM], const double Kcon[NDIM],
 
 	nu = get_fluid_nu(Kcon, Ucov);	/* freqcgs1;  freq in Hz */
 	nusq = nu * nu;
-	en = HPL * nu;		/* erg s Hz                  */
 	B = get_model_b(X);	/* field in G                */
 	Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
 	Thetaer = 1. / Thetae;
@@ -396,23 +352,7 @@ void jar_calc(const double X[NDIM], const double Kcon[NDIM],
 	wp2 = 4. * M_PI * Ne * EE * EE / ME;
 
 	/* Faraday rotativities for thermal plasma */
-	Xe = Thetae * sqrt(S2 * sin(theta) *
-			   (1.e3 * omega0 / 2. / M_PI / nu));
-
-	/*below expressions are correct but use gsl functions */
-	/*
-	 *rV=2.0*M_PI*nu/CL *
-	 wp2*omega0/pow(2.*M_PI*nu,3)*
-	 (gsl_sf_bessel_Kn(0,Thetaer)-Je(Xe))/gsl_sf_bessel_Kn(2,Thetaer)*cos(theta);
-
-	 *rQ=2.*M_PI*nu/2./CL*jffunc(Xe)*wp2*omega0*omega0/pow(2*M_PI*nu,4)*
-	 (gsl_sf_bessel_Kn(1,Thetaer)/gsl_sf_bessel_Kn(2,Thetaer)+6.*Thetae)*sin(theta)*sin(theta);
-
-	 *rU=0.0;
-
-	 *rQ *= nu;
-	 *rV *= nu;
-	*/
+	Xe = Thetae * sqrt(S2 * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
 
 	/* Here I use approximate bessel functions to match rhoqv with grtrans */
 	*rQ = 2. * M_PI * nu / 2. / CL * wp2 * omega0 * omega0 / pow(2 * M_PI * nu, 4) *
@@ -421,9 +361,6 @@ void jar_calc(const double X[NDIM], const double Kcon[NDIM],
 	*rU = 0.0;
 	*rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
 	    (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
-
-	//*rQ=0.0; //uncomment to turn off term responsible for Faraday conversion
-	//*rV=0.0; //uncomment to turn off term responsible for Faraday rotation
 
 	/*synchrotron emissivity */
 	nuc = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
@@ -434,18 +371,18 @@ void jar_calc(const double X[NDIM], const double Kcon[NDIM],
 	*jU = 0.0;		// convention; depends on tetrad
 	*jV = 2. * Ne * EE * EE * nu / tan(theta) / 3. / S3 / CL / Thetae / Thetae / Thetae * I_V(x);
 
-	/* invariant synchrotron absopritivty */
-	Bnu1 = Bnu(nu, Thetae);   /* Planck function */
-	*aI = *jI / (Bnu1) * nu;
-	*aQ = *jQ / (Bnu1) * nu;
-	*aU = *jU / (Bnu1) * nu;
-	*aV = *jV / (Bnu1) * nu;
-
 	/* invariant emissivity */
 	*jI /= nusq;
 	*jQ /= nusq;
 	*jU /= nusq;
 	*jV /= nusq;
+
+	/* invariant synchrotron absorptivity */
+	Bnuinv = Bnu_inv(nu, Thetae);   /* Planck function */
+	*aI = *jI / Bnuinv;
+	*aQ = *jQ / Bnuinv;
+	*aU = *jU / Bnuinv;
+	*aV = *jV / Bnuinv;
 
 	/* invariant rotativities */
 	*rQ *= nu;
@@ -513,21 +450,6 @@ double I_V(double x)
 	exp(-1.8899 * pow(x, 1. / 3.));
 }
 
-/* Planck funtion: Bnu Bnu_inv*nu**3*/
-double Bnu(double nu, double Thetae)
-{
-    double x;
-    x = HPL * nu / (ME * CL * CL * Thetae);
-
-    //    if(x < 1.e-3)   /* Taylor expand */
-    // return ((2.*HPL/(CL*CL))/( x/24. * (24. + x*(12. + x*(4. + x))))*nu*nu*nu);
-    if (x < 1.e-6)		/* Taylor expand */
-	return 2 * nu * nu * ME * Thetae;	//this way to match grtrans
-    else
-	return ((2. * HPL / (CL * CL)) / (exp(x) - 1.) * nu * nu * nu);
-
-}
-
 double besselk_asym(int n, double x)
 {
 
@@ -540,11 +462,22 @@ double besselk_asym(int n, double x)
     if (n == 2)
 	return 2. / x / x;
 
-
+    fprintf(stderr,"this cannot happen\n");
+    exit(1);
 }
 
 /*end of emissivity functions*/
 
+/*
+
+    call this function if you want to check
+    that the coherency tensor N satisfies certain
+    basic properties:
+    k . N = N . k = 0
+    hermitian
+    evaluate the invariants: I, Q^2 + U^2, V^2
+
+*/
 
 void check_N(double complex N[NDIM][NDIM],
 	     double Kcon[NDIM], double gcov[NDIM][NDIM])
@@ -574,7 +507,6 @@ void check_N(double complex N[NDIM][NDIM],
     }
     fprintf(stderr, "k . N)\n");
 
-#if 1
     /* check for hermiticity */
     fprintf(stderr, "(herm:\n");
     for (i = 0; i < 4; i++)
@@ -617,7 +549,6 @@ void check_N(double complex N[NDIM][NDIM],
 	    dot +=
 		-2. * 0.25 * (N[i][j] - N[j][i]) * (Ndd[i][j] - Ndd[j][i]);
     fprintf(stderr, "Vsqsq: %g + i %g\n", creal(dot), cimag(dot));
-#endif
 
     fprintf(stderr, "leave check_N\n");
 }
@@ -734,8 +665,6 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
     return;
 }
 
-
-//these definitions are only used in ipolarray.c
 #undef S2
 #undef S3
 #undef MNLOOP

@@ -15,10 +15,9 @@ int compare_doubles(const void *a, const void *b)
 void make_ppm(double p[NX][NY], double freq, char filename[])
 {
 
-	int i, j, k, icolor, npixels;
-	double *q, min, max, scale, iq, liq;
+	int i, j, k, npixels;
+	double *q, min, max;
 	FILE *fp;
-	static int firstc = 1 ;
 	double *alloc_double_array( int ndata )  ;
 
 	npixels = NX * NY;

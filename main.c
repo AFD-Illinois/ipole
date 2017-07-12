@@ -4,9 +4,6 @@
 
 #define MAXNSTEP 	50000
 
-#define MAX(a,b) (((a)>(b))?(a):(b))
-#define sign(x) (((x) < 0) ? -1 : ((x) > 0))
-
 struct of_traj {
     double dl;
     double X[NDIM];
@@ -21,16 +18,15 @@ double image[NX][NY];
 extern double imageS[NX][NY][NDIM];
 double imageS[NX][NY][NDIM];
 
+int threadid,nthreads;
 
 int main(int argc, char *argv[])
 {
     double X[NDIM], Kcon[NDIM];
     double Xhalf[NDIM], Kconhalf[NDIM];
-    double dl, Intensity, tau, dlsubstep;
+    double dl, Intensity;
     double DX, DY, fovx, fovy;
-    double thetacam, phicam, rcam, Xcam[NDIM], Kcam[NDIM], Ucam[NDIM];
-    double Gcov[NDIM][NDIM];
-    double Gcon[NDIM][NDIM];
+    double thetacam, phicam, rcam, Xcam[NDIM];
 
     double freq, freqcgs;
     double Ftot, Dsource;
@@ -38,14 +34,24 @@ int main(int argc, char *argv[])
     double Xi[NDIM], Xf[NDIM], Kconi[NDIM], Kconf[NDIM], ji, ki, jf, kf;
     double scale;
     double root_find(double th);
-    double jtau, ktau, RMtau;
     int imax, jmax;
     double Imax, Iavg;		//,dOmega;
-    double dltot;
     double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
     double complex N_coord[NDIM][NDIM];
-    double gdet;
 
+#ifdef _OPENMP
+#pragma omp parallel default(none) shared(nthreads) private(threadid)
+    {
+        threadid = omp_get_thread_num();
+        printf("tid = %d\n", threadid);
+        if(threadid==0) {
+            nthreads = omp_get_num_threads();
+            printf("nthreads = %d\n",nthreads);
+        }
+    }
+#else
+    printf("_OPENMP not defined: running in serial\n");
+#endif
 
     if (argc < 6) {
 	// fprintf(stderr,"usage: ipole theta freq filename Munit theta_j trat_d\n") ;
@@ -61,12 +67,12 @@ int main(int argc, char *argv[])
     sscanf(argv[6], "%lf", &trat_d);
 
     init_model(argv);
+    R0 = 0.0;
+
     /* normalize frequency to electron rest-mass energy */
     freq = freqcgs * HPL / (ME * CL * CL);
-    freqcgs1 = freqcgs;
 
-    /* initialize local parameters */
-    /* fix camera worldline */
+    /* fix camera location */
     rcam = 240.;
     phicam = -1.5708;		//corresponds to +1.57 in grtrans
     Xcam[0] = 0.0;
@@ -79,47 +85,39 @@ int main(int argc, char *argv[])
 	    (th_beg + th_len * Xcam[2]) * 180. / M_PI, th_beg, th_len, a,
 	    R0, hslope);
 
-    R0 = 0.0;
-    Ucam[0] = 1.;		/* camera is chosen to have dr/dtau = dtheta/dtau = dphi/dtau = 0 */
-    Ucam[1] = 0.;
-    Ucam[2] = 0.;
-    Ucam[3] = 0.;
-
-    gcov_func(Xcam, Gcov);	/* uses harm3D coordinates - grid with cut-offs, so
-				   the k four-vector is set in the coordinates that cut 
-				   off the polar regions, hence connections should be cut like that as well...
-				   , but what happens when the four vector gets into the forbidden zone? */
-    normalize(Ucam, Gcov);
 
     /* fix camera field of view */
     /* units = GM/c^2 in plane of the hole */
-
     DX = 40.0;
     DY = 40.0;
-
     fovx = DX / rcam;
     fovy = DY / rcam;
 
     //      Dsource = DM87 ;
     Dsource = DSGRA;
-    scale =
-	(DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
-    fprintf(stderr, "scale=%g D=%g cm FOVx=%g FOVy=%g Lunit=%g %g\n",
-	    scale, Dsource, DX, DY, L_unit,
-	    4 * M_PI * Dsource * Dsource / 1e23);
+    scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
+    fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
+    fprintf(stderr,"Dsource: %g [cm]\n",Dsource);
+    fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
+    fprintf(stderr,"FOVx, FOVy: %g %g [GM/c^2]\n",DX,DY);
+    fprintf(stderr,"FOVx, FOVy: %g %g [rad]\n",DX*L_unit/Dsource,DY*L_unit/Dsource);
+    fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
 
+    int nprogress = 0;
+
+#pragma omp parallel for \
+default(none) \
+schedule(static,NX*NY/nthreads) \
+collapse(2) \
+private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
+   Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
+   Stokes_V) \
+shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
+   th_beg,th_len,hslope,nthreads,nprogress) 
     for (i = 0; i < NX; i++) {
-	fprintf(stderr, " %d", i);
-#pragma omp parallel for default(none) \
-private(j,k,l,ki,kf,ktau,ji,jf,jtau,nstep,dlsubstep,dl,X,Xhalf,Kcon,Kconhalf,\
-   Xi,Xf,Kconi,Kconf,traj,Intensity,tau,dltot,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
-   Stokes_V,Gcov,Gcon,gdet,Kcam) \
-shared(i,Xcam,Ucam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
-   th_beg,th_len,hslope) \
-schedule(static,1)
 	for (j = 0; j < NY; j++) {
 
-	    init(i, j, Xcam, Ucam, fovx, fovy, X, Kcon);
+	    init(i, j, Xcam, fovx, fovy, X, Kcon);
 
 	    for (k = 0; k < NDIM; k++)
 		Kcon[k] *= freq;
@@ -195,30 +193,30 @@ schedule(static,1)
 
 	    /* deposit intensity, and Stokes parameters in pixels */
 	    image[i][j] = Intensity * pow(freqcgs, 3);
-	    project_N(Xf, Kconf, Ucam, N_coord, &Stokes_I, &Stokes_Q,
-		      &Stokes_U, &Stokes_V);
+	    project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V);
 	    imageS[i][j][0] = Stokes_I * pow(freqcgs, 3);
 	    imageS[i][j][1] = Stokes_Q * pow(freqcgs, 3);
 	    imageS[i][j][2] = Stokes_U * pow(freqcgs, 3);
 	    imageS[i][j][3] = Stokes_V * pow(freqcgs, 3);
 
+	    if( (nprogress % NY) == 0 ) {
+	        fprintf(stderr,"%d ",(nprogress/NY));
+	    }
+
+#pragma omp atomic	
+            nprogress += 1;
 	}
-#pragma omp barrier
     }
 
 
     /* printing out to files and on stderr */
-    scale =
-	(DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
-    fprintf(stderr, "\nscale=%g\n", scale);
-
     Ftot = 0.;
     Imax = 0.0;
     Iavg = 0.0;
+    imax = jmax = 0;
     for (i = 0; i < NX; i++)
 	for (j = 0; j < NY; j++) {
-	    //image[i][j] *= scale;
-	    Ftot += image[i][j] * scale;	//if this is Jansky per pix^2 then just adding up should give a total flux
+	    Ftot += image[i][j] * scale;	
 	    Iavg += image[i][j];
 	    if (image[i][j] > Imax) {
 		imax = i;
@@ -252,9 +250,8 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 {
     FILE *fp;
     int i, j;
-    //double x,y,dx,dy,xstart,ystart;
     double xx, yy, dum_r;
-    double sum_rm, sum_i;
+    double sum_i;
 
 
     fp = fopen(fname, "w");
@@ -316,15 +313,13 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 }
 
 
-void init(int i, int j, double Xcam[4], double Ucam[4], double fovx, double fovy,	/* field of view, in radians */
+void init(int i, int j, double Xcam[4], double fovx, double fovy,	/* field of view, in radians */
 	  double X[4], double Kcon[4]	/* position, wavevector */
     )
 {
-    double Gcov[NDIM][NDIM];
     double Econ[NDIM][NDIM];
     double Ecov[NDIM][NDIM];
     double Kcon_tetrad[NDIM];
-    double trial[NDIM];
     int k;
 
     /* construct orthonormal tetrad.
@@ -430,13 +425,10 @@ int stop_backward_integration(double X[NDIM],
 void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
 	       double *knuinv)
 {
-    int ii, jj, kk;
-    double del[NDIM];
     double nu, theta, B, Thetae, Ne, Bnuinv;
     double Ucov[NDIM], Bcov[NDIM];
     double Ucon[NDIM], Bcon[NDIM];
     double Kcov[NDIM], gcov[NDIM][NDIM];
-    double Be = 1;
 
     /* get fluid parameters */
     Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
@@ -467,14 +459,14 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
 	return;
     }
 
-    nu = get_fluid_nu(Kcon, Ucov);	//*freqcgs1 ;      /* freq in Hz */
+    nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
 
     B = get_model_b(X);		/* field in G */
     Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
 
     /* assume emission is thermal */
     Bnuinv = Bnu_inv(nu, Thetae);
-    *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta, Be);
+    *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
 
     if (Bnuinv < SMALL)
 	*knuinv = SMALL;
@@ -485,8 +477,6 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
 	fprintf(stderr, "\nisnan get_jkinv\n");
 	fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
 		Ne, theta, nu, B, Thetae, Bnuinv);
-	fprintf(stderr, ">>> %g %g", jnu_inv(nu, Thetae, Ne, B, theta, Be),
-		anu_inv(nu, Thetae, Ne, B, theta, Be));
     }
 
 
