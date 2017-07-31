@@ -337,6 +337,8 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 	*rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
 	    (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
 
+	/* invariant rotativities */
+	*rV *= nu;
 
 	return;
 
