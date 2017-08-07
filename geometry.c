@@ -1,4 +1,112 @@
 
+#include "decs.h"
+
+/* 
+
+   find determinant of covariant metric gcov
+
+   find gcon, as numerical inverse of gcov
+
+   find connection, as numerical derivative of gcov
+
+   These routines are taken mostly out of HARM.
+
+   CFG 21 July 06
+   MM 11 July 17
+   
+*/
+
+/* assumes gcov has been set first; returns sqrt{|g|} */
+double gdet_func(double gcov[][NDIM])
+{
+
+    int i,j;
+    int permute[NDIM];
+    double gcovtmp[NDIM][NDIM];
+    double gdet;
+    int LU_decompose(double A[][NDIM], int permute[]);
+
+    for (i = 0; i < NDIM; i++) 
+    for (j = 0; j < NDIM; j++) {
+	gcovtmp[i][j] = gcov[i][j];
+    }
+    if (LU_decompose(gcovtmp, permute) != 0) {
+	fprintf(stderr, "gdet_func(): singular matrix encountered! \n");
+	exit(1);
+    }
+    gdet = 1.;
+
+    for (i = 0; i < NDIM; i++)
+	gdet *= gcovtmp[i][i];
+
+    return (sqrt(fabs(gdet)));
+}
+
+
+/* invert gcov to get gcon */
+void gcon_func(double gcov[][NDIM], double gcon[][NDIM])
+{
+    int invert_matrix(double Am[][NDIM], double Aminv[][NDIM]);
+
+    invert_matrix(gcov, gcon);
+
+    /* done! */
+}
+
+/* generic connection routine, using numerical derivatives */
+/* Sets the spatial discretization in numerical derivatives : */
+#define DEL 1.e-7
+
+void get_connection_num(double X[NDIM], double conn[NDIM][NDIM][NDIM])
+{
+  int i, j, k, l;
+  double tmp[NDIM][NDIM][NDIM];
+  double Xh[NDIM], Xl[NDIM];
+  double gcon[NDIM][NDIM];
+  double gcov[NDIM][NDIM];
+  double gh[NDIM][NDIM];
+  double gl[NDIM][NDIM];
+
+  gcov_func(X, gcov);
+  gcon_func(gcov, gcon);
+
+  for (k = 0; k < NDIM; k++) {
+    for (l = 0; l < NDIM; l++)   Xh[l] = X[l];
+    for (l = 0; l < NDIM; l++)   Xl[l] = X[l];
+    Xh[k] += DEL;
+    Xl[k] -= DEL;
+    gcov_func(Xh, gh);
+    gcov_func(Xl, gl);
+
+    for (i = 0; i < NDIM; i++){
+      for (j = 0; j < NDIM; j++){
+        conn[i][j][k] =  (gh[i][j] - gl[i][j]) / (Xh[k] - Xl[k]);
+      }
+    }
+  }
+
+  /* now rearrange to find \Gamma_{ijk} */
+  for (i = 0; i < NDIM; i++)
+    for (j = 0; j < NDIM; j++)
+      for (k = 0; k < NDIM; k++)
+        tmp[i][j][k] =  0.5 * (conn[j][i][k] + conn[k][i][j] - conn[k][j][i]);
+
+
+  /* finally, raise index */
+  for (i = 0; i < NDIM; i++)
+    for (j = 0; j < NDIM; j++)
+      for (k = 0; k < NDIM; k++) {
+        conn[i][j][k] = 0.;
+        for (l = 0; l < NDIM; l++)   conn[i][j][k] += gcon[i][l] * tmp[l][j][k];
+      }
+
+
+  /* done! */
+
+}
+#undef DEL
+
+
 /* 
     lu decomposition routines, from harm 
 */
@@ -47,8 +155,6 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 ***********************************************************************************/
-
-#include "decs.h"
 
 /*************************************************************************/
 /*************************************************************************
@@ -332,4 +438,56 @@ void LU_substitution(double A[][NDIM], double B[], int permute[])
     }
 
     /* End of LU_substitution() */
+}
+
+
+/* the completely antisymmetric symbol; not a tensor
+   in the coordinate basis */
+void set_levi_civita(double levi_civita[NDIM][NDIM][NDIM][NDIM])
+{
+    int i, j, k, l, n, do_sort, n_perm, val, n_swap;
+    int index[NDIM];
+
+    for (i = 0; i < NDIM; i++)
+	for (j = 0; j < NDIM; j++)
+	    for (k = 0; k < NDIM; k++)
+		for (l = 0; l < NDIM; l++) {
+		    if (i == j || i == k || i == l || j == k || j == l
+			|| k == l) {
+			levi_civita[i][j][k][l] = 0;
+		    } else {
+			index[0] = i;
+			index[1] = j;
+			index[2] = k;
+			index[3] = l;
+			do_sort = 1;
+			n_perm = 0;
+			while (do_sort) {
+			    n_swap = 0;
+			    for (n = 0; n < NDIM - 1; n++) {
+				if (index[n] > index[n + 1]) {
+				    n_perm++;
+				    n_swap++;
+				    val = index[n];
+				    index[n] = index[n + 1];
+				    index[n + 1] = val;
+				}
+			    }
+			    do_sort = n_swap;
+			}
+			levi_civita[i][j][k][l] = (n_perm % 2) ? -1 : 1;
+		    }
+		}
+
+    /* Test levi-civita : */
+    /*                              
+       for(i=0;i<NDIM;i++)  
+       for(j=0;j<NDIM;j++)  
+       for(k=0;k<NDIM;k++)  
+       for(l=0;l<NDIM;l++) {                         
+       fprintf(stdout,"levi-civita[%d%d%d%d] = %d \n", 
+       i,j,k,l,levi_civita[i][j][k][l] );                                                
+       fflush(stdout); 
+       }       
+     */
 }

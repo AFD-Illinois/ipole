@@ -15,14 +15,11 @@ int compare_doubles(const void *a, const void *b)
 void make_ppm(double p[NX][NY], double freq, char filename[])
 {
 
-	int i, j, k, npixels;
-	double *q, min, max;
+	int i, j, k;
+	double min, max;
 	FILE *fp;
-	double *alloc_double_array( int ndata )  ;
+	double q[NX*NY];
 
-	npixels = NX * NY;
-
-	q = alloc_double_array(npixels);
 	k = 0 ;
         for (i = 0; i < NX; i++)
 	for (j = 0; j < NY; j++) {
@@ -30,6 +27,7 @@ void make_ppm(double p[NX][NY], double freq, char filename[])
 		k++ ;
 	}
 
+	int npixels = NX*NY;
 	qsort(q, npixels, sizeof(double), compare_doubles);
 	if (q[0] < 0) {		/* must be log scaling */
 		min = q[(int) (npixels * BOT_FRAC)];
@@ -123,24 +121,3 @@ void rainbow_palette(double data, double min, double max, int *pRed, int *pGreen
 
   return;
 }
-
-
-/*********************************************************************************************
-  alloc_double_array():
-     -- returns with a pointer to an array of size "ndata"
- *********************************************************************************************/
-double *alloc_double_array( int ndata ) 
-{ 
-  double *pa;
-
-  pa = (double *) calloc(ndata,sizeof(double));
-  if( pa == NULL ) { 
-    fprintf(stderr,"Error allocating a double array of length = %d \n", ndata);
-    fprintf(stderr,"....Exiting...\n");
-    fflush(stderr);
-    exit(1);
-  }
-  return(pa);
-}
-
-

@@ -72,7 +72,7 @@ extern int N1, N2, N3;
 
 /** model-independent subroutines **/
 /* core routines */
-void init(int i, int j, double Xcam[4], double fovx, double fovy, double X[4], double Kcon[4]) ;
+void init_XK(int i, int j, double Xcam[4], double fovx, double fovy, double X[4], double Kcon[4]) ;
 void null_normalize(double Kcon[NDIM], double fnorm) ;
 void normalize(double *vcon, double gcov[][NDIM]);
 double approximate_solve(double Ii, double ji, double ki, double jf, double kf, double dl) ;
@@ -95,7 +95,7 @@ void   gcov_func_rec(double *X, double gcov[][NDIM]);
 void   gcon_func(double gcov[][NDIM], double gcon[][NDIM]);
 double gdet_func(double gcov[][NDIM]);
 void   get_connection(double *X, double lconn[][NDIM][NDIM]);
-void   conn_func(double *X, double conn[][NDIM][NDIM]);
+void   get_connection_num(double *X, double lconn[][NDIM][NDIM]);
 void   lower(double *ucon, double Gcov[NDIM][NDIM], double *ucov);
 void   raise(double *ucov, double Gcon[NDIM][NDIM], double *ucon);
 double stepsize(double X[NDIM], double K[NDIM]);

@@ -6,16 +6,20 @@ CFLAGS =  -fopenmp -I/usr/include -Wall
 LDFLAGS = -lm -lgsl -lgslcblas 
 
 SRCIPO = \
-geodesics.c geodesics_gsl.c geometry_utils.c \
-harm3d_model.c harm3d_utils.c init_harm3d_data.c  \
-image.c jnu_mixed.c\
-main.c radiation.c tetrads.c ipolarray.c lu.c
+geodesics.c geodesics_gsl.c \
+image.c \
+main.c radiation.c tetrads.c ipolarray.c \
+model_tetrads.c model_radiation.c model_geometry.c model_geodesics.c \
+model_harm3d.c \
+geometry.c
 
 OBJIPO = \
-geodesics.o geodesics_gsl.o geometry_utils.o \
-harm3d_model.o harm3d_utils.o init_harm3d_data.o  \
-image.o jnu_mixed.o\
-main.o radiation.o tetrads.o ipolarray.o lu.o
+geodesics.o geodesics_gsl.o \
+image.o \
+main.o radiation.o tetrads.o ipolarray.o \
+model_tetrads.o model_radiation.o model_geometry.o model_geodesics.o \
+model_harm3d.o \
+geometry.o
 
 
 ipole: $(OBJIPO) makefile 

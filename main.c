@@ -117,7 +117,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
     for (i = 0; i < NX; i++) {
 	for (j = 0; j < NY; j++) {
 
-	    init(i, j, Xcam, fovx, fovy, X, Kcon);
+	    init_XK(i, j, Xcam, fovx, fovy, X, Kcon);
 
 	    for (k = 0; k < NDIM; k++)
 		Kcon[k] *= freq;
@@ -244,7 +244,6 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 
 }
 
-
 void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 	  double scale)
 {
@@ -312,8 +311,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 
 }
 
-
-void init(int i, int j, double Xcam[4], double fovx, double fovy,	/* field of view, in radians */
+void init_XK(int i, int j, double Xcam[4], double fovx, double fovy,	/* field of view, in radians */
 	  double X[4], double Kcon[4]	/* position, wavevector */
     )
 {
@@ -330,7 +328,7 @@ void init(int i, int j, double Xcam[4], double fovx, double fovy,	/* field of vi
        e^1 in the remaining direction
        ("x" for the image plane)
 
-     */
+    */
 
     make_camera_tetrad(Xcam, Econ, Ecov);
 
@@ -369,16 +367,16 @@ void null_normalize(double Kcon[NDIM], double fnorm)
 }
 
 /* 
+
    must be a stable, approximate solution to radiative transfer
    that runs between points w/ initial intensity I, emissivity
    ji, opacity ki, and ends with emissivity jf, opacity kf.
 
    Return final intensity
+
 */
 
-
-double approximate_solve(double Ii,
-			 double ji,
+double approximate_solve(double Ii, double ji,
 			 double ki, double jf, double kf, double dl)
 {
     double efac, If, javg, kavg, dtau;
@@ -400,150 +398,3 @@ double approximate_solve(double Ii,
     return (If);
 }
 
-/* condition for stopping the backwards-in-lambda
-   integration of the photon geodesic */
-
-#define LRMAX (log(1.1*Rout))
-#define LRMIN (log(1.05*Rh))
-
-int stop_backward_integration(double X[NDIM],
-			      double Kcon[NDIM], double Xcam[NDIM])
-{
-
-    if ((X[1] > LRMAX && Kcon[1] < 0.) ||	/* out far */
-	X[1] < LRMIN		/* in deep */
-	)
-	return (1);
-    else
-	return (0);		/* neither out far nor in deep */
-
-}
-
-/* get the invariant emissivity and opacity at a given position
-   for a given wavevector */
-
-void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
-	       double *knuinv)
-{
-    double nu, theta, B, Thetae, Ne, Bnuinv;
-    double Ucov[NDIM], Bcov[NDIM];
-    double Ucon[NDIM], Bcon[NDIM];
-    double Kcov[NDIM], gcov[NDIM][NDIM];
-
-    /* get fluid parameters */
-    Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
-
-    if (Ne == 0.) {
-	*jnuinv = 0.;
-	*knuinv = 0.;
-	return;
-    }
-
-    /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
-    get_model_ucov(X, Ucov);
-    get_model_bcov(X, Bcov);
-
-    /*extra: print out stuff to test tetrads */
-    get_model_ucon(X, Ucon);
-    get_model_bcon(X, Bcon);
-
-
-    gcov_func(X, gcov);
-    lower(Kcon, gcov, Kcov);
-
-    //theta = M_PI/2.;//get_bk_angle(X,Kcon,Ucov) ; /* angle between k & b */
-    theta = get_bk_angle(X, Kcon, Ucov);	/* angle between k & b */
-    if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
-	*jnuinv = 0.;
-	*knuinv = 0.;
-	return;
-    }
-
-    nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
-
-    B = get_model_b(X);		/* field in G */
-    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
-
-    /* assume emission is thermal */
-    Bnuinv = Bnu_inv(nu, Thetae);
-    *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
-
-    if (Bnuinv < SMALL)
-	*knuinv = SMALL;
-    else
-	*knuinv = *jnuinv / Bnuinv;
-
-    if (isnan(*jnuinv) || isnan(*knuinv)) {
-	fprintf(stderr, "\nisnan get_jkinv\n");
-	fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
-		Ne, theta, nu, B, Thetae, Bnuinv);
-    }
-
-
-    return;
-}
-
-
-
-double root_find(double th)
-{
-    int i;
-    double X2a, X2b, X2c, tha, thb, thc;
-    double dthdX2, dtheta_func(double y), theta_func(double y);
-
-    if (th < M_PI / 2.) {
-	X2a = 0. - SMALL;
-	X2b = 0.5 + SMALL;
-    } else {
-	X2a = 0.5 - SMALL;
-	X2b = 1. + SMALL;
-    }
-
-    tha = theta_func(X2a);
-    thb = theta_func(X2b);
-
-    /* bisect for a bit */
-    for (i = 0; i < 10; i++) {
-	X2c = 0.5 * (X2a + X2b);
-	thc = theta_func(X2c);
-
-	if ((thc - th) * (thb - th) < 0.)
-	    X2a = X2c;
-	else
-	    X2b = X2c;
-    }
-
-    /* now do a couple of newton-raphson strokes */
-    tha = theta_func(X2a);
-    for (i = 0; i < 2; i++) {
-	dthdX2 = dtheta_func(X2a);
-	X2a -= (tha - th) / dthdX2;
-	tha = theta_func(X2a);
-    }
-
-    return (X2a);
-}
-
-
-/*this does not depend on theta cut-outs there is no squizzing*/
-double theta_func(double x)
-{
-    //2D 
-    //return (M_PI * x + 0.5 * (1. - hslope) * sin(2. * M_PI * x));
-    //3D new
-    // return th_len * x + th_beg +  hslope * sin(2 * M_PI * x);
-    //3D run 
-    //return (M_PI * x + th_beg);
-    return (M_PI * x);
-}
-
-double dtheta_func(double x)
-{
-    //2D 
-    //return (M_PI * (1. + (1. - hslope) * cos(2. * M_PI * x)));
-    //3D new
-    //return th_len + 2. * M_PI * hslope * cos(2 * M_PI * x);
-    //3D run 
-    return M_PI;
-    //return th_len;
-}
