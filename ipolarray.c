@@ -279,8 +279,6 @@ void project_N(double X[NDIM], double Kcon[NDIM],
 
 /*************************SUPPORTING FUNCTIONS******************************/
 
-/*end of emissivity functions*/
-
 /*
 
     call this function if you want to check
