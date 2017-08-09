@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 
     /* fix camera location */
     rcam = 240.;
-    phicam = -1.5708;		//corresponds to +1.57 in grtrans
+    phicam = 0.0;	
     Xcam[0] = 0.0;
     Xcam[1] = log(rcam);
     Xcam[2] = root_find(thetacam / 180. * M_PI);
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
     fovx = DX / rcam;
     fovy = DY / rcam;
 
-    //      Dsource = DM87 ;
+    //Dsource = DM87 ;
     Dsource = DSGRA;
     scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
     fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
