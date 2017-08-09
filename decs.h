@@ -15,10 +15,6 @@
 #include <omp.h>
 #endif
 
-/*chose radiative proces to simulate*/
-#define SYN (1) /*synchrotron radiation*/
-#define FF (0) /* emission from free-free transitions, all functions for bremsstrahlung defined in brem.c, uses gsl libraries to integrate j^{ee}*/
-
 #define NX   128
 #define NY   128
 
