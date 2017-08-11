@@ -13,6 +13,12 @@
    to give higher resolution at the equator 
 */
 
+// !!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!! //
+//                                       //
+// MUST CHANGE th(X[2]) IN THREE PLACES! //
+//                                       //
+// !!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!! //
+
 void gcov_func(double *X, double gcov[][NDIM])
 {
 	int k, l;
@@ -23,7 +29,8 @@ void gcov_func(double *X, double gcov[][NDIM])
 	DLOOP gcov[k][l] = 0.;
 
         r = exp(X[1]) + R0 ;
-        th =  M_PI*X[2] ;
+        //th =  M_PI*X[2] ;
+        th = M_PI * X[2] + hslope*sin(2. * M_PI * X[2]);
 
 	cth = cos(th);
 	sth = fabs(sin(th));
@@ -36,7 +43,7 @@ void gcov_func(double *X, double gcov[][NDIM])
 	/* transformation for Kerr-Schild -> modified Kerr-Schild */
 	tfac = 1.;
 	rfac = r - R0;
-	hfac = M_PI;
+	hfac = M_PI + (1. - hslope)*M_PI*cos(2.*M_PI*X[2]);//M_PI;
 	pfac = 1.;
 
 	gcov[0][0] = (-1. + 2. * r / rho2) * tfac * tfac;
@@ -85,9 +92,9 @@ void get_connection(double X[4], double lconn[4][4][4])
 	cx = cos(2.*M_PI*X[2]);
 
 	/* HARM-2D MKS */
-	//th = M_PI*X[2] + 0.5*(1-hslope)*sx;
-	//dthdx2 = M_PI*(1.+(1-hslope)*cx);
-	//d2thdx22 = -2.*M_PI*M_PI*(1-hslope)*sx;
+	th = M_PI*X[2] + 0.5*(1-hslope)*sx;
+	dthdx2 = M_PI*(1.+(1-hslope)*cx);
+	d2thdx22 = -2.*M_PI*M_PI*(1-hslope)*sx;
 
 	/* HARM-3D MKS */
 	//th = th_beg + th_len*X[2] + hslope*sx;
@@ -101,9 +108,9 @@ void get_connection(double X[4], double lconn[4][4][4])
 	/*new from hotakarun*/
 	//is this for geodesics? should be independent of mhd model
   
-	th =  M_PI*X[2];
-	dthdx2 = M_PI;
-	d2thdx22 = 0.0; 
+	//th =  M_PI*X[2];
+	//dthdx2 = M_PI;
+	//d2thdx22 = 0.0; 
 
 	dthdx22 = dthdx2*dthdx2;
 

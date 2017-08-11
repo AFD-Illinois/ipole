@@ -12,6 +12,12 @@ fil = sys.argv[1]
 # read in data 
 i0, j0, Ia, Is, Qs, Us, Vs = np.loadtxt(fil, unpack=True)
 
+# Remove NANs
+Is[np.isnan(Is)] = 0.;
+Qs[np.isnan(Qs)] = 0.;
+Us[np.isnan(Us)] = 0.;
+Vs[np.isnan(Vs)] = 0.;
+
 # set image size
 ImRes = int(round(np.sqrt(len(i0))))
 print "Image resolution: ", ImRes

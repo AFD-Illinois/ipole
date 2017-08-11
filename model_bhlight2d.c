@@ -8,7 +8,13 @@
 #define ZSLOOP(istart, istop, jstart, jstop) \
   for (int i = istart; i <= istop; i++) \
   for (int j = jstart; j <= jstop; j++)
-#define PLOOP for(int k = 0; k < NPR; k++)
+#define PLOOP for(int k = 0; k < nprim; k++)
+
+#define KTOT (8)
+#define KELCOND (9)
+#define KELNOCOND (10)
+#define PHI (11)
+#define FLR (12)
 
 // bhlight 2d grid functions
 double ***bcon;
@@ -243,7 +249,7 @@ void interp_fourv(double X[NDIM], double ***fourv, double Fourv[NDIM]){
 }
 
 /* return	 scalar in cgs units */
-double interp_scalar(double X[NDIM], double ***var)
+double interp_scalar(double X[NDIM], double **var)
 {
 	double del[NDIM],b1,b2,interp;
 	int i, j, ip1, jp1;
@@ -356,32 +362,30 @@ void coord(int i, int j, double *X)
 
 void init_physical_quantities(void)
 {
-	int i, j, k;
+	int i, j;
   double bsq, sigma_m, beta, b2, trat;
 
 	for (i = 0; i < N1; i++) {
 		for (j = 0; j < N2; j++) {
-			for (k = 0; k < N3; k++) {
-			  ne[i][j] = p[KRHO][i][j]*RHO_unit/(MP + ME);
+		 ne[i][j] = p[KRHO][i][j]*RHO_unit/(MP + ME);
 
-			  bsq= bcon[i][j][0] * bcov[i][j][0] +
-			       bcon[i][j][1] * bcov[i][j][1] +
-			       bcon[i][j][2] * bcov[i][j][2] +
-			       bcon[i][j][3] * bcov[i][j][3] ;
+		 bsq= bcon[i][j][0] * bcov[i][j][0] +
+		      bcon[i][j][1] * bcov[i][j][1] +
+		      bcon[i][j][2] * bcov[i][j][2] +
+		      bcon[i][j][3] * bcov[i][j][3] ;
 
-			  b[i][j] = sqrt(bsq)*B_unit;
-			  sigma_m = bsq/p[KRHO][i][j];
+		 b[i][j] = sqrt(bsq)*B_unit;
+		 sigma_m = bsq/p[KRHO][i][j];
 
-			  // beta presciption
-			  beta=p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-			  b2=pow(beta,2);
-			  trat = trat_d * b2/(1. + b2) + trat_j /(1. + b2);
-			  Thetae_unit = (gam - 1.) * (MP / ME) / trat;
-			  thetae[i][j][k] = (p[UU][i][j][k]/p[KRHO][i][j][k])* Thetae_unit;
+		 // beta presciption
+		 //beta=p[UU][i][j]*(gam-1.)/0.5/bsq;
+		 //b2=pow(beta,2);
+		 //trat = trat_d * b2/(1. + b2) + trat_j /(1. + b2);
+		 //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
+		 //thetae[i][j] = (p[UU][i][j]/p[KRHO][i][j])* Thetae_unit;
 
-			  //strongly magnetized = empty, no shiny spine
-			  if(sigma_m > 2.0) ne[i][j][k]=0.0;
-			}
+		 //strongly magnetized = empty, no shiny spine
+		 if(sigma_m > 2.0) ne[i][j]=0.0;
 		}
 	}
 
@@ -464,40 +468,13 @@ double ****malloc_rank4(int n1, int n2, int n3, int n4)
 	return A;
 }
 
-double *****malloc_rank5(int n1, int n2, int n3, int n4, int n5)
-{
-
-	double *****A;
-	double *space;
-	int i,j,k,l;
-
-	space = malloc_rank1(n1*n2*n3*n4*n5, sizeof(double));
-
-	A = malloc_rank1(n1, sizeof(double *));
-
-	for(i=0;i<n1;i++){
-		A[i] = malloc_rank1(n2, sizeof(double *));
-		for(j=0;j<n2;j++){
-			A[i][j] = malloc_rank1(n3, sizeof(double *));
-			for(k=0;k<n3;k++){
-				A[i][j][k] = malloc_rank1(n4, sizeof(double *));
-				for(l=0;l<n4;l++){
-					A[i][j][k][l] = &(space[n5*(l + n4*(k + n3*(j + n2*i)))]);
-				}
-			}
-		}
-	}
-
-	return A;
-}
-
 void init_storage(void)
 {
 	bcon = malloc_rank3(N1,N2,NDIM);
 	bcov = malloc_rank3(N1,N2,NDIM);
 	ucon = malloc_rank3(N1,N2,NDIM);
 	ucov = malloc_rank3(N1,N2,NDIM);
-	p = (double ****)malloc_rank1(nprim,sizeof(double *));
+	p = (double ***)malloc_rank1(nprim,sizeof(double *));
 	for(int i = 0; i < nprim; i++) p[i] = malloc_rank2(N1,N2);
 	ne = malloc_rank2(N1,N2);
 	thetae = malloc_rank2(N1,N2);
@@ -510,13 +487,16 @@ void init_bhlight2d_data(char *fname)
 	int idum;
   double fdum;
 
-  FILE *f;
-  if (f = fopen(fname, "w") == NULL) {
+  FILE *fp = fopen(fname, "r");
+  printf("fname = %s\n", fname);
+  if (fp == NULL) {
     fprintf(stderr, "file %s does not exist, aborting...\n", fname);
     exit(1234);
   }
 
+  printf("about to read file\n");
 
+  double MBH;
   safe_fscanf(fp, "%lf", &fdum); // t
   safe_fscanf(fp, "%d", &N1);
   safe_fscanf(fp, "%d", &N2);
@@ -529,7 +509,7 @@ void init_bhlight2d_data(char *fname)
   safe_fscanf(fp, "%lf", &(dx[3]));
   safe_fscanf(fp, "%lf", &fdum); // tf
   safe_fscanf(fp, "%d", &idum); // nstep
-  safe_fscanf(fp, "%d", &MBH); // in cgs
+  safe_fscanf(fp, "%lf", &MBH); // in cgs
   safe_fscanf(fp, "%lf", &a);
   safe_fscanf(fp, "%lf", &L_unit);
   safe_fscanf(fp, "%lf", &T_unit);
@@ -553,7 +533,7 @@ void init_bhlight2d_data(char *fname)
   safe_fscanf(fp, "%d", &idum); // failed
   safe_fscanf(fp, "%lf", &fdum); // Rin
   safe_fscanf(fp, "%lf", &fdum); // Rout
-  safe_fscanf(fp, "%lf", &fdum); // hslope
+  safe_fscanf(fp, "%lf", &hslope); // hslope
   safe_fscanf(fp, "%lf", &fdum); // R0
   safe_fscanf(fp, "%d", &WITH_ELECTRONS); // WITH_ELECTRONS
   safe_fscanf(fp, "%d", &idum); // SPEC_THETABINS
@@ -566,8 +546,9 @@ void init_bhlight2d_data(char *fname)
   RHO_unit = M_unit / pow(L_unit, 3);
 	U_unit = RHO_unit * CL * CL;
 	B_unit = CL * sqrt(4.*M_PI*RHO_unit);
+  double MdotEdd = 4.*M_PI*GNEWT*MBH*MP/CL/0.1/SIGMA_THOMSON;
 
-  if (WITH_ELECTRONS) {
+  if (WITH_ELECTRONS == 0) {
     nprim = 8;
   } else {
     nprim = 13;
@@ -586,29 +567,29 @@ void init_bhlight2d_data(char *fname)
 	init_storage();
 
   // Read grid data
-  ZSLOOP(0, N1, 0, N2, 0, N3) {
+  ZSLOOP(0, N1 - 1, 0, N2 - 1) {
     safe_fscanf(fp, "%lf", &fdum); // X[1]
     safe_fscanf(fp, "%lf", &fdum); // X[2]
     safe_fscanf(fp, "%lf", &fdum); // r
     safe_fscanf(fp, "%lf", &fdum); // th
     PLOOP safe_fscanf(fp, "%lf", &(p[k][i][j]));
     safe_fscanf(fp, "%lf", &fdum); // divb
-    safe_fscanf(fp, "%lf", &fdum); // ucon[0]
-    safe_fscanf(fp, "%lf", &fdum); // ucon[1]
-    safe_fscanf(fp, "%lf", &fdum); // ucon[2]
-    safe_fscanf(fp, "%lf", &fdum); // ucon[3]
-    safe_fscanf(fp, "%lf", &fdum); // ucov[0]
-    safe_fscanf(fp, "%lf", &fdum); // ucov[1]
-    safe_fscanf(fp, "%lf", &fdum); // ucov[2]
-    safe_fscanf(fp, "%lf", &fdum); // ucov[3]
-    safe_fscanf(fp, "%lf", &fdum); // bcon[0]
-    safe_fscanf(fp, "%lf", &fdum); // bcon[1]
-    safe_fscanf(fp, "%lf", &fdum); // bcon[2]
-    safe_fscanf(fp, "%lf", &fdum); // bcon[3]
-    safe_fscanf(fp, "%lf", &fdum); // bcov[0]
-    safe_fscanf(fp, "%lf", &fdum); // bcov[1]
-    safe_fscanf(fp, "%lf", &fdum); // bcov[2]
-    safe_fscanf(fp, "%lf", &fdum); // bcov[3]
+    safe_fscanf(fp, "%lf", &ucon[i][j][0]); // ucon[0]
+    safe_fscanf(fp, "%lf", &ucon[i][j][1]); // ucon[1]
+    safe_fscanf(fp, "%lf", &ucon[i][j][2]); // ucon[2]
+    safe_fscanf(fp, "%lf", &ucon[i][j][3]); // ucon[3]
+    safe_fscanf(fp, "%lf", &ucov[i][j][0]); // ucov[0]
+    safe_fscanf(fp, "%lf", &ucov[i][j][1]); // ucov[1]
+    safe_fscanf(fp, "%lf", &ucov[i][j][2]); // ucov[2]
+    safe_fscanf(fp, "%lf", &ucov[i][j][3]); // ucov[3]
+    safe_fscanf(fp, "%lf", &bcon[i][j][0]); // bcon[0]
+    safe_fscanf(fp, "%lf", &bcon[i][j][1]); // bcon[1]
+    safe_fscanf(fp, "%lf", &bcon[i][j][2]); // bcon[2]
+    safe_fscanf(fp, "%lf", &bcon[i][j][3]); // bcon[3]
+    safe_fscanf(fp, "%lf", &bcov[i][j][0]); // bcov[0]
+    safe_fscanf(fp, "%lf", &bcov[i][j][1]); // bcov[1]
+    safe_fscanf(fp, "%lf", &bcov[i][j][2]); // bcov[2]
+    safe_fscanf(fp, "%lf", &bcov[i][j][3]); // bcov[3]
     safe_fscanf(fp, "%lf", &fdum); // vmin
     safe_fscanf(fp, "%lf", &fdum); // vmax
     safe_fscanf(fp, "%lf", &fdum); // vmin
@@ -623,11 +604,39 @@ void init_bhlight2d_data(char *fname)
     safe_fscanf(fp, "%lf", &fdum); // qcoul
     safe_fscanf(fp, "%lf", &fdum); // N_esuper
     safe_fscanf(fp, "%lf", &fdum); // N_esuper_electron
-    safe_fscanf(fp, "%lf", &fdum); // Thetae
+    if (WITH_ELECTRONS == 0) {
+      safe_fscanf(fp, "%lf", &thetae[i][j]); // Thetae
+    } else {
+      thetae[i][j] = p[KELCOND][i][j]*pow(p[KRHO][i][j],game-1.)*Thetae_unit;
+    }
   }
 
   printf("DONE!\n");
-  exit(-1);
+
+  double dMact = 0., Ladv = 0.;
+  double r, th, X[NDIM], gcov[NDIM][NDIM], gcon[NDIM][NDIM], g;
+  ZSLOOP(0, N1 - 1, 0, N2 - 1) {
+    X[1] = startx[1] + (i + 0.5)*dx[1];
+    X[2] = startx[2] + (j + 0.5)*dx[2];
+    gcov_func(X, gcov);
+    gcon_func(gcov, gcon);
+    g = gdet_func(gcov);
+    bl_coord(X, &r, &th);
+
+    if (i <= 20) dMact += g*p[KRHO][i][j]*ucon[i][j][1];
+    if (i >= 20 && i < 40) Ladv += g*p[UU][i][j]*ucon[i][j][1]*ucov[i][j][0];
+  }
+
+  dMact *= dx[2]*dx[3]/21.;
+  Ladv *= dx[2]*dx[3]/21.;
+
+  fprintf(stdout, "MBH:   %e Msolar\n", MBH/MSUN);
+  fprintf(stdout, "a:     %g\n", a);
+  fprintf(stdout, "Mdot:  %e g/s\n", -dMact*M_unit/T_unit);
+  fprintf(stdout, "Mdot:  %e Msolar/yr\n", -dMact*M_unit/T_unit/(MSUN/YEAR));
+  fprintf(stdout, "Mdot:  %e MdotEdd\n", -dMact*M_unit/T_unit/MdotEdd);
+
+  //exit(-1);
 }
 
 /*
