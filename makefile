@@ -1,16 +1,18 @@
 #
 # h5cc compiles for linking with HDF5 library
 #
-CC = h5cc -DH5_USE_16_API 
-CFLAGS =  -fopenmp -I/usr/include -Wall
-LDFLAGS = -lm -lgsl -lgslcblas 
+CC = h5pcc 
+CFLAGS =  -fopenmp -I/usr/include -Wall -I/home/brryan/Software/gsl/include -std=c99
+LDFLAGS = -L/home/brryan/Software/gsl/lib -lm -lgsl -lgslcblas 
+
+MODEL = bhlight2d
 
 SRCIPO = \
 geodesics.c geodesics_gsl.c \
 image.c \
 main.c radiation.c tetrads.c ipolarray.c \
 model_tetrads.c model_radiation.c model_geometry.c model_geodesics.c \
-model_harm3d.c \
+model_$(MODEL).c \
 geometry.c
 
 OBJIPO = \
@@ -18,7 +20,7 @@ geodesics.o geodesics_gsl.o \
 image.o \
 main.o radiation.o tetrads.o ipolarray.o \
 model_tetrads.o model_radiation.o model_geometry.o model_geodesics.o \
-model_harm3d.o \
+model_$(MODEL).o \
 geometry.o
 
 
