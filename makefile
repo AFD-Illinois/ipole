@@ -2,7 +2,7 @@
 # h5cc compiles for linking with HDF5 library
 #
 CC = h5pcc 
-CFLAGS =  -fopenmp -I/usr/include -Wall -I/home/brryan/Software/gsl/include -std=c99
+CFLAGS =  -Ofast -fopenmp -I/usr/include -Wall -I/home/brryan/Software/gsl/include -std=c99
 LDFLAGS = -L/home/brryan/Software/gsl/lib -lm -lgsl -lgslcblas 
 
 MODEL = bhlight2d

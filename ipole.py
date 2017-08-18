@@ -10,9 +10,11 @@ if len(sys.argv) < 2 :
 fil = sys.argv[1]
 
 # read in data 
-i0, j0, Ia, Is, Qs, Us, Vs = np.loadtxt(fil, unpack=True)
+i0, j0, x, y, Ia, Is, Qs, Us, Vs = np.loadtxt(fil, unpack=True)
 
 # Remove NANs
+print np.where(np.isnan(Is))
+print Is[np.where(np.isnan(Is))]
 Is[np.isnan(Is)] = 0.;
 Qs[np.isnan(Qs)] = 0.;
 Us[np.isnan(Us)] = 0.;
@@ -38,39 +40,43 @@ i = (np.reshape(i0, (ImRes,ImRes))+1)*40./ImRes - 20.
 j = (np.reshape(j0, (ImRes,ImRes))+1)*40./ImRes - 20.
 
 # LP plot
-plt.subplot(2,2,2)
+ax = plt.subplot(2,2,2)
 lpfrac = 100.*np.sqrt(Qs*Qs + Us*Us)/Is
 z = np.reshape(lpfrac, (ImRes,ImRes))
 plt.pcolormesh(i,j,z,cmap='jet', vmin = 0., vmax = 100.)
 plt.title('LP [%]')
 plt.axis([-20,20,-20,20])
 plt.colorbar()
+ax.set_aspect('equal')
 
 # EVPA plot
-plt.subplot(2,2,3)
+ax = plt.subplot(2,2,3)
 evpa = (180./3.14159)*0.5*np.arctan2(Us,Qs)
 z = np.reshape(evpa, (ImRes,ImRes))
 plt.pcolormesh(i,j,z,cmap='jet')
 plt.title('EVPA [deg]')
 plt.axis([-20,20,-20,20])
 plt.colorbar()
+ax.set_aspect('equal')
 
 # CP plot
-plt.subplot(2,2,4)
+ax = plt.subplot(2,2,4)
 cpfrac = 100.*Vs/Is
 z = np.reshape(cpfrac, (ImRes,ImRes))
 plt.pcolormesh(i,j,z,cmap='jet', vmin = -5, vmax = 5.)
 plt.title('CP [%]')
 plt.axis([-20,20,-20,20])
 plt.colorbar()
+ax.set_aspect('equal')
 
 # total intensity 
-plt.subplot(2,2,1)
+ax = plt.subplot(2,2,1)
 z = np.reshape(Is, (ImRes,ImRes))
-plt.pcolormesh(i,j,z,cmap='afmhot', vmin=0., vmax=1.e-3)
+plt.pcolormesh(i,j,z,cmap='afmhot', vmin=0., vmax=z.max())
 plt.colorbar()
 plt.title('Stokes I [cgs]')
 plt.axis([-20,20,-20,20])
+ax.set_aspect('equal')
 
 # superpose EV on total intensity using quiver
 Qb = sum(Qs)

@@ -172,8 +172,16 @@ double get_model_thetae(double X[NDIM])
 	   X[1] > stopx[1]  ||
 	   X[2] < startx[2] ||
 	   X[2] > stopx[2]) {
-	   	return(0.) ;
+      return(0.) ;
 	}
+
+  double te = interp_scalar(X, thetae);
+  if (te < 1.e-10) {
+    printf("startx[] = %e %e %e\n", startx[1],startx[2],startx[3]);
+    printf("stopx[] = %e %e %e\n", stopx[1],stopx[2],stopx[3]);
+    printf("\n\nBAD!! te = %e X = %e %e %e %e\n", te, X[0],X[1],X[2],X[3]);
+    exit(-1);
+  }
 
 	return interp_scalar(X, thetae);
 }
@@ -268,8 +276,8 @@ double interp_scalar(double X[NDIM], double **var)
 	  var[i][jp1]*b1*del[2] +
 	  var[ip1][j]*del[1]*b2 +
 	  var[ip1][jp1]*del[1]*del[2];
-
-	return interp;
+	
+  return interp;
 }
 
 /***********************************************************************************
@@ -609,6 +617,9 @@ void init_bhlight2d_data(char *fname)
     } else {
       thetae[i][j] = p[KELCOND][i][j]*pow(p[KRHO][i][j],game-1.)*Thetae_unit;
     }
+
+    // Need a floor on thetae to avoid NANs
+    thetae[i][j] = MAX(thetae[i][j], 1.e-2);
   }
 
   printf("DONE!\n");

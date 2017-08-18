@@ -20,12 +20,15 @@ double imageS[NX][NY][NDIM];
 
 int threadid,nthreads;
 
+static double DX, DY, fovx, fovy;
+
 int main(int argc, char *argv[])
 {
+    //omp_set_num_threads(1);
     double X[NDIM], Kcon[NDIM];
     double Xhalf[NDIM], Kconhalf[NDIM];
     double dl, Intensity;
-    double DX, DY, fovx, fovy;
+    //double DX, DY, fovx, fovy;
     double thetacam, phicam, rcam, Xcam[NDIM];
 
     double freq, freqcgs;
@@ -74,7 +77,7 @@ int main(int argc, char *argv[])
 
     /* fix camera location */
     rcam = 240.;
-    phicam = 0.0;	
+    phicam = 0.0;
     Xcam[0] = 0.0;
     Xcam[1] = log(rcam);
     Xcam[2] = root_find(thetacam / 180. * M_PI);
@@ -113,7 +116,7 @@ private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
    Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
    Stokes_V) \
 shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
-   th_beg,th_len,hslope,nthreads,nprogress) 
+   th_beg,th_len,hslope,nthreads,nprogress)
     for (i = 0; i < NX; i++) {
 	for (j = 0; j < NY; j++) {
 
@@ -130,7 +133,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 		   and should be used cautiously in this region. */
 		dl = stepsize(X, Kcon);
 
-		/* move photon one step backwards, the procecure updates X 
+		/* move photon one step backwards, the procecure updates X
 		   and Kcon full step and returns also values in the middle */
 		push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
 		nstep++;
@@ -164,7 +167,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	    init_N(Xi, Kconi, N_coord);
 	    Intensity = 0.0;
 
-	    while (nstep > 1) {	
+	    while (nstep > 1) {
 
 		/* initialize X,K */
 		for (l = 0; l < NDIM; l++) {
@@ -180,9 +183,14 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 		get_jkinv(Xi, Kconi, &ji, &ki);
 		get_jkinv(Xf, Kconf, &jf, &kf);
 		Intensity = approximate_solve(Intensity, ji, ki, jf, kf, traj[nstep].dl);
+    if (isnan(Intensity)) {
+      printf("BAD!\n");
+      exit(-1);
+    }
 
 		/* solve polarized transport */
 		evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord);
+    //if (isnan(creal(N_coord[0][0]))) exit(-1);
 
                 /* swap start and finish */
 		ji = jf;
@@ -203,7 +211,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	        fprintf(stderr,"%d ",(nprogress/NY));
 	    }
 
-#pragma omp atomic	
+#pragma omp atomic
             nprogress += 1;
 	}
     }
@@ -216,7 +224,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
     imax = jmax = 0;
     for (i = 0; i < NX; i++)
 	for (j = 0; j < NY; j++) {
-	    Ftot += image[i][j] * scale;	
+	    Ftot += image[i][j] * scale;
 	    Iavg += image[i][j];
 	    if (image[i][j] > Imax) {
 		imax = i;
@@ -264,8 +272,10 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
     for (i = 0; i < NX; i++) {
 	for (j = 0; j < NY; j++) {
 	    sum_i += image[i][j];
-	    fprintf(fp, "%d %d %15.10g %15.10g %15.10g %15.10g %15.10g \n",
-		    i, j, image[i][j], imageS[i][j][0], imageS[i][j][1],
+      xx = (i+0.5)*DX/NX;
+      yy = (j+0.5)*DY/NY;
+      fprintf(fp, "%d %d %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g \n",
+		    i, j, xx, yy, image[i][j], imageS[i][j][0], imageS[i][j][1],
 		    imageS[i][j][2], imageS[i][j][3]);
 	}
 	fprintf(fp, "\n");
@@ -289,8 +299,8 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 
     for (j = 0; j <= NY; j++) {
 	for (i = 0; i <= NX; i++) {
-	    xx = i * 1.0;	//-x_size/2.+i*stepx;                                                                                                                 
-	    yy = j * 1.0;	//-y_size/2.+j*stepy;                                                                                                                 
+	    xx = i * 1.0;	//-x_size/2.+i*stepx;
+	    yy = j * 1.0;	//-y_size/2.+j*stepy;
 	    fprintf(fp, "%g %g %g\n", xx, yy, 0.0);
 	}
     }
@@ -366,7 +376,7 @@ void null_normalize(double Kcon[NDIM], double fnorm)
 
 }
 
-/* 
+/*
 
    must be a stable, approximate solution to radiative transfer
    that runs between points w/ initial intensity I, emissivity
