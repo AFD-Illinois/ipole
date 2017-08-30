@@ -96,8 +96,8 @@ int main(int argc, char *argv[])
     fovx = DX / rcam;
     fovy = DY / rcam;
 
-    //Dsource = DM87 ;
-    Dsource = DSGRA;
+    Dsource = DM87 ;
+    //Dsource = DSGRA;
     scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
     fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
     fprintf(stderr,"Dsource: %g [cm]\n",Dsource);
