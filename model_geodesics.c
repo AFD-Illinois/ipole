@@ -33,7 +33,7 @@ int stop_backward_integration(double X[NDIM],
 #undef LRMIN
 #undef LRMAX
 
-#define EPS     0.002
+#define EPS     0.01
 
 double stepsize(double X[NDIM], double Kcon[NDIM])
 {

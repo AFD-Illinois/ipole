@@ -46,7 +46,6 @@ int main(int argc, char *argv[])
 #pragma omp parallel default(none) shared(nthreads) private(threadid)
     {
         threadid = omp_get_thread_num();
-        printf("tid = %d\n", threadid);
         if(threadid==0) {
             nthreads = omp_get_num_threads();
             printf("nthreads = %d\n",nthreads);
@@ -266,6 +265,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 	fprintf(stderr, "unable to open %s\n", fname);
 	exit(1);
     }
+    fprintf(fp, "%d %d %e %e %e %e %e\n", N1, N2, DX, DY, scale, L_unit, M_unit);
 
 
     sum_i = 0.0;
