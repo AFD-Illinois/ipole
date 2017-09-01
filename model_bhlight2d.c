@@ -331,10 +331,10 @@ void bl_coord(double *X, double *r, double *th)
 	// for cfg data files
 	//*r = Rin * exp(X[1]);
 	// for scn data files
-	*r = exp(X[1]) + R0 ;
+	*r = exp(X[1]);// + R0 ;
 	//*th = th_beg + th_len *X[2] + hslope*sin(2. * M_PI * X[2]);  //2D
 	//hotaka run, hslope=0?
-	*th = M_PI * X[2] + hslope*sin(2. * M_PI * X[2]);
+	*th = M_PI * X[2] + 0.5*(1.-hslope)*sin(2. * M_PI * X[2]);
 	//*th = th_beg + M_PI*X[2]  ;
 
 	//fix coord
@@ -540,7 +540,7 @@ void init_bhlight2d_data(char *fname)
   safe_fscanf(fp, "%d", &idum); // lim
   safe_fscanf(fp, "%d", &idum); // failed
   safe_fscanf(fp, "%lf", &fdum); // Rin
-  safe_fscanf(fp, "%lf", &fdum); // Rout
+  safe_fscanf(fp, "%lf", &Rout); // Rout
   safe_fscanf(fp, "%lf", &hslope); // hslope
   safe_fscanf(fp, "%lf", &fdum); // R0
   safe_fscanf(fp, "%d", &WITH_ELECTRONS); // WITH_ELECTRONS
@@ -555,6 +555,8 @@ void init_bhlight2d_data(char *fname)
 	U_unit = RHO_unit * CL * CL;
 	B_unit = CL * sqrt(4.*M_PI*RHO_unit);
   double MdotEdd = 4.*M_PI*GNEWT*MBH*MP/CL/0.1/SIGMA_THOMSON;
+
+  printf("L T M U B RHO = %e %e %e %e %e %e\n", L_unit, T_unit, M_unit, U_unit, B_unit, RHO_unit);
 
   if (WITH_ELECTRONS == 0) {
     nprim = 8;
@@ -620,7 +622,7 @@ void init_bhlight2d_data(char *fname)
     }
 
     // Need a floor on thetae to avoid NANs
-    thetae[i][j] = MAX(thetae[i][j], 1.e-2);
+    thetae[i][j] = MAX(thetae[i][j], 1.e-4);
   }
 
   printf("DONE!\n");

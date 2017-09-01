@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     freq = freqcgs * HPL / (ME * CL * CL);
 
     /* fix camera location */
-    rcam = 240.;
+    rcam = 1.e3;//240.;
     phicam = 0.0;
     Xcam[0] = 0.0;
     Xcam[1] = log(rcam);
@@ -236,7 +236,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	    Iavg / (NX * NY));
     fprintf(stderr, "Ftot: %g %g scale=%g\n", freqcgs, Ftot, scale);
     fprintf(stderr, "nuLnu = %g\n",
-	    Ftot * Dsource * Dsource * JY * freqcgs);
+	    4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
 
     /* image, dump result */
     make_ppm(image, freq, "ipole_fnu.ppm");
@@ -271,6 +271,10 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
     sum_i = 0.0;
     for (i = 0; i < NX; i++) {
 	for (j = 0; j < NY; j++) {
+    if (i == 50 && j == 50) {
+      printf("I = %e\n", image[i][j]);
+      //exit(-1);
+    }
 	    sum_i += image[i][j];
       xx = (i+0.5)*DX/NX;
       yy = (j+0.5)*DY/NY;
