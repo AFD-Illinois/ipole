@@ -15,13 +15,8 @@
 #include <omp.h>
 #endif
 
-<<<<<<< HEAD
-#define NX   64
-#define NY   64
-=======
 #define NX   512
 #define NY   512
->>>>>>> ad4a9300db34ec05c07dc9559b21b21248bb7a36
 
 #define NDIM	4
 #define NPRIM	8
