@@ -77,8 +77,8 @@ void gcov_func(double *X, double gcov[][NDIM])
 
 void get_connection(double X[4], double lconn[4][4][4])
 {
-  get_connection_num(X, lconn);
-  return;
+  //get_connection_num(X, lconn);
+  //return;
   
 	double r1,r2,r3,r4,sx,cx;
 	double th,dthdx2,dthdx22,d2thdx22,sth,cth,sth2,cth2,sth4,cth4,s2th,c2th;
