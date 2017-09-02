@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     freq = freqcgs * HPL / (ME * CL * CL);
 
     /* fix camera location */
-    rcam = 1.e3;//240.;
+    rcam = 240.;
     phicam = 0.0;
     Xcam[0] = 0.0;
     Xcam[1] = log(rcam);

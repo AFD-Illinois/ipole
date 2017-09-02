@@ -6,11 +6,11 @@ from scipy.ndimage.interpolation import rotate
 
 CL = 2.99792458e10
 
-theta = 30.
+theta = 20.
 nu = 230.e9
 phi = 288.
 DTd = 5.
-folder = '/data/bh-fs4/bryan10/m87_2d/M3e9/a09/dumps/'
+folder = '/data/bh-fs4/bryan10/m87_2d/M3e9/a05/dumps/'
 
 files = np.sort(glob(folder+'dump_fluid*'))
 
