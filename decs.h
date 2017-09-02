@@ -15,8 +15,8 @@
 #include <omp.h>
 #endif
 
-#define NX   128
-#define NY   128
+#define NX   512
+#define NY   512
 
 #define NDIM	4
 #define NPRIM	8
