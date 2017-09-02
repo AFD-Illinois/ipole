@@ -10,7 +10,7 @@ if len(sys.argv) < 2 :
 fil = sys.argv[1]
 
 # read in data 
-i0, j0, x, y, Ia, Is, Qs, Us, Vs = np.loadtxt(fil, unpack=True)
+i0, j0, x, y, Ia, Is, Qs, Us, Vs, tauF = np.loadtxt(fil, unpack=True, skiprows=1)
 
 # Remove NANs
 print np.where(np.isnan(Is))

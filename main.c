@@ -15,8 +15,8 @@ struct of_traj {
 
 extern double image[NX][NY];
 double image[NX][NY];
-extern double imageS[NX][NY][NDIM];
-double imageS[NX][NY][NDIM];
+extern double imageS[NX][NY][NIMG];
+double imageS[NX][NY][NIMG];
 
 int threadid,nthreads;
 
@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
     int imax, jmax;
     double Imax, Iavg;		//,dOmega;
     double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
+    double tauF;
     double complex N_coord[NDIM][NDIM];
 
 #ifdef _OPENMP
@@ -113,7 +114,7 @@ schedule(static,NX*NY/nthreads) \
 collapse(2) \
 private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
    Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
-   Stokes_V) \
+   Stokes_V,tauF) \
 shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
    th_beg,th_len,hslope,nthreads,nprogress)
     for (i = 0; i < NX; i++) {
@@ -165,6 +166,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	    }
 	    init_N(Xi, Kconi, N_coord);
 	    Intensity = 0.0;
+      tauF = 0.;
 
 	    while (nstep > 1) {
 
@@ -188,7 +190,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
     }
 
 		/* solve polarized transport */
-		evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord);
+		evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
     //if (isnan(creal(N_coord[0][0]))) exit(-1);
 
                 /* swap start and finish */
@@ -205,6 +207,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	    imageS[i][j][1] = Stokes_Q * pow(freqcgs, 3);
 	    imageS[i][j][2] = Stokes_U * pow(freqcgs, 3);
 	    imageS[i][j][3] = Stokes_V * pow(freqcgs, 3);
+      imageS[i][j][4] = tauF;
 
 	    if( (nprogress % NY) == 0 ) {
 	        fprintf(stderr,"%d ",(nprogress/NY));
@@ -251,7 +254,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 
 }
 
-void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
+void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
 	  double scale)
 {
     FILE *fp;
@@ -278,9 +281,9 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 	    sum_i += image[i][j];
       xx = (i+0.5)*DX/NX;
       yy = (j+0.5)*DY/NY;
-      fprintf(fp, "%d %d %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g \n",
+      fprintf(fp, "%d %d %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g \n",
 		    i, j, xx, yy, image[i][j], imageS[i][j][0], imageS[i][j][1],
-		    imageS[i][j][2], imageS[i][j][3]);
+		    imageS[i][j][2], imageS[i][j][3], imageS[i][j][4]);
 	}
 	fprintf(fp, "\n");
     }

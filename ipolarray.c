@@ -96,7 +96,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 	      double Xhalf[NDIM], double Kconhalf[NDIM],
 	      double Xf[NDIM], double Kconf[NDIM],
-	      double dlam, double complex N_coord[NDIM][NDIM])
+	      double dlam, double complex N_coord[NDIM][NDIM], double *tauF)
 {
     int k;
     double gcov[NDIM][NDIM];
@@ -175,6 +175,7 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 	double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
 	double adj = aQ * jQ + aU * jU + aV * jV;
 
+  *tauF += dlam*fabs(rV);
 
 	if (aP > SMALL) {  /* full analytic solution has trouble if polarized absorptivity is small */
 	    double expaIx = exp(-aI * x);

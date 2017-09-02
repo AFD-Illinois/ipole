@@ -21,6 +21,8 @@
 #define NDIM	4
 #define NPRIM	8
 
+#define NIMG (4+1) // Stokes vector and faraday depth
+
 /* mnemonics for primitive vars; conserved vars */
 #define KRHO    0
 #define UU      1
@@ -77,7 +79,7 @@ int    stop_forward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
 int    stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
-void dump(double image[NX][NY],double imageS[NX][NY][NDIM], char *fname, double scale) ;
+void dump(double image[NX][NY],double imageS[NX][NY][NIMG], char *fname, double scale) ;
 
 /* geodesic integration */
 //void   push_photon(double X[NDIM], double Kcon[NDIM], double dl);
@@ -153,7 +155,8 @@ void evolve_N(double Xi[NDIM],double Kconi[NDIM],
 	      double Xf[NDIM],double Kconf[NDIM],
 	      double Xhalf[NDIM],double Kconhalf[NDIM],
 	      double dlam,
-	      double complex N_coord[NDIM][NDIM]);
+	      double complex N_coord[NDIM][NDIM],
+        double *tauF);
 void project_N(double X[NDIM],double Kcon[NDIM],
 	double complex Ncon[NDIM][NDIM],
 	double *Stokes_I, double *Stokes_Q,double *Stokes_U,double *Stokes_V);
