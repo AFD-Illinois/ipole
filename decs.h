@@ -15,8 +15,8 @@
 #include <omp.h>
 #endif
 
-#define NX   512
-#define NY   512
+#define NX   1024
+#define NY   1024
 
 #define NDIM	4
 #define NPRIM	8
@@ -46,6 +46,7 @@ extern double a;
 extern double theta_j;
 extern double trat_j;
 extern double trat_d;
+extern int counterjet;
 //2d
 
 extern double R0 ;

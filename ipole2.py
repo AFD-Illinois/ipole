@@ -1,3 +1,5 @@
+import os
+os.environ['QT_QPA_PLATFORM']='offscreen'
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,6 +34,8 @@ print "Flux [Jy]: ", flux
 i = (np.reshape(i0, (ImRes,ImRes))+1)*40./ImRes - 20.
 j = (np.reshape(j0, (ImRes,ImRes))+1)*40./ImRes - 20.
 
+fig = plt.figure(figsize=(9,7))
+
 # LP plot
 ax = plt.subplot(2,2,2)
 lpfrac = 100.*np.sqrt(Qs*Qs + Us*Us)/Is
@@ -56,7 +60,7 @@ ax.set_aspect('equal')
 ax = plt.subplot(2,2,4)
 z = np.reshape(tauF, (ImRes,ImRes))
 plt.pcolormesh(i,j,np.log10(z),cmap='RdBu', vmin = 0, vmax = 4.)
-plt.title('CP [%]')
+plt.title('log10 tauF')
 plt.axis([-20,20,-20,20])
 plt.colorbar()
 ax.set_aspect('equal')
@@ -94,7 +98,10 @@ plt.quiver(i[::skip, ::skip],j[::skip, ::skip],vx[::skip, ::skip],vy[::skip, ::s
 
 plt.subplots_adjust(wspace=0.3,hspace=0.3)
 
+print 'about to save'
+plt.suptitle('t = %04d' % (5*n))
+
 # show, or save
 #plt.show()
-plt.savefig('frame_%08d.png' % n)
+plt.savefig('frame_%08d.png' % n, bbox_inches='tight')
 
