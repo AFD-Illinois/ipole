@@ -56,10 +56,10 @@ int main(int argc, char *argv[])
     printf("_OPENMP not defined: running in serial\n");
 #endif
 
-    if (argc < 6) {
+    if (argc < 7) {
 	// fprintf(stderr,"usage: ipole theta freq filename Munit theta_j trat_d\n") ;
 	fprintf(stderr,
-		"usage: ipole theta freq filename Munit trat_j trat_d\n");
+		"usage: ipole theta freq filename Munit trat_j trat_d counterjet\n");
 	exit(0);
     }
 
@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
     sscanf(argv[4], "%lf", &M_unit);
     sscanf(argv[5], "%lf", &trat_j);
     sscanf(argv[6], "%lf", &trat_d);
+    sscanf(argv[7], "%d", &counterjet);
 
     init_model(argv);
     R0 = 0.0;
@@ -76,7 +77,7 @@ int main(int argc, char *argv[])
     freq = freqcgs * HPL / (ME * CL * CL);
 
     /* fix camera location */
-    rcam = 1.e3;//240.;
+    rcam = 240.;
     phicam = 0.0;
     Xcam[0] = 0.0;
     Xcam[1] = log(rcam);
@@ -91,8 +92,8 @@ int main(int argc, char *argv[])
 
     /* fix camera field of view */
     /* units = GM/c^2 in plane of the hole */
-    DX = 40.0;
-    DY = 40.0;
+    DX = 70.0;
+    DY = 70.0;
     fovx = DX / rcam;
     fovy = DY / rcam;
 
@@ -242,7 +243,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	    4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
 
     /* image, dump result */
-    make_ppm(image, freq, "ipole_fnu.ppm");
+    //make_ppm(image, freq, "ipole_fnu.ppm");
     dump(image, imageS, "ipole.dat", scale);
     for (i = 0; i < NX; i++)
 	for (j = 0; j < NY; j++)
@@ -268,7 +269,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
 	fprintf(stderr, "unable to open %s\n", fname);
 	exit(1);
     }
-    fprintf(fp, "%d %d %e %e %e %e %e\n", N1, N2, DX, DY, scale, L_unit, M_unit);
+    fprintf(fp, "%d %d %e %e %e %e %e\n", NX, NY, DX, DY, scale, L_unit, M_unit);
 
 
     sum_i = 0.0;
@@ -291,7 +292,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
 
 
     /*dump vtk file */
-    fp = fopen("ipole.vtk", "w");
+    /*fp = fopen("ipole.vtk", "w");
     if (fp == NULL) {
 	fprintf(stderr, "unable to open %s\n", "ipole.vtk");
 	exit(1);
@@ -322,7 +323,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
 	}
     }
 
-    fclose(fp);
+    fclose(fp);*/
 
 
 

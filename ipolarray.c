@@ -127,6 +127,16 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 	jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
 		 &aI, &aQ, &aU, &aV, &rQ, &rU, &rV);
 
+  if (counterjet == 1) { // Emission from X[2] > 0.5 only
+    if (Xf[2] < 0.5) {
+      jI = jQ = jU = jV = 0.;
+    }
+  } else if (counterjet == 2) { // Emission from X[2] < 0.5 only
+    if (Xf[2] > 0.5) {
+      jI = jQ = jU = jV = 0.;
+    }
+  }
+
 	/* make plasma tetrad */
 	get_model_ucon(Xf, Ucon);
 	B = get_model_b(Xf);	/* field in G */

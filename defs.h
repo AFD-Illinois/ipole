@@ -15,6 +15,7 @@ double gam ;
 double trat_j;
 double theta_j;
 double trat_d;
+int counterjet;
 
 /* HARM model globals */
 double M_unit;

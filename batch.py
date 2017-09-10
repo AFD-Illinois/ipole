@@ -15,7 +15,8 @@ EVPA = np.zeros(len(nu))
 for n in xrange(len(nu)):
   call(['./ipole', str(theta), str(nu[n]), fnam, '1', '1', '1'])
   
-  i0, j0, x, y, Ia, Is, Qs, Us, Vs = np.loadtxt('ipole.dat', unpack=True)
+  i0, j0, x, y, Ia, Is, Qs, Us, Vs, tauF = np.loadtxt('ipole.dat', unpack=True,
+      skiprows=1)
   Q_I = np.sum(Qs*Is)/np.sum(Is)
   U_I = np.sum(Us*Is)/np.sum(Is)
   EVPA[n] = 0.5*np.arctan(U_I/Q_I)
