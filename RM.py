@@ -16,7 +16,8 @@ theta = float(sys.argv[2])
 dfnam = sys.argv[3]
 
 # Calculate rotation measure
-nus = np.array([0.998*nu, 0.999*nu, nu, 1.001*nu, 1.002*nu])
+#nus = np.array([0.998*nu, 0.999*nu, nu, 1.001*nu, 1.002*nu])
+nus = np.array([218.4e9, 220.4e9, 230.3e9, 232.3e9])
 lams = CL/nus/100. # cm -> m
 chis = np.zeros(len(nus))
 for n, freq in enumerate(nus):
