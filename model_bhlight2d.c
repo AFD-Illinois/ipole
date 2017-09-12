@@ -618,7 +618,7 @@ void init_bhlight2d_data(char *fname)
       safe_fscanf(fp, "%lf", &thetae[i][j]); // Thetae
     } else {
       thetae[i][j] = p[KELCOND][i][j]*pow(p[KRHO][i][j],game-1.)*Thetae_unit;
-      safe_fscanf(fp, "%lf", &thetae[i][j]); // Thetae
+      //safe_fscanf(fp, "%lf", &thetae[i][j]); // Thetae
     }
 
     // Need a floor on thetae to avoid NANs

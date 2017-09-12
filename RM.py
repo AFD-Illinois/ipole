@@ -17,7 +17,9 @@ dfnam = sys.argv[3]
 
 # Calculate rotation measure
 #nus = np.array([0.998*nu, 0.999*nu, nu, 1.001*nu, 1.002*nu])
-nus = np.array([218.4e9, 220.4e9, 230.3e9, 232.3e9])
+#nus = np.array([218.4e9, 220.4e9, 230.3e9, 232.3e9])
+nus = np.array([228,229,230,231,232])*1.e9
+#nus = np.linspace(220.e9, 230.e9, 16)
 lams = CL/nus/100. # cm -> m
 chis = np.zeros(len(nus))
 for n, freq in enumerate(nus):
@@ -28,13 +30,13 @@ for n, freq in enumerate(nus):
     skiprows=1)
   print '\n\n\n\n'
   N = int(np.sqrt(len(i0)))
-  Q_I = sum(Qs*Is)/sum(Is)
-  U_I = sum(Us*Is)/sum(Is)
+  Q = sum(Qs)#sum(Qs*Is)/sum(Is)
+  U = sum(Us)#sum(Us*Is)/sum(Is)
   print N
-  print Q_I
-  print U_I
+  print Q
+  print U
   print 'I = %e' % sum(Is)
-  chis[n] = 0.5*np.arctan(U_I/Q_I)
+  chis[n] = 0.5*np.arctan(U/Q)
 
 RM = np.polyfit(lams**2, chis, 1)[0]
 print 'N = %d' % N
@@ -50,3 +52,4 @@ RM_out['RM'] = RM
 RM_out['dfnam'] = dfnam
 RM_out['theta'] = theta
 pickle.dump(RM_out, open('RM.p', 'wb'))
+
