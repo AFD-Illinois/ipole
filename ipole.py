@@ -2,47 +2,63 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
+from scipy.ndimage.interpolation import rotate
 
-if len(sys.argv) < 2 :
-	print "usage: ipole.py ipole.dat"
+if len(sys.argv) < 3 :
+	print "usage: ipole.py ipole.dat phi(deg)"
 	quit()
 
 fil = sys.argv[1]
+phi = float(sys.argv[2])
+
+# read in header
+with open(fil, 'r') as f:
+  line = f.readline().split(' ')
+  NX = int(line[0])
+  NY = int(line[1])
+  DX = float(line[2])
+  DY = float(line[3])
+  scale = float(line[4])
+  L_unit = float(line[5])
+  M_unit = float(line[6])
+
+print 'NX = %i' % NX
+print 'NY = %i' % NY
 
 # read in data 
 i0, j0, x, y, Ia, Is, Qs, Us, Vs, tauF = np.loadtxt(fil, unpack=True, skiprows=1)
 
-# Remove NANs
-print np.where(np.isnan(Is))
-print Is[np.where(np.isnan(Is))]
-Is[np.isnan(Is)] = 0.;
-Qs[np.isnan(Qs)] = 0.;
-Us[np.isnan(Us)] = 0.;
-Vs[np.isnan(Vs)] = 0.;
-
 # set image size
-ImRes = int(round(np.sqrt(len(i0))))
-print "Image resolution: ", ImRes
+#ImRes = int(round(np.sqrt(len(i0))))
+#print "Image resolution: ", ImRes
+
+# set render size
+FOV = 40.
 
 # size of single pixel in rad: M/pixel . muas/pix . rad/muas
 FOV = 40.
-print "assuming FOV = ", FOV, "GM/c^2"
+print "rendering FOV = ", FOV, "GM/c^2"
 #
-da = FOV/ImRes * 5. / (1.e6 * 206265.)
+#da = FOV/ImRes * 5. / (1.e6 * 206265.)
 # solid angle subtended by pixel
-dO = da*da
-Jy = 1.e-23  # cgs
-flux = dO*sum(Is)/Jy
+#dO = da*da
+#print dO
+#print scale
+#print sum(Is)*scale
+#sodifj
+#Jy = 1.e-23  # cgs
+#flux = dO*sum(Is)/Jy
+flux = sum(Is)*scale
 print "Flux [Jy]: ", flux
 
 # recast indices into offset in units of M
-i = (np.reshape(i0, (ImRes,ImRes))+1)*40./ImRes - 20.
-j = (np.reshape(j0, (ImRes,ImRes))+1)*40./ImRes - 20.
+i = (np.reshape(i0, (NX,NY))+1)*DX/NX - DY/2
+j = (np.reshape(j0, (NX,NY))+1)*DY/NY - DY/2
 
 # LP plot
 ax = plt.subplot(2,2,2)
 lpfrac = 100.*np.sqrt(Qs*Qs + Us*Us)/Is
-z = np.reshape(lpfrac, (ImRes,ImRes))
+z = rotate(np.reshape(lpfrac, (NX,NY)), phi, reshape=False)
 plt.pcolormesh(i,j,z,cmap='jet', vmin = 0., vmax = 100.)
 plt.title('LP [%]')
 plt.axis([-20,20,-20,20])
@@ -52,7 +68,7 @@ ax.set_aspect('equal')
 # EVPA plot
 ax = plt.subplot(2,2,3)
 evpa = (180./3.14159)*0.5*np.arctan2(Us,Qs)
-z = np.reshape(evpa, (ImRes,ImRes))
+z = rotate(np.reshape(evpa, (NX,NY)), phi, reshape=False)
 plt.pcolormesh(i,j,z,cmap='jet')
 plt.title('EVPA [deg]')
 plt.axis([-20,20,-20,20])
@@ -62,7 +78,7 @@ ax.set_aspect('equal')
 # CP plot
 ax = plt.subplot(2,2,4)
 cpfrac = 100.*Vs/Is
-z = np.reshape(cpfrac, (ImRes,ImRes))
+z = rotate(np.reshape(cpfrac, (NX,NY)), phi, reshape=False)
 plt.pcolormesh(i,j,z,cmap='jet', vmin = -5, vmax = 5.)
 plt.title('CP [%]')
 plt.axis([-20,20,-20,20])
@@ -71,7 +87,7 @@ ax.set_aspect('equal')
 
 # total intensity 
 ax = plt.subplot(2,2,1)
-z = np.reshape(Is, (ImRes,ImRes))
+z = rotate(np.reshape(Is, (NX,NY)), phi, reshape=False)
 plt.pcolormesh(i,j,z,cmap='afmhot', vmin=0., vmax=z.max())
 plt.colorbar()
 plt.title('Stokes I [cgs]')
@@ -90,9 +106,9 @@ scal = max(amp)
 #print(scal)
 vxp = np.sqrt(Qs*Qs + Us*Us)*np.cos(evpa*3.14159/180.)/scal
 vyp = np.sqrt(Qs*Qs + Us*Us)*np.sin(evpa*3.14159/180.)/scal
-vx = np.reshape(vxp, (ImRes,ImRes))
-vy = np.reshape(vyp, (ImRes,ImRes))
-skip = 8
+vx = rotate(np.reshape(vxp, (NX,NY)), phi, reshape=False)
+vy = rotate(np.reshape(vyp, (NX,NY)), phi, reshape=False)
+skip = 32
 plt.quiver(i[::skip, ::skip],j[::skip, ::skip],vx[::skip, ::skip],vy[::skip, ::skip], 
 	headwidth=1, headlength=1, 
 	width=0.005,
