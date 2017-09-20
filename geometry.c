@@ -44,11 +44,20 @@ double gdet_func(double gcov[][NDIM])
 
 
 /* invert gcov to get gcon */
-void gcon_func(double gcov[][NDIM], double gcon[][NDIM])
+int gcon_func(double gcov[][NDIM], double gcon[][NDIM])
 {
     int invert_matrix(double Am[][NDIM], double Aminv[][NDIM]);
 
-    invert_matrix(gcov, gcon);
+    int sing = invert_matrix(gcov, gcon);
+    if (sing) {
+      for (int mu = 0; mu < NDIM; mu++) {
+        for (int nu = 0; nu < NDIM; nu++) {
+          printf("gcov[%i][%i] = %e\n", mu, nu, gcov[mu][nu]);
+        }
+      }
+    }
+
+    return sing;
 
     /* done! */
 }

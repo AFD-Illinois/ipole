@@ -4,6 +4,8 @@ import numpy as np
 import sys
 from scipy.ndimage.interpolation import rotate
 
+SMALL = 1.e-30
+
 if len(sys.argv) < 3 :
 	print "usage: ipole.py ipole.dat phi(deg)"
 	quit()
@@ -57,7 +59,7 @@ j = (np.reshape(j0, (NX,NY))+1)*DY/NY - DY/2
 
 # LP plot
 ax = plt.subplot(2,2,2)
-lpfrac = 100.*np.sqrt(Qs*Qs + Us*Us)/Is
+lpfrac = 100.*np.sqrt(Qs*Qs + Us*Us)/(Is + SMALL)
 z = rotate(np.reshape(lpfrac, (NX,NY)), phi, reshape=False)
 plt.pcolormesh(i,j,z,cmap='jet', vmin = 0., vmax = 100.)
 plt.title('LP [%]')
@@ -77,7 +79,7 @@ ax.set_aspect('equal')
 
 # CP plot
 ax = plt.subplot(2,2,4)
-cpfrac = 100.*Vs/Is
+cpfrac = 100.*Vs/(Is + SMALL)
 z = rotate(np.reshape(cpfrac, (NX,NY)), phi, reshape=False)
 plt.pcolormesh(i,j,z,cmap='jet', vmin = -5, vmax = 5.)
 plt.title('CP [%]')

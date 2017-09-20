@@ -36,7 +36,8 @@ int main(int argc, char *argv[])
     int i, j, k, l, nstep;
     double Xi[NDIM], Xf[NDIM], Kconi[NDIM], Kconf[NDIM], ji, ki, jf, kf;
     double scale;
-    double root_find(double th);
+    //double root_find(double th);
+    double root_find(double x[NDIM]);
     int imax, jmax;
     double Imax, Iavg;		//,dOmega;
     double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
@@ -81,8 +82,11 @@ int main(int argc, char *argv[])
     phicam = 0.0;
     Xcam[0] = 0.0;
     Xcam[1] = log(rcam);
-    Xcam[2] = root_find(thetacam / 180. * M_PI);
+    double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam};
+    Xcam[2] = root_find(x);
     Xcam[3] = phicam;
+
+    printf("X[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
 
     fprintf(stdout,
 	    "cam_th_cal=%g [deg] th_beg=%g th_len=%g a=%g R0=%g hslope=%g\n",
@@ -92,14 +96,15 @@ int main(int argc, char *argv[])
 
     /* fix camera field of view */
     /* units = GM/c^2 in plane of the hole */
-    DX = 70.0;
-    DY = 70.0;
+    DX = 40.0;
+    DY = 40.0;
     fovx = DX / rcam;
     fovy = DY / rcam;
 
-    Dsource = DM87 ;
-    //Dsource = DSGRA;
+    //Dsource = DM87 ;
+    Dsource = DSGRA;
     scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
+    printf("L_unit = %e DX = %e NX = %i Dsource = %e JY = %e\n", L_unit, DX, NX, Dsource,JY);
     fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
     fprintf(stderr,"Dsource: %g [cm]\n",Dsource);
     fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
@@ -260,7 +265,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
 {
     FILE *fp;
     int i, j;
-    double xx, yy, dum_r;
+    double xx, yy;
     double sum_i;
 
 
@@ -318,7 +323,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
 
     for (j = 0; j <= NY; j++) {
 	for (i = 0; i <= NX; i++) {
-	    dum_r = (image[i][j]);
+	    double dum_r = (image[i][j]);
 	    fprintf(fp, "%g\n", dum_r);
 	}
     }
