@@ -24,7 +24,7 @@ static double DX, DY, fovx, fovy;
 
 int main(int argc, char *argv[])
 {
-    //omp_set_num_threads(1);
+    omp_set_num_threads(1);
     double X[NDIM], Kcon[NDIM];
     double Xhalf[NDIM], Kconhalf[NDIM];
     double dl, Intensity;
@@ -101,6 +101,9 @@ int main(int argc, char *argv[])
     fovx = DX / rcam;
     fovy = DY / rcam;
 
+    // Maximum radius of radiation interactions (GM/c^2)
+    rmax = 50.;
+    
     //Dsource = DM87 ;
     Dsource = DSGRA;
     scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
@@ -113,6 +116,59 @@ int main(int argc, char *argv[])
     fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
 
     int nprogress = 0;
+
+  double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM], t[NX][NY], tmin[NX][NY];
+  #pragma omp parallel for collapse(2) \
+schedule(static,NX*NY/nthreads) \
+  private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
+   Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
+   Stokes_V,tauF)
+    for (i = 0; i < NX; i++) {
+      for (j = 0; j < NY; j++) {
+        if (j == 0) {printf("%i ", i); fflush(stdout);}
+        init_XK(i, j, Xcam, fovx, fovy, Xgeo[i][j], Kcongeo[i][j]);
+    
+        for (k = 0; k < NDIM; k++) Kcongeo[i][j][k] *= freq;
+
+        // Integrate geodesic backwards in time
+        int ngeo = 0;
+        int tmin_set = 0;
+        while (!stop_backward_integration(Xgeo[i][j], Kcongeo[i][j], Xcam)) {
+		      dl = stepsize(Xgeo[i][j], Kcongeo[i][j]);
+          t[i][j] += dl*Kcongeo[i][j][0];
+          if (Xgeo[i][j][1] < log(rmax) && tmin_set == 0) {
+            tmin_set = 1;
+            tmin[i][j] = t[i][j];
+          }
+          //printf("dt = %e, t = %e\n", dl*Kcongeo[i][j][0], t[i][j]);
+          push_photon(Xgeo[i][j], Kcongeo[i][j], -dl, Xhalf, Kconhalf);
+        }
+		    ngeo++;
+
+		    if (ngeo > MAXNSTEP - 2) {
+		      fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j, i);
+		      exit(1);
+		    }
+        //exit(-1);
+      }
+    } // pragma omp parallel for
+ 
+  double tmax = 0.;
+  //int imax, jmax;
+  imax = jmax = 0;
+  for (i = 0; i < NX; i++) {
+    for (j = 0; j < NY; j++) {
+      if (t[i][j] > tmax) {
+        tmax = t[i][j];
+        imax = i;
+        jmax = j;
+      }
+      //if (tmin 
+    }
+  }
+  printf("tmax = %e [%i %i]\n", tmax, imax, jmax); 
+
+  exit(-1);
 
 #pragma omp parallel for \
 default(none) \

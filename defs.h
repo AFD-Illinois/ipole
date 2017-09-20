@@ -16,6 +16,7 @@ double trat_j;
 double theta_j;
 double trat_d;
 int counterjet;
+double rmax;
 
 /* HARM model globals */
 double M_unit;
