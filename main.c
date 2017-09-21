@@ -22,9 +22,21 @@ int threadid,nthreads;
 
 static double DX, DY, fovx, fovy;
 
+int alldone(int arr[NX][NY]) {
+  for (int i = 0; i < NX; i++) {
+    for (int j = 0; j < NY; j++) {
+      if (arr[i][j] == 0) {
+        return 0;
+      }
+    }
+  }
+
+  return 1;
+}
+
 int main(int argc, char *argv[])
 {
-    omp_set_num_threads(1);
+    //omp_set_num_threads(1);
     double X[NDIM], Kcon[NDIM];
     double Xhalf[NDIM], Kconhalf[NDIM];
     double dl, Intensity;
@@ -116,6 +128,9 @@ int main(int argc, char *argv[])
     fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
 
     int nprogress = 0;
+ 
+ if (1) { // New slow-light method
+  printf("\nBACKWARD\n");
 
   double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM], t[NX][NY], tmin[NX][NY];
   #pragma omp parallel for collapse(2) \
@@ -135,7 +150,7 @@ schedule(static,NX*NY/nthreads) \
         int tmin_set = 0;
         while (!stop_backward_integration(Xgeo[i][j], Kcongeo[i][j], Xcam)) {
 		      dl = stepsize(Xgeo[i][j], Kcongeo[i][j]);
-          t[i][j] += dl*Kcongeo[i][j][0];
+          t[i][j] = Xgeo[i][j][0];
           if (Xgeo[i][j][1] < log(rmax) && tmin_set == 0) {
             tmin_set = 1;
             tmin[i][j] = t[i][j];
@@ -158,7 +173,7 @@ schedule(static,NX*NY/nthreads) \
   imax = jmax = 0;
   for (i = 0; i < NX; i++) {
     for (j = 0; j < NY; j++) {
-      if (t[i][j] > tmax) {
+      if (t[i][j] < tmax) {
         tmax = t[i][j];
         imax = i;
         jmax = j;
@@ -168,8 +183,88 @@ schedule(static,NX*NY/nthreads) \
   }
   printf("tmax = %e [%i %i]\n", tmax, imax, jmax); 
 
-  exit(-1);
+  int done[NX][NY];//, done_thisslice[NX][NY];
+  #pragma omp parallel for collapse(2)
+  for (i = 0; i < NX; i++) {
+    for (j = 0; j < NY; j++) {
+      //t[i][j] = tmax - t[i][j];
+      done[i][j] = 0;
+      image[i][j] = 0.;
+	    init_N(Xgeo[i][j], Kcongeo[i][j], N_coord);
+    }
+  }
 
+  double DTd = 5.; // READ FROM FILES! ASSUME CONSTANT DTd!
+  double tcurr = tmax;
+
+  int nloop = 0;
+
+  // Loop while all rays not yet finished
+  while (tcurr < 0.) {
+
+    // Loop over rays, push to tcurr if necessary.
+    #pragma omp parallel for \
+      collapse(2) \
+      private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
+      Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
+      Stokes_V,tauF) 
+    for (i = 0; i < NX; i++) {
+      for (j = 0; j < NY; j++) {
+        double Xhalfgeo[NDIM], Kconhalfgeo[NDIM];
+        double Xprevgeo[NDIM], Kconprevgeo[NDIM];
+        while (Xgeo[i][j][0] < tcurr && Xgeo[i][j][0] < 0.) {
+          //printf("i,j = %i %i\n", i,j);
+          // push
+          //t[i][j] += DTd;
+		      
+          // Integrate geodesic, retaining n, n+1/2, and n+1 X and K
+          for (int mu = 0; mu < NDIM; mu++) {
+            Xprevgeo[mu] = Xgeo[i][j][mu];
+            Kconprevgeo[mu] = Kcongeo[i][j][mu];
+          }
+          dl = stepsize(Xgeo[i][j], Kcongeo[i][j]);
+          push_photon(Xgeo[i][j], Kcongeo[i][j], dl, Xhalfgeo, Kconhalfgeo);
+		
+          get_jkinv(Xprevgeo, Kconprevgeo, &ji, &ki);
+		      get_jkinv(Xgeo[i][j], Kcongeo[i][j], &jf, &kf);
+		      image[i][j] = approximate_solve(image[i][j], ji, ki, jf, kf, dl);
+        }
+        //printf("Xgeo[i][j][1] = %e log(rmax) = %e\n", Xgeo[i][j][1], log(rmax));
+        if (Kcongeo[i][j][1] > 0. && Xgeo[i][j][1] > log(rmax)) {
+          done[i][j] = 1;
+        }
+      }
+    }
+
+    printf("tcurr = %e\n", tcurr);
+
+    int alldone = 1;
+    for (i = 0; i < NX; i++) {
+      for (j = 0; j < NY; j++) {
+        if (done[i][j] == 0)
+          alldone = 0;
+      }
+    }
+    
+    if (!alldone) {
+      printf("LOADING NEW DATA\n");
+    }
+    // load newest timeslice, rename two most recent. Don't do this if all superphotons outside of radiative region.
+    
+    tcurr += DTd;
+    nloop++;
+  }
+
+  // Conversion factors
+  for (i = 0; i < NX; i++) {
+    for (j = 0; j < NY; j++) {
+      image[i][j] *= pow(freqcgs, 3);
+    }
+  }
+
+  //exit(-1);
+
+} else {
 #pragma omp parallel for \
 default(none) \
 schedule(static,NX*NY/nthreads) \
@@ -279,6 +374,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
             nprogress += 1;
 	}
     }
+} //if (0)
 
 
     /* printing out to files and on stderr */
