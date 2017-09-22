@@ -17,6 +17,8 @@ extern double image[NX][NY];
 double image[NX][NY];
 extern double imageS[NX][NY][NIMG];
 double imageS[NX][NY][NIMG];
+double complex Ngeo[NX][NY][NDIM][NDIM];
+double tauFgeo[NX][NY];
 
 int threadid,nthreads;
 
@@ -115,7 +117,7 @@ int main(int argc, char *argv[])
 
     // Maximum radius of radiation interactions (GM/c^2)
     rmax = 50.;
-    
+
     //Dsource = DM87 ;
     Dsource = DSGRA;
     scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
@@ -128,21 +130,25 @@ int main(int argc, char *argv[])
     fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
 
     int nprogress = 0;
- 
+
  if (1) { // New slow-light method
   printf("\nBACKWARD\n");
+/*schedule(static,NX*NY/nthreads) \*/
 
   double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM], t[NX][NY], tmin[NX][NY];
-  #pragma omp parallel for collapse(2) \
-schedule(static,NX*NY/nthreads) \
-  private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
+#pragma omp parallel for \
+default(none) \
+collapse(2) \
+private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
    Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
-   Stokes_V,tauF)
+   Stokes_V,tauF) \
+shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
+   th_beg,th_len,hslope,nthreads,nprogress,Kcongeo,Xgeo,t,tmin,tauFgeo,Ngeo,rmax)
     for (i = 0; i < NX; i++) {
       for (j = 0; j < NY; j++) {
         if (j == 0) {printf("%i ", i); fflush(stdout);}
         init_XK(i, j, Xcam, fovx, fovy, Xgeo[i][j], Kcongeo[i][j]);
-    
+
         for (k = 0; k < NDIM; k++) Kcongeo[i][j][k] *= freq;
 
         // Integrate geodesic backwards in time
@@ -167,7 +173,7 @@ schedule(static,NX*NY/nthreads) \
         //exit(-1);
       }
     } // pragma omp parallel for
- 
+
   double tmax = 0.;
   //int imax, jmax;
   imax = jmax = 0;
@@ -178,19 +184,20 @@ schedule(static,NX*NY/nthreads) \
         imax = i;
         jmax = j;
       }
-      //if (tmin 
+      //if (tmin
     }
   }
-  printf("tmax = %e [%i %i]\n", tmax, imax, jmax); 
+  printf("tmax = %e [%i %i]\n", tmax, imax, jmax);
 
   int done[NX][NY];//, done_thisslice[NX][NY];
-  #pragma omp parallel for collapse(2)
+  //#pragma omp parallel for collapse(2)
   for (i = 0; i < NX; i++) {
     for (j = 0; j < NY; j++) {
       //t[i][j] = tmax - t[i][j];
       done[i][j] = 0;
       image[i][j] = 0.;
-	    init_N(Xgeo[i][j], Kcongeo[i][j], N_coord);
+	    init_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j]);
+      tauFgeo[i][j] = 0.;
     }
   }
 
@@ -202,12 +209,19 @@ schedule(static,NX*NY/nthreads) \
   // Loop while all rays not yet finished
   while (tcurr < 0.) {
 
+  ///// NOTE! dl MUST correspond to < DTd! Probably < DTd/2 for safety
+
     // Loop over rays, push to tcurr if necessary.
-    #pragma omp parallel for \
-      collapse(2) \
-      private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
-      Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
-      Stokes_V,tauF) 
+/*#pragma omp parallel for \
+default(none) \
+schedule(static,NX*NY/nthreads) \
+collapse(2) \
+private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
+   Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
+   Stokes_V,tauF) \
+shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
+   th_beg,th_len,hslope,nthreads,nprogress,Kcongeo,Xgeo,t,tmin,tauFgeo,Ngeo,\
+   rmax,tcurr,done)*/
     for (i = 0; i < NX; i++) {
       for (j = 0; j < NY; j++) {
         double Xhalfgeo[NDIM], Kconhalfgeo[NDIM];
@@ -216,7 +230,7 @@ schedule(static,NX*NY/nthreads) \
           //printf("i,j = %i %i\n", i,j);
           // push
           //t[i][j] += DTd;
-		      
+
           // Integrate geodesic, retaining n, n+1/2, and n+1 X and K
           for (int mu = 0; mu < NDIM; mu++) {
             Xprevgeo[mu] = Xgeo[i][j][mu];
@@ -224,10 +238,39 @@ schedule(static,NX*NY/nthreads) \
           }
           dl = stepsize(Xgeo[i][j], Kcongeo[i][j]);
           push_photon(Xgeo[i][j], Kcongeo[i][j], dl, Xhalfgeo, Kconhalfgeo);
-		
+
           get_jkinv(Xprevgeo, Kconprevgeo, &ji, &ki);
 		      get_jkinv(Xgeo[i][j], Kcongeo[i][j], &jf, &kf);
+          dl *= L_unit*HPL/(ME*CL*CL);
 		      image[i][j] = approximate_solve(image[i][j], ji, ki, jf, kf, dl);
+
+          evolve_N(Xprevgeo, Kconprevgeo, Xhalfgeo, Kconhalfgeo, Xgeo[i][j],
+            Kcongeo[i][j], dl, Ngeo[i][j], &tauFgeo[i][j]);
+          /*if (i == 63 && j == 78) {
+            printf("X[0] = %e Ia = %e N[0][0] = %e tauF = %e\n", Xgeo[i][j][0],
+              image[i][j], Ngeo[i][j][0][0], tauFgeo[i][j]);
+          }*/
+
+          /*if (i == 65 && j == 71) {
+            printf("X[] = %e %e %e %e\n", Xgeo[i][j][0], Xgeo[i][j][1], Xgeo[i][j][2], Xgeo[i][j][3]);
+            printf("K[] = %e %e %e %e\n\n", Kcongeo[i][j][0], Kcongeo[i][j][1], Kcongeo[i][j][2], Kcongeo[i][j][3]);
+          }*/
+
+          if (tauFgeo[i][j] > 1.e100 || tauFgeo[i][j] < -1.e100) {
+            printf("i,j = %i %i t = %e, X0 = %e\n", i,j, t[i][j], Xgeo[i][j][0]);
+            for (int mu = 0; mu < NDIM; mu++) {
+              printf("[%i] X = %e Kcon = %e\n", mu, Xgeo[i][j][mu], Kcongeo[i][j][mu]);
+              printf("     Xprev = %e Kconprev = %e\n", Xprevgeo[mu], Kconprevgeo[mu]);
+              printf("     Xhalf = %e Kconhalf = %e\n", Xhalfgeo[mu], Kconhalfgeo[mu]);
+            }
+            exit(-1);
+          }
+
+
+/*          if (isnan(creal(Ngeo[i][j][0][0])) || fabs(creal(Ngeo[i][j][0][0])) > 1.e200) {
+            printf("BAD! Ngeo[%i][%i] = %e X0 = %e\n", i,j,creal(Ngeo[i][j][0][0]),Xgeo[i][j][0]);
+            exit(-1);
+          }*/
         }
         //printf("Xgeo[i][j][1] = %e log(rmax) = %e\n", Xgeo[i][j][1], log(rmax));
         if (Kcongeo[i][j][1] > 0. && Xgeo[i][j][1] > log(rmax)) {
@@ -245,12 +288,12 @@ schedule(static,NX*NY/nthreads) \
           alldone = 0;
       }
     }
-    
-    if (!alldone) {
-      printf("LOADING NEW DATA\n");
-    }
+
+    //if (!alldone) {
+    //  printf("LOADING NEW DATA\n");
+    //}
     // load newest timeslice, rename two most recent. Don't do this if all superphotons outside of radiative region.
-    
+
     tcurr += DTd;
     nloop++;
   }
@@ -259,6 +302,13 @@ schedule(static,NX*NY/nthreads) \
   for (i = 0; i < NX; i++) {
     for (j = 0; j < NY; j++) {
       image[i][j] *= pow(freqcgs, 3);
+      project_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j], &imageS[i][j][0],
+        &imageS[i][j][1], &imageS[i][j][2], &imageS[i][j][3]);
+      imageS[i][j][0] *= pow(freqcgs, 3);
+      imageS[i][j][1] *= pow(freqcgs, 3);
+      imageS[i][j][2] *= pow(freqcgs, 3);
+      imageS[i][j][3] *= pow(freqcgs, 3);
+      imageS[i][j][4] = tauFgeo[i][j];
     }
   }
 
@@ -375,6 +425,8 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	}
     }
 } //if (0)
+
+  printf("image[4][4] = %e\n", image[4][4]);
 
 
     /* printing out to files and on stderr */

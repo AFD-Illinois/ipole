@@ -186,6 +186,9 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 	double adj = aQ * jQ + aU * jU + aV * jV;
 
   *tauF += dlam*fabs(rV);
+  if (*tauF > 1.e100 || *tauF < -1.e100 || isnan(*tauF)) {
+    printf("tauF = %e dlam = %e rV = %e\n", *tauF, dlam, rV);
+  }
 
 	if (aP > SMALL) {  /* full analytic solution has trouble if polarized absorptivity is small */
 	    double expaIx = exp(-aI * x);
