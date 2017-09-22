@@ -43,6 +43,8 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
+#define IMLOOP for(int i=0;i<NDIM;i++) for(int j=0;j<NDIM;j++)
+
 /* some coordinate parameters */
 extern double a;
 

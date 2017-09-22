@@ -4,72 +4,46 @@
 
 #define MAXNSTEP 	50000
 
-struct of_traj {
-    double dl;
-    double X[NDIM];
-    double Kcon[NDIM];
-    double Xhalf[NDIM];
-    double Kconhalf[NDIM];
-} traj[MAXNSTEP];
+//extern double image[NX][NY];
+static double image[NX][NY];
+//extern double imageS[NX][NY][NIMG];
+static double imageS[NX][NY][NIMG];
+static double complex Ngeo[NX][NY][NDIM][NDIM];
+static double tauFgeo[NX][NY];
 
-
-extern double image[NX][NY];
-double image[NX][NY];
-extern double imageS[NX][NY][NIMG];
-double imageS[NX][NY][NIMG];
-double complex Ngeo[NX][NY][NDIM][NDIM];
-double tauFgeo[NX][NY];
-
-int threadid,nthreads;
+static double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM], t[NX][NY], tmin[NX][NY];
 
 static double DX, DY, fovx, fovy;
-
-int alldone(int arr[NX][NY]) {
-  for (int i = 0; i < NX; i++) {
-    for (int j = 0; j < NY; j++) {
-      if (arr[i][j] == 0) {
-        return 0;
-      }
-    }
-  }
-
-  return 1;
-}
 
 int main(int argc, char *argv[])
 {
     //omp_set_num_threads(1);
-    double X[NDIM], Kcon[NDIM];
-    double Xhalf[NDIM], Kconhalf[NDIM];
-    double dl, Intensity;
+    //double X[NDIM], Kcon[NDIM];
+    //double Xhalf[NDIM], Kconhalf[NDIM];
+    //double dl, Intensity;
     //double DX, DY, fovx, fovy;
     double thetacam, phicam, rcam, Xcam[NDIM];
 
     double freq, freqcgs;
     double Ftot, Dsource;
-    int i, j, k, l, nstep;
-    double Xi[NDIM], Xf[NDIM], Kconi[NDIM], Kconf[NDIM], ji, ki, jf, kf;
+    //int i, j, k, l, nstep;
+    //double Xi[NDIM], Xf[NDIM], Kconi[NDIM], Kconf[NDIM], ji, ki, jf, kf;
     double scale;
     //double root_find(double th);
     double root_find(double x[NDIM]);
     int imax, jmax;
     double Imax, Iavg;		//,dOmega;
-    double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
-    double tauF;
-    double complex N_coord[NDIM][NDIM];
+    //double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
+    //double tauF;
+    //double complex N_coord[NDIM][NDIM];
 
-#ifdef _OPENMP
-#pragma omp parallel default(none) shared(nthreads) private(threadid)
+    #pragma omp parallel
     {
-        threadid = omp_get_thread_num();
-        if(threadid==0) {
-            nthreads = omp_get_num_threads();
-            printf("nthreads = %d\n",nthreads);
-        }
+      if (omp_get_thread_num() == 0) {
+        int nthreads = omp_get_num_threads();
+        printf("nthreads = %d\n", nthreads);
+      }
     }
-#else
-    printf("_OPENMP not defined: running in serial\n");
-#endif
 
     if (argc < 7) {
 	// fprintf(stderr,"usage: ipole theta freq filename Munit theta_j trat_d\n") ;
@@ -129,31 +103,45 @@ int main(int argc, char *argv[])
     fprintf(stderr,"FOVx, FOVy: %g %g [rad]\n",DX*L_unit/Dsource,DY*L_unit/Dsource);
     fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
 
-    int nprogress = 0;
-
- if (1) { // New slow-light method
+  //  int nprogress = 0;
+  
   printf("\nBACKWARD\n");
-/*schedule(static,NX*NY/nthreads) \*/
-
-  double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM], t[NX][NY], tmin[NX][NY];
-#pragma omp parallel for \
-default(none) \
-collapse(2) \
-private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
-   Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
-   Stokes_V,tauF) \
-shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
-   th_beg,th_len,hslope,nthreads,nprogress,Kcongeo,Xgeo,t,tmin,tauFgeo,Ngeo,rmax)
-    for (i = 0; i < NX; i++) {
-      for (j = 0; j < NY; j++) {
-        if (j == 0) {printf("%i ", i); fflush(stdout);}
+  #pragma omp parallel
+  {
+    double Xhalf[NDIM], Kconhalf[NDIM];
+    #pragma omp for collapse(2)
+    for (int i = 0; i < NX; i++) {
+      for (int j = 0; j < NY; j++) {
+        if (j == 0) {printf("%i\n", i);}
         init_XK(i, j, Xcam, fovx, fovy, Xgeo[i][j], Kcongeo[i][j]);
 
-        for (k = 0; k < NDIM; k++) Kcongeo[i][j][k] *= freq;
+        if (i == 66 && j == 55) {
+  for (int mu = 0; mu < NDIM; mu++) {
+    printf("init: [%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+  }
+        }
+        if (i == 61 && j == 78) {
+  for (int mu = 0; mu < NDIM; mu++) {
+    printf("init: [%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+  }
+        }
+        if (i == 60 && j == 51) {
+  for (int mu = 0; mu < NDIM; mu++) {
+    printf("init: [%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+  }
+        }
+        if (i == 56 && j == 74) {
+  for (int mu = 0; mu < NDIM; mu++) {
+    printf("init: [%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+  }
+        }
+
+        for (int mu = 0; mu < NDIM; mu++) Kcongeo[i][j][mu] *= freq;
 
         // Integrate geodesic backwards in time
         int ngeo = 0;
         int tmin_set = 0;
+        double dl;
         while (!stop_backward_integration(Xgeo[i][j], Kcongeo[i][j], Xcam)) {
 		      dl = stepsize(Xgeo[i][j], Kcongeo[i][j]);
           t[i][j] = Xgeo[i][j][0];
@@ -161,7 +149,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
             tmin_set = 1;
             tmin[i][j] = t[i][j];
           }
-          //printf("dt = %e, t = %e\n", dl*Kcongeo[i][j][0], t[i][j]);
+          
           push_photon(Xgeo[i][j], Kcongeo[i][j], -dl, Xhalf, Kconhalf);
         }
 		    ngeo++;
@@ -170,15 +158,35 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 		      fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j, i);
 		      exit(1);
 		    }
-        //exit(-1);
       }
-    } // pragma omp parallel for
+    }
+  } // pragma omp parallel
+
+{
+  int i,j;
+  i = 66; j = 55;
+  for (int mu = 0; mu < NDIM; mu++) {
+    printf("[%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+  } printf("\n");
+  i = 61; j = 78;
+  for (int mu = 0; mu < NDIM; mu++) {
+    printf("[%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+  } printf("\n");  
+  i = 60; j = 51;
+  for (int mu = 0; mu < NDIM; mu++) {
+    printf("[%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+  } printf("\n");  
+  i = 56; j = 74;
+  for (int mu = 0; mu < NDIM; mu++) {
+    printf("[%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+  } printf("\n");  
+}
 
   double tmax = 0.;
   //int imax, jmax;
   imax = jmax = 0;
-  for (i = 0; i < NX; i++) {
-    for (j = 0; j < NY; j++) {
+  for (int i = 0; i < NX; i++) {
+    for (int j = 0; j < NY; j++) {
       if (t[i][j] < tmax) {
         tmax = t[i][j];
         imax = i;
@@ -190,9 +198,9 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
   printf("tmax = %e [%i %i]\n", tmax, imax, jmax);
 
   int done[NX][NY];//, done_thisslice[NX][NY];
-  //#pragma omp parallel for collapse(2)
-  for (i = 0; i < NX; i++) {
-    for (j = 0; j < NY; j++) {
+  #pragma omp parallel for collapse(2)
+  for (int i = 0; i < NX; i++) {
+    for (int j = 0; j < NY; j++) {
       //t[i][j] = tmax - t[i][j];
       done[i][j] = 0;
       image[i][j] = 0.;
@@ -222,8 +230,13 @@ private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
 shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
    th_beg,th_len,hslope,nthreads,nprogress,Kcongeo,Xgeo,t,tmin,tauFgeo,Ngeo,\
    rmax,tcurr,done)*/
-    for (i = 0; i < NX; i++) {
-      for (j = 0; j < NY; j++) {
+   
+    //#pragma omp parallel
+    {
+
+    //#pragma for collapse(2)
+    for (int i = 0; i < NX; i++) {
+      for (int j = 0; j < NY; j++) {
         double Xhalfgeo[NDIM], Kconhalfgeo[NDIM];
         double Xprevgeo[NDIM], Kconprevgeo[NDIM];
         while (Xgeo[i][j][0] < tcurr && Xgeo[i][j][0] < 0.) {
@@ -236,9 +249,11 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
             Xprevgeo[mu] = Xgeo[i][j][mu];
             Kconprevgeo[mu] = Kcongeo[i][j][mu];
           }
+          double dl;
           dl = stepsize(Xgeo[i][j], Kcongeo[i][j]);
           push_photon(Xgeo[i][j], Kcongeo[i][j], dl, Xhalfgeo, Kconhalfgeo);
 
+          double ji, jf, ki, kf;
           get_jkinv(Xprevgeo, Kconprevgeo, &ji, &ki);
 		      get_jkinv(Xgeo[i][j], Kcongeo[i][j], &jf, &kf);
           dl *= L_unit*HPL/(ME*CL*CL);
@@ -267,10 +282,6 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
           }
 
 
-/*          if (isnan(creal(Ngeo[i][j][0][0])) || fabs(creal(Ngeo[i][j][0][0])) > 1.e200) {
-            printf("BAD! Ngeo[%i][%i] = %e X0 = %e\n", i,j,creal(Ngeo[i][j][0][0]),Xgeo[i][j][0]);
-            exit(-1);
-          }*/
         }
         //printf("Xgeo[i][j][1] = %e log(rmax) = %e\n", Xgeo[i][j][1], log(rmax));
         if (Kcongeo[i][j][1] > 0. && Xgeo[i][j][1] > log(rmax)) {
@@ -282,25 +293,26 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
     printf("tcurr = %e\n", tcurr);
 
     int alldone = 1;
-    for (i = 0; i < NX; i++) {
-      for (j = 0; j < NY; j++) {
+    for (int i = 0; i < NX; i++) {
+      for (int j = 0; j < NY; j++) {
         if (done[i][j] == 0)
           alldone = 0;
       }
     }
 
-    //if (!alldone) {
-    //  printf("LOADING NEW DATA\n");
-    //}
+    if (!alldone) {
+      printf("LOADING NEW DATA\n");
+    }
     // load newest timeslice, rename two most recent. Don't do this if all superphotons outside of radiative region.
 
     tcurr += DTd;
     nloop++;
   }
+  } // pragma omp for
 
   // Conversion factors
-  for (i = 0; i < NX; i++) {
-    for (j = 0; j < NY; j++) {
+  for (int i = 0; i < NX; i++) {
+    for (int j = 0; j < NY; j++) {
       image[i][j] *= pow(freqcgs, 3);
       project_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j], &imageS[i][j][0],
         &imageS[i][j][1], &imageS[i][j][2], &imageS[i][j][3]);
@@ -312,138 +324,22 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
     }
   }
 
-  //exit(-1);
-
-} else {
-#pragma omp parallel for \
-default(none) \
-schedule(static,NX*NY/nthreads) \
-collapse(2) \
-private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
-   Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
-   Stokes_V,tauF) \
-shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
-   th_beg,th_len,hslope,nthreads,nprogress)
-    for (i = 0; i < NX; i++) {
-	for (j = 0; j < NY; j++) {
-
-	    init_XK(i, j, Xcam, fovx, fovy, X, Kcon);
-
-	    for (k = 0; k < NDIM; k++)
-		Kcon[k] *= freq;
-
-	    /* integrate geodesic backwards along trajectory */
-	    nstep = 0;
-	    while (!stop_backward_integration(X, Kcon, Xcam)) {
-
-		/* This stepsize function can be troublesome inside of R = 2M,
-		   and should be used cautiously in this region. */
-		dl = stepsize(X, Kcon);
-
-		/* move photon one step backwards, the procecure updates X
-		   and Kcon full step and returns also values in the middle */
-		push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
-		nstep++;
-
-		traj[nstep].dl = dl * L_unit * HPL / (ME * CL * CL);
-		for (k = 0; k < NDIM; k++)
-		    traj[nstep].X[k] = X[k];
-		for (k = 0; k < NDIM; k++)
-		    traj[nstep].Kcon[k] = Kcon[k];
-		for (k = 0; k < NDIM; k++)
-		    traj[nstep].Xhalf[k] = Xhalf[k];
-		for (k = 0; k < NDIM; k++)
-		    traj[nstep].Kconhalf[k] = Kconhalf[k];
-
-		if (nstep > MAXNSTEP - 2) {
-		    fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j,
-			    i);
-		    exit(1);
-		}
-
-	    }
-	    nstep--; /* final step violated the "stop" condition,so don't record it */
-	    /* DONE geodesic integration */
-
-	    /* integrate forwards along trajectory, including radiative transfer equation */
-	    // initialize N,Intensity; need X, K for this.
-	    for (l = 0; l < NDIM; l++) {
-		Xi[l] = traj[nstep].X[l];
-		Kconi[l] = traj[nstep].Kcon[l];
-	    }
-	    init_N(Xi, Kconi, N_coord);
-	    Intensity = 0.0;
-      tauF = 0.;
-
-	    while (nstep > 1) {
-
-		/* initialize X,K */
-		for (l = 0; l < NDIM; l++) {
-		    Xi[l]       = traj[nstep].X[l];
-		    Kconi[l]    = traj[nstep].Kcon[l];
-		    Xhalf[l]    = traj[nstep].Xhalf[l];
-		    Kconhalf[l] = traj[nstep].Kconhalf[l];
-		    Xf[l]       = traj[nstep - 1].X[l];
-		    Kconf[l]    = traj[nstep - 1].Kcon[l];
-		}
-
-		/* solve total intensity equation alone */
-		get_jkinv(Xi, Kconi, &ji, &ki);
-		get_jkinv(Xf, Kconf, &jf, &kf);
-		Intensity = approximate_solve(Intensity, ji, ki, jf, kf, traj[nstep].dl);
-    if (isnan(Intensity)) {
-      printf("BAD!\n");
-      exit(-1);
+  /* printing out to files and on stderr */
+  Ftot = 0.;
+  Imax = 0.0;
+  Iavg = 0.0;
+  imax = jmax = 0;
+  for (int i = 0; i < NX; i++) {
+    for (int j = 0; j < NY; j++) {
+      Ftot += image[i][j] * scale;
+      Iavg += image[i][j];
+      if (image[i][j] > Imax) {
+        imax = i;
+        jmax = j;
+        Imax = image[i][j];
+      }
     }
-
-		/* solve polarized transport */
-		evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
-    //if (isnan(creal(N_coord[0][0]))) exit(-1);
-
-                /* swap start and finish */
-		ji = jf;
-		ki = kf;
-
-		nstep--;
-	    }
-
-	    /* deposit intensity, and Stokes parameters in pixels */
-	    image[i][j] = Intensity * pow(freqcgs, 3);
-	    project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V);
-	    imageS[i][j][0] = Stokes_I * pow(freqcgs, 3);
-	    imageS[i][j][1] = Stokes_Q * pow(freqcgs, 3);
-	    imageS[i][j][2] = Stokes_U * pow(freqcgs, 3);
-	    imageS[i][j][3] = Stokes_V * pow(freqcgs, 3);
-      imageS[i][j][4] = tauF;
-
-	    if( (nprogress % NY) == 0 ) {
-	        fprintf(stderr,"%d ",(nprogress/NY));
-	    }
-
-#pragma omp atomic
-            nprogress += 1;
-	}
-    }
-} //if (0)
-
-  printf("image[4][4] = %e\n", image[4][4]);
-
-
-    /* printing out to files and on stderr */
-    Ftot = 0.;
-    Imax = 0.0;
-    Iavg = 0.0;
-    imax = jmax = 0;
-    for (i = 0; i < NX; i++)
-	for (j = 0; j < NY; j++) {
-	    Ftot += image[i][j] * scale;
-	    Iavg += image[i][j];
-	    if (image[i][j] > Imax) {
-		imax = i;
-		jmax = j;
-		Imax = image[i][j];
-	    }
-	}
+  } 
 
     fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax,
 	    Iavg / (NX * NY));
@@ -454,14 +350,10 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
     /* image, dump result */
     //make_ppm(image, freq, "ipole_fnu.ppm");
     dump(image, imageS, "ipole.dat", scale);
-    for (i = 0; i < NX; i++)
-	for (j = 0; j < NY; j++)
-	    image[i][j] = log(image[i][j] + 1.e-50);
+    //for (int i = 0; i < NX; i++)
+	//for (int j = 0; j < NY; j++)
+	  IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
     make_ppm(image, freq, "ipole_lfnu.ppm");
-
-    /* done! */
-
-
 }
 
 void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
@@ -545,7 +437,7 @@ void init_XK(int i, int j, double Xcam[4], double fovx, double fovy,	/* field of
     double Econ[NDIM][NDIM];
     double Ecov[NDIM][NDIM];
     double Kcon_tetrad[NDIM];
-    int k;
+    //int k;
 
     /* construct orthonormal tetrad.
        e^0 along Ucam
@@ -572,10 +464,8 @@ void init_XK(int i, int j, double Xcam[4], double fovx, double fovy,	/* field of
     tetrad_to_coordinate(Econ, Kcon_tetrad, Kcon);
 
     /* set position */
-    for (k = 0; k < NDIM; k++)
-	X[k] = Xcam[k];
-
-    /* done! */
+    for (int mu = 0; mu < NDIM; mu++)
+	    X[mu] = Xcam[mu];
 }
 
 /* normalize null vector in a tetrad frame */
