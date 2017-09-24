@@ -49,6 +49,12 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
     Ne = get_model_ne(X);
     get_model_ucov(X, Ucov);
+    if (isnan(Ucov[0])) {
+      printf("UCOV[0] is nan! thread = %i\n", omp_get_thread_num());
+      printf("X[] = %e %e %e %e\n", X[0],X[1],X[2],X[3]);
+      printf("K[] = %e %e %e %e\n", Kcon[0],Kcon[1],Kcon[2],Kcon[3]);
+      printf("Ne = %e\n", Ne);
+    }
     theta = get_bk_angle(X, Kcon, Ucov);	/* angle between k & b  */
 
     if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
@@ -81,7 +87,7 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 	*rV *= nu;
 
   if (isnan(*rV)  || *rV > 1.e100 || *rV < -1.e100) {
-    printf("NAN RV theta! rV = %e nu = %e Ne = %e Thetae = %e x = %e\n", *rV, nu, Ne, Thetae, x);
+    printf("NAN RV theta! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
   }
 
 	return;

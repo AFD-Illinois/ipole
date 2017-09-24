@@ -9,7 +9,7 @@ LDFLAGS = -L/home/brryan/Software/gsl/lib -lm -lgsl -lgslcblas
 MODEL = bhlight3d
 
 SRCIPO = \
-geodesics.c geodesics_gsl.c \
+geodesics.c \
 image.c \
 main.c radiation.c tetrads.c ipolarray.c \
 model_tetrads.c model_radiation.c \
@@ -17,15 +17,17 @@ model_geodesics.c \
 model_$(MODEL).c \
 geometry.c
 # model_geometry.c
+# geodesics_gsl.c
 
 OBJIPO = \
-geodesics.o geodesics_gsl.o \
+geodesics.o \
 image.o \
 main.o radiation.o tetrads.o ipolarray.o \
 model_tetrads.o model_radiation.o model_geodesics.o \
 model_$(MODEL).o \
 geometry.o
 # model_geometry.o
+# geodesics_gsl.o
 
 
 ipole: $(OBJIPO) makefile 

@@ -31,25 +31,30 @@ int stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 #undef LRMIN
 #undef LRMAX
 
-#define EPS     0.01
+//#define EPS     0.01
 
 double stepsize(double X[NDIM], double Kcon[NDIM])
 {
+  double eps = 0.01;
+  double small = 1.e-40; 
+
   double dl, dlx1, dlx2, dlx3;
   double idlx1,idlx2,idlx3 ;
 
-  dlx1 = EPS / (fabs(Kcon[1]) + SMALL*SMALL) ;
+  dlx1 = eps / (fabs(Kcon[1]) + small*small) ;
   //dlx2 = EPS * GSL_MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
-  dlx2 = EPS * MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
-  dlx3 = EPS / (fabs(Kcon[3]) + SMALL*SMALL) ;
+  dlx2 = eps * MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + small*small) ;
+  dlx3 = eps / (fabs(Kcon[3]) + small*small) ;
 
-  idlx1 = 1./(fabs(dlx1) + SMALL*SMALL) ;
-  idlx2 = 1./(fabs(dlx2) + SMALL*SMALL) ;
-  idlx3 = 1./(fabs(dlx3) + SMALL*SMALL) ;
+  idlx1 = 1./(fabs(dlx1) + small*small) ;
+  idlx2 = 1./(fabs(dlx2) + small*small) ;
+  idlx3 = 1./(fabs(dlx3) + small*small) ;
 
   dl = 1. / (idlx1 + idlx2 + idlx3) ;
 
+  //dl = MIN(dl, 0.5*DTd/Kcon[0]);
+
   return dl;
 }
-#undef EPS
+//#undef EPS
 

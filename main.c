@@ -24,6 +24,8 @@ int main(int argc, char *argv[])
     //double DX, DY, fovx, fovy;
     double thetacam, phicam, rcam, Xcam[NDIM];
 
+    set_levi_civita();
+
     double freq, freqcgs;
     double Ftot, Dsource;
     //int i, j, k, l, nstep;
@@ -104,7 +106,7 @@ int main(int argc, char *argv[])
     fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
 
   //  int nprogress = 0;
-  
+
   printf("\nBACKWARD\n");
   #pragma omp parallel
   {
@@ -117,22 +119,22 @@ int main(int argc, char *argv[])
 
         if (i == 66 && j == 55) {
   for (int mu = 0; mu < NDIM; mu++) {
-    printf("init: [%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+    printf("[%i] init: [%i %i] [%i] X = %e K = %e\n", omp_get_thread_num(),i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
   }
         }
         if (i == 61 && j == 78) {
   for (int mu = 0; mu < NDIM; mu++) {
-    printf("init: [%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+    printf("[%i] init: [%i %i] [%i] X = %e K = %e\n", omp_get_thread_num(),i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
   }
         }
         if (i == 60 && j == 51) {
   for (int mu = 0; mu < NDIM; mu++) {
-    printf("init: [%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+    printf("[%i] init: [%i %i] [%i] X = %e K = %e\n", omp_get_thread_num(),i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
   }
         }
         if (i == 56 && j == 74) {
   for (int mu = 0; mu < NDIM; mu++) {
-    printf("init: [%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
+    printf("[%i] init: [%i %i] [%i] X = %e K = %e\n", omp_get_thread_num(),i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
   }
         }
 
@@ -209,7 +211,8 @@ int main(int argc, char *argv[])
     }
   }
 
-  double DTd = 5.; // READ FROM FILES! ASSUME CONSTANT DTd!
+  DTd = 5.;
+  //double DTd = 5.; // READ FROM FILES! ASSUME CONSTANT DTd!
   double tcurr = tmax;
 
   int nloop = 0;

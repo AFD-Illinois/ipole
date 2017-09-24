@@ -243,7 +243,8 @@ int LU_decompose(double A[][NDIM], int permute[])
 
     const double absmin = 1.e-30;	/* Value used instead of 0 for singular matrices */
 
-    static double row_norm[NDIM];
+    //static double row_norm[NDIM];
+    double row_norm[NDIM];
     double absmax, maxtemp;
 
     int i, j, k, max_row;
@@ -452,7 +453,7 @@ void LU_substitution(double A[][NDIM], double B[], int permute[])
 
 /* the completely antisymmetric symbol; not a tensor
    in the coordinate basis */
-void set_levi_civita(double levi_civita[NDIM][NDIM][NDIM][NDIM])
+void set_levi_civita()
 {
     int i, j, k, l, n, do_sort, n_perm, val, n_swap;
     int index[NDIM];

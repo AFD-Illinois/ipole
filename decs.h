@@ -11,16 +11,12 @@
 #include <gsl/gsl_linalg.h>
 #include "constants.h"
 #include <complex.h> 
-
-#ifdef _OPENMP
 #include <omp.h>
-#endif
 
 #define NX   128
 #define NY   128
 
 #define NDIM	4
-//#define NPRIM	8
 
 #define NIMG (4+1) // Stokes vector and faraday depth
 
@@ -44,6 +40,8 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
 #define IMLOOP for(int i=0;i<NDIM;i++) for(int j=0;j<NDIM;j++)
+#define MULOOP for(int mu=0;mu<NDIM;mu++)                                        
+#define MUNULOOP for(int mu=0;mu<NDIM;mu++) for(int nu=0;nu<NDIM;nu++) 
 
 /* some coordinate parameters */
 extern double a;
@@ -53,6 +51,7 @@ extern double trat_j;
 extern double trat_d;
 extern int counterjet;
 extern double rmax;
+
 //2d
 
 extern double R0 ;
@@ -63,6 +62,7 @@ extern double hslope ;
 extern double th_len,th_beg;
 extern double startx[NDIM], stopx[NDIM], dx[NDIM];
 extern double gam ;
+extern double DTd;
 
 /* HARM model globals */
 extern double M_unit;
@@ -74,6 +74,7 @@ extern double B_unit;
 
 extern int N1, N2, N3;
 
+extern double levi_civita[NDIM][NDIM][NDIM][NDIM];
 
 /** model-independent subroutines **/
 /* core routines */
@@ -141,6 +142,7 @@ double delta(int i, int j);
 void   make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM], double Ecov[NDIM][NDIM]) ;
 void   make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
 	double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM], double Ecov[NDIM][NDIM]) ;
+void set_levi_civita();
 
 /* imaging */
 void make_ppm(double p[NX][NY], double freq, char filename[]) ;

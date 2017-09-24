@@ -56,6 +56,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
 
     /* now use the trial vector in basis vector 3 */
     /* cast a suspicious eye on the trial vector... */
+
     set_Econ_from_trial(Econ[3], 3, Kcon);
 
     /* project out econ0 */
@@ -87,7 +88,11 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
     double dot = check_handedness(Econ, Gcov);
 
     if (fabs(fabs(dot) - 1.) > 1.e-10) {
-	fprintf(stderr, "that's odd: %g\n", fabs(dot) - 1.);
+      printf("Ucon[] = %e %e %e %e\n", Ucon[0], Ucon[1],Ucon[2],Ucon[3]);
+      printf("Kcon[] = %e %e %e %e\n", Kcon[0], Kcon[1],Kcon[2],Kcon[3]);
+      printf("Bcon[] = %e %e %e %e\n", Bcon[0], Bcon[1], Bcon[2], Bcon[3]);
+      fprintf(stderr, "that's odd: %g\n", fabs(dot) - 1.);
+      exit(-1);
     }
 
     /* we expect dot = 1. for right-handed system.  

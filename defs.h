@@ -10,6 +10,9 @@ double hslope ;
 double th_len, th_beg;
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double gam ;
+double DTd;
+
+double levi_civita[NDIM][NDIM][NDIM][NDIM];
 
 /* electron temperature model parameters */
 double trat_j;

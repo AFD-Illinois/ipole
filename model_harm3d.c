@@ -16,6 +16,8 @@ double ***ne;
 double ***thetae;
 double ***b;
 
+#define NPRIM (8)
+
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
 

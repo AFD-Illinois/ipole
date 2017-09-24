@@ -20,19 +20,23 @@ double ***b;
 
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
-double poly_norm, poly_xt, poly_alpha, mks_smooth;
-double game, gamp;
+static double poly_norm, poly_xt, poly_alpha, mks_smooth;
+static double game, gamp;
 
-double MBH, Mdotedd;
+static double MBH, Mdotedd;
 
 void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
 {
   //memset(dxdX, 0, NDIM*NDIM*sizeof(double));
-  for (int mu = 0; mu < NDIM; mu++) {
+  MUNULOOP dxdX[mu][nu] = 0.;
+  //MULOOP dxdX[mu][mu] = 1.;
+  //return;
+
+  /*for (int mu = 0; mu < NDIM; mu++) {
     for (int nu = 0; nu < NDIM; nu++) {
       dxdX[mu][nu] = 0.;
     }
-  }
+  }*/
 
   dxdX[0][0] = 1.;
   dxdX[1][1] = exp(X[1]);
@@ -55,11 +59,12 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
 void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
 {
   //memset(gcov, 0, NDIM*NDIM*sizeof(double));
-  for (int mu = 0; mu < NDIM; mu++) {
+  MUNULOOP gcov[mu][nu] = 0.;
+  /*for (int mu = 0; mu < NDIM; mu++) {
     for (int nu = 0; nu < NDIM; nu++) {
       gcov[mu][nu] = 0.;
     }
-  }
+  }*/
 
   double sth, cth, s2, rho2;
   double r, th;
@@ -93,12 +98,17 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
   double gcov_ks[NDIM][NDIM];
   //memcpy(gcov_ks, gcov, NDIM*NDIM*sizeof(double));
   //memset(gcov, 0, NDIM*NDIM*sizeof(double));
-  for (int mu = 0; mu < NDIM; mu++) {
+  /*for (int mu = 0; mu < NDIM; mu++) {
     for (int nu = 0; nu < NDIM; nu++) {
       gcov_ks[mu][nu] = gcov[mu][nu];
       gcov[mu][nu] = 0.;
     }
+  }*/
+  MUNULOOP {
+    gcov_ks[mu][nu] = gcov[mu][nu];
+    gcov[mu][nu] = 0.;
   }
+ 
 
   for (int mu = 0; mu < NDIM; mu++) {
     for (int nu = 0; nu < NDIM; nu++) {
