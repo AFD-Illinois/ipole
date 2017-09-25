@@ -464,6 +464,10 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
           del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
         }
 
+  // TEMPORARY FIX
+  del[3] = 0.;
+  *k = 0;
+
   return;
 }
 

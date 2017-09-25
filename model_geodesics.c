@@ -35,7 +35,7 @@ int stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 
 double stepsize(double X[NDIM], double Kcon[NDIM])
 {
-  double eps = 0.01;
+  double eps = 0.5;
   double small = 1.e-40; 
 
   double dl, dlx1, dlx2, dlx3;
@@ -51,6 +51,9 @@ double stepsize(double X[NDIM], double Kcon[NDIM])
   idlx3 = 1./(fabs(dlx3) + small*small) ;
 
   dl = 1. / (idlx1 + idlx2 + idlx3) ;
+
+  //dl = MIN(MIN(1./dlx1, 1./idlx2), 1./dlx3);
+  //printf("idlx = %e %e %e\n", 1./idlx1, 1./idlx2, 1./idlx3);
 
   //dl = MIN(dl, 0.5*DTd/Kcon[0]);
 

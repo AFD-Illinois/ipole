@@ -110,33 +110,13 @@ int main(int argc, char *argv[])
   printf("\nBACKWARD\n");
   #pragma omp parallel
   {
+    int ngeomax = 0;
     double Xhalf[NDIM], Kconhalf[NDIM];
     #pragma omp for collapse(2)
     for (int i = 0; i < NX; i++) {
       for (int j = 0; j < NY; j++) {
         if (j == 0) {printf("%i\n", i);}
         init_XK(i, j, Xcam, fovx, fovy, Xgeo[i][j], Kcongeo[i][j]);
-
-        if (i == 66 && j == 55) {
-  for (int mu = 0; mu < NDIM; mu++) {
-    printf("[%i] init: [%i %i] [%i] X = %e K = %e\n", omp_get_thread_num(),i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
-  }
-        }
-        if (i == 61 && j == 78) {
-  for (int mu = 0; mu < NDIM; mu++) {
-    printf("[%i] init: [%i %i] [%i] X = %e K = %e\n", omp_get_thread_num(),i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
-  }
-        }
-        if (i == 60 && j == 51) {
-  for (int mu = 0; mu < NDIM; mu++) {
-    printf("[%i] init: [%i %i] [%i] X = %e K = %e\n", omp_get_thread_num(),i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
-  }
-        }
-        if (i == 56 && j == 74) {
-  for (int mu = 0; mu < NDIM; mu++) {
-    printf("[%i] init: [%i %i] [%i] X = %e K = %e\n", omp_get_thread_num(),i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
-  }
-        }
 
         for (int mu = 0; mu < NDIM; mu++) Kcongeo[i][j][mu] *= freq;
 
@@ -153,36 +133,19 @@ int main(int argc, char *argv[])
           }
           
           push_photon(Xgeo[i][j], Kcongeo[i][j], -dl, Xhalf, Kconhalf);
+		      ngeo++;
         }
-		    ngeo++;
 
 		    if (ngeo > MAXNSTEP - 2) {
 		      fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j, i);
 		      exit(1);
 		    }
+
+        if (ngeo > ngeomax) ngeomax = ngeo;
       }
     }
+    printf("[%i] ngeomax = %i\n", omp_get_thread_num(), ngeomax);
   } // pragma omp parallel
-
-{
-  int i,j;
-  i = 66; j = 55;
-  for (int mu = 0; mu < NDIM; mu++) {
-    printf("[%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
-  } printf("\n");
-  i = 61; j = 78;
-  for (int mu = 0; mu < NDIM; mu++) {
-    printf("[%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
-  } printf("\n");  
-  i = 60; j = 51;
-  for (int mu = 0; mu < NDIM; mu++) {
-    printf("[%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
-  } printf("\n");  
-  i = 56; j = 74;
-  for (int mu = 0; mu < NDIM; mu++) {
-    printf("[%i %i] [%i] X = %e K = %e\n", i,j,mu,Xgeo[i][j][mu],Kcongeo[i][j][mu]);
-  } printf("\n");  
-}
 
   double tmax = 0.;
   //int imax, jmax;
