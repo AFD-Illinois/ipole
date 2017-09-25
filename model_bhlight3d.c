@@ -9,14 +9,6 @@
 /*
   bhlight 3d grid functions
 */
-double ****bcon;
-double ****bcov;
-double ****ucon;
-double ****ucov;
-double ****p;
-double ***ne;
-double ***thetae;
-double ***b;
 
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
@@ -24,6 +16,64 @@ static double poly_norm, poly_xt, poly_alpha, mks_smooth;
 static double game, gamp;
 
 static double MBH, Mdotedd;
+
+static char fnam[STRLEN];
+
+#define NSUP (3)
+struct of_data {
+  double t;
+  double ****bcon;
+  double ****bcov;
+  double ****ucon;
+  double ****ucov;
+  double ****p;
+  double ***ne;
+  double ***thetae;
+  double ***b;
+};
+static int nloaded = 0;
+
+struct of_data dataA, dataB, dataC;
+struct of_data *data[NSUP];
+  
+void load_bhlight3d_data(int n, char *);
+
+void set_tinterp_ns(double X[NDIM], int *nA, int *nB)
+{
+  if (X[0] < data[1]->t) {
+    *nA = 0; *nB = 1;
+  } else {
+    *nA = 1; *nB = 2;
+  }
+}
+
+void update_data()
+{
+  #pragma omp single
+  {
+    // Get new filename
+    printf("fnam = %s\n", fnam);
+    int len = strlen(fnam);
+    char buf[STRLEN];
+    memmove(buf, fnam+len-11, 8);
+    buf[8] = '\0';
+    int fnum = atoi(buf);
+    fnum += 1;
+    char newfnam[STRLEN]; 
+    memmove(newfnam, fnam, len-11);
+    sprintf(buf, "%08d", fnum);
+    strcat(newfnam+len-11, buf);
+    sprintf(buf, ".h5");
+    strcat(newfnam+len-8, buf);
+    strcpy(fnam, newfnam);
+    printf("fnam = %s\n", fnam);
+    exit(-1);
+
+    // Reorder dataA, dataB, dataC in data[]
+
+    // Load new data[NSUP-1]
+  } // omp single
+}
 
 void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
 {
@@ -129,7 +179,11 @@ void get_connection(double X[4], double lconn[4][4][4])
 void init_model(char *args[])
 {
   void init_bhlight3d_grid(char *);
-  void init_bhlight3d_data(char *);
+
+  // Set up initial ordering of data[]
+  data[0] = &dataA;
+  data[1] = &dataB;
+  data[2] = &dataC;
 
   fprintf(stderr, "reading data header...\n");
   /* Read in header and allocate space for grid data */
@@ -142,11 +196,15 @@ void init_model(char *args[])
 
   fprintf(stderr, "reading data...\n");
   /* Read in the grid data */
-  init_bhlight3d_data(args[3]);
+  load_bhlight3d_data(0, fnam);
+  update_data();
+  load_bhlight3d_data(1, fnam);
+  load_bhlight3d_data(2, fnam);
+
   fprintf(stderr, "success\n");
 
   /* pre-compute densities, field strengths, etc. */
-  init_physical_quantities() ;
+  //init_physical_quantities(0) ;
 
   /* horizon radius */
   Rh = 1 + sqrt(1. - a * a) ;
@@ -182,7 +240,16 @@ void get_model_ucov(double X[NDIM], double Ucov[NDIM])
   //get_model_ucon(X, Ucon);
   //lower(Ucon, gcov, Ucov);
 
-  interp_fourv(X, ucov, Ucov) ;
+  // Time interpolation
+  double UcovA[NDIM], UcovB[NDIM], tfac;
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  interp_fourv(X, data[nA]->ucov, UcovA);
+  interp_fourv(X, data[nB]->ucov, UcovB);
+  MULOOP Ucov[mu] = tfac*UcovA[mu] + (1. - tfac)*UcovB[mu];
+
+  //interp_fourv(X, data[n]->ucov, Ucov) ;
 
 }
 
@@ -229,8 +296,16 @@ void get_model_ucon(double X[NDIM], double Ucon[NDIM])
   
     return ;
   }
+  
+  double UconA[NDIM], UconB[NDIM], tfac;
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  interp_fourv(X, data[nA]->ucon, UconA);
+  interp_fourv(X, data[nB]->ucon, UconB);
+  MULOOP Ucon[mu] = tfac*UconA[mu] + (1. - tfac)*UconB[mu];
      
-  interp_fourv(X, ucon, Ucon) ;
+  //interp_fourv(X, ucon, Ucon) ;
 }
 
 void get_model_bcov(double X[NDIM], double Bcov[NDIM])
@@ -247,7 +322,15 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM])
 
     return ;
   }
-  interp_fourv(X, bcov, Bcov) ;
+ // interp_fourv(X, bcov, Bcov) ;
+  
+  double BcovA[NDIM], BcovB[NDIM], tfac;
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  interp_fourv(X, data[nA]->bcov, BcovA);
+  interp_fourv(X, data[nB]->bcov, BcovB);
+  MULOOP Bcov[mu] = tfac*BcovA[mu] + (1. - tfac)*BcovB[mu];
 }
 
 void get_model_bcon(double X[NDIM], double Bcon[NDIM])
@@ -264,7 +347,15 @@ void get_model_bcon(double X[NDIM], double Bcon[NDIM])
 
     return ;
   }
-  interp_fourv(X, bcon, Bcon) ;
+ // interp_fourv(X, bcon, Bcon) ;
+  
+  double BconA[NDIM], BconB[NDIM], tfac;
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  interp_fourv(X, data[nA]->bcon, BconA);
+  interp_fourv(X, data[nB]->bcon, BconB);
+  MULOOP Bcon[mu] = tfac*BconA[mu] + (1. - tfac)*BconB[mu];
 }
 
 double get_model_thetae(double X[NDIM])
@@ -276,7 +367,18 @@ double get_model_thetae(double X[NDIM])
       return(0.) ;
   }
   
-  return(interp_scalar(X, thetae)) ;
+  double thetaeA, thetaeB, tfac;
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  thetaeA = interp_scalar(X, data[nA]->thetae);
+  thetaeB = interp_scalar(X, data[nB]->thetae);
+  return tfac*thetaeA + (1. - tfac)*thetaeB;
+  //interp_fourv(X, data[nA]->bcon, BconA);
+  //interp_fourv(X, data[nB]->bcon, BconB);
+  //MULOOP Bcon[mu] = tfac*BconA[mu] + (1. - tfac)*BconB;
+  
+  //return(interp_scalar(X, thetae)) ;
 }
 
 //b field strength in Gauss
@@ -289,8 +391,16 @@ double get_model_b(double X[NDIM])
      X[2] > stopx[2]) {
       return(0.) ;
   }
+  
+  double bA, bB, tfac;
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  bA = interp_scalar(X, data[nA]->b);
+  bB = interp_scalar(X, data[nB]->b);
+  return tfac*bA + (1. - tfac)*bB;
 
-  return(interp_scalar(X, b)) ;
+  //return(interp_scalar(X, b)) ;
 }
 
 double get_model_ne(double X[NDIM])
@@ -302,7 +412,15 @@ double get_model_ne(double X[NDIM])
       return(0.) ;
   }
   
-  return(interp_scalar(X, ne)) ;
+  double neA, neB, tfac;
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  neA = interp_scalar(X, data[nA]->ne);
+  neB = interp_scalar(X, data[nB]->ne);
+  return tfac*neA + (1. - tfac)*neB;
+  
+  //return(interp_scalar(X, ne)) ;
 }
 
 
@@ -356,10 +474,10 @@ void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]){
 
   //no interpolation of vectors at all
  
-  Fourv[0]=fourv[i][j][k][0];
-  Fourv[1]=fourv[i][j][k][1];
-  Fourv[2]=fourv[i][j][k][2];
-  Fourv[3]=fourv[i][j][k][3];
+  //Fourv[0]=fourv[i][j][k][0];
+  //Fourv[1]=fourv[i][j][k][1];
+  //Fourv[2]=fourv[i][j][k][2];
+  //Fourv[3]=fourv[i][j][k][3];
   
 }
 
@@ -397,11 +515,9 @@ double interp_scalar(double X[NDIM], double ***var)
       var[ip1][jp1][kp1]*del[1]*del[2]);
   
   //new, no interpolations what so ever
-    interp=var[i][j][k];
+    //interp=var[i][j][k];
   /* use bilinear interpolation to find rho; piecewise constant
      near the boundaries */
-  //printf("%i %i %i var = %e\n", i,j,k,interp);
-  if (isnan(interp)) printf("INTERP BAD! %i %i %i %e\n", i,j,k,interp);
 
   return(interp);
 
@@ -466,10 +582,6 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
           del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
         }
 
-  // TEMPORARY FIX
-  del[3] = 0.;
-  *k = 0;
-
   return;
 }
 
@@ -531,7 +643,7 @@ void set_units(char *munitstr)
 
 
 
-void init_physical_quantities(void)
+void init_physical_quantities(int n)
 {
   int i, j, k;
   double bsq,Thetae_unit,sigma_m;
@@ -539,15 +651,15 @@ void init_physical_quantities(void)
   for (i = 0; i < N1; i++) {
     for (j = 0; j < N2; j++) {
       for (k = 0; k < N3; k++) {
-        ne[i][j][k] = p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
+        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
 
-        bsq= bcon[i][j][k][0] * bcov[i][j][k][0] +
-             bcon[i][j][k][1] * bcov[i][j][k][1] +
-             bcon[i][j][k][2] * bcov[i][j][k][2] +
-             bcon[i][j][k][3] * bcov[i][j][k][3] ;
+        bsq= data[n]->bcon[i][j][k][0] * data[n]->bcov[i][j][k][0] +
+             data[n]->bcon[i][j][k][1] * data[n]->bcov[i][j][k][1] +
+             data[n]->bcon[i][j][k][2] * data[n]->bcov[i][j][k][2] +
+             data[n]->bcon[i][j][k][3] * data[n]->bcov[i][j][k][3] ;
 
-        b[i][j][k] = sqrt(bsq)*B_unit ;
-        sigma_m=bsq/p[KRHO][i][j][k] ;
+        data[n]->b[i][j][k] = sqrt(bsq)*B_unit ;
+        sigma_m=bsq/data[n]->p[KRHO][i][j][k] ;
 
         // beta presciption
         //beta=p[UU][i][j][k]*(gam-1.)/0.5/bsq;
@@ -559,18 +671,16 @@ void init_physical_quantities(void)
         //thetae[i][j][k] = (gam-1.)*MP/ME*p[UU][i][j][k]/p[KRHO][i][j][k];
         //printf("rho = %e thetae = %e\n", p[KRHO][i][j][k], thetae[i][j][k]);
 
-        thetae[i][j][k] = p[KEL][i][j][k]*pow(p[KRHO][i][j][k],game-1.)*Thetae_unit;
-        thetae[i][j][k] = MAX(thetae[i][j][k], 1.e-3);
+        data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
+        data[n]->thetae[i][j][k] = MAX(data[n]->thetae[i][j][k], 1.e-3);
         //thetae[i][j][k] = MP/ME*p[UU][i][j][k]/p[KRHO][i][j][k]/4.;
         //printf("Thetae_unit = %e Thetae = %e\n", Thetae_unit, thetae[i][j][k]);
         
         //strongly magnetized = empty, no shiny spine
-        if(sigma_m > 1.0) ne[i][j][k]=0.0;
+        if(sigma_m > 1.0) data[n]->ne[i][j][k]=0.0;
       }
     }
   }
-
-  return ;
 }
 
 
@@ -678,19 +788,18 @@ double *****malloc_rank5(int n1, int n2, int n3, int n4, int n5)
 
 void init_storage(void)
 {
-  int i;
-
-  bcon = malloc_rank4(N1,N2,N3,NDIM);
-  bcov = malloc_rank4(N1,N2,N3,NDIM);
-  ucon = malloc_rank4(N1,N2,N3,NDIM);
-  ucov = malloc_rank4(N1,N2,N3,NDIM);
-  p = (double ****)malloc_rank1(NVAR,sizeof(double *));
-  for(i = 0; i < NVAR; i++) p[i] = malloc_rank3(N1,N2,N3);
-  ne = malloc_rank3(N1,N2,N3);
-  thetae = malloc_rank3(N1,N2,N3);
-  b = malloc_rank3(N1,N2,N3);
-
-  return;
+  for (int n = 0; n < NSUP; n++) {
+    data[n]->bcon = malloc_rank4(N1,N2,N3,NDIM);
+    data[n]->bcov = malloc_rank4(N1,N2,N3,NDIM);
+    data[n]->ucon = malloc_rank4(N1,N2,N3,NDIM);
+    data[n]->ucov = malloc_rank4(N1,N2,N3,NDIM);
+    data[n]->p = malloc_rank4(NVAR,N1,N2,N3);
+    //p = (double ****)malloc_rank1(NVAR,sizeof(double *));
+    //for(i = 0; i < NVAR; i++) p[i] = malloc_rank3(N1,N2,N3);
+    data[n]->ne = malloc_rank3(N1,N2,N3);
+    data[n]->thetae = malloc_rank3(N1,N2,N3);
+    data[n]->b = malloc_rank3(N1,N2,N3);
+  }
 }
 
 /* HDF5 v1.6 API */
@@ -713,9 +822,10 @@ extern double ***b;*/
 
 void init_bhlight3d_grid(char *fname)
 {
-  hid_t file_id;
   //double th_end,th_cutout;
+  hid_t file_id;
   printf("init grid\n");
+  strcpy(fnam, fname);
 
   file_id = H5Fopen(fname, H5F_ACC_RDONLY, H5P_DEFAULT);
   if(file_id < 0){
@@ -723,6 +833,7 @@ void init_bhlight3d_grid(char *fname)
     exit(1234);
   }
   printf("Opened file!\n");
+  //H5LTread_dataset_double(file_id, "t", &tsup[);
   H5LTread_dataset_int(file_id,   "N1",   &N1);
   H5LTread_dataset_int(file_id,   "N2",   &N2);
   H5LTread_dataset_int(file_id,   "N3",   &N3);
@@ -742,6 +853,8 @@ void init_bhlight3d_grid(char *fname)
   H5LTread_dataset_double(file_id, "poly_xt", &poly_xt);
   H5LTread_dataset_double(file_id, "poly_alpha", &poly_alpha);
   H5LTread_dataset_double(file_id, "mks_smooth", &mks_smooth);
+
+  //printf("tsup = %e\n", tsup[0]); exit(-1);
 
   // Set polylog grid normalization
   poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
@@ -781,8 +894,10 @@ void init_bhlight3d_grid(char *fname)
   H5Fclose(file_id);
 }
 
-void init_bhlight3d_data(char *fname)
+void load_bhlight3d_data(int n, char *fname)
 {
+  nloaded++;
+
   hid_t file_id;
   int i,j,k,l,m;
   double X[NDIM],UdotU,ufac,udotB;
@@ -811,18 +926,21 @@ void init_bhlight3d_data(char *fname)
     exit(12345);
   }
 
+  H5LTread_dataset_double(file_id, "t", &(data[n]->t));
+  //printf("t = %e\n", data[n]->t);
+  //exit(-1);
 
   //  fprintf(stderr,"data incoming...");
-  H5LTread_dataset_double(file_id, "RHO", &(p[KRHO][0][0][0]));
-  H5LTread_dataset_double(file_id, "UU",  &(p[UU][0][0][0]));
-  H5LTread_dataset_double(file_id, "U1",  &(p[U1][0][0][0]));
-  H5LTread_dataset_double(file_id, "U2",  &(p[U2][0][0][0]));
-  H5LTread_dataset_double(file_id, "U3",  &(p[U3][0][0][0]));
-  H5LTread_dataset_double(file_id, "B1",  &(p[B1][0][0][0]));
-  H5LTread_dataset_double(file_id, "B2",  &(p[B2][0][0][0]));
-  H5LTread_dataset_double(file_id, "B3",  &(p[B3][0][0][0]));
-  H5LTread_dataset_double(file_id, "KEL", &(p[KEL][0][0][0]));
-  H5LTread_dataset_double(file_id, "KTOT",  &(p[KTOT][0][0][0]));
+  H5LTread_dataset_double(file_id, "RHO", &(data[n]->p[KRHO][0][0][0]));
+  H5LTread_dataset_double(file_id, "UU",  &(data[n]->p[UU][0][0][0]));
+  H5LTread_dataset_double(file_id, "U1",  &(data[n]->p[U1][0][0][0]));
+  H5LTread_dataset_double(file_id, "U2",  &(data[n]->p[U2][0][0][0]));
+  H5LTread_dataset_double(file_id, "U3",  &(data[n]->p[U3][0][0][0]));
+  H5LTread_dataset_double(file_id, "B1",  &(data[n]->p[B1][0][0][0]));
+  H5LTread_dataset_double(file_id, "B2",  &(data[n]->p[B2][0][0][0]));
+  H5LTread_dataset_double(file_id, "B3",  &(data[n]->p[B3][0][0][0]));
+  H5LTread_dataset_double(file_id, "KEL", &(data[n]->p[KEL][0][0][0]));
+  H5LTread_dataset_double(file_id, "KTOT",  &(data[n]->p[KTOT][0][0][0]));
 
   H5Fclose(file_id);
   X[0] = 0.;
@@ -848,21 +966,21 @@ void init_bhlight3d_data(char *fname)
         
         //the four-vector reconstruction should have gcov and gcon and gdet using the modified coordinates
         //interpolating the four vectors to the zone center !!!!
-        for(l = 1; l < NDIM; l++) for(m = 1; m < NDIM; m++) UdotU += gcov[l][m]*p[U1+l-1][i][j][k]*p[U1+m-1][i][j][k];
+        for(l = 1; l < NDIM; l++) for(m = 1; m < NDIM; m++) UdotU += gcov[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
         ufac = sqrt(-1./gcon[0][0]*(1 + fabs(UdotU)));
-        ucon[i][j][k][0] = -ufac*gcon[0][0];
-        for(l = 1; l < NDIM; l++) ucon[i][j][k][l] = p[U1+l-1][i][j][k] - ufac*gcon[0][l];
-        lower(ucon[i][j][k], gcov, ucov[i][j][k]);
+        data[n]->ucon[i][j][k][0] = -ufac*gcon[0][0];
+        for(l = 1; l < NDIM; l++) data[n]->ucon[i][j][k][l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon[0][l];
+        lower(data[n]->ucon[i][j][k], gcov, data[n]->ucov[i][j][k]);
 
         //reconstruct the magnetic field three vectors
         udotB = 0.;
-        for(l = 1; l < NDIM; l++) udotB += ucov[i][j][k][l]*p[B1+l-1][i][j][k];
-        bcon[i][j][k][0] = udotB;
-        for(l = 1; l < NDIM; l++) bcon[i][j][k][l] = (p[B1+l-1][i][j][k] + ucon[i][j][k][l]*udotB)/ucon[i][j][k][0];
-        lower(bcon[i][j][k], gcov, bcov[i][j][k]);
+        for(l = 1; l < NDIM; l++) udotB += data[n]->ucov[i][j][k][l]*data[n]->p[B1+l-1][i][j][k];
+        data[n]->bcon[i][j][k][0] = udotB;
+        for(l = 1; l < NDIM; l++) data[n]->bcon[i][j][k][l] = (data[n]->p[B1+l-1][i][j][k] + data[n]->ucon[i][j][k][l]*udotB)/data[n]->ucon[i][j][k][0];
+        lower(data[n]->bcon[i][j][k], gcov, data[n]->bcov[i][j][k]);
 
-        if(i <= 20) dMact += g * p[KRHO][i][j][k] * ucon[i][j][k][1] ;
-        if(i >= 20 && i < 40) Ladv += g * p[UU][i][j][k] * ucon[i][j][k][1] * ucov[i][j][k][0] ;
+        if(i <= 20) dMact += g * data[n]->p[KRHO][i][j][k] * data[n]->ucon[i][j][k][1] ;
+        if(i >= 20 && i < 40) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
 
       }
     }
@@ -881,7 +999,8 @@ void init_bhlight3d_data(char *fname)
         fprintf(stderr,"Mdot: %g [Mdotedd]\n",-dMact*M_unit/T_unit/Mdotedd) ;
         fprintf(stderr,"Mdotedd: %g [g/s]\n",Mdotedd) ;
         fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Mdotedd/(MSUN/YEAR)) ;
-  
+ 
+ init_physical_quantities(0);
 }
 
 double root_find(double x[NDIM])

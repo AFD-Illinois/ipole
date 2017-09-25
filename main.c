@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 
   //  int nprogress = 0;
 
-if (1) {
+if (1) { // SLOW LIGHT
 
   printf("\nBACKWARD\n");
   #pragma omp parallel

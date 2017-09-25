@@ -18,6 +18,8 @@
 
 #define NDIM	4
 
+#define STRLEN (2048)
+
 #define NIMG (4+1) // Stokes vector and faraday depth
 
 /* mnemonics for primitive vars; conserved vars */
@@ -123,7 +125,7 @@ void Xtoij(double X[NDIM], int *i, int *j, double del[NDIM]) ;
 void   bl_coord(double *X, double *r, double *th);
 //void coord(int i, int j, double *X) ;
 void set_units(char *instr) ;
-void init_physical_quantities(void) ;
+void init_physical_quantities(int n) ;
 
 //for 3d coment out
 /*
