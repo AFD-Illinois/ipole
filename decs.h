@@ -65,6 +65,7 @@ extern double th_len,th_beg;
 extern double startx[NDIM], stopx[NDIM], dx[NDIM];
 extern double gam ;
 extern double DTd;
+extern double t0;
 
 /* HARM model globals */
 extern double M_unit;
@@ -115,6 +116,7 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM]) ;
 void get_model_bcon(double X[NDIM], double Bcon[NDIM]) ;
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]) ;
 void get_model_ucon(double X[NDIM], double Ucon[NDIM]) ;
+void update_data();
 
 /* harm utilities */
 /*

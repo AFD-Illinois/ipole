@@ -61,17 +61,40 @@ void update_data()
     fnum += 1;
     char newfnam[STRLEN]; 
     memmove(newfnam, fnam, len-11);
+    newfnam[len-11] = '\0';
+    printf("newfnam = %s\n", newfnam);
     sprintf(buf, "%08d", fnum);
+    printf("buf = %s\n", buf);
     strcat(newfnam+len-11, buf);
+    printf("newfnam = %s\n", newfnam);
     sprintf(buf, ".h5");
+    printf("buf = %s\n", buf);
     strcat(newfnam+len-8, buf);
     strcpy(fnam, newfnam);
     printf("fnam = %s\n", fnam);
-    exit(-1);
+    //exit(-1);
 
     // Reorder dataA, dataB, dataC in data[]
-
-    // Load new data[NSUP-1]
+    if (nloaded % 3 == 0) {
+      data[0] = &dataA;
+      data[1] = &dataB;
+      data[2] = &dataC;
+    } else if (nloaded % 3 == 1) {
+      data[0] = &dataB;
+      data[1] = &dataC;
+      data[2] = &dataA;
+    } else if (nloaded % 3 == 2) {
+      data[0] = &dataC;
+      data[1] = &dataA;
+      data[2] = &dataB;
+    } else {
+      printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
+    }
+   
+    // Revert to fast light
+    //data[2]->t += DTd;
+    
+    load_bhlight3d_data(2, fnam);
   } // omp single
 }
 
@@ -199,7 +222,9 @@ void init_model(char *args[])
   load_bhlight3d_data(0, fnam);
   update_data();
   load_bhlight3d_data(1, fnam);
+  update_data();
   load_bhlight3d_data(2, fnam);
+  data[2]->t =10000.;
 
   fprintf(stderr, "success\n");
 
@@ -373,6 +398,16 @@ double get_model_thetae(double X[NDIM])
   tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
   thetaeA = interp_scalar(X, data[nA]->thetae);
   thetaeB = interp_scalar(X, data[nB]->thetae);
+
+
+  double thetae = tfac*thetaeA + (1. - tfac)*thetaeB;
+  if (thetae < 0.) {
+    printf("thetae negative!\n");
+    printf("X[] = %g %g %g %g\n", X[0], X[1], X[2], X[3]);
+    printf("t = %e %e %e\n", data[0]->t, data[1]->t, data[2]->t);
+    printf("thetae = %e tfac = %e thetaeA = %e thetaeB = %e nA = %i nB = %i\n",
+    thetae, tfac, thetaeA, thetaeB, nA, nB);
+  }
   return tfac*thetaeA + (1. - tfac)*thetaeB;
   //interp_fourv(X, data[nA]->bcon, BconA);
   //interp_fourv(X, data[nB]->bcon, BconB);
@@ -833,7 +868,7 @@ void init_bhlight3d_grid(char *fname)
     exit(1234);
   }
   printf("Opened file!\n");
-  //H5LTread_dataset_double(file_id, "t", &tsup[);
+  H5LTread_dataset_double(file_id, "t", &t0);
   H5LTread_dataset_int(file_id,   "N1",   &N1);
   H5LTread_dataset_int(file_id,   "N2",   &N2);
   H5LTread_dataset_int(file_id,   "N3",   &N3);
@@ -896,6 +931,7 @@ void init_bhlight3d_grid(char *fname)
 
 void load_bhlight3d_data(int n, char *fname)
 {
+  printf("LOADING DATA\n");
   nloaded++;
 
   hid_t file_id;
@@ -1000,7 +1036,7 @@ void load_bhlight3d_data(int n, char *fname)
         fprintf(stderr,"Mdotedd: %g [g/s]\n",Mdotedd) ;
         fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Mdotedd/(MSUN/YEAR)) ;
  
- init_physical_quantities(0);
+ init_physical_quantities(n);
 }
 
 double root_find(double x[NDIM])

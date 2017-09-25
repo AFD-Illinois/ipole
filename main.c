@@ -154,7 +154,6 @@ if (1) { // SLOW LIGHT
         if (ngeo > ngeomax) ngeomax = ngeo;
       }
     }
-    printf("[%i] ngeomax = %i\n", omp_get_thread_num(), ngeomax);
   } // pragma omp parallel
 
   double tmax = 0.;
@@ -168,6 +167,11 @@ if (1) { // SLOW LIGHT
         jmax = j;
       }
       //if (tmin
+    }
+  }
+  for (int i = 0; i < NX; i++) {
+    for (int j = 0; j < NY; j++) {
+      Xgeo[i][j][0] = t0 + t[i][j] - tmax;
     }
   }
   printf("tmax = %e [%i %i]\n", tmax, imax, jmax);
@@ -186,13 +190,14 @@ if (1) { // SLOW LIGHT
 
   DTd = 5.;
   //double DTd = 5.; // READ FROM FILES! ASSUME CONSTANT DTd!
-  double tcurr = tmax;
+  double tcurr = t0;//tmax;
 
   int nloop = 0;
 
   // Loop while all rays not yet finished
-  while (tcurr < 0.) {
+  while (tcurr < t0 - tmax) {
 
+  printf("\ntcurr = %e\n\n", tcurr);
   ///// NOTE! dl MUST correspond to < DTd! Probably < DTd/2 for safety
 
     // Loop over rays, push to tcurr if necessary.
@@ -215,7 +220,8 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
       for (int j = 0; j < NY; j++) {
         double Xhalfgeo[NDIM], Kconhalfgeo[NDIM];
         double Xprevgeo[NDIM], Kconprevgeo[NDIM];
-        while (Xgeo[i][j][0] < tcurr && Xgeo[i][j][0] < 0.) {
+        //while (Xgeo[i][j][0] < tcurr && Xgeo[i][j][0] < 0.) {
+        while (Xgeo[i][j][0] < tcurr + DTd) {
           //printf("i,j = %i %i\n", i,j);
           // push
           //t[i][j] += DTd;
@@ -229,6 +235,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
           dl = stepsize(Xgeo[i][j], Kcongeo[i][j]);
           push_photon(Xgeo[i][j], Kcongeo[i][j], dl, Xhalfgeo, Kconhalfgeo);
 
+          if (done[i][j] == 0) {
           double ji, jf, ki, kf;
           get_jkinv(Xprevgeo, Kconprevgeo, &ji, &ki);
 		      get_jkinv(Xgeo[i][j], Kcongeo[i][j], &jf, &kf);
@@ -264,8 +271,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
             }
             exit(-1);
           }
-
-
+          } // done
         }
         //printf("Xgeo[i][j][1] = %e log(rmax) = %e\n", Xgeo[i][j][1], log(rmax));
         if (Kcongeo[i][j][1] > 0. && Xgeo[i][j][1] > log(rmax)) {
@@ -288,7 +294,9 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
     if (!alldone) {
       #pragma omp single
       printf("LOADING NEW DATA\n");
+      update_data();
     }
+
     // load newest timeslice, rename two most recent. Don't do this if all superphotons outside of radiative region.
 
     #pragma omp single
