@@ -262,6 +262,12 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 	/* re-pack the Stokes parameters into N */
 	stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
 	complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
+  if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) {
+    printf("N_tet = %e N_coord = %e Econ = %e\n", creal(N_tetrad[0][0]),
+      creal(N_coord[0][0]), Econ[0][0]);
+    MUNULOOP printf("Econ[%i][%i] = %e Ntet = %e\n", mu,nu,Econ[mu][nu],
+    creal(N_tetrad[mu][nu]));
+  }
 
     }
 

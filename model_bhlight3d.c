@@ -355,12 +355,12 @@ void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]){
   //new
 
   //no interpolation of vectors at all
-  /*
+ 
   Fourv[0]=fourv[i][j][k][0];
   Fourv[1]=fourv[i][j][k][1];
   Fourv[2]=fourv[i][j][k][2];
   Fourv[3]=fourv[i][j][k][3];
-  */
+  
 }
 
 /* return  scalar in cgs units */
@@ -397,10 +397,12 @@ double interp_scalar(double X[NDIM], double ***var)
       var[ip1][jp1][kp1]*del[1]*del[2]);
   
   //new, no interpolations what so ever
-  //  interp=var[i][j][k];
+    interp=var[i][j][k];
   /* use bilinear interpolation to find rho; piecewise constant
      near the boundaries */
-  
+  //printf("%i %i %i var = %e\n", i,j,k,interp);
+  if (isnan(interp)) printf("INTERP BAD! %i %i %i %e\n", i,j,k,interp);
+
   return(interp);
 
 }
@@ -762,6 +764,10 @@ void init_bhlight3d_grid(char *fname)
   //th_beg=th_cutout;
   //th_end=M_PI-th_cutout;
   //th_len = th_end-th_beg;
+
+  // Ignore radiation interactions within one degree of polar axis
+  th_beg = 0.0174;
+  //th_end = 3.1241;
 
   stopx[0] = 1.;
   stopx[1] = startx[1]+N1*dx[1];

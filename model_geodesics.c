@@ -35,7 +35,7 @@ int stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 
 double stepsize(double X[NDIM], double Kcon[NDIM])
 {
-  double eps = 0.5;
+  double eps = 0.01;
   double small = 1.e-40; 
 
   double dl, dlx1, dlx2, dlx3;
