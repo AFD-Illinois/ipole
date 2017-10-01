@@ -13,10 +13,12 @@
 #include <complex.h> 
 #include <omp.h>
 
-#define NX   128
-#define NY   128
+#define NX   256
+#define NY   256
 
 #define NDIM	4
+
+#define STRLEN (2048)
 
 #define NIMG (4+1) // Stokes vector and faraday depth
 
@@ -63,6 +65,7 @@ extern double th_len,th_beg;
 extern double startx[NDIM], stopx[NDIM], dx[NDIM];
 extern double gam ;
 extern double DTd;
+extern double t0;
 
 /* HARM model globals */
 extern double M_unit;
@@ -113,6 +116,7 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM]) ;
 void get_model_bcon(double X[NDIM], double Bcon[NDIM]) ;
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]) ;
 void get_model_ucon(double X[NDIM], double Ucon[NDIM]) ;
+void update_data();
 
 /* harm utilities */
 /*
@@ -123,7 +127,7 @@ void Xtoij(double X[NDIM], int *i, int *j, double del[NDIM]) ;
 void   bl_coord(double *X, double *r, double *th);
 //void coord(int i, int j, double *X) ;
 void set_units(char *instr) ;
-void init_physical_quantities(void) ;
+void init_physical_quantities(int n) ;
 
 //for 3d coment out
 /*

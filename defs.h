@@ -11,6 +11,7 @@ double th_len, th_beg;
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double gam ;
 double DTd;
+double t0;
 
 double levi_civita[NDIM][NDIM][NDIM][NDIM];
 

@@ -143,6 +143,7 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
   if (isnan(*rV) || *rV > 1.e100 || *rV < -1.e100) {
     printf("NAN RV! rV = %e nu = %e Ne = %e Thetae = %e x = %e\n", *rV, nu, Ne, Thetae, x);
+    printf("B = %e\n", B);
     for (int mu = 0; mu < NDIM; mu++) {
       printf("[%i] X[] = %e Kcon[] = %e Ucov[] = %e\n", mu,X[mu],Kcon[mu],Ucov[mu]);
     }
