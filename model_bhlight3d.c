@@ -13,7 +13,7 @@ double ****bcon;
 double ****bcov;
 double ****ucon;
 double ****ucov;
-double ****p;
+float ****p;
 double ***ne;
 double ***thetae;
 double ***b;
@@ -463,12 +463,6 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
         else {
           del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
         }
-
-  // TEMPORARY FIX
-  del[3] = 0.;
-  *k = 0;
-
-  return;
 }
 
 //#define SINGSMALL (1.E-20)
@@ -622,6 +616,44 @@ double ***malloc_rank3(int n1, int n2, int n3)
   return A;
 }
 
+float **malloc_rank2_float(int n1, int n2)
+{
+
+  float **A;
+  float *space;
+  int i;
+
+  space = malloc_rank1(n1*n2, sizeof(float));
+
+  A = malloc_rank1(n1, sizeof(float *));
+
+  for(i = 0; i < n1; i++) A[i] = &(space[i*n2]);
+
+  return A;
+}
+
+
+float ***malloc_rank3_float(int n1, int n2, int n3)
+{
+
+  float ***A;
+  float *space;
+  int i,j;
+
+  space = malloc_rank1(n1*n2*n3, sizeof(float));
+
+  A = malloc_rank1(n1, sizeof(float *));
+
+  for(i = 0; i < n1; i++){
+    A[i] = malloc_rank1(n2,sizeof(float *));
+    for(j = 0; j < n2; j++){
+      A[i][j] = &(space[n3*(j + n2*i)]);
+    }
+  }
+
+  return A;
+}
+
 
 double ****malloc_rank4(int n1, int n2, int n3, int n4)
 {
@@ -682,32 +714,16 @@ void init_storage(void)
   bcov = malloc_rank4(N1,N2,N3,NDIM);
   ucon = malloc_rank4(N1,N2,N3,NDIM);
   ucov = malloc_rank4(N1,N2,N3,NDIM);
-  p = (double ****)malloc_rank1(NVAR,sizeof(double *));
-  for(i = 0; i < NVAR; i++) p[i] = malloc_rank3(N1,N2,N3);
+  p = (float ****)malloc_rank1(NVAR,sizeof(float *));
+  for(i = 0; i < NVAR; i++) p[i] = malloc_rank3_float(N1,N2,N3);
   ne = malloc_rank3(N1,N2,N3);
   thetae = malloc_rank3(N1,N2,N3);
   b = malloc_rank3(N1,N2,N3);
-
-  return;
 }
-
-/* HDF5 v1.6 API */
-//#include <H5LT.h>
 
 /* HDF5 v1.8 API */
 #include <hdf5.h>
 #include <hdf5_hl.h>
-
-/* bhlight3d globals */
-
-/*extern double ****bcon;
-extern double ****bcov;
-extern double ****ucon;
-extern double ****ucov;
-extern double ****p;
-extern double ***ne;
-extern double ***thetae;
-extern double ***b;*/
 
 void init_bhlight3d_grid(char *fname)
 {
@@ -807,16 +823,16 @@ void init_bhlight3d_data(char *fname)
 
 
   //  fprintf(stderr,"data incoming...");
-  H5LTread_dataset_double(file_id, "RHO", &(p[KRHO][0][0][0]));
-  H5LTread_dataset_double(file_id, "UU",  &(p[UU][0][0][0]));
-  H5LTread_dataset_double(file_id, "U1",  &(p[U1][0][0][0]));
-  H5LTread_dataset_double(file_id, "U2",  &(p[U2][0][0][0]));
-  H5LTread_dataset_double(file_id, "U3",  &(p[U3][0][0][0]));
-  H5LTread_dataset_double(file_id, "B1",  &(p[B1][0][0][0]));
-  H5LTread_dataset_double(file_id, "B2",  &(p[B2][0][0][0]));
-  H5LTread_dataset_double(file_id, "B3",  &(p[B3][0][0][0]));
-  H5LTread_dataset_double(file_id, "KEL", &(p[KEL][0][0][0]));
-  H5LTread_dataset_double(file_id, "KTOT",  &(p[KTOT][0][0][0]));
+  H5LTread_dataset_float(file_id, "RHO", &(p[KRHO][0][0][0]));
+  H5LTread_dataset_float(file_id, "UU",  &(p[UU][0][0][0]));
+  H5LTread_dataset_float(file_id, "U1",  &(p[U1][0][0][0]));
+  H5LTread_dataset_float(file_id, "U2",  &(p[U2][0][0][0]));
+  H5LTread_dataset_float(file_id, "U3",  &(p[U3][0][0][0]));
+  H5LTread_dataset_float(file_id, "B1",  &(p[B1][0][0][0]));
+  H5LTread_dataset_float(file_id, "B2",  &(p[B2][0][0][0]));
+  H5LTread_dataset_float(file_id, "B3",  &(p[B3][0][0][0]));
+  H5LTread_dataset_float(file_id, "KEL", &(p[KEL][0][0][0]));
+  H5LTread_dataset_float(file_id, "KTOT",  &(p[KTOT][0][0][0]));
 
   H5Fclose(file_id);
   X[0] = 0.;

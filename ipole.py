@@ -110,7 +110,7 @@ vxp = np.sqrt(Qs*Qs + Us*Us)*np.cos(evpa*3.14159/180.)/scal
 vyp = np.sqrt(Qs*Qs + Us*Us)*np.sin(evpa*3.14159/180.)/scal
 vx = rotate(np.reshape(vxp, (NX,NY)), phi, reshape=False)
 vy = rotate(np.reshape(vyp, (NX,NY)), phi, reshape=False)
-skip = 32
+skip = 8*NX/256
 plt.quiver(i[::skip, ::skip],j[::skip, ::skip],vx[::skip, ::skip],vy[::skip, ::skip], 
 	headwidth=1, headlength=1, 
 	width=0.005,

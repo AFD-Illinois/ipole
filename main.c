@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
       }
     }
 
-    if (argc < 7) {
+    if (argc < 8) {
 	// fprintf(stderr,"usage: ipole theta freq filename Munit theta_j trat_d\n") ;
 	fprintf(stderr,
 		"usage: ipole theta freq filename Munit trat_j trat_d counterjet\n");
