@@ -90,7 +90,7 @@ ax.set_aspect('equal')
 # total intensity 
 ax = plt.subplot(2,2,1)
 z = rotate(np.reshape(Is, (NX,NY)), phi, reshape=False)
-plt.pcolormesh(i,j,z,cmap='afmhot', vmin=0., vmax=z.max())
+plt.pcolormesh(i,j,z,cmap='afmhot', vmin=z.max())
 plt.colorbar()
 plt.title('Stokes I [cgs]')
 plt.axis([-20,20,-20,20])
