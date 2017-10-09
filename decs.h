@@ -13,8 +13,8 @@
 #include <complex.h> 
 #include <omp.h>
 
-#define NX   256
-#define NY   256
+#define NX   64
+#define NY   64
 
 #define NDIM	4
 

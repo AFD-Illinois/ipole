@@ -188,7 +188,7 @@ if (1) { // SLOW LIGHT
     }
   }
 
-  DTd = 5.;
+  //DTd = 5.;
   //double DTd = 5.; // READ FROM FILES! ASSUME CONSTANT DTd!
   double tcurr = t0;//tmax;
 

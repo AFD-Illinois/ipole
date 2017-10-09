@@ -58,7 +58,7 @@ void update_data()
     memmove(buf, fnam+len-11, 8);
     buf[8] = '\0';
     int fnum = atoi(buf);
-    fnum += 1;
+    //fnum += 1;
     char newfnam[STRLEN]; 
     memmove(newfnam, fnam, len-11);
     newfnam[len-11] = '\0';
@@ -95,6 +95,7 @@ void update_data()
     //data[2]->t += DTd;
     
     load_bhlight3d_data(2, fnam);
+    data[2]->t = data[1]->t + DTd;
   } // omp single
 }
 
@@ -706,7 +707,7 @@ void init_physical_quantities(int n)
 
         data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
         data[n]->thetae[i][j][k] = MAX(data[n]->thetae[i][j][k], 1.e-3);
-        //thetae[i][j][k] = MP/ME*p[UU][i][j][k]/p[KRHO][i][j][k]/4.;
+        //data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k]/4.;
         //printf("Thetae_unit = %e Thetae = %e\n", Thetae_unit, thetae[i][j][k]);
         
         //strongly magnetized = empty, no shiny spine
@@ -934,6 +935,11 @@ void init_bhlight3d_grid(char *fname)
   H5LTread_dataset_double(file_id, "poly_xt", &poly_xt);
   H5LTread_dataset_double(file_id, "poly_alpha", &poly_alpha);
   H5LTread_dataset_double(file_id, "mks_smooth", &mks_smooth);
+
+  H5LTread_dataset_double(file_id, "DTd", &DTd);
+  //int DTf;
+  //H5LTread_dataset_int(file_id, "DTf", &DTf);
+  //DTd *= DTf;
 
   //printf("tsup = %e\n", tsup[0]); exit(-1);
 
