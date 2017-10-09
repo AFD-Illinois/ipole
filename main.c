@@ -25,6 +25,7 @@ struct of_traj {
 
 int main(int argc, char *argv[])
 {
+    double time = omp_get_wtime();
     //omp_set_num_threads(1);
     //double X[NDIM], Kcon[NDIM];
     //double Xhalf[NDIM], Kconhalf[NDIM];
@@ -468,6 +469,9 @@ double complex N_coord[NDIM][NDIM];
 	//for (int j = 0; j < NY; j++)
 	  IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
     make_ppm(image, freq, "ipole_lfnu.ppm");
+
+    time = omp_get_wtime() - time;
+    printf("Total wallclock time: %g s\n", time);
 }
 
 void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,

@@ -58,7 +58,7 @@ void update_data()
     memmove(buf, fnam+len-11, 8);
     buf[8] = '\0';
     int fnum = atoi(buf);
-    //fnum += 1;
+    fnum += 1;
     char newfnam[STRLEN]; 
     memmove(newfnam, fnam, len-11);
     newfnam[len-11] = '\0';
@@ -90,12 +90,9 @@ void update_data()
     } else {
       printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
     }
-   
-    // Revert to fast light
-    //data[2]->t += DTd;
     
     load_bhlight3d_data(2, fnam);
-    data[2]->t = data[1]->t + DTd;
+    //data[2]->t = data[1]->t + DTd;
   } // omp single
 }
 
