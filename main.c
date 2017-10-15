@@ -95,8 +95,8 @@ int main(int argc, char *argv[])
 
     /* fix camera field of view */
     /* units = GM/c^2 in plane of the hole */
-    DX = 40.0;
-    DY = 40.0;
+    DX = 20.0;
+    DY = 20.0;
     fovx = DX / rcam;
     fovy = DY / rcam;
 
