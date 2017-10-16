@@ -23,6 +23,8 @@ struct of_traj {
   double Kconhalf[NDIM];
 } traj[MAXNSTEP];
 
+double freqcgs;
+
 int main(int argc, char *argv[])
 {
     double time = omp_get_wtime();
@@ -35,7 +37,7 @@ int main(int argc, char *argv[])
 
     set_levi_civita();
 
-    double freq, freqcgs;
+    double freq;
     double Ftot, Dsource;
     //int i, j, k, l, nstep;
     //double Xi[NDIM], Xf[NDIM], Kconi[NDIM], Kconf[NDIM], ji, ki, jf, kf;
@@ -95,8 +97,8 @@ int main(int argc, char *argv[])
 
     /* fix camera field of view */
     /* units = GM/c^2 in plane of the hole */
-    DX = 20.0;
-    DY = 20.0;
+    DX = 40.0;
+    DY = 40.0;
     fovx = DX / rcam;
     fovy = DY / rcam;
 
@@ -489,7 +491,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
   }
   
   // Write header
-  fprintf(fp, "%d %d %e %e %e %e %e\n", NX, NY, DX, DY, scale, L_unit, M_unit);
+  fprintf(fp, "%d %d %e %e %e %e %e %e\n", NX, NY, DX, DY, scale, L_unit, M_unit, freqcgs);
 
   // Write data
   sum_i = 0.0;

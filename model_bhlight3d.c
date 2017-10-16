@@ -6,6 +6,8 @@
 
 #define NVAR (10)
 
+#define SLOW_LIGHT (0)
+
 /*
   bhlight 3d grid functions
 */
@@ -51,8 +53,8 @@ void update_data()
 {
   #pragma omp single
   {
+    #if SLOW_LIGHT
     // Get new filename
-    printf("fnam = %s\n", fnam);
     int len = strlen(fnam);
     char buf[STRLEN];
     memmove(buf, fnam+len-11, 8);
@@ -62,16 +64,11 @@ void update_data()
     char newfnam[STRLEN]; 
     memmove(newfnam, fnam, len-11);
     newfnam[len-11] = '\0';
-    printf("newfnam = %s\n", newfnam);
     sprintf(buf, "%08d", fnum);
-    printf("buf = %s\n", buf);
     strcat(newfnam+len-11, buf);
-    printf("newfnam = %s\n", newfnam);
     sprintf(buf, ".h5");
-    printf("buf = %s\n", buf);
     strcat(newfnam+len-8, buf);
     strcpy(fnam, newfnam);
-    printf("fnam = %s\n", fnam);
     //exit(-1);
 
     // Reorder dataA, dataB, dataC in data[]
@@ -92,6 +89,24 @@ void update_data()
     }
     
     load_bhlight3d_data(2, fnam);
+    #else // FAST LIGHT
+    if (nloaded % 3 == 0) {
+      data[0] = &dataA;
+      data[1] = &dataB;
+      data[2] = &dataC;
+    } else if (nloaded % 3 == 1) {
+      data[0] = &dataB;
+      data[1] = &dataC;
+      data[2] = &dataA;
+    } else if (nloaded % 3 == 2) {
+      data[0] = &dataC;
+      data[1] = &dataA;
+      data[2] = &dataB;
+    } else {
+      printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
+    }
+    data[2]->t = data[1]->t + DTd;
+    #endif 
     //data[2]->t = data[1]->t + DTd;
   } // omp single
 }
