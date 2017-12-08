@@ -15,6 +15,8 @@ static double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM], t[NX][NY], tmin[NX][NY]
 
 static double DX, DY, fovx, fovy;
 
+static double freqcgs;
+
 struct of_traj {
   double dl;
   double X[NDIM];
@@ -35,7 +37,7 @@ int main(int argc, char *argv[])
 
     set_levi_civita();
 
-    double freq, freqcgs;
+    double freq;
     double Ftot, Dsource;
     //int i, j, k, l, nstep;
     //double Xi[NDIM], Xf[NDIM], Kconi[NDIM], Kconf[NDIM], ji, ki, jf, kf;
@@ -489,7 +491,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
   }
   
   // Write header
-  fprintf(fp, "%d %d %e %e %e %e %e\n", NX, NY, DX, DY, scale, L_unit, M_unit);
+  fprintf(fp, "%d %d %e %e %e %e %e %e\n", NX, NY, DX, DY, scale, L_unit, M_unit, freqcgs);
 
   // Write data
   sum_i = 0.0;
