@@ -25,6 +25,8 @@ struct of_traj {
   double Kconhalf[NDIM];
 } traj[MAXNSTEP];
 
+double freqcgs;
+
 int main(int argc, char *argv[])
 {
     double time = omp_get_wtime();
@@ -97,8 +99,8 @@ int main(int argc, char *argv[])
 
     /* fix camera field of view */
     /* units = GM/c^2 in plane of the hole */
-    DX = 20.0;
-    DY = 20.0;
+    DX = 40.0;
+    DY = 40.0;
     fovx = DX / rcam;
     fovy = DY / rcam;
 
