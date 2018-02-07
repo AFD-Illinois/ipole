@@ -231,13 +231,14 @@ double besselk_asym(int n, double x)
 #undef S2
 #undef S3
 
-int radiating_region(double X[4])
+/*int radiating_region(double X[4])
 {
-
-  if(X[1] < log(rmax) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) return(1);
-    else return(0);
-
-}
+  if (X[1] < log(rmax) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) {
+    return 1;
+  } else {
+    return 0;
+  }
+}*/
 
 /* 
 

@@ -21,6 +21,8 @@ static double MBH, Mdotedd;
 
 static char fnam[STRLEN];
 
+static int RADIATION;
+
 #define NSUP (3)
 struct of_data {
   double t;
@@ -670,12 +672,17 @@ void set_units(char *munitstr)
 
   //sscanf(munitstr,"%lf",&M_unit) ;
 
+  if (!RADIATION) {
+    MBH = 4.6e6;
+    MBH *= MSUN;
+  }
+
   /** input parameters appropriate to Sgr A* **/
-  MBH = 4.6e6;
+  //MBH = 4.6e6;
 
   /** from this, calculate units of length, time, mass,
       and derivative units **/
-  MBH *= MSUN;
+  //MBH *= MSUN;
   L_unit = GNEWT * MBH / (CL * CL);
   T_unit = L_unit / CL;
   RHO_unit = M_unit / pow(L_unit, 3);
@@ -948,6 +955,14 @@ void init_bhlight3d_grid(char *fname)
   H5LTread_dataset_double(file_id, "poly_alpha", &poly_alpha);
   H5LTread_dataset_double(file_id, "mks_smooth", &mks_smooth);
 
+  rmax = MIN(50., Rout);
+
+  H5LTread_dataset_int(file_id, "RADIATION", &RADIATION);
+  if (RADIATION) {
+    H5LTread_dataset_double(file_id, "Mbh", &MBH);
+    H5LTread_dataset_double(file_id, "M_unit", &M_unit);
+  }
+
   H5LTread_dataset_double(file_id, "DTd", &DTd);
   //int DTf;
   //H5LTread_dataset_int(file_id, "DTf", &DTf);
@@ -1152,5 +1167,14 @@ double theta_func(double X[NDIM])
   double r, th;
   bl_coord(X, &r, &th);
   return th;
+}
+
+int radiating_region(double X[NDIM])
+{
+  if (X[1] < log(rmax) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 

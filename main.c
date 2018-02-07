@@ -15,8 +15,6 @@ static double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM], t[NX][NY], tmin[NX][NY]
 
 static double DX, DY, fovx, fovy;
 
-static double freqcgs;
-
 struct of_traj {
   double dl;
   double X[NDIM];
@@ -25,7 +23,7 @@ struct of_traj {
   double Kconhalf[NDIM];
 } traj[MAXNSTEP];
 
-double freqcgs;
+double freqcgs, thetacam;
 
 int main(int argc, char *argv[])
 {
@@ -35,7 +33,7 @@ int main(int argc, char *argv[])
     //double Xhalf[NDIM], Kconhalf[NDIM];
     //double dl, Intensity;
     //double DX, DY, fovx, fovy;
-    double thetacam, phicam, rcam, Xcam[NDIM];
+    double phicam, rcam, Xcam[NDIM];
 
     set_levi_civita();
 
@@ -60,7 +58,9 @@ int main(int argc, char *argv[])
       }
     }
 
-    if (argc < 8) {
+    parse_input(argc, argv);
+
+    /*if (argc < 8) {
 	// fprintf(stderr,"usage: ipole theta freq filename Munit theta_j trat_d\n") ;
 	fprintf(stderr,
 		"usage: ipole theta freq filename Munit trat_j trat_d counterjet\n");
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     sscanf(argv[4], "%lf", &M_unit);
     sscanf(argv[5], "%lf", &trat_j);
     sscanf(argv[6], "%lf", &trat_d);
-    sscanf(argv[7], "%d", &counterjet);
+    sscanf(argv[7], "%d", &counterjet);*/
 
     init_model(argv);
     R0 = 0.0;
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
     Xcam[2] = root_find(x);
     Xcam[3] = phicam;
 
-    printf("X[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
+    printf("Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
 
     fprintf(stdout,
 	    "cam_th_cal=%g [deg] th_beg=%g th_len=%g a=%g R0=%g hslope=%g\n",
@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
     fovy = DY / rcam;
 
     // Maximum radius of radiation interactions (GM/c^2)
-    rmax = 50.;
+    //rmax = 50.;
 
     //Dsource = DM87 ;
     Dsource = DSGRA;
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
 
   //  int nprogress = 0;
 
-if (1) { // SLOW LIGHT
+if (0) { // SLOW LIGHT
 
   printf("\nBACKWARD\n");
   #pragma omp parallel
@@ -296,6 +296,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
       }
     }
 
+    // Update fluid if using slow light
     if (!alldone) {
       #pragma omp single
       printf("LOADING NEW DATA\n");
@@ -310,6 +311,22 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
     nloop++;
   }
   } // pragma omp for
+
+  // Conversion factors
+  for (int i = 0; i < NX; i++) {
+    for (int j = 0; j < NY; j++) {
+      printf("Xgeo[%i][%i] = %e %e %e %e\n", i,j,
+      Xgeo[i][j][0], Xgeo[i][j][1], Xgeo[i][j][2], Xgeo[i][j][3]);
+      image[i][j] *= pow(freqcgs, 3);
+      project_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j], &imageS[i][j][0],
+        &imageS[i][j][1], &imageS[i][j][2], &imageS[i][j][3]);
+      imageS[i][j][0] *= pow(freqcgs, 3);
+      imageS[i][j][1] *= pow(freqcgs, 3);
+      imageS[i][j][2] *= pow(freqcgs, 3);
+      imageS[i][j][3] *= pow(freqcgs, 3);
+      imageS[i][j][4] = tauFgeo[i][j];
+    }
+  }
 
 }else { // FAST LIGHT
 int i,j,k,l,nstep,nprogress;
@@ -394,10 +411,6 @@ double complex N_coord[NDIM][NDIM];
      get_jkinv(Xi, Kconi, &ji, &ki);
      get_jkinv(Xf, Kconf, &jf, &kf);
      Intensity = approximate_solve(Intensity, ji, ki, jf, kf, traj[nstep].dl);
-     if (isnan(Intensity)) {
-       printf("BAD!\n");
-       exit(-1);
-     }
  
      /* solve polarized transport */
      evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
@@ -429,27 +442,18 @@ double complex N_coord[NDIM][NDIM];
      }
 }
 
-  // Conversion factors
-  for (int i = 0; i < NX; i++) {
-    for (int j = 0; j < NY; j++) {
-      image[i][j] *= pow(freqcgs, 3);
-      project_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j], &imageS[i][j][0],
-        &imageS[i][j][1], &imageS[i][j][2], &imageS[i][j][3]);
-      imageS[i][j][0] *= pow(freqcgs, 3);
-      imageS[i][j][1] *= pow(freqcgs, 3);
-      imageS[i][j][2] *= pow(freqcgs, 3);
-      imageS[i][j][3] *= pow(freqcgs, 3);
-      imageS[i][j][4] = tauFgeo[i][j];
-    }
-  }
+  printf("\n");
+  printf("scale = %e\n", scale);
 
   /* printing out to files and on stderr */
+  double Ftot_unpol = 0.;
   Ftot = 0.;
   Imax = 0.0;
   Iavg = 0.0;
   imax = jmax = 0;
   for (int i = 0; i < NX; i++) {
     for (int j = 0; j < NY; j++) {
+      Ftot_unpol += image[i][j]*scale;
       Ftot += imageS[i][j][0] * scale;
       Iavg += imageS[i][j][0];
       if (imageS[i][j][0] > Imax) {
@@ -462,7 +466,8 @@ double complex N_coord[NDIM][NDIM];
 
     fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax,
 	    Iavg / (NX * NY));
-    fprintf(stderr, "Ftot: %g %g scale=%g\n", freqcgs, Ftot, scale);
+    fprintf(stderr, "freq: %g Ftot: %g (%g unpol) scale=%g\n", freqcgs, Ftot, 
+      Ftot_unpol, scale);
     fprintf(stderr, "nuLnu = %g\n",
 	    4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
 

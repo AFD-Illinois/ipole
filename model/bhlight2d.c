@@ -10,12 +10,6 @@
   for (int j = jstart; j <= jstop; j++)
 #define PLOOP for(int k = 0; k < nprim; k++)
 
-#define KTOT (8)
-#define KELCOND (9)
-#define KELNOCOND (10)
-#define PHI (11)
-#define FLR (12)
-
 // bhlight 2d grid functions
 double ***bcon;
 double ***bcov;
@@ -29,6 +23,22 @@ double **b;
 void interp_fourv(double X[NDIM], double ***fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double **var) ;
 void safe_fscanf(FILE *stream, const char *format, ...) ;
+
+void parse_input(int argc, char *argv[])
+{
+  if (argc != 5) {
+    fprintf(stderr, "ERROR format is\n");
+    fprintf(stderr, "  ipole theta[deg] freq[cgs] filename counterjet\n");
+    exit(-1);
+  }
+
+  sscanf(argv[1], "%lf", &thetacam);
+  sscanf(argv[2], "%lf", &freqcgs);
+  sscanf(argv[4], "%d",  &counterjet);
+}
+
+void update_data() {
+}
 
 double game, gamp, Thetae_unit;
 int WITH_ELECTRONS, nprim;
@@ -162,7 +172,7 @@ void get_model_bcon(double X[NDIM], double Bcon[NDIM])
 
 		return ;
 	}
-	
+
   interp_fourv(X, bcon, Bcon) ;
 }
 
@@ -194,7 +204,7 @@ double get_model_b(double X[NDIM])
 	   X[1] > stopx[1]  ||
 	   X[2] < startx[2] ||
 	   X[2] > stopx[2]) {
-	   	
+
      return 0.;
 	}
 
@@ -226,7 +236,7 @@ void Xtoij(double X[NDIM], int *i, int *j, double del[NDIM]);
 
 /* return fluid four-vector in simulation units */
 void interp_fourv(double X[NDIM], double ***fourv, double Fourv[NDIM]){
-	double del[NDIM],b1,b2,b3,d1,d2,d3,d4;
+	double del[NDIM],b1,b2,/*b3,*/d1,d2,d3,d4;
 	int i, j, ip1, jp1;
 
 	/* find the current zone location and offsets del[0], del[1] */
@@ -237,7 +247,7 @@ void interp_fourv(double X[NDIM], double ***fourv, double Fourv[NDIM]){
 
 	b1 = 1.-del[1];
 	b2 = 1.-del[2];
-	b3 = 1.-del[3];
+	//b3 = 1.-del[3];
 
 	d1 = b1*b2;
 	d3 = del[1] * b2;
@@ -246,13 +256,13 @@ void interp_fourv(double X[NDIM], double ***fourv, double Fourv[NDIM]){
 
 
 	// Interpolate along X1, X2
-	Fourv[0] = d1*fourv[i][j][0] + d2*fourv[i][jp1][0] + d3*fourv[ip1][j][0] + 
+	Fourv[0] = d1*fourv[i][j][0] + d2*fourv[i][jp1][0] + d3*fourv[ip1][j][0] +
              d4*fourv[ip1][jp1][0];
-	Fourv[1] = d1*fourv[i][j][1] + d2*fourv[i][jp1][1] + d3*fourv[ip1][j][1] + 
+	Fourv[1] = d1*fourv[i][j][1] + d2*fourv[i][jp1][1] + d3*fourv[ip1][j][1] +
              d4*fourv[ip1][jp1][1];
-	Fourv[2] = d1*fourv[i][j][2] + d2*fourv[i][jp1][2] + d3*fourv[ip1][j][2] + 
+	Fourv[2] = d1*fourv[i][j][2] + d2*fourv[i][jp1][2] + d3*fourv[ip1][j][2] +
              d4*fourv[ip1][jp1][2];
-	Fourv[3] = d1*fourv[i][j][3] + d2*fourv[i][jp1][3] + d3*fourv[ip1][j][3] + 
+	Fourv[3] = d1*fourv[i][j][3] + d2*fourv[i][jp1][3] + d3*fourv[ip1][j][3] +
              d4*fourv[ip1][jp1][3];
 }
 
@@ -276,7 +286,7 @@ double interp_scalar(double X[NDIM], double **var)
 	  var[i][jp1]*b1*del[2] +
 	  var[ip1][j]*del[1]*b2 +
 	  var[ip1][jp1]*del[1]*del[2];
-	
+
   return interp;
 }
 
@@ -323,38 +333,6 @@ void Xtoij(double X[NDIM], int *i, int *j, double del[NDIM])
 	return;
 }
 
-//#define SINGSMALL (1.E-20)
-/* return boyer-lindquist coordinate of point */
-void bl_coord(double *X, double *r, double *th)
-{
-
-	// for cfg data files
-	//*r = Rin * exp(X[1]);
-	// for scn data files
-	*r = exp(X[1]);// + R0 ;
-	//*th = th_beg + th_len *X[2] + hslope*sin(2. * M_PI * X[2]);  //2D
-	//hotaka run, hslope=0?
-	*th = M_PI * X[2] + 0.5*(1.-hslope)*sin(2. * M_PI * X[2]);
-	//*th = th_beg + M_PI*X[2]  ;
-
-	//fix coord
-	/*
-	if (fabs(*th) < SINGSMALL) {
-	  if ((*th) >= 0)
-	    *th = SINGSMALL;
-	  if ((*th) < 0)
-	    *th = -SINGSMALL;
-        }
-        if (fabs(M_PI - (*th)) < SINGSMALL) {
-	  if ((*th) >= M_PI)
-	    *th = M_PI + SINGSMALL;
-	  if ((*th) < M_PI)
-	    *th = M_PI - SINGSMALL;
-        }
-
-	*/
-	return;
-}
 
 void coord(int i, int j, double *X)
 {
@@ -371,7 +349,7 @@ void coord(int i, int j, double *X)
 void init_physical_quantities(void)
 {
 	int i, j;
-  double bsq, sigma_m, beta, b2, trat;
+  double bsq, sigma_m;///, beta, b2, trat;
 
 	for (i = 0; i < N1; i++) {
 		for (j = 0; j < N2; j++) {
@@ -529,7 +507,7 @@ void init_bhlight2d_data(char *fname)
   safe_fscanf(fp, "%d", &idum); // RADMODEL
   safe_fscanf(fp, "%lf", &fdum); // tp_over_te
   safe_fscanf(fp, "%lf", &fdum); // cour
-  safe_fscanf(fp, "%lf", &fdum); // DTd
+  safe_fscanf(fp, "%lf", &DTd); // DTd
   safe_fscanf(fp, "%lf", &fdum); // DTl
   safe_fscanf(fp, "%lf", &fdum); // DTi
   safe_fscanf(fp, "%d", &idum); // DTr
@@ -543,12 +521,13 @@ void init_bhlight2d_data(char *fname)
   safe_fscanf(fp, "%lf", &Rout); // Rout
   safe_fscanf(fp, "%lf", &hslope); // hslope
   safe_fscanf(fp, "%lf", &fdum); // R0
-  safe_fscanf(fp, "%d", &WITH_ELECTRONS); // WITH_ELECTRONS
-  safe_fscanf(fp, "%d", &idum); // SPEC_THETABINS
-  safe_fscanf(fp, "%d", &idum); // SPEC_FREQBINS
-  safe_fscanf(fp, "%lf", &fdum); // SPEC_NUMIN
-  safe_fscanf(fp, "%lf", &fdum); // SPEC_NUMAX
-  safe_fscanf(fp, "%d", &idum); // MONIKA_TPTE
+  while ( (fgetc(fp)) != '\n' ) ;
+  //safe_fscanf(fp, "%d", &WITH_ELECTRONS); // WITH_ELECTRONS
+  //safe_fscanf(fp, "%d", &idum); // SPEC_THETABINS
+  //safe_fscanf(fp, "%d", &idum); // SPEC_FREQBINS
+  //safe_fscanf(fp, "%lf", &fdum); // SPEC_NUMIN
+  //safe_fscanf(fp, "%lf", &fdum); // SPEC_NUMAX
+  //safe_fscanf(fp, "%d", &idum); // MONIKA_TPTE
 
   // Finish setting units
   RHO_unit = M_unit / pow(L_unit, 3);
@@ -558,11 +537,13 @@ void init_bhlight2d_data(char *fname)
 
   printf("L T M U B RHO = %e %e %e %e %e %e\n", L_unit, T_unit, M_unit, U_unit, B_unit, RHO_unit);
 
-  if (WITH_ELECTRONS == 0) {
+  nprim = NPRIM;
+
+  /*if (WITH_ELECTRONS == 0) {
     nprim = 8;
   } else {
     nprim = 13;
-  }
+  }*/
 
 	fprintf(stdout,"start: %g %g %g \n",startx[1],startx[2],startx[3]);
 
@@ -570,6 +551,8 @@ void init_bhlight2d_data(char *fname)
 	stopx[1] = startx[1] + N1*dx[1];
 	stopx[2] = startx[2] + N2*dx[2];
 	stopx[3] = startx[3] + N3*dx[3];
+  rmax = MIN(50., Rout);
+  th_beg = 0.0174;
 
 	fprintf(stdout,"stop: %g %g %g \n",stopx[1],stopx[2],stopx[3]);
 
@@ -600,7 +583,8 @@ void init_bhlight2d_data(char *fname)
     safe_fscanf(fp, "%lf", &bcov[i][j][1]); // bcov[1]
     safe_fscanf(fp, "%lf", &bcov[i][j][2]); // bcov[2]
     safe_fscanf(fp, "%lf", &bcov[i][j][3]); // bcov[3]
-    safe_fscanf(fp, "%lf", &fdum); // vmin
+    while ( (fgetc(fp)) != '\n' ) ;
+    /*safe_fscanf(fp, "%lf", &fdum); // vmin
     safe_fscanf(fp, "%lf", &fdum); // vmax
     safe_fscanf(fp, "%lf", &fdum); // vmin
     safe_fscanf(fp, "%lf", &fdum); // vmax
@@ -619,7 +603,8 @@ void init_bhlight2d_data(char *fname)
     } else {
       thetae[i][j] = p[KELCOND][i][j]*pow(p[KRHO][i][j],game-1.)*Thetae_unit;
       safe_fscanf(fp, "%lf", &thetae[i][j]); // Thetae
-    }
+    }*/
+    thetae[i][j] = p[KELCOND][i][j]*pow(p[KRHO][i][j],game-1.)*Thetae_unit;
 
     // Need a floor on thetae to avoid NANs
     thetae[i][j] = MAX(thetae[i][j], 1.e-4);
@@ -815,6 +800,64 @@ void safe_fscanf(FILE *stream, const char *format, ...)
   if (vfscanfReturn == -1) {
     fprintf(stderr, "fscanf() call failed! Exiting!\n");
     exit(-1);
+  }
+}
+
+// COORDINATES
+void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
+{
+  MUNULOOP gcov[mu][nu] = 0.;
+
+  double sth, cth, s2, rho2;
+  double r, th;
+
+  bl_coord(X, &r, &th);
+
+  cth = cos(th);
+  sth = sin(th);
+
+  s2 = sth*sth;
+  rho2 = r*r + a*a*cth*cth;
+
+  // KS -> MKS transformation
+  double tfac, rfac, hfac, pfac;
+  tfac = 1.;
+  rfac = r - R0;
+  hfac = M_PI + (1. - hslope) * M_PI * cos(2. * M_PI * X[2]);
+  pfac = 1.;
+
+  gcov[0][0] = (-1. + 2.*r/rho2)*tfac*tfac;
+  gcov[0][1] = (2.*r/rho2)*tfac*rfac;
+  gcov[0][3] = (-2.*a*r*s2/rho2)*tfac*pfac;
+
+  gcov[1][0] = gcov[0][1];
+  gcov[1][1] = (1. + 2.*r/rho2)*rfac*rfac;
+  gcov[1][3] = (-a*s2*(1. + 2.*r/rho2))*rfac*pfac;
+
+  gcov[2][2] = (rho2)*hfac*hfac;
+
+  gcov[3][0] = gcov[0][3];
+  gcov[3][1] = gcov[1][3];
+  gcov[3][3] = (s2*(rho2 + a*a*s2*(1. + 2.*r/rho2)))*pfac*pfac;
+}
+
+void bl_coord(double *X, double *r, double *th)
+{
+  *r = exp(X[1]) + R0;
+  *th = M_PI*X[2] + ((1. - hslope)/2.)*sin(2.*M_PI*X[2]);
+}
+
+void get_connection(double X[4], double lconn[4][4][4])
+{
+  get_connection_num(X, lconn);
+}
+
+int radiating_region(double X[NDIM])
+{
+  if (X[1] < log(rmax) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) {
+    return 1;
+  } else {
+    return 0;
   }
 }
 

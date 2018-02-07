@@ -12,9 +12,10 @@
 #include "constants.h"
 #include <complex.h> 
 #include <omp.h>
+#include "model.h"
 
-#define NX   128
-#define NY   128
+//#define NX   128
+//#define NY   128
 
 #define NDIM	4
 
@@ -23,7 +24,7 @@
 #define NIMG (4+1) // Stokes vector and faraday depth
 
 /* mnemonics for primitive vars; conserved vars */
-#define KRHO    0
+/*#define KRHO    0
 #define UU      1
 #define U1      2
 #define U2      3
@@ -32,7 +33,7 @@
 #define B2      6
 #define B3      7
 #define KEL     8
-#define KTOT    9
+#define KTOT    9*/
 
 /* numerical convenience */
 #define SMALL	1.e-40
@@ -76,6 +77,8 @@ extern double U_unit;
 extern double B_unit;
 
 extern int N1, N2, N3;
+
+extern double freqcgs, thetacam;
 
 extern double levi_civita[NDIM][NDIM][NDIM][NDIM];
 
@@ -127,7 +130,7 @@ void Xtoij(double X[NDIM], int *i, int *j, double del[NDIM]) ;
 void   bl_coord(double *X, double *r, double *th);
 //void coord(int i, int j, double *X) ;
 void set_units(char *instr) ;
-void init_physical_quantities(int n) ;
+//void init_physical_quantities(int n) ;
 
 //for 3d coment out
 /*
@@ -136,7 +139,7 @@ void **malloc_rank2(int n1, int n2, int size) ;
 void ***malloc_rank3(int n1, int n2, int n3, int size) ;
 void ****malloc_rank4(int n1, int n2, int n3, int n4, int size) ;
 */
-
+void parse_input(int argc, char *argv[]);
 void init_storage(void) ;
 
 /* tetrad related */

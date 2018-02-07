@@ -1,0 +1,9 @@
+model.c
+model.h
+*.mp4
+*.p
+*.dat
+ipole
+*.png
+*.ppm
+*.vtk
