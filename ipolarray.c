@@ -96,7 +96,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 	      double Xhalf[NDIM], double Kconhalf[NDIM],
 	      double Xf[NDIM], double Kconf[NDIM],
-	      double dlam, double complex N_coord[NDIM][NDIM])
+	      double dlam, double complex N_coord[NDIM][NDIM], double *tauF)
 {
     int k;
     double gcov[NDIM][NDIM];
@@ -126,6 +126,16 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 	gcov_func(Xf, gcov);
 	jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
 		 &aI, &aQ, &aU, &aV, &rQ, &rU, &rV);
+
+  if (counterjet == 1) { // Emission from X[2] > 0.5 only
+    if (Xf[2] < 0.5) {
+      jI = jQ = jU = jV = 0.;
+    }
+  } else if (counterjet == 2) { // Emission from X[2] < 0.5 only
+    if (Xf[2] > 0.5) {
+      jI = jQ = jU = jV = 0.;
+    }
+  }
 
 	/* make plasma tetrad */
 	get_model_ucon(Xf, Ucon);
@@ -175,6 +185,7 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 	double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
 	double adj = aQ * jQ + aU * jU + aV * jV;
 
+  *tauF += dlam*fabs(rV);
 
 	if (aP > SMALL) {  /* full analytic solution has trouble if polarized absorptivity is small */
 	    double expaIx = exp(-aI * x);

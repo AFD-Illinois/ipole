@@ -8,13 +8,15 @@ CL = 2.99792458e10
 theta = 20.
 #nu = np.array([229.6e9, 229.7e9, 229.8e9, 229.9e9, 230.e9, 230.1e9, 230.2e9, 230.3e9, 230.4e9])
 nu = np.linspace(35.e9, 700.e9, 20)
+nu = np.logspace(np.log10(35.e9), np.log10(700.e9), 128)
 fnam = 'dump_fluid00000200'
 EVPA = np.zeros(len(nu))
 
 for n in xrange(len(nu)):
   call(['./ipole', str(theta), str(nu[n]), fnam, '1', '1', '1'])
   
-  i0, j0, x, y, Ia, Is, Qs, Us, Vs = np.loadtxt('ipole.dat', unpack=True)
+  i0, j0, x, y, Ia, Is, Qs, Us, Vs, tauF = np.loadtxt('ipole.dat', unpack=True,
+      skiprows=1)
   Q_I = np.sum(Qs*Is)/np.sum(Is)
   U_I = np.sum(Us*Is)/np.sum(Is)
   EVPA[n] = 0.5*np.arctan(U_I/Q_I)

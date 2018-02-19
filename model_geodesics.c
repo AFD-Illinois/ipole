@@ -20,7 +20,6 @@ stepsize
 int stop_backward_integration(double X[NDIM],
                               double Kcon[NDIM], double Xcam[NDIM])
 {
-
     if ((X[1] > LRMAX && Kcon[1] < 0.) ||       /* out far */
         X[1] < LRMIN            /* in deep */
         )
@@ -33,7 +32,7 @@ int stop_backward_integration(double X[NDIM],
 #undef LRMIN
 #undef LRMAX
 
-#define EPS     0.002
+#define EPS     0.01
 
 double stepsize(double X[NDIM], double Kcon[NDIM])
 {

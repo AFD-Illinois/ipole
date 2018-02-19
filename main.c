@@ -15,8 +15,8 @@ struct of_traj {
 
 extern double image[NX][NY];
 double image[NX][NY];
-extern double imageS[NX][NY][NDIM];
-double imageS[NX][NY][NDIM];
+extern double imageS[NX][NY][NIMG];
+double imageS[NX][NY][NIMG];
 
 int threadid,nthreads;
 
@@ -36,17 +36,18 @@ int main(int argc, char *argv[])
     int i, j, k, l, nstep;
     double Xi[NDIM], Xf[NDIM], Kconi[NDIM], Kconf[NDIM], ji, ki, jf, kf;
     double scale;
-    double root_find(double th);
+    //double root_find(double th);
+    double root_find(double x[NDIM]);
     int imax, jmax;
     double Imax, Iavg;		//,dOmega;
     double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
+    double tauF;
     double complex N_coord[NDIM][NDIM];
 
 #ifdef _OPENMP
 #pragma omp parallel default(none) shared(nthreads) private(threadid)
     {
         threadid = omp_get_thread_num();
-        printf("tid = %d\n", threadid);
         if(threadid==0) {
             nthreads = omp_get_num_threads();
             printf("nthreads = %d\n",nthreads);
@@ -56,10 +57,10 @@ int main(int argc, char *argv[])
     printf("_OPENMP not defined: running in serial\n");
 #endif
 
-    if (argc < 6) {
+    if (argc < 7) {
 	// fprintf(stderr,"usage: ipole theta freq filename Munit theta_j trat_d\n") ;
 	fprintf(stderr,
-		"usage: ipole theta freq filename Munit trat_j trat_d\n");
+		"usage: ipole theta freq filename Munit trat_j trat_d counterjet\n");
 	exit(0);
     }
 
@@ -68,6 +69,7 @@ int main(int argc, char *argv[])
     sscanf(argv[4], "%lf", &M_unit);
     sscanf(argv[5], "%lf", &trat_j);
     sscanf(argv[6], "%lf", &trat_d);
+    sscanf(argv[7], "%d", &counterjet);
 
     init_model(argv);
     R0 = 0.0;
@@ -80,8 +82,11 @@ int main(int argc, char *argv[])
     phicam = 0.0;
     Xcam[0] = 0.0;
     Xcam[1] = log(rcam);
-    Xcam[2] = root_find(thetacam / 180. * M_PI);
+    double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam};
+    Xcam[2] = root_find(x);
     Xcam[3] = phicam;
+
+    printf("X[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
 
     fprintf(stdout,
 	    "cam_th_cal=%g [deg] th_beg=%g th_len=%g a=%g R0=%g hslope=%g\n",
@@ -96,9 +101,10 @@ int main(int argc, char *argv[])
     fovx = DX / rcam;
     fovy = DY / rcam;
 
-    Dsource = DM87 ;
-    //Dsource = DSGRA;
+    //Dsource = DM87 ;
+    Dsource = DSGRA;
     scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
+    printf("L_unit = %e DX = %e NX = %i Dsource = %e JY = %e\n", L_unit, DX, NX, Dsource,JY);
     fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
     fprintf(stderr,"Dsource: %g [cm]\n",Dsource);
     fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
@@ -114,7 +120,7 @@ schedule(static,NX*NY/nthreads) \
 collapse(2) \
 private(i,j,k,l,ki,kf,ji,jf,nstep,dl,X,Xhalf,Kcon,Kconhalf,\
    Xi,Xf,Kconi,Kconf,traj,Intensity,N_coord,Stokes_I,Stokes_Q,Stokes_U,\
-   Stokes_V) \
+   Stokes_V,tauF) \
 shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
    th_beg,th_len,hslope,nthreads,nprogress)
     for (i = 0; i < NX; i++) {
@@ -166,6 +172,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	    }
 	    init_N(Xi, Kconi, N_coord);
 	    Intensity = 0.0;
+      tauF = 0.;
 
 	    while (nstep > 1) {
 
@@ -189,7 +196,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
     }
 
 		/* solve polarized transport */
-		evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord);
+		evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
     //if (isnan(creal(N_coord[0][0]))) exit(-1);
 
                 /* swap start and finish */
@@ -206,6 +213,7 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	    imageS[i][j][1] = Stokes_Q * pow(freqcgs, 3);
 	    imageS[i][j][2] = Stokes_U * pow(freqcgs, 3);
 	    imageS[i][j][3] = Stokes_V * pow(freqcgs, 3);
+      imageS[i][j][4] = tauF;
 
 	    if( (nprogress % NY) == 0 ) {
 	        fprintf(stderr,"%d ",(nprogress/NY));
@@ -237,10 +245,10 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 	    Iavg / (NX * NY));
     fprintf(stderr, "Ftot: %g %g scale=%g\n", freqcgs, Ftot, scale);
     fprintf(stderr, "nuLnu = %g\n",
-	    Ftot * Dsource * Dsource * JY * freqcgs);
+	    4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
 
     /* image, dump result */
-    make_ppm(image, freq, "ipole_fnu.ppm");
+    //make_ppm(image, freq, "ipole_fnu.ppm");
     dump(image, imageS, "ipole.dat", scale);
     for (i = 0; i < NX; i++)
 	for (j = 0; j < NY; j++)
@@ -252,12 +260,12 @@ shared(Xcam,fovx,fovy,freq,freqcgs,image,imageS,L_unit,stderr,stdout,\
 
 }
 
-void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
+void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
 	  double scale)
 {
     FILE *fp;
     int i, j;
-    double xx, yy, dum_r;
+    double xx, yy;
     double sum_i;
 
 
@@ -266,17 +274,22 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 	fprintf(stderr, "unable to open %s\n", fname);
 	exit(1);
     }
+    fprintf(fp, "%d %d %e %e %e %e %e\n", NX, NY, DX, DY, scale, L_unit, M_unit);
 
 
     sum_i = 0.0;
     for (i = 0; i < NX; i++) {
 	for (j = 0; j < NY; j++) {
+    if (i == 50 && j == 50) {
+      printf("I = %e\n", image[i][j]);
+      //exit(-1);
+    }
 	    sum_i += image[i][j];
       xx = (i+0.5)*DX/NX;
       yy = (j+0.5)*DY/NY;
-      fprintf(fp, "%d %d %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g \n",
+      fprintf(fp, "%d %d %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g \n",
 		    i, j, xx, yy, image[i][j], imageS[i][j][0], imageS[i][j][1],
-		    imageS[i][j][2], imageS[i][j][3]);
+		    imageS[i][j][2], imageS[i][j][3], imageS[i][j][4]);
 	}
 	fprintf(fp, "\n");
     }
@@ -284,7 +297,7 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 
 
     /*dump vtk file */
-    fp = fopen("ipole.vtk", "w");
+    /*fp = fopen("ipole.vtk", "w");
     if (fp == NULL) {
 	fprintf(stderr, "unable to open %s\n", "ipole.vtk");
 	exit(1);
@@ -310,12 +323,12 @@ void dump(double image[NX][NY], double imageS[NX][NY][NDIM], char *fname,
 
     for (j = 0; j <= NY; j++) {
 	for (i = 0; i <= NX; i++) {
-	    dum_r = (image[i][j]);
+	    double dum_r = (image[i][j]);
 	    fprintf(fp, "%g\n", dum_r);
 	}
     }
 
-    fclose(fp);
+    fclose(fp);*/
 
 
 

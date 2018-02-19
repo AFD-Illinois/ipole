@@ -29,8 +29,9 @@ void gcov_func(double *X, double gcov[][NDIM])
 	DLOOP gcov[k][l] = 0.;
 
         r = exp(X[1]) + R0 ;
+
         //th =  M_PI*X[2] ;
-        th = M_PI * X[2] + hslope*sin(2. * M_PI * X[2]);
+        th = M_PI * X[2] + (1.-hslope)/2.*sin(2. * M_PI * X[2]);
 
 	cth = cos(th);
 	sth = fabs(sin(th));
@@ -76,7 +77,8 @@ void gcov_func(double *X, double gcov[][NDIM])
 
 void get_connection(double X[4], double lconn[4][4][4])
 {
-
+  //get_connection_num(X, lconn);
+  //return;
   
 	double r1,r2,r3,r4,sx,cx;
 	double th,dthdx2,dthdx22,d2thdx22,sth,cth,sth2,cth2,sth4,cth4,s2th,c2th;

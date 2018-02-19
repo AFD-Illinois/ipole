@@ -12,13 +12,13 @@ int compare_doubles(const void *a, const void *b)
 #define TOP_FRAC	(0.005)	/* Brightest and dimmest pixels cut out of color scale */
 #define BOT_FRAC	(0.005)
 
+static double q[NX*NY];
 void make_ppm(double p[NX][NY], double freq, char filename[])
 {
 
 	int i, j, k;
 	double min, max;
 	FILE *fp;
-	double q[NX*NY];
 
 	k = 0 ;
         for (i = 0; i < NX; i++)

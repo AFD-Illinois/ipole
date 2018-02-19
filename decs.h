@@ -1,6 +1,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_sf_bessel.h>
@@ -19,7 +20,9 @@
 #define NY   64
 
 #define NDIM	4
-#define NPRIM	8
+//#define NPRIM	8
+
+#define NIMG (4+1) // Stokes vector and faraday depth
 
 /* mnemonics for primitive vars; conserved vars */
 #define KRHO    0
@@ -30,6 +33,8 @@
 #define B1      5
 #define B2      6
 #define B3      7
+#define KEL     8
+#define KTOT    9
 
 /* numerical convenience */
 #define SMALL	1.e-40
@@ -44,6 +49,7 @@ extern double a;
 extern double theta_j;
 extern double trat_j;
 extern double trat_d;
+extern int counterjet;
 //2d
 
 extern double R0 ;
@@ -77,7 +83,7 @@ int    stop_forward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
 int    stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
-void dump(double image[NX][NY],double imageS[NX][NY][NDIM], char *fname, double scale) ;
+void dump(double image[NX][NY],double imageS[NX][NY][NIMG], char *fname, double scale) ;
 
 /* geodesic integration */
 //void   push_photon(double X[NDIM], double Kcon[NDIM], double dl);
@@ -88,7 +94,7 @@ void   push_photon_gsl(double X[NDIM], double Kcon[NDIM], double dl);
 /* model */
 void   gcov_func(double *X, double gcov[][NDIM]);
 void   gcov_func_rec(double *X, double gcov[][NDIM]);
-void   gcon_func(double gcov[][NDIM], double gcon[][NDIM]);
+int   gcon_func(double gcov[][NDIM], double gcon[][NDIM]);
 double gdet_func(double gcov[][NDIM]);
 void   get_connection(double *X, double lconn[][NDIM][NDIM]);
 void   get_connection_num(double *X, double lconn[][NDIM][NDIM]);
@@ -153,7 +159,8 @@ void evolve_N(double Xi[NDIM],double Kconi[NDIM],
 	      double Xf[NDIM],double Kconf[NDIM],
 	      double Xhalf[NDIM],double Kconhalf[NDIM],
 	      double dlam,
-	      double complex N_coord[NDIM][NDIM]);
+	      double complex N_coord[NDIM][NDIM],
+        double *tauF);
 void project_N(double X[NDIM],double Kcon[NDIM],
 	double complex Ncon[NDIM][NDIM],
 	double *Stokes_I, double *Stokes_Q,double *Stokes_U,double *Stokes_V);
