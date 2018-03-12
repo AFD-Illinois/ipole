@@ -49,6 +49,12 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
     Ne = get_model_ne(X);
     get_model_ucov(X, Ucov);
+    if (isnan(Ucov[0])) {
+      printf("UCOV[0] is nan! thread = %i\n", omp_get_thread_num());
+      printf("X[] = %e %e %e %e\n", X[0],X[1],X[2],X[3]);
+      printf("K[] = %e %e %e %e\n", Kcon[0],Kcon[1],Kcon[2],Kcon[3]);
+      printf("Ne = %e\n", Ne);
+    }
     theta = get_bk_angle(X, Kcon, Ucov);	/* angle between k & b  */
 
     if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
@@ -79,6 +85,10 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
 	/* invariant rotativities */
 	*rV *= nu;
+
+  if (isnan(*rV)  || *rV > 1.e100 || *rV < -1.e100) {
+    printf("NAN RV theta! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
+  }
 
 	return;
 
@@ -130,6 +140,14 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 	*rQ *= nu;
 	*rU *= nu;
 	*rV *= nu;
+
+  if (isnan(*rV) || *rV > 1.e100 || *rV < -1.e100) {
+    printf("NAN RV! rV = %e nu = %e Ne = %e Thetae = %e x = %e\n", *rV, nu, Ne, Thetae, x);
+    printf("B = %e\n", B);
+    for (int mu = 0; mu < NDIM; mu++) {
+      printf("[%i] X[] = %e Kcon[] = %e Ucov[] = %e\n", mu,X[mu],Kcon[mu],Ucov[mu]);
+    }
+  }
 
     }
 
@@ -213,13 +231,14 @@ double besselk_asym(int n, double x)
 #undef S2
 #undef S3
 
-int radiating_region(double X[4])
+/*int radiating_region(double X[4])
 {
-
-  if(X[1] < log(50.) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) return(1);
-    else return(0);
-
-}
+  if (X[1] < log(rmax) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) {
+    return 1;
+  } else {
+    return 0;
+  }
+}*/
 
 /* 
 
@@ -307,6 +326,16 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
 	fprintf(stderr, "\nisnan get_jkinv\n");
 	fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
 		Ne, theta, nu, B, Thetae, Bnuinv);
+    }
+
+    if (counterjet == 1) { // Emission from X[2] > 0.5 only
+      if (X[2] < 0.5) {
+        *jnuinv = 0.;
+      }
+    } else if (counterjet == 2) { // Emission from X[2] < 0.5 only
+      if (X[2] > 0.5) {
+        *jnuinv = 0.;
+      }
     }
 
     return;

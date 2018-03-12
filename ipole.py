@@ -61,7 +61,7 @@ j = (np.reshape(j0, (NX,NY))+1)*DY/NY - DY/2
 ax = plt.subplot(2,2,2)
 lpfrac = 100.*np.sqrt(Qs*Qs + Us*Us)/(Is + SMALL)
 z = rotate(np.reshape(lpfrac, (NX,NY)), phi, reshape=False)
-plt.pcolormesh(i,j,z,cmap='jet', vmin = 0., vmax = 100.)
+plt.pcolormesh(i,j,z,cmap='hot', vmin = 0., vmax = 100.)
 plt.title('LP [%]')
 plt.axis([-20,20,-20,20])
 plt.colorbar()
@@ -90,7 +90,8 @@ ax.set_aspect('equal')
 # total intensity 
 ax = plt.subplot(2,2,1)
 z = rotate(np.reshape(Is, (NX,NY)), phi, reshape=False)
-plt.pcolormesh(i,j,z,cmap='afmhot', vmin=0., vmax=z.max())
+plt.pcolormesh(i,j,z,cmap='afmhot', vmin=0, vmax=z.max())
+#plt.pcolormesh(i,j,np.log10(z/z.max()),cmap='afmhot', vmin=-4, vmax=0.)
 plt.colorbar()
 plt.title('Stokes I [cgs]')
 plt.axis([-20,20,-20,20])
@@ -110,7 +111,7 @@ vxp = np.sqrt(Qs*Qs + Us*Us)*np.cos(evpa*3.14159/180.)/scal
 vyp = np.sqrt(Qs*Qs + Us*Us)*np.sin(evpa*3.14159/180.)/scal
 vx = rotate(np.reshape(vxp, (NX,NY)), phi, reshape=False)
 vy = rotate(np.reshape(vyp, (NX,NY)), phi, reshape=False)
-skip = 32
+skip = 16*NX/256
 plt.quiver(i[::skip, ::skip],j[::skip, ::skip],vx[::skip, ::skip],vy[::skip, ::skip], 
 	headwidth=1, headlength=1, 
 	width=0.005,

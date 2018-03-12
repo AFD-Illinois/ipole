@@ -10,12 +10,17 @@ double hslope ;
 double th_len, th_beg;
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double gam ;
+double DTd;
+double t0;
+
+double levi_civita[NDIM][NDIM][NDIM][NDIM];
 
 /* electron temperature model parameters */
 double trat_j;
 double theta_j;
 double trat_d;
 int counterjet;
+double rmax;
 
 /* HARM model globals */
 double M_unit;

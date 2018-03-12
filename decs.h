@@ -11,21 +11,20 @@
 #include <gsl/gsl_linalg.h>
 #include "constants.h"
 #include <complex.h> 
-
-#ifdef _OPENMP
 #include <omp.h>
-#endif
+#include "model.h"
 
-#define NX   64
-#define NY   64
+//#define NX   64
+//#define NY   64
 
 #define NDIM	4
-//#define NPRIM	8
+
+#define STRLEN (2048)
 
 #define NIMG (4+1) // Stokes vector and faraday depth
 
 /* mnemonics for primitive vars; conserved vars */
-#define KRHO    0
+/*#define KRHO    0
 #define UU      1
 #define U1      2
 #define U2      3
@@ -34,7 +33,7 @@
 #define B2      6
 #define B3      7
 #define KEL     8
-#define KTOT    9
+#define KTOT    9*/
 
 /* numerical convenience */
 #define SMALL	1.e-40
@@ -43,6 +42,10 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
+#define IMLOOP for(int i=0;i<NDIM;i++) for(int j=0;j<NDIM;j++)
+#define MULOOP for(int mu=0;mu<NDIM;mu++)                                        
+#define MUNULOOP for(int mu=0;mu<NDIM;mu++) for(int nu=0;nu<NDIM;nu++) 
+
 /* some coordinate parameters */
 extern double a;
 
@@ -50,6 +53,8 @@ extern double theta_j;
 extern double trat_j;
 extern double trat_d;
 extern int counterjet;
+extern double rmax;
+
 //2d
 
 extern double R0 ;
@@ -60,6 +65,8 @@ extern double hslope ;
 extern double th_len,th_beg;
 extern double startx[NDIM], stopx[NDIM], dx[NDIM];
 extern double gam ;
+extern double DTd;
+extern double t0;
 
 /* HARM model globals */
 extern double M_unit;
@@ -71,6 +78,9 @@ extern double B_unit;
 
 extern int N1, N2, N3;
 
+extern double freqcgs, thetacam;
+
+extern double levi_civita[NDIM][NDIM][NDIM][NDIM];
 
 /** model-independent subroutines **/
 /* core routines */
@@ -109,6 +119,7 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM]) ;
 void get_model_bcon(double X[NDIM], double Bcon[NDIM]) ;
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]) ;
 void get_model_ucon(double X[NDIM], double Ucon[NDIM]) ;
+void update_data();
 
 /* harm utilities */
 /*
@@ -119,7 +130,7 @@ void Xtoij(double X[NDIM], int *i, int *j, double del[NDIM]) ;
 void   bl_coord(double *X, double *r, double *th);
 //void coord(int i, int j, double *X) ;
 void set_units(char *instr) ;
-void init_physical_quantities(void) ;
+//void init_physical_quantities(int n) ;
 
 //for 3d coment out
 /*
@@ -128,7 +139,7 @@ void **malloc_rank2(int n1, int n2, int size) ;
 void ***malloc_rank3(int n1, int n2, int n3, int size) ;
 void ****malloc_rank4(int n1, int n2, int n3, int n4, int size) ;
 */
-
+void parse_input(int argc, char *argv[]);
 void init_storage(void) ;
 
 /* tetrad related */
@@ -138,6 +149,7 @@ double delta(int i, int j);
 void   make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM], double Ecov[NDIM][NDIM]) ;
 void   make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
 	double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM], double Ecov[NDIM][NDIM]) ;
+void set_levi_civita();
 
 /* imaging */
 void make_ppm(double p[NX][NY], double freq, char filename[]) ;

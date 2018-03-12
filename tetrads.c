@@ -51,7 +51,7 @@ double delta(int i, int j)
 	return (0.);
 }
 
-void lower(double *ucon, double Gcov[NDIM][NDIM], double *ucov)
+void lower(double ucon[NDIM], double Gcov[NDIM][NDIM], double ucov[NDIM])
 {
 
     ucov[0] = Gcov[0][0] * ucon[0]
@@ -81,7 +81,7 @@ void lower(double *ucon, double Gcov[NDIM][NDIM], double *ucov)
 
 */
 
-void normalize(double *vcon, double Gcov[4][4])
+void normalize(double vcon[NDIM], double Gcov[NDIM][NDIM])
 {
     int k, l;
     double norm;
@@ -110,7 +110,7 @@ void normalize(double *vcon, double Gcov[4][4])
 
 */
 
-void project_out(double *vcona, double *vconb, double Gcov[4][4])
+void project_out(double vcona[NDIM], double vconb[NDIM], double Gcov[4][4])
 {
 
     double adotb, vconb_sq;
@@ -171,14 +171,13 @@ void set_Econ_from_trial(double Econ[4], int defdir, double trial[4])
 double check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM])
 {
     int i, j, k, l;
-    static int firstc = 1;
-    void set_levi_civita(double levi_civita[NDIM][NDIM][NDIM][NDIM]);
-    static double levi_civita[NDIM][NDIM][NDIM][NDIM];
+//    static int firstc = 1;
+    //void set_levi_civita(double levi_civita[NDIM][NDIM][NDIM][NDIM]);
 
-    if (firstc) {
+/*    if (firstc) {
 	firstc = 0;
 	set_levi_civita(levi_civita);
-    }
+    }*/
 
     double g = gdet_func(Gcov);
 
