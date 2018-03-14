@@ -19,9 +19,10 @@ static double game, gamp;
 
 static double MBH, Mdotedd;
 
-static char fnam[STRLEN];
+//static char fnam[STRLEN];
 
-static int RADIATION;
+static int RADIATION, ELECTRONS;
+#define TPTE (3.)
 
 #define NSUP (3)
 struct of_data {
@@ -41,6 +42,23 @@ struct of_data dataA, dataB, dataC;
 struct of_data *data[NSUP];
   
 void load_bhlight3d_data(int n, char *);
+
+void parse_input(int argc, char *argv[])
+{
+  if (argc != 7) {
+    fprintf(stderr, "ERROR format is\n");
+    fprintf(stderr, "  ipole theta[deg] freq[cgs] MBH[Msolar] M_unit[g] filename counterjet\n");
+    exit(-1);
+  }
+
+  sscanf(argv[1], "%lf", &thetacam);
+  sscanf(argv[2], "%lf", &freqcgs);
+  sscanf(argv[3], "%lf", &MBH);
+  MBH *= MSUN;
+  sscanf(argv[4], "%lf", &M_unit);
+  strcpy(fnam, argv[5]);
+  sscanf(argv[6], "%d",  &counterjet);
+}
 
 void set_tinterp_ns(double X[NDIM], int *nA, int *nB)
 {
@@ -719,13 +737,19 @@ void init_physical_quantities(int n)
         //b2=pow(beta,2);
         //trat = trat_d * b2/(1. + b2) + trat_j /(1. + b2);
         //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
-        Thetae_unit = MP/ME;
+        
+        if (ELECTRONS) {
+          Thetae_unit = MP/ME;
+          data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
+        } else {
+          Thetae_unit = (gam - 1.) * (MP / ME) / TPTE;
+          data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
+        }
+        data[n]->thetae[i][j][k] = MAX(data[n]->thetae[i][j][k], 1.e-3);
        
         //thetae[i][j][k] = (gam-1.)*MP/ME*p[UU][i][j][k]/p[KRHO][i][j][k];
         //printf("rho = %e thetae = %e\n", p[KRHO][i][j][k], thetae[i][j][k]);
 
-        data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
-        data[n]->thetae[i][j][k] = MAX(data[n]->thetae[i][j][k], 1.e-3);
         //data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k]/4.;
         //printf("Thetae_unit = %e Thetae = %e\n", Thetae_unit, thetae[i][j][k]);
         
@@ -926,14 +950,15 @@ void init_bhlight3d_grid(char *fname)
   //double th_end,th_cutout;
   hid_t file_id;
   printf("init grid\n");
-  strcpy(fnam, fname);
+  //strcpy(fnam, fname);
 
-  file_id = H5Fopen(fname, H5F_ACC_RDONLY, H5P_DEFAULT);
+  file_id = H5Fopen(fnam, H5F_ACC_RDONLY, H5P_DEFAULT);
   if(file_id < 0){
-    fprintf(stderr,"file %s does not exist, aborting...\n",fname);
+    fprintf(stderr,"file %s does not exist, aborting...\n", fnam);
     exit(1234);
   }
   printf("Opened file!\n");
+  H5LTread_dataset_int(file_id, "ELECTRONS", &ELECTRONS);
   H5LTread_dataset_double(file_id, "t", &t0);
   H5LTread_dataset_int(file_id,   "N1",   &N1);
   H5LTread_dataset_int(file_id,   "N2",   &N2);
@@ -946,8 +971,10 @@ void init_bhlight3d_grid(char *fname)
   H5LTread_dataset_double(file_id, "dx3",  &dx[3]);
   H5LTread_dataset_double(file_id, "a", &a);
   H5LTread_dataset_double(file_id, "gam", &gam);
-  H5LTread_dataset_double(file_id, "game", &game);
-  H5LTread_dataset_double(file_id, "gamp", &gamp);
+  if (ELECTRONS) {
+    H5LTread_dataset_double(file_id, "game", &game);
+    H5LTread_dataset_double(file_id, "gamp", &gamp);
+  }
   H5LTread_dataset_double(file_id, "Rin", &Rin);
   H5LTread_dataset_double(file_id, "Rout", &Rout);
   H5LTread_dataset_double(file_id, "hslope", &hslope);
@@ -1035,9 +1062,9 @@ void load_bhlight3d_data(int n, char *fname)
   //      T_unit = L_unit / CL;
 
   
-  file_id = H5Fopen(fname, H5F_ACC_RDONLY, H5P_DEFAULT);
+  file_id = H5Fopen(fnam, H5F_ACC_RDONLY, H5P_DEFAULT);
   if(file_id < 0){
-    fprintf(stderr,"file %s does not exist, aborting...\n",fname);
+    fprintf(stderr,"file %s does not exist, aborting...\n",fnam);
     exit(12345);
   }
 
@@ -1054,8 +1081,10 @@ void load_bhlight3d_data(int n, char *fname)
   H5LTread_dataset_float(file_id, "B1",  &(data[n]->p[B1][0][0][0]));
   H5LTread_dataset_float(file_id, "B2",  &(data[n]->p[B2][0][0][0]));
   H5LTread_dataset_float(file_id, "B3",  &(data[n]->p[B3][0][0][0]));
-  H5LTread_dataset_float(file_id, "KEL", &(data[n]->p[KEL][0][0][0]));
-  H5LTread_dataset_float(file_id, "KTOT",  &(data[n]->p[KTOT][0][0][0]));
+  if (ELECTRONS) {
+    H5LTread_dataset_float(file_id, "KEL", &(data[n]->p[KEL][0][0][0]));
+    H5LTread_dataset_float(file_id, "KTOT",  &(data[n]->p[KTOT][0][0][0]));
+  }
 
   H5Fclose(file_id);
   X[0] = 0.;

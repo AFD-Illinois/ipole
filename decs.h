@@ -81,6 +81,7 @@ extern int N1, N2, N3;
 extern double freqcgs, thetacam;
 
 extern double levi_civita[NDIM][NDIM][NDIM][NDIM];
+extern char fnam[STRLEN];
 
 /** model-independent subroutines **/
 /* core routines */

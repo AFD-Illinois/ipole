@@ -24,6 +24,7 @@ struct of_traj {
 } traj[MAXNSTEP];
 
 double freqcgs, thetacam;
+char fnam[STRLEN];
 
 int main(int argc, char *argv[])
 {

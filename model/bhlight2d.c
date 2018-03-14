@@ -34,6 +34,7 @@ void parse_input(int argc, char *argv[])
 
   sscanf(argv[1], "%lf", &thetacam);
   sscanf(argv[2], "%lf", &freqcgs);
+  strcpy(fnam, argv[3]);
   sscanf(argv[4], "%d",  &counterjet);
 }
 
@@ -473,10 +474,11 @@ void init_bhlight2d_data(char *fname)
 	int idum;
   double fdum;
 
-  FILE *fp = fopen(fname, "r");
-  printf("fname = %s\n", fname);
+  //FILE *fp = fopen(fname, "r");
+  FILE *fp = fopen(fnam, "r");
+  printf("fname = %s\n", fnam);
   if (fp == NULL) {
-    fprintf(stderr, "file %s does not exist, aborting...\n", fname);
+    fprintf(stderr, "file %s does not exist, aborting...\n", fnam);
     exit(1234);
   }
 
