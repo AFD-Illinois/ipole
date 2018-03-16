@@ -21,36 +21,36 @@ def get_machine():
 
 add_machine(name='meade', 
             compiler='h5pcc',  
-            c_flags='-Ofast -Wall -Werror -fdiagnostics-color -fopenmp',
+            c_flags='-O3 -Wall -Werror -fdiagnostics-color -fopenmp',
             l_flags='',
             gsl_dir='/home/brryan/Software/gsl')
 
 add_machine(name='bh',
             compiler='h5pcc',
-            c_flags='-Ofast -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
 add_machine(name='bh21',
             compiler='h5pcc',
-            c_flags='-Ofast -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
 add_machine(name='bh27',
             compiler='h5pcc',
-            c_flags='-Ofast -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
 add_machine(name='lmc',
             compiler='h5pcc',
-            c_flags='-Ofast -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
 add_machine(name='stampede2',
             compiler='h5pcc',
-            c_flags='-Ofast -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='/opt/apps/intel17/gsl/2.3')
