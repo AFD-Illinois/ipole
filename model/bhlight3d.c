@@ -424,7 +424,6 @@ double get_model_thetae(double X[NDIM])
      X[2] > stopx[2]) {
       return(0.) ;
   }
-  return 1.;
   
   double thetaeA, thetaeB, tfac;
   int nA, nB;

@@ -432,7 +432,9 @@ double complex N_coord[NDIM][NDIM];
        imageS[i][j][2] = Stokes_U * pow(freqcgs, 3);
        imageS[i][j][3] = Stokes_V * pow(freqcgs, 3);
        imageS[i][j][4] = tauF;
- 
+       //printf("[%i][%i] I = %e, %e\n", i,j,imageS[i][j][0],image[i][j]);
+       if (isnan(imageS[i][j][0])) exit(-1);
+
        if( (nprogress % NY) == 0 ) {
            fprintf(stderr,"%d ",(nprogress/NY));
        }
