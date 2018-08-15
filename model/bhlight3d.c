@@ -678,29 +678,6 @@ void coord(int i, int j, int k, double *X)
 
 void set_units(char *munitstr)
 {
-  /*FILE *fp ;
-
-  fp = fopen("model_param.dat","r") ;
-  if(fp == NULL) {
-    fprintf(stderr,"Can't find model_param.dat\n") ;
-    exit(1) ;
-  }
-  fscanf(fp,"%lf",&double MBH;MBH) ;
-  fclose(fp) ;*/
-
-  //sscanf(munitstr,"%lf",&M_unit) ;
-
-  if (!RADIATION) {
-    MBH = 4.6e6;
-    MBH *= MSUN;
-  }
-
-  /** input parameters appropriate to Sgr A* **/
-  //MBH = 4.6e6;
-
-  /** from this, calculate units of length, time, mass,
-      and derivative units **/
-  //MBH *= MSUN;
   L_unit = GNEWT * MBH / (CL * CL);
   T_unit = L_unit / CL;
   RHO_unit = M_unit / pow(L_unit, 3);

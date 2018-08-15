@@ -131,7 +131,8 @@ def build():
   #os.rename(PATHS['SRC'] + 'bhlight', PATHS['BUILD'] + 'bhlight')
 
   print("\n  BUILD SUCCESSFUL")
-
+  print("")
+  subprocess.call(['md5sum','ipole'])
   print("")
 
   sys.exit()

@@ -372,7 +372,7 @@ void init_physical_quantities(void)
 		 //thetae[i][j] = (p[UU][i][j]/p[KRHO][i][j])* Thetae_unit;
 
 		 //strongly magnetized = empty, no shiny spine
-		 if(sigma_m > 2.0) ne[i][j]=0.0;
+		 if(sigma_m > 1.0) ne[i][j]=0.0;
 		}
 	}
 
