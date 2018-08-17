@@ -123,33 +123,38 @@ void update_data()
 
 void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
 {
-  //memset(dxdX, 0, NDIM*NDIM*sizeof(double));
   MUNULOOP dxdX[mu][nu] = 0.;
-  //MULOOP dxdX[mu][mu] = 1.;
-  //return;
 
-  /*for (int mu = 0; mu < NDIM; mu++) {
-    for (int nu = 0; nu < NDIM; nu++) {
-      dxdX[mu][nu] = 0.;
-    }
-  }*/
+  if (DEREFINE_POLES) {
 
-  dxdX[0][0] = 1.;
-  dxdX[1][1] = exp(X[1]);
-  dxdX[2][1] = -exp(mks_smooth*(startx[1]-X[1]))*mks_smooth*(
-    M_PI/2. - 
-    M_PI*X[2] + 
-    poly_norm*(2.*X[2]-1.)*(1+(pow((-1.+2*X[2])/poly_xt,poly_alpha))/(1 + poly_alpha)) - 
-    1./2.*(1. - hslope)*sin(2.*M_PI*X[2])
-    );
-  dxdX[2][2] = M_PI + (1. - hslope)*M_PI*cos(2.*M_PI*X[2]) + 
-    exp(mks_smooth*(startx[1]-X[1]))*(
-      -M_PI + 
-      2.*poly_norm*(1. + pow((2.*X[2]-1.)/poly_xt,poly_alpha)/(poly_alpha+1.)) + 
-      (2.*poly_alpha*poly_norm*(2.*X[2]-1.)*pow((2.*X[2]-1.)/poly_xt,poly_alpha-1.))/((1.+poly_alpha)*poly_xt) - 
-      (1.-hslope)*M_PI*cos(2.*M_PI*X[2])
+    // mmks
+    dxdX[0][0] = 1.;
+    dxdX[1][1] = exp(X[1]);
+    dxdX[2][1] = -exp(mks_smooth*(startx[1]-X[1]))*mks_smooth*(
+      M_PI/2. -
+      M_PI*X[2] +
+      poly_norm*(2.*X[2]-1.)*(1+(pow((-1.+2*X[2])/poly_xt,poly_alpha))/(1 + poly_alpha)) -
+      1./2.*(1. - hslope)*sin(2.*M_PI*X[2])
       );
-  dxdX[3][3] = 1.;
+    dxdX[2][2] = M_PI + (1. - hslope)*M_PI*cos(2.*M_PI*X[2]) +
+      exp(mks_smooth*(startx[1]-X[1]))*(
+        -M_PI +
+        2.*poly_norm*(1. + pow((2.*X[2]-1.)/poly_xt,poly_alpha)/(poly_alpha+1.)) +
+        (2.*poly_alpha*poly_norm*(2.*X[2]-1.)*pow((2.*X[2]-1.)/poly_xt,poly_alpha-1.))/((1.+poly_alpha)*poly_xt) -
+        (1.-hslope)*M_PI*cos(2.*M_PI*X[2])
+        );
+    dxdX[3][3] = 1.;
+
+  } else {
+
+    // mks
+    dxdX[0][0] = 1.;
+    dxdX[1][1] = exp(X[1]);
+    dxdX[2][2] = M_PI - (hslope - 1.)*M_PI*cos(2.*M_PI*X[2]);
+    dxdX[3][3] = 1.;
+
+  }
+
 }
 
 void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
@@ -161,6 +166,8 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
   double sth, cth, s2, rho2;
   double r, th;
 
+  // despite the name, get equivalent values for
+  // r, th for kerr coordinate system
   bl_coord(X, &r, &th);
 
   cth = cos(th);
@@ -169,7 +176,7 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
   s2 = sth*sth;
   rho2 = r*r + a*a*cth*cth;
 
-  // metric for ks
+  // compute ks metric for ks coordinates (cyclic in t,phi)
   gcov[0][0] = -1. + 2.*r/rho2;
   gcov[0][1] = 2.*r/rho2;
   gcov[0][3] = -2.*a*r*s2/rho2;
@@ -184,26 +191,24 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
   gcov[3][1] = gcov[1][3];
   gcov[3][3] = s2*(rho2 + a*a*s2*(1. + 2.*r/rho2));
 
-  if (DEREFINE_POLES) {
-    double dxdX[NDIM][NDIM];
-    set_dxdX(X, dxdX);
+  // convert from ks metric to mks/mmks
+  double dxdX[NDIM][NDIM];
+  set_dxdX(X, dxdX);
 
-    double gcov_ks[NDIM][NDIM];
-    MUNULOOP {
-      gcov_ks[mu][nu] = gcov[mu][nu];
-      gcov[mu][nu] = 0.;
-    }
+  double gcov_ks[NDIM][NDIM];
+  MUNULOOP {
+    gcov_ks[mu][nu] = gcov[mu][nu];
+    gcov[mu][nu] = 0.;
+  }
 
-    for (int mu = 0; mu < NDIM; mu++) {
-      for (int nu = 0; nu < NDIM; nu++) {
-        for (int lam = 0; lam < NDIM; lam++) {
-          for (int kap = 0; kap < NDIM; kap++) {
-            gcov[mu][nu] += gcov_ks[lam][kap]*dxdX[lam][mu]*dxdX[kap][nu];
-          }
-        }
+  MUNULOOP {
+    for (int lam=0; lam<NDIM; ++lam) {
+      for (int kap=0; kap<NDIM; ++kap) {
+        gcov[mu][nu] += gcov_ks[lam][kap]*dxdX[lam][mu]*dxdX[kap][nu];
       }
     }
   }
+
 }
 
 void get_connection(double X[4], double lconn[4][4][4])
@@ -1079,7 +1084,14 @@ void load_iharm_data(int n, char *fname)
         lower(data[n]->bcon[i][j][k], gcov, data[n]->bcov[i][j][k]);
 
         if(i <= 20) { dMact += g * data[n]->p[KRHO][i][j][k] * data[n]->ucon[i][j][k][1]; }
-        if(i >= 20 && i < 40) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
+        if(i >= 20 && i < 40 && 0) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
+        if(i <= 20) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
+
+      if ( i == 5 && j == 100 && k == 100 ) {
+        fprintf(stderr, "X %g %g %g %g\n", gcov[0][0], gcov[0][1], gcov[0][2], gcov[0][3]);
+//       fprintf(stderr, "X %g %g %g %g\n", startx[1], dx[1], startx[2], dx[2]);
+        fprintf(stderr, "IJK %g %g %g %g %g\n", g, dx[2], dx[3], data[n]->p[KRHO][i][j][k], data[n]->ucon[i][j][k][1]);
+  }
 
       }
     }
