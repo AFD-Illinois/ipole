@@ -127,6 +127,10 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
 
   if (DEREFINE_POLES) {
 
+    /* 
+     * again, note that we use the odd prescription for mmks
+     * that is independent of X[1] for this branch.
+     *
     // mmks
     dxdX[0][0] = 1.;
     dxdX[1][1] = exp(X[1]);
@@ -143,6 +147,12 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
         (2.*poly_alpha*poly_norm*(2.*X[2]-1.)*pow((2.*X[2]-1.)/poly_xt,poly_alpha-1.))/((1.+poly_alpha)*poly_xt) -
         (1.-hslope)*M_PI*cos(2.*M_PI*X[2])
         );
+    dxdX[3][3] = 1.;
+     */
+    double y = 2 * X[2] - 1.;
+    dxdX[0][0] = 1.;
+    dxdX[1][1] = exp(X[1]);
+    dxdX[2][2] = 2.*poly_norm*(1. + pow(y/poly_xt,poly_alpha));
     dxdX[3][3] = 1.;
 
   } else {
@@ -621,10 +631,8 @@ void bl_coord(double X[NDIM], double *r, double *th)
   *r = exp(X[1]);
 
   if (DEREFINE_POLES) {
-    double thG = M_PI*X[2] + ((1. - hslope)/2.)*sin(2.*M_PI*X[2]);
     double y = 2*X[2] - 1.;
-    double thJ = poly_norm*y*(1. + pow(y/poly_xt,poly_alpha)/(poly_alpha+1.)) + 0.5*M_PI;
-    *th = thG + exp(mks_smooth*(startx[1] - X[1]))*(thJ - thG);
+    *th = poly_norm*y*(1. + pow(y/poly_xt,poly_alpha)/(poly_alpha+1.)) + 0.5*M_PI;
   } else {
     *th = M_PI*X[2] + ((1. - hslope)/2.)*sin(2.*M_PI*X[2]);
   }
@@ -919,6 +927,9 @@ void init_iharm_grid(char *fname)
     hdf5_read_single_val(&tp_over_te, "tp_over_te", H5T_IEEE_F64LE);
   }
 
+  /* hot fix for the coordinate issue and the fact that the old
+   * file format does not include necessary information
+   *
   if (DEREFINE_POLES) {
     fprintf(stderr, "custom refinement at poles loaded...\n");
     hdf5_read_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
@@ -926,6 +937,12 @@ void init_iharm_grid(char *fname)
     hdf5_read_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
     poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
  }
+  */
+  DEREFINE_POLES = 1;
+  mks_smooth = 0.5;
+  poly_xt = 0.82;
+  poly_alpha = 14.0;
+  poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
 
   hdf5_set_directory("/header/geom/");
   hdf5_read_single_val(&startx[1], "startx1", H5T_IEEE_F64LE);
@@ -946,23 +963,7 @@ void init_iharm_grid(char *fname)
   hdf5_set_directory("/");
   hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
   
-  //startx[1] += 3*dx[1];
-  //startx[2] += 3*dx[2];
-  //      startx[3] += 3*dx[3];
-  
   fprintf(stdout,"start: %g %g %g \n",startx[1],startx[2],startx[3]);
-  //below is equivalent to the above
-  /*
-  startx[1] = log(Rin-R0);       
-        startx[2] = th_cutout/M_PI ; 
-  */
-
-  //fprintf(stdout,"th_cutout: %g  %d x %d x %d\n",th_cutout,N1,N2,N3);
-  
-
-  //th_beg=th_cutout;
-  //th_end=M_PI-th_cutout;
-  //th_len = th_end-th_beg;
 
   // Ignore radiation interactions within one degree of polar axis
   th_beg = 0.0174;

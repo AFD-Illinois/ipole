@@ -87,7 +87,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
     /* check handedness */
     double dot = check_handedness(Econ, Gcov);
 
-    if (fabs(fabs(dot) - 1.) > 1.e-10) {
+    if (fabs(fabs(dot) - 1.) > 1.e-5) {
       printf("Ucon[] = %e %e %e %e\n", Ucon[0], Ucon[1],Ucon[2],Ucon[3]);
       printf("Kcon[] = %e %e %e %e\n", Kcon[0], Kcon[1],Kcon[2],Kcon[3]);
       printf("Bcon[] = %e %e %e %e\n", Bcon[0], Bcon[1], Bcon[2], Bcon[3]);
