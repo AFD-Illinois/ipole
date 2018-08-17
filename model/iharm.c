@@ -892,6 +892,13 @@ void init_iharm_grid(char *fname)
     hdf5_read_single_val(&RADIATION, "has_radiation", H5T_STD_I32LE);
   if ( hdf5_exists("has_derefine_poles") )
     hdf5_read_single_val(&DEREFINE_POLES, "has_derefine_poles", H5T_STD_I32LE);
+  
+  char metric[20];
+  hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
+  hdf5_read_single_val(&metric, "metric", HDF5_STR_TYPE);
+
+  if ( strncmp(metric, "MMKS", 19) == 0 ) 
+    DEREFINE_POLES = 1;
 
   hdf5_read_single_val(&N1, "n1", H5T_STD_I32LE);
   hdf5_read_single_val(&N2, "n2", H5T_STD_I32LE);
@@ -919,14 +926,6 @@ void init_iharm_grid(char *fname)
     hdf5_read_single_val(&tp_over_te, "tp_over_te", H5T_IEEE_F64LE);
   }
 
-  if (DEREFINE_POLES) {
-    fprintf(stderr, "custom refinement at poles loaded...\n");
-    hdf5_read_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
-    poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
- }
-
   hdf5_set_directory("/header/geom/");
   hdf5_read_single_val(&startx[1], "startx1", H5T_IEEE_F64LE);
   hdf5_read_single_val(&startx[2], "startx2", H5T_IEEE_F64LE);
@@ -936,10 +935,20 @@ void init_iharm_grid(char *fname)
   hdf5_read_single_val(&dx[3], "dx3", H5T_IEEE_F64LE);
 
   hdf5_set_directory("/header/geom/mks/");
+  if ( DEREFINE_POLES ) hdf5_set_directory("/header/geom/mmks/");
+
   hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
   hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
   hdf5_read_single_val(&Rin, "Rin", H5T_IEEE_F64LE);
   hdf5_read_single_val(&Rout, "Rout", H5T_IEEE_F64LE);
+
+  if (DEREFINE_POLES) {
+    fprintf(stderr, "custom refinement at poles loaded...\n");
+    hdf5_read_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
+    poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
+ }
 
   rmax = MIN(50., Rout);
 
@@ -1002,7 +1011,7 @@ void load_iharm_data(int n, char *fname)
   hdf5_set_directory("/");
 
   int n_prims;
-  hdf5_read_single_val(&n_prims, "/header/n_prims", H5T_STD_I32LE);
+  hdf5_read_single_val(&n_prims, "/header/n_prim", H5T_STD_I32LE);
 
   hsize_t fdims[] = { N1, N2, N3, n_prims };
   hsize_t fstart[] = { 0, 0, 0, 0 };
