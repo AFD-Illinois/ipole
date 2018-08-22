@@ -24,7 +24,7 @@ void interp_fourv(double X[NDIM], double ***fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double **var) ;
 void safe_fscanf(FILE *stream, const char *format, ...) ;
 
-void parse_input(int argc, char *argv[])
+void parse_input(int argc, char *argv[], Params *params)
 {
   if (argc != 5) {
     fprintf(stderr, "ERROR format is\n");

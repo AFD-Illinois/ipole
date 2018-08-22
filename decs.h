@@ -13,9 +13,7 @@
 #include <complex.h> 
 #include <omp.h>
 #include "model.h"
-
-//#define NX   64
-//#define NY   64
+#include "par.h"
 
 #define NDIM	4
 
@@ -94,7 +92,7 @@ int    stop_forward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
 int    stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
-void dump(double image[NX][NY],double imageS[NX][NY][NIMG], char *fname, double scale) ;
+void dump(double image[NX][NY],double imageS[NX][NY][NIMG], const char *fname, double scale) ;
 
 /* geodesic integration */
 //void   push_photon(double X[NDIM], double Kcon[NDIM], double dl);
@@ -140,7 +138,7 @@ void **malloc_rank2(int n1, int n2, int size) ;
 void ***malloc_rank3(int n1, int n2, int n3, int size) ;
 void ****malloc_rank4(int n1, int n2, int n3, int n4, int size) ;
 */
-void parse_input(int argc, char *argv[]);
+void parse_input(int argc, char *argv[], Params *params);
 void init_storage(void) ;
 
 /* tetrad related */

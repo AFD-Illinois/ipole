@@ -33,8 +33,20 @@ struct of_data *data[NSUP];
   
 void load_iharm_data(int n, char *);
 
-void parse_input(int argc, char *argv[])
+void parse_input(int argc, char *argv[], Params *params)
 {
+
+  // if params has been loaded, just read from it
+  if ( params->loaded ) {
+    thetacam = params->thetacam;
+    freqcgs = params->freqcgs;
+    MBH = params->MBH * MSUN;
+    M_unit = params->M_unit;
+    strcpy(fnam, params->dump);
+    return;
+  }
+
+
   if (argc != 7) {
     fprintf(stderr, "ERROR format is\n");
     fprintf(stderr, "  ipole theta[deg] freq[cgs] MBH[Msolar] M_unit[g] filename counterjet\n");
@@ -1095,12 +1107,6 @@ void load_iharm_data(int n, char *fname)
         if(i <= 20) { dMact += g * data[n]->p[KRHO][i][j][k] * data[n]->ucon[i][j][k][1]; }
         if(i >= 20 && i < 40 && 0) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
         if(i <= 20) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
-
-      if ( i == 5 && j == 100 && k == 100 ) {
-        fprintf(stderr, "X %g %g %g %g\n", gcov[0][0], gcov[0][1], gcov[0][2], gcov[0][3]);
-//       fprintf(stderr, "X %g %g %g %g\n", startx[1], dx[1], startx[2], dx[2]);
-        fprintf(stderr, "IJK %g %g %g %g %g\n", g, dx[2], dx[3], data[n]->p[KRHO][i][j][k], data[n]->ucon[i][j][k][1]);
-  }
 
       }
     }

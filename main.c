@@ -15,6 +15,7 @@ static double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM], t[NX][NY], tmin[NX][NY]
 
 static double DX, DY, fovx, fovy;
 
+
 struct of_traj {
   double dl;
   double X[NDIM];
@@ -23,11 +24,14 @@ struct of_traj {
   double Kconhalf[NDIM];
 } traj[MAXNSTEP];
 
+Params params = { 0 };
 double freqcgs, thetacam;
 char fnam[STRLEN];
 
 int main(int argc, char *argv[])
 {
+
+
   double time = omp_get_wtime();
   //omp_set_num_threads(1);
   //double X[NDIM], Kcon[NDIM];
@@ -40,16 +44,10 @@ int main(int argc, char *argv[])
 
   double freq;
   double Ftot, Dsource;
-  //int i, j, k, l, nstep;
-  //double Xi[NDIM], Xf[NDIM], Kconi[NDIM], Kconf[NDIM], ji, ki, jf, kf;
   double scale;
-  //double root_find(double th);
   double root_find(double x[NDIM]);
   int imax, jmax;
   double Imax, Iavg;		//,dOmega;
-  //double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
-  //double tauF;
-  //double complex N_coord[NDIM][NDIM];
 
 #pragma omp parallel
   {
@@ -59,7 +57,15 @@ int main(int argc, char *argv[])
     }
   }
 
-  parse_input(argc, argv);
+  // load values from parameter file if passed. handle all 
+  // actual model parameter comprehension in model/* files
+  for (int i=0; i<argc-1; ++i) {
+    if ( strcmp(argv[i], "-par") == 0 ) {
+      load_par(argv[i+1], &params);
+    }
+  }
+
+  parse_input(argc, argv, &params);
 
   /*if (argc < 8) {
   // fprintf(stderr,"usage: ipole theta freq filename Munit theta_j trat_d\n") ;
@@ -477,19 +483,22 @@ int main(int argc, char *argv[])
     fprintf(stderr, "nuLnu = %g\n",
         4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
 
-    /* image, dump result */
-    //make_ppm(image, freq, "ipole_fnu.ppm");
-    dump(image, imageS, "ipole.dat", scale);
-    //for (int i = 0; i < NX; i++)
-    //for (int j = 0; j < NY; j++)
-    IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
-    make_ppm(image, freq, "ipole_lfnu.ppm");
+    // dump result. if parameters have been loaded, don't also
+    // output image
+    
+    if (params.loaded) {
+      dump(image, imageS, params.outf, scale);
+    } else {
+      dump(image, imageS, "ipole.dat", scale);
+      IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
+      make_ppm(image, freq, "ipole_lfnu.ppm");
+    }
 
     time = omp_get_wtime() - time;
     printf("Total wallclock time: %g s\n", time);
   }
 
-  void dump(double image[NX][NY], double imageS[NX][NY][NIMG], char *fname,
+  void dump(double image[NX][NY], double imageS[NX][NY][NIMG], const char *fname,
       double scale)
   {
     FILE *fp;

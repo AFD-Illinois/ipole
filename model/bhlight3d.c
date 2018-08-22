@@ -43,7 +43,7 @@ struct of_data *data[NSUP];
 
 void load_bhlight3d_data(int n, char *);
 
-void parse_input(int argc, char *argv[])
+void parse_input(int argc, char *argv[], Params *params)
 {
   if (argc != 7) {
     fprintf(stderr, "ERROR format is\n");
