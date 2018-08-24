@@ -907,8 +907,6 @@ void init_iharm_grid(char *fname)
   if ( hdf5_exists("has_derefine_poles") )
     hdf5_read_single_val(&DEREFINE_POLES, "has_derefine_poles", H5T_STD_I32LE);
  
-//  ELECTRONS = 0;
-
   char metric[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric, "metric", HDF5_STR_TYPE);
