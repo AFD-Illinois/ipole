@@ -43,6 +43,7 @@ void parse_input(int argc, char *argv[], Params *params)
     MBH = params->MBH * MSUN;
     M_unit = params->M_unit;
     strcpy(fnam, params->dump);
+    tp_over_te = params->tp_over_te;
     return;
   }
 
@@ -60,6 +61,7 @@ void parse_input(int argc, char *argv[], Params *params)
   sscanf(argv[4], "%lf", &M_unit);
   strcpy(fnam, argv[5]);
   sscanf(argv[6], "%d",  &counterjet);
+  tp_over_te = TPTE;
 }
 
 void set_tinterp_ns(double X[NDIM], int *nA, int *nB)
@@ -904,7 +906,9 @@ void init_iharm_grid(char *fname)
     hdf5_read_single_val(&RADIATION, "has_radiation", H5T_STD_I32LE);
   if ( hdf5_exists("has_derefine_poles") )
     hdf5_read_single_val(&DEREFINE_POLES, "has_derefine_poles", H5T_STD_I32LE);
-  
+ 
+//  ELECTRONS = 0;
+
   char metric[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric, "metric", HDF5_STR_TYPE);
@@ -923,7 +927,6 @@ void init_iharm_grid(char *fname)
     hdf5_read_single_val(&gamp, "gam_p", H5T_IEEE_F64LE);
     Thetae_unit = MP/ME;
   } else {
-    tp_over_te = TPTE;
     Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
   }
 

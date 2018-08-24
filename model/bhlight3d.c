@@ -45,6 +45,18 @@ void load_bhlight3d_data(int n, char *);
 
 void parse_input(int argc, char *argv[], Params *params)
 {
+
+  if ( params->loaded ) {
+
+    thetacam = params->thetacam;
+    freqcgs = params->freqcgs;
+    MBH = params->MBH * MSUN;
+    M_unit = params->M_unit;
+    strcpy(fnam, params->dump);
+
+    return;
+  }
+
   if (argc != 7) {
     fprintf(stderr, "ERROR format is\n");
     fprintf(stderr, "  ipole theta[deg] freq[cgs] MBH[Msolar] M_unit[g] filename counterjet\n");

@@ -144,13 +144,13 @@ void set_Econ_from_trial(double Econ[4], int defdir, double trial[4])
     double norm = 0.;
     int k;
 
-    for (k = 0; k < 4; k++)
-	norm += fabs(trial[k]);
+    for (k = 0; k < 4; k++) 
+	      norm += fabs(trial[k]);
     for (k = 0; k < 4; k++)	/* trial vector */
-	if (norm <= SMALL_VECTOR)	/* bad trial vector; default to radial direction */
-	    Econ[k] = delta(k, defdir);
-	else
-	    Econ[k] = trial[k];
+	      if (norm <= SMALL_VECTOR)	/* bad trial vector; default to defdir */
+	          Econ[k] = delta(k, defdir);
+	      else
+	          Econ[k] = trial[k];
 
     return;
 }
@@ -167,29 +167,21 @@ void set_Econ_from_trial(double Econ[4], int defdir, double trial[4])
     	order 10^{-12} in the result.
 
 */
-
 double check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM])
 {
     int i, j, k, l;
-//    static int firstc = 1;
-    //void set_levi_civita(double levi_civita[NDIM][NDIM][NDIM][NDIM]);
-
-/*    if (firstc) {
-	firstc = 0;
-	set_levi_civita(levi_civita);
-    }*/
 
     double g = gdet_func(Gcov);
 
     /* check handedness */
     double dot = 0.;
     for (i = 0; i < 4; i++)
-	for (j = 0; j < 4; j++)
-	    for (l = 0; l < 4; l++)
-		for (k = 0; k < 4; k++) {
-		    dot += g * levi_civita[i][j][k][l] *
-			Econ[0][i] * Econ[1][j] * Econ[2][k] * Econ[3][l];
-		}
+    for (j = 0; j < 4; j++)
+        for (l = 0; l < 4; l++)
+        for (k = 0; k < 4; k++) {
+            dot += g * levi_civita[i][j][k][l] *
+            Econ[0][i] * Econ[1][j] * Econ[2][k] * Econ[3][l];
+        }
 
     return (dot);
 }

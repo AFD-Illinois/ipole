@@ -12,11 +12,12 @@
 
 // feel free to change any part of this structure
 typedef struct params_t {
-  double thetacam;  // in degrees from the pole
-  double freqcgs;   // ... in cgs
-  double MBH;       // in Msun
-  double M_unit;    // in cgs
-  int counterjet;   // 0,1,2
+  double tp_over_te;    // tp_over_te (defaults to 3.)
+  double thetacam;      // in degrees from the pole
+  double freqcgs;       // ... in cgs
+  double MBH;           // in Msun
+  double M_unit;        // in cgs
+  int counterjet;       // 0,1,2
   const char dump[256];
   const char outf[256];
   char loaded;

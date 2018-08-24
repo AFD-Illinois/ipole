@@ -15,6 +15,7 @@ void load_par (const char *fname, Params *params) {
 
   // set default values here
   params->counterjet = 0;
+  params->tp_over_te = 3.;
 
   // modify parameters/types below
   while (fgets(line, 255, fp) != NULL) {
@@ -27,6 +28,7 @@ void load_par (const char *fname, Params *params) {
     read_param(line, "freqcgs", &(params->freqcgs), TYPE_DBL);
     read_param(line, "MBH", &(params->MBH), TYPE_DBL);
     read_param(line, "M_unit", &(params->M_unit), TYPE_DBL);
+    read_param(line, "tp_over_te", &(params->tp_over_te), TYPE_DBL);
 
     read_param(line, "dump", (void *)(params->dump), TYPE_STR);
     read_param(line, "outfile", (void *)(params->outf), TYPE_STR);
