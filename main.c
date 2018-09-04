@@ -417,6 +417,7 @@ int main(int argc, char *argv[])
               Kconf[l]    = traj[nstep - 1].Kcon[l];
             }
 
+
             /* solve total intensity equation alone */
             get_jkinv(Xi, Kconi, &ji, &ki);
             get_jkinv(Xf, Kconf, &jf, &kf);
@@ -424,7 +425,7 @@ int main(int argc, char *argv[])
 
             /* solve polarized transport */
             evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
-            //if (isnan(creal(N_coord[0][0]))) exit(-1);
+            if (isnan(creal(N_coord[0][0]))) exit(-1);
 
             /* swap start and finish */
             ji = jf;
@@ -441,7 +442,6 @@ int main(int argc, char *argv[])
           imageS[i][j][2] = Stokes_U * pow(freqcgs, 3);
           imageS[i][j][3] = Stokes_V * pow(freqcgs, 3);
           imageS[i][j][4] = tauF;
-          //printf("[%i][%i] I = %e, %e\n", i,j,imageS[i][j][0],image[i][j]);
           if (isnan(imageS[i][j][0])) exit(-1);
 
           if( (nprogress % NY) == 0 ) {
@@ -485,7 +485,7 @@ int main(int argc, char *argv[])
 
     // dump result. if parameters have been loaded, don't also
     // output image
-    
+
     if (params.loaded) {
       dump(image, imageS, params.outf, scale);
     } else {

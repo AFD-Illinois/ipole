@@ -77,10 +77,10 @@ double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM])
 	  Kcon[3] * Bcov[3]) / (k * B);
 
     if (fabs(mu) > 1.)
-	mu /= fabs(mu);
+	    mu /= fabs(mu);
 
     if (isnan(mu))
-	fprintf(stderr, "isnan get_bk_angle\n");
+	    fprintf(stderr, "isnan get_bk_angle\n");
 
     return (acos(mu));
 }

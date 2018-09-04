@@ -268,9 +268,10 @@ void init_model(char *args[])
 */
 void get_model_ucov(double X[NDIM], double Ucov[NDIM])
 {
-  double gcov[NDIM][NDIM];
+  double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
 
   gcov_func(X, gcov);
+  gcon_func(gcov, gcon);
 
   if(X[1] < startx[1] || 
      X[1] > stopx[1]  || 
@@ -286,6 +287,36 @@ void get_model_ucov(double X[NDIM], double Ucov[NDIM])
     return ;
   }
 
+  double Ucon[NDIM];
+
+  // interpolate primitive variables first
+  double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
+  double Vcon[NDIM];
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  U1A = interp_scalar(X, data[nA]->p[U1]);
+  U2A = interp_scalar(X, data[nA]->p[U2]);
+  U3A = interp_scalar(X, data[nA]->p[U3]);
+  U1B = interp_scalar(X, data[nB]->p[U1]);
+  U2B = interp_scalar(X, data[nB]->p[U2]);
+  U3B = interp_scalar(X, data[nB]->p[U3]);
+  Vcon[1] = tfac*U1A + (1. - tfac)*U1B;
+  Vcon[2] = tfac*U2A + (1. - tfac)*U2B;
+  Vcon[3] = tfac*U3A + (1. - tfac)*U3B;
+
+  // do calculation
+  double VdotV = 0.;
+  for (int i = 1; i < NDIM; i++)
+    for (int j = 1; j < NDIM; j++)
+      VdotV += gcov[i][j] * Vcon[i] * Vcon[j];
+  double Vfac = sqrt(-1. / gcon[0][0] * (1. + fabs(VdotV)));
+  Ucon[0] = -Vfac * gcon[0][0];
+  for (int i = 1; i < NDIM; i++)
+    Ucon[i] = Vcon[i] - Vfac * gcon[0][i];
+  lower(Ucon, gcov, Ucov);
+
+  /*
   // Time interpolation
   double UcovA[NDIM], UcovB[NDIM], tfac;
   int nA, nB;
@@ -294,14 +325,17 @@ void get_model_ucov(double X[NDIM], double Ucov[NDIM])
   interp_fourv(X, data[nA]->ucov, UcovA);
   interp_fourv(X, data[nB]->ucov, UcovB);
   MULOOP Ucov[mu] = tfac*UcovA[mu] + (1. - tfac)*UcovB[mu];
+   */
 }
 
 void get_model_ucon(double X[NDIM], double Ucon[NDIM])
 {
-
   double gcov[NDIM][NDIM] ;
   double gcon[NDIM][NDIM] ;
   double tmp[NDIM] ;
+
+  gcov_func(X, gcov);
+  gcon_func(gcov, gcon);
 
   if(X[1] < startx[1] || 
      X[1] > stopx[1]  || 
@@ -339,7 +373,37 @@ void get_model_ucon(double X[NDIM], double Ucon[NDIM])
   
     return ;
   }
-  
+ 
+  // safer version to recover four velocity
+
+  // interpolate primitive variables first
+  double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
+  double Vcon[NDIM];
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  U1A = interp_scalar(X, data[nA]->p[U1]);
+  U2A = interp_scalar(X, data[nA]->p[U2]);
+  U3A = interp_scalar(X, data[nA]->p[U3]);
+  U1B = interp_scalar(X, data[nB]->p[U1]);
+  U2B = interp_scalar(X, data[nB]->p[U2]);
+  U3B = interp_scalar(X, data[nB]->p[U3]);
+  Vcon[1] = tfac*U1A + (1. - tfac)*U1B;
+  Vcon[2] = tfac*U2A + (1. - tfac)*U2B;
+  Vcon[3] = tfac*U3A + (1. - tfac)*U3B;
+
+  // translate to four velocity
+  double VdotV = 0.;
+  for (int i = 1; i < NDIM; i++)
+    for (int j = 1; j < NDIM; j++)
+      VdotV += gcov[i][j] * Vcon[i] * Vcon[j];
+  double Vfac = sqrt(-1. / gcon[0][0] * (1. + fabs(VdotV)));
+  Ucon[0] = -Vfac * gcon[0][0];
+  for (int i = 1; i < NDIM; i++)
+    Ucon[i] = Vcon[i] - Vfac * gcon[0][i];
+
+  // old version
+  /*
   double UconA[NDIM], UconB[NDIM], tfac;
   int nA, nB;
   set_tinterp_ns(X, &nA, &nB);
@@ -347,8 +411,7 @@ void get_model_ucon(double X[NDIM], double Ucon[NDIM])
   interp_fourv(X, data[nA]->ucon, UconA);
   interp_fourv(X, data[nB]->ucon, UconB);
   MULOOP Ucon[mu] = tfac*UconA[mu] + (1. - tfac)*UconB[mu];
-     
-  //interp_fourv(X, ucon, Ucon) ;
+   */
 }
 
 void get_model_bcov(double X[NDIM], double Bcov[NDIM])
@@ -365,8 +428,7 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM])
 
     return ;
   }
- // interp_fourv(X, bcov, Bcov) ;
-  
+
   double BcovA[NDIM], BcovB[NDIM], tfac;
   int nA, nB;
   set_tinterp_ns(X, &nA, &nB);
@@ -374,6 +436,16 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM])
   interp_fourv(X, data[nA]->bcov, BcovA);
   interp_fourv(X, data[nB]->bcov, BcovB);
   MULOOP Bcov[mu] = tfac*BcovA[mu] + (1. - tfac)*BcovB[mu];
+  return;
+
+  double Bcon[NDIM];
+  double gcov[NDIM][NDIM];
+
+  get_model_bcon(X, Bcon);
+  gcov_func(X, gcov);
+
+  lower(Bcon, gcov, Bcov);
+
 }
 
 void get_model_bcon(double X[NDIM], double Bcon[NDIM])
@@ -390,15 +462,46 @@ void get_model_bcon(double X[NDIM], double Bcon[NDIM])
 
     return ;
   }
- // interp_fourv(X, bcon, Bcon) ;
-  
-  double BconA[NDIM], BconB[NDIM], tfac;
+
   int nA, nB;
+  double tfac;
+
+  /*
+  // old way
+  double BconA[NDIM], BconB[NDIM];
   set_tinterp_ns(X, &nA, &nB);
   tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
   interp_fourv(X, data[nA]->bcon, BconA);
   interp_fourv(X, data[nB]->bcon, BconB);
   MULOOP Bcon[mu] = tfac*BconA[mu] + (1. - tfac)*BconB[mu];
+   */
+
+  // interpolate primitive variables first
+  double B1A, B2A, B3A, B1B, B2B, B3B, Bcon1, Bcon2, Bcon3;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  B1A = interp_scalar(X, data[nA]->p[B1]);
+  B2A = interp_scalar(X, data[nA]->p[B2]);
+  B3A = interp_scalar(X, data[nA]->p[B3]);
+  B1B = interp_scalar(X, data[nB]->p[B1]);
+  B2B = interp_scalar(X, data[nB]->p[B2]);
+  B3B = interp_scalar(X, data[nB]->p[B3]);
+  Bcon1 = tfac*B1A + (1. - tfac)*B1B;
+  Bcon2 = tfac*B2A + (1. - tfac)*B2B;
+  Bcon3 = tfac*B3A + (1. - tfac)*B3B;
+
+  double Ucon[NDIM], Ucov[NDIM];
+  double gcov[NDIM][NDIM];
+
+  gcov_func(X, gcov);
+  get_model_ucon(X, Ucon);
+  lower(Ucon, gcov, Ucov);
+
+  Bcon[0] = Bcon1*Ucov[1] + Bcon2*Ucov[2] + Bcon3*Ucov[3];
+  Bcon[1] = (Bcon1 + Ucon[1] * Bcon[0]) / Ucon[0];
+  Bcon[2] = (Bcon2 + Ucon[2] * Bcon[0]) / Ucon[0];
+  Bcon[3] = (Bcon3 + Ucon[3] * Bcon[0]) / Ucon[0];
+
 }
 
 double get_model_thetae(double X[NDIM])
@@ -465,7 +568,7 @@ double get_model_ne(double X[NDIM])
      X[2] > stopx[2]) {
       return(0.) ;
   }
-  
+
   double neA, neB, tfac;
   int nA, nB;
   set_tinterp_ns(X, &nA, &nB);
@@ -604,28 +707,29 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
   }
   
   if(*j < 0) {
-          *j = 0 ;
-          del[2] = 0. ;
-        }
-        else if(*j > N2-2) {
-          *j = N2-2 ;
-          del[2] = 1. ;
-        }
-        else {
-          del[2] = (X[2] - ((*j + 0.5) * dx[2] + startx[2])) / dx[2];
-        }
+    *j = 0 ;
+    del[2] = 0. ;
+  }
+  else if(*j > N2-2) {
+    *j = N2-2 ;
+    del[2] = 1. ;
+  }
+  else {
+    del[2] = (X[2] - ((*j + 0.5) * dx[2] + startx[2])) / dx[2];
+  }
 
-        if(*k < 0) {
-          *k = 0 ;
-          del[3] = 0. ;
-        }
-        else if(*k > N3-1) {
-          *k = N3-1;
-          del[3] = 1. ;
-        }
-        else {
-          del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
-        }
+  if(*k < 0) {
+    *k = 0 ;
+    del[3] = 0. ;
+  }
+  else if(*k > N3-1) { // this should never fire
+    *k = N3-1;
+    del[3] = 1. ;
+    fprintf(stderr, "! something went wrong\n");
+  }
+  else {
+    del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
+  }
 }
 
 //#define SINGSMALL (1.E-20)
@@ -906,7 +1010,9 @@ void init_iharm_grid(char *fname)
     hdf5_read_single_val(&RADIATION, "has_radiation", H5T_STD_I32LE);
   if ( hdf5_exists("has_derefine_poles") )
     hdf5_read_single_val(&DEREFINE_POLES, "has_derefine_poles", H5T_STD_I32LE);
- 
+
+  ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
+
   char metric[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric, "metric", HDF5_STR_TYPE);
