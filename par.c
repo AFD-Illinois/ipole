@@ -16,6 +16,7 @@ void load_par (const char *fname, Params *params) {
   // set default values here
   params->counterjet = 0;
   params->tp_over_te = 3.;
+  params->phicam = 0.;
 
   // modify parameters/types below
   while (fgets(line, 255, fp) != NULL) {
@@ -25,6 +26,7 @@ void load_par (const char *fname, Params *params) {
     read_param(line, "counterjet", &(params->counterjet), TYPE_INT);
 
     read_param(line, "thetacam", &(params->thetacam), TYPE_DBL);
+    read_param(line, "phicam", &(params->phicam), TYPE_DBL);
     read_param(line, "freqcgs", &(params->freqcgs), TYPE_DBL);
     read_param(line, "MBH", &(params->MBH), TYPE_DBL);
     read_param(line, "M_unit", &(params->M_unit), TYPE_DBL);

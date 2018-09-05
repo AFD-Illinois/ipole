@@ -14,6 +14,7 @@
 typedef struct params_t {
   double tp_over_te;    // tp_over_te (defaults to 3.)
   double thetacam;      // in degrees from the pole
+  double phicam;        // in degrees
   double freqcgs;       // ... in cgs
   double MBH;           // in Msun
   double M_unit;        // in cgs

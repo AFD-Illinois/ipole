@@ -90,11 +90,16 @@ int main(int argc, char *argv[])
   /* fix camera location */
   rcam = 240.;
   phicam = 0.0;
+
+  if (params.loaded) {
+    phicam = params.phicam;
+  }
+
   Xcam[0] = 0.0;
   Xcam[1] = log(rcam);
-  double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam};
+  double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam/180.*M_PI};
   Xcam[2] = root_find(x);
-  Xcam[3] = phicam;
+  Xcam[3] = phicam/180.*M_PI;
 
   printf("Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
 
