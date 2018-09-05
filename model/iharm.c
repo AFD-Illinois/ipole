@@ -268,10 +268,9 @@ void init_model(char *args[])
 */
 void get_model_ucov(double X[NDIM], double Ucov[NDIM])
 {
-  double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+  double gcov[NDIM][NDIM];
 
   gcov_func(X, gcov);
-  gcon_func(gcov, gcon);
 
   if(X[1] < startx[1] || 
      X[1] > stopx[1]  || 
@@ -288,44 +287,9 @@ void get_model_ucov(double X[NDIM], double Ucov[NDIM])
   }
 
   double Ucon[NDIM];
-
-  // interpolate primitive variables first
-  double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
-  double Vcon[NDIM];
-  int nA, nB;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
-  U1A = interp_scalar(X, data[nA]->p[U1]);
-  U2A = interp_scalar(X, data[nA]->p[U2]);
-  U3A = interp_scalar(X, data[nA]->p[U3]);
-  U1B = interp_scalar(X, data[nB]->p[U1]);
-  U2B = interp_scalar(X, data[nB]->p[U2]);
-  U3B = interp_scalar(X, data[nB]->p[U3]);
-  Vcon[1] = tfac*U1A + (1. - tfac)*U1B;
-  Vcon[2] = tfac*U2A + (1. - tfac)*U2B;
-  Vcon[3] = tfac*U3A + (1. - tfac)*U3B;
-
-  // do calculation
-  double VdotV = 0.;
-  for (int i = 1; i < NDIM; i++)
-    for (int j = 1; j < NDIM; j++)
-      VdotV += gcov[i][j] * Vcon[i] * Vcon[j];
-  double Vfac = sqrt(-1. / gcon[0][0] * (1. + fabs(VdotV)));
-  Ucon[0] = -Vfac * gcon[0][0];
-  for (int i = 1; i < NDIM; i++)
-    Ucon[i] = Vcon[i] - Vfac * gcon[0][i];
+  get_model_ucon(X, Ucon);
   lower(Ucon, gcov, Ucov);
 
-  /*
-  // Time interpolation
-  double UcovA[NDIM], UcovB[NDIM], tfac;
-  int nA, nB;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
-  interp_fourv(X, data[nA]->ucov, UcovA);
-  interp_fourv(X, data[nB]->ucov, UcovB);
-  MULOOP Ucov[mu] = tfac*UcovA[mu] + (1. - tfac)*UcovB[mu];
-   */
 }
 
 void get_model_ucon(double X[NDIM], double Ucon[NDIM])
@@ -402,16 +366,6 @@ void get_model_ucon(double X[NDIM], double Ucon[NDIM])
   for (int i = 1; i < NDIM; i++)
     Ucon[i] = Vcon[i] - Vfac * gcon[0][i];
 
-  // old version
-  /*
-  double UconA[NDIM], UconB[NDIM], tfac;
-  int nA, nB;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
-  interp_fourv(X, data[nA]->ucon, UconA);
-  interp_fourv(X, data[nB]->ucon, UconB);
-  MULOOP Ucon[mu] = tfac*UconA[mu] + (1. - tfac)*UconB[mu];
-   */
 }
 
 void get_model_bcov(double X[NDIM], double Bcov[NDIM])
@@ -428,15 +382,6 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM])
 
     return ;
   }
-
-  double BcovA[NDIM], BcovB[NDIM], tfac;
-  int nA, nB;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
-  interp_fourv(X, data[nA]->bcov, BcovA);
-  interp_fourv(X, data[nB]->bcov, BcovB);
-  MULOOP Bcov[mu] = tfac*BcovA[mu] + (1. - tfac)*BcovB[mu];
-  return;
 
   double Bcon[NDIM];
   double gcov[NDIM][NDIM];
@@ -460,21 +405,11 @@ void get_model_bcon(double X[NDIM], double Bcon[NDIM])
       Bcon[2] = 0. ;
       Bcon[3] = 0. ;
 
-    return ;
+    return;
   }
 
   int nA, nB;
   double tfac;
-
-  /*
-  // old way
-  double BconA[NDIM], BconB[NDIM];
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
-  interp_fourv(X, data[nA]->bcon, BconA);
-  interp_fourv(X, data[nB]->bcon, BconB);
-  MULOOP Bcon[mu] = tfac*BconA[mu] + (1. - tfac)*BconB[mu];
-   */
 
   // interpolate primitive variables first
   double B1A, B2A, B3A, B1B, B2B, B3B, Bcon1, Bcon2, Bcon3;
@@ -530,11 +465,6 @@ double get_model_thetae(double X[NDIM])
     thetae, tfac, thetaeA, thetaeB, nA, nB);
   }
   return tfac*thetaeA + (1. - tfac)*thetaeB;
-  //interp_fourv(X, data[nA]->bcon, BconA);
-  //interp_fourv(X, data[nB]->bcon, BconB);
-  //MULOOP Bcon[mu] = tfac*BconA[mu] + (1. - tfac)*BconB;
-  
-  //return(interp_scalar(X, thetae)) ;
 }
 
 //b field strength in Gauss
@@ -556,8 +486,6 @@ double get_model_b(double X[NDIM])
   bB = interp_scalar(X, data[nB]->b);
 
   return tfac*bA + (1. - tfac)*bB;
-
-  //return(interp_scalar(X, b)) ;
 }
 
 double get_model_ne(double X[NDIM])
@@ -576,8 +504,6 @@ double get_model_ne(double X[NDIM])
   neA = interp_scalar(X, data[nA]->ne);
   neB = interp_scalar(X, data[nB]->ne);
   return tfac*neA + (1. - tfac)*neB;
-  
-  //return(interp_scalar(X, ne)) ;
 }
 
 
@@ -599,13 +525,15 @@ void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]){
   /* find the current zone location and offsets del[0], del[1] */
   Xtoijk(X, &i, &j, &k, del);
 
+  // since we read from data, adjust i,j,k for ghost zones
+  i += 1;
+  j += 1;
+  k += 1;
+
   ip1 = i + 1;
   jp1 = j + 1;
   kp1 = k + 1;
   
-  //conditions at the x3 periodic boundary (at the last active zone)
-  if(k==(N3-1)) kp1=0;   
-
   b1 = 1.-del[1];
   b2 = 1.-del[2];
   b3 = 1.-del[3];
@@ -647,10 +575,14 @@ double interp_scalar(double X[NDIM], double ***var)
   // zone and offset from X
   Xtoijk(X, &i, &j, &k, del);
 
+  // since we read from data, adjust i,j,k for ghost zones
+  i += 1;
+  j += 1;
+  k += 1;
+
   ip1 = i+1;
   jp1 = j+1;
   kp1 = k+1;
-  if(k==(N3-1)) kp1=0;    
 
   b1 = 1.-del[1];
   b2 = 1.-del[2];
@@ -680,6 +612,7 @@ double interp_scalar(double X[NDIM], double ***var)
 
 void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
 {
+  // unless we're reading from data, i,j,k are the normal expected thing
   double phi;
 
   /* Map X[3] into sim range, assume startx[3] = 0 */
@@ -693,43 +626,9 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
   *j = (int) ((X[2] - startx[2]) / dx[2] - 0.5 + 1000) - 1000;
   *k = (int) ((phi  - startx[3]) / dx[3] - 0.5 + 1000) - 1000;  
 
-  //this makes sense, interpolate with outflow condition
-  if(*i < 0) {
-    *i = 0 ;
-    del[1] = 0. ;
-  }
-  else if(*i > N1-2) { //OK because del[1]=1 and only terms with ip1=N1-1 will be important in interpolation
-    *i = N1-2 ;
-    del[1] = 1. ;
-  }
-  else {
-    del[1] = (X[1] - ((*i + 0.5) * dx[1] + startx[1])) / dx[1];
-  }
-  
-  if(*j < 0) {
-    *j = 0 ;
-    del[2] = 0. ;
-  }
-  else if(*j > N2-2) {
-    *j = N2-2 ;
-    del[2] = 1. ;
-  }
-  else {
-    del[2] = (X[2] - ((*j + 0.5) * dx[2] + startx[2])) / dx[2];
-  }
-
-  if(*k < 0) {
-    *k = 0 ;
-    del[3] = 0. ;
-  }
-  else if(*k > N3-1) { // this should never fire
-    *k = N3-1;
-    del[3] = 1. ;
-    fprintf(stderr, "! something went wrong\n");
-  }
-  else {
-    del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
-  }
+  del[1] = (X[1] - ((*i + 0.5) * dx[1] + startx[1])) / dx[1];
+  del[2] = (X[2] - ((*j + 0.5) * dx[2] + startx[2])) / dx[2];
+  del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
 }
 
 //#define SINGSMALL (1.E-20)
@@ -776,9 +675,10 @@ void init_physical_quantities(int n)
   int i, j, k;
   double bsq,sigma_m;
 
-  for (i = 0; i < N1; i++) {
-    for (j = 0; j < N2; j++) {
-      for (k = 0; k < N3; k++) {
+  // cover everything, even ghost zones
+  for (i = 0; i < N1+2; i++) {
+    for (j = 0; j < N2+2; j++) {
+      for (k = 0; k < N3+2; k++) {
         data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
 
         bsq = data[n]->bcon[i][j][k][0] * data[n]->bcov[i][j][k][0] +
@@ -968,17 +868,18 @@ double *****malloc_rank5(int n1, int n2, int n3, int n4, int n5)
 
 void init_storage(void)
 {
+  // one ghost zone on each side of the domain
   for (int n = 0; n < NSUP; n++) {
-    data[n]->bcon = malloc_rank4(N1,N2,N3,NDIM);
-    data[n]->bcov = malloc_rank4(N1,N2,N3,NDIM);
-    data[n]->ucon = malloc_rank4(N1,N2,N3,NDIM);
-    data[n]->ucov = malloc_rank4(N1,N2,N3,NDIM);
-    data[n]->p = malloc_rank4(NVAR,N1,N2,N3);
+    data[n]->bcon = malloc_rank4(N1+2,N2+2,N3+2,NDIM);
+    data[n]->bcov = malloc_rank4(N1+2,N2+2,N3+2,NDIM);
+    data[n]->ucon = malloc_rank4(N1+2,N2+2,N3+2,NDIM);
+    data[n]->ucov = malloc_rank4(N1+2,N2+2,N3+2,NDIM);
+    data[n]->p = malloc_rank4(NVAR,N1+2,N2+2,N3+2);
     //p = (double ****)malloc_rank1(NVAR,sizeof(double *));
     //for(i = 0; i < NVAR; i++) p[i] = malloc_rank3(N1,N2,N3);
-    data[n]->ne = malloc_rank3(N1,N2,N3);
-    data[n]->thetae = malloc_rank3(N1,N2,N3);
-    data[n]->b = malloc_rank3(N1,N2,N3);
+    data[n]->ne = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->b = malloc_rank3(N1+2,N2+2,N3+2);
   }
 }
 
@@ -1132,34 +1033,35 @@ void load_iharm_data(int n, char *fname)
   int n_prims;
   hdf5_read_single_val(&n_prims, "/header/n_prim", H5T_STD_I32LE);
 
+  // load into "center" of data
   hsize_t fdims[] = { N1, N2, N3, n_prims };
   hsize_t fstart[] = { 0, 0, 0, 0 };
-  hsize_t fcount[] = {N1, N2, N3, 1};
-  hsize_t mstart[] = {0, 0, 0, 0};
-
+  hsize_t fcount[] = { N1, N2, N3, 1 };
+  hsize_t mdims[] = { N1+2, N2+2, N3+2, 1 };
+  hsize_t mstart[] = { 1, 1, 1, 0 };
 
   fstart[3] = 0;
-  hdf5_read_array(data[n]->p[KRHO][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE);
+  hdf5_read_array(data[n]->p[KRHO][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   fstart[3] = 1;
-  hdf5_read_array(data[n]->p[UU][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE);
+  hdf5_read_array(data[n]->p[UU][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   fstart[3] = 2;
-  hdf5_read_array(data[n]->p[U1][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE);
+  hdf5_read_array(data[n]->p[U1][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   fstart[3] = 3;
-  hdf5_read_array(data[n]->p[U2][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE);
+  hdf5_read_array(data[n]->p[U2][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   fstart[3] = 4;
-  hdf5_read_array(data[n]->p[U3][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE);
+  hdf5_read_array(data[n]->p[U3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   fstart[3] = 5;
-  hdf5_read_array(data[n]->p[B1][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE);
+  hdf5_read_array(data[n]->p[B1][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   fstart[3] = 6;
-  hdf5_read_array(data[n]->p[B2][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE);
+  hdf5_read_array(data[n]->p[B2][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   fstart[3] = 7;
-  hdf5_read_array(data[n]->p[B3][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE); 
+  hdf5_read_array(data[n]->p[B3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE); 
 
   if (ELECTRONS) {
     fstart[3] = 8;
-    hdf5_read_array(data[n]->p[KEL][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE);
+    hdf5_read_array(data[n]->p[KEL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
     fstart[3] = 9;
-    hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, fcount, mstart, H5T_IEEE_F64LE);
+    hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 
   hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
@@ -1171,19 +1073,20 @@ void load_iharm_data(int n, char *fname)
 
   dMact = Ladv = 0.;
 
-  for(i = 0; i < N1; i++){
-    X[1] = startx[1] + ( i + 0.5)*dx[1];
-    for(j = 0; j < N2; j++){
-      X[2] = startx[2] + (j+0.5)*dx[2];
+  // construct four-vectors over "real" zones
+  for(i = 1; i < N1+1; i++){
+    X[1] = startx[1] + ( i - 0.5)*dx[1];
+    for(j = 1; j < N2+1; j++){
+      X[2] = startx[2] + (j-0.5)*dx[2];
       gcov_func(X, gcov); // in system with cut off
       gcon_func(gcov, gcon);
       g = gdet_func(gcov);
 
       bl_coord(X, &r, &th);
 
-      for(k = 0; k < N3; k++){
+      for(k = 1; k < N3+1; k++){
         UdotU = 0.;
-        X[3] = startx[3] + (k+0.5)*dx[3];
+        X[3] = startx[3] + (k-0.5)*dx[3];
         
         // the four-vector reconstruction should have gcov and gcon and gdet using the modified coordinates
         // interpolating the four vectors to the zone center !!!!
@@ -1211,14 +1114,77 @@ void load_iharm_data(int n, char *fname)
 
         lower(data[n]->bcon[i][j][k], gcov, data[n]->bcov[i][j][k]);
 
-        if(i <= 20) { dMact += g * data[n]->p[KRHO][i][j][k] * data[n]->ucon[i][j][k][1]; }
-        if(i >= 20 && i < 40 && 0) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
-        if(i <= 20) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
+        if(i <= 21) { dMact += g * data[n]->p[KRHO][i][j][k] * data[n]->ucon[i][j][k][1]; }
+        if(i >= 21 && i < 41 && 0) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
+        if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
 
       }
     }
   }
-  
+
+  // now copy primitives and four-vectors according to boundary conditions
+
+  // radial -- just extend zones
+  for (j=1; j<N2+1; ++j) {
+    for (k=1; k<N3+1; ++k) {
+      for (l=0; l<NDIM; ++l) {
+        data[n]->bcon[0][j][k][l] = data[n]->bcon[1][j][k][l];
+        data[n]->bcon[N1+1][j][k][l] = data[n]->bcon[N1][j][k][l];
+        data[n]->bcov[0][j][k][l] = data[n]->bcov[1][j][k][l];
+        data[n]->bcov[N1+1][j][k][l] = data[n]->bcov[N1][j][k][l];
+        data[n]->ucon[0][j][k][l] = data[n]->ucon[1][j][k][l];
+        data[n]->ucon[N1+1][j][k][l] = data[n]->ucon[N1][j][k][l];
+        data[n]->ucov[0][j][k][l] = data[n]->ucov[1][j][k][l];
+        data[n]->ucov[N1+1][j][k][l] = data[n]->ucov[N1][j][k][l];
+      }
+      for (l=0; l<NVAR; ++l) {
+        data[n]->p[l][0][j][k] = data[n]->p[l][1][j][k];
+        data[n]->p[l][N1+1][j][k] = data[n]->p[l][N1][j][k];
+      }
+    }
+  }
+
+  // elevation -- flip (this is a rotation by pi)
+  for (i=0; i<N1+2; ++i) {
+    for (k=1; k<N3+1; ++k) {
+      int kflip = ( k + (N3/2) ) % N3;
+      for (l=0; l<NDIM; ++l) {
+        data[n]->bcon[i][0][k][l] = data[n]->bcon[i][1][kflip][l];
+        data[n]->bcon[i][N2+1][k][l] = data[n]->bcon[i][N2][kflip][l];
+        data[n]->bcov[i][0][k][l] = data[n]->bcov[i][1][kflip][l];
+        data[n]->bcov[i][N2+1][k][l] = data[n]->bcov[i][N2][kflip][l];
+        data[n]->ucon[i][0][k][l] = data[n]->ucon[i][1][kflip][l];
+        data[n]->ucon[i][N2+1][k][l] = data[n]->ucon[i][N2][kflip][l];
+        data[n]->ucov[i][0][k][l] = data[n]->ucov[i][1][kflip][l];
+        data[n]->ucov[i][N2+1][k][l] = data[n]->ucov[i][N2][kflip][l];
+      }
+      for (l=0; l<NVAR; ++l) {
+        data[n]->p[l][i][0][k] = data[n]->p[l][i][1][kflip];
+        data[n]->p[l][i][N2+1][k] = data[n]->p[l][i][N2][kflip];
+      }
+    }
+  }
+
+  // azimuth -- periodic
+  for (i=0; i<N1+2; ++i) {
+    for (j=0; j<N2+2; ++j) {
+      for (l=0; l<NDIM; ++l) {
+        data[n]->bcon[i][j][0][l] = data[n]->bcon[i][j][N3][l];
+        data[n]->bcon[i][j][N3+1][l] = data[n]->bcon[i][j][1][l];
+        data[n]->bcov[i][j][0][l] = data[n]->bcov[i][j][N3][l];
+        data[n]->bcov[i][j][N3+1][l] = data[n]->bcov[i][j][1][l];
+        data[n]->ucon[i][j][0][l] = data[n]->ucon[i][j][N3][l];
+        data[n]->ucon[i][j][N3+1][l] = data[n]->ucon[i][j][1][l];
+        data[n]->ucov[i][j][0][l] = data[n]->ucov[i][j][N3][l];
+        data[n]->ucov[i][j][N3+1][l] = data[n]->ucov[i][j][1][l];
+      }
+      for (l=0; l<NVAR; ++l) {
+        data[n]->p[l][i][j][0] = data[n]->p[l][i][j][N3];
+        data[n]->p[l][i][j][N3+1] = data[n]->p[l][i][j][1];
+      }
+    }
+  }
+
   dMact *= dx[3]*dx[2] ;
   dMact /= 21. ;
   Ladv *= dx[3]*dx[2] ;
@@ -1231,7 +1197,8 @@ void load_iharm_data(int n, char *fname)
   fprintf(stderr,"Mdot: %g [Mdotedd]\n",-dMact*M_unit/T_unit/Mdotedd) ;
   fprintf(stderr,"Mdotedd: %g [g/s]\n",Mdotedd) ;
   fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Mdotedd/(MSUN/YEAR)) ;
- 
+
+  // now construct useful scalar quantities (over full (+ghost) zones of data)
   init_physical_quantities(n);
 }
 
