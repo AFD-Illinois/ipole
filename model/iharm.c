@@ -1147,20 +1147,49 @@ void load_iharm_data(int n, char *fname)
   // elevation -- flip (this is a rotation by pi)
   for (i=0; i<N1+2; ++i) {
     for (k=1; k<N3+1; ++k) {
-      int kflip = ( k + (N3/2) ) % N3;
-      for (l=0; l<NDIM; ++l) {
-        data[n]->bcon[i][0][k][l] = data[n]->bcon[i][1][kflip][l];
-        data[n]->bcon[i][N2+1][k][l] = data[n]->bcon[i][N2][kflip][l];
-        data[n]->bcov[i][0][k][l] = data[n]->bcov[i][1][kflip][l];
-        data[n]->bcov[i][N2+1][k][l] = data[n]->bcov[i][N2][kflip][l];
-        data[n]->ucon[i][0][k][l] = data[n]->ucon[i][1][kflip][l];
-        data[n]->ucon[i][N2+1][k][l] = data[n]->ucon[i][N2][kflip][l];
-        data[n]->ucov[i][0][k][l] = data[n]->ucov[i][1][kflip][l];
-        data[n]->ucov[i][N2+1][k][l] = data[n]->ucov[i][N2][kflip][l];
-      }
-      for (l=0; l<NVAR; ++l) {
-        data[n]->p[l][i][0][k] = data[n]->p[l][i][1][kflip];
-        data[n]->p[l][i][N2+1][k] = data[n]->p[l][i][N2][kflip];
+      if (N3%2 == 0) {
+        int kflip = ( k + (N3/2) ) % N3;
+        for (l=0; l<NDIM; ++l) {
+          data[n]->bcon[i][0][k][l] = data[n]->bcon[i][1][kflip][l];
+          data[n]->bcon[i][N2+1][k][l] = data[n]->bcon[i][N2][kflip][l];
+          data[n]->bcov[i][0][k][l] = data[n]->bcov[i][1][kflip][l];
+          data[n]->bcov[i][N2+1][k][l] = data[n]->bcov[i][N2][kflip][l];
+          data[n]->ucon[i][0][k][l] = data[n]->ucon[i][1][kflip][l];
+          data[n]->ucon[i][N2+1][k][l] = data[n]->ucon[i][N2][kflip][l];
+          data[n]->ucov[i][0][k][l] = data[n]->ucov[i][1][kflip][l];
+          data[n]->ucov[i][N2+1][k][l] = data[n]->ucov[i][N2][kflip][l];
+        }
+        for (l=0; l<NVAR; ++l) {
+          data[n]->p[l][i][0][k] = data[n]->p[l][i][1][kflip];
+          data[n]->p[l][i][N2+1][k] = data[n]->p[l][i][N2][kflip];
+        }
+      } else {
+        int kflip1 = ( k + (N3/2) ) % N3;
+        int kflip2 = ( k + (N3/2) + 1 ) % N3;
+        for (l=0; l<NDIM; ++l) {
+          data[n]->bcon[i][0][k][l]    = ( data[n]->bcon[i][1][kflip1][l] 
+                                         + data[n]->bcon[i][1][kflip2][l] ) / 2.;
+          data[n]->bcon[i][N2+1][k][l] = ( data[n]->bcon[i][N2][kflip1][l]
+                                         + data[n]->bcon[i][N2][kflip2][l] ) / 2.;
+          data[n]->bcov[i][0][k][l]    = ( data[n]->bcov[i][1][kflip1][l]
+                                         + data[n]->bcov[i][1][kflip2][l] ) / 2.;
+          data[n]->bcov[i][N2+1][k][l] = ( data[n]->bcov[i][N2][kflip1][l] 
+                                         + data[n]->bcov[i][N2][kflip2][l] ) / 2.;
+          data[n]->ucon[i][0][k][l]    = ( data[n]->ucon[i][1][kflip1][l]
+                                         + data[n]->ucon[i][1][kflip2][l] ) / 2.;
+          data[n]->ucon[i][N2+1][k][l] = ( data[n]->ucon[i][N2][kflip1][l]
+                                         + data[n]->ucon[i][N2][kflip2][l] ) / 2.;
+          data[n]->ucov[i][0][k][l]    = ( data[n]->ucov[i][1][kflip1][l] 
+                                         + data[n]->ucov[i][1][kflip2][l] ) / 2.;
+          data[n]->ucov[i][N2+1][k][l] = ( data[n]->ucov[i][N2][kflip1][l] 
+                                         + data[n]->ucov[i][N2][kflip2][l] ) / 2.;
+        }
+        for (l=0; l<NVAR; ++l) {
+          data[n]->p[l][i][0][k]    = ( data[n]->p[l][i][1][kflip1]
+                                      + data[n]->p[l][i][1][kflip2] ) / 2.;
+          data[n]->p[l][i][N2+1][k] = ( data[n]->p[l][i][N2][kflip1]
+                                      + data[n]->p[l][i][N2][kflip2] ) / 2.;
+        }
       }
     }
   }
