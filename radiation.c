@@ -55,20 +55,16 @@ double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM])
 }
 
 /* return angle between magnetic field and wavevector */
-double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM])
+double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM])
 {
-    double Bcon[NDIM], Bcov[NDIM];
     double B, k, mu;
-
-    get_model_bcov(X, Bcov);
-    get_model_bcon(X, Bcon);
 
     B = sqrt(fabs
 	     (Bcon[0] * Bcov[0] + Bcon[1] * Bcov[1] + Bcon[2] * Bcov[2] +
 	      Bcon[3] * Bcov[3]));
 
     if (B == 0.)
-	return (M_PI / 2.);
+    	return (M_PI / 2.);
 
     k = fabs(Kcon[0] * Ucov[0] + Kcon[1] * Ucov[1] + Kcon[2] * Ucov[2] +
 	     Kcon[3] * Ucov[3]);

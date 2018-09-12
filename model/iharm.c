@@ -266,6 +266,96 @@ void init_model(char *args[])
   these supply basic model data to ipole
 
 */
+void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
+                                     double Bcon[NDIM], double Bcov[NDIM])
+{
+  double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+
+  gcov_func(X, gcov);
+  gcon_func(gcov, gcon);
+
+  // If we're outside of the logical domain, default to
+  // normal observer velocity for Ucon/Ucov and default
+  // Bcon/Bcov to zero.
+  if ( X[1] < startx[1] ||
+       X[1] > stopx[1]  || 
+       X[2] < startx[2] || 
+       X[2] > stopx[2] ) {
+
+    Ucov[0] = -1./sqrt(-gcov[0][0]);
+    Ucov[1] = 0.;
+    Ucov[2] = 0.;
+    Ucov[3] = 0.;
+
+    for (int mu=0; mu<NDIM; ++mu) {
+      Ucon[0] = Ucov[mu] * gcon[0][mu];
+      Ucon[1] = Ucov[mu] * gcon[1][mu];
+      Ucon[2] = Ucov[mu] * gcon[2][mu];
+      Ucon[3] = Ucov[mu] * gcon[3][mu];
+      Bcon[mu] = 0.;
+      Bcov[mu] = 0.;
+    }
+   
+    return;
+  }
+
+  // Set Ucon and get Ucov by lowering
+
+  // interpolate primitive variables first
+  double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
+  double Vcon[NDIM];
+  int nA, nB;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  U1A = interp_scalar(X, data[nA]->p[U1]);
+  U2A = interp_scalar(X, data[nA]->p[U2]);
+  U3A = interp_scalar(X, data[nA]->p[U3]);
+  U1B = interp_scalar(X, data[nB]->p[U1]);
+  U2B = interp_scalar(X, data[nB]->p[U2]);
+  U3B = interp_scalar(X, data[nB]->p[U3]);
+  Vcon[1] = tfac*U1A + (1. - tfac)*U1B;
+  Vcon[2] = tfac*U2A + (1. - tfac)*U2B;
+  Vcon[3] = tfac*U3A + (1. - tfac)*U3B;
+
+  // translate to four velocity
+  double VdotV = 0.;
+  for (int i = 1; i < NDIM; i++)
+    for (int j = 1; j < NDIM; j++)
+      VdotV += gcov[i][j] * Vcon[i] * Vcon[j];
+  double Vfac = sqrt(-1. / gcon[0][0] * (1. + fabs(VdotV)));
+  Ucon[0] = -Vfac * gcon[0][0];
+  for (int i = 1; i < NDIM; i++)
+    Ucon[i] = Vcon[i] - Vfac * gcon[0][i];
+
+  // lower
+  lower(Ucon, gcov, Ucov);
+
+  // Now set Bcon and get Bcov by lowering
+
+  // interpolate primitive variables first
+  double B1A, B2A, B3A, B1B, B2B, B3B, Bcon1, Bcon2, Bcon3;
+  set_tinterp_ns(X, &nA, &nB);
+  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  B1A = interp_scalar(X, data[nA]->p[B1]);
+  B2A = interp_scalar(X, data[nA]->p[B2]);
+  B3A = interp_scalar(X, data[nA]->p[B3]);
+  B1B = interp_scalar(X, data[nB]->p[B1]);
+  B2B = interp_scalar(X, data[nB]->p[B2]);
+  B3B = interp_scalar(X, data[nB]->p[B3]);
+  Bcon1 = tfac*B1A + (1. - tfac)*B1B;
+  Bcon2 = tfac*B2A + (1. - tfac)*B2B;
+  Bcon3 = tfac*B3A + (1. - tfac)*B3B;
+
+  // get Bcon
+  Bcon[0] = Bcon1*Ucov[1] + Bcon2*Ucov[2] + Bcon3*Ucov[3];
+  Bcon[1] = (Bcon1 + Ucon[1] * Bcon[0]) / Ucon[0];
+  Bcon[2] = (Bcon2 + Ucon[2] * Bcon[0]) / Ucon[0];
+  Bcon[3] = (Bcon3 + Ucon[3] * Bcon[0]) / Ucon[0];
+
+  // lower
+  lower(Bcon, gcov, Bcov);
+}
+
 void get_model_ucov(double X[NDIM], double Ucov[NDIM])
 {
   double gcov[NDIM][NDIM];
