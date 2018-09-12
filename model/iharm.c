@@ -934,6 +934,7 @@ void init_iharm_grid(char *fname)
   } else {
     Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
   }
+  Te_unit = Thetae_unit;
 
   if (RADIATION) {
     fprintf(stderr, "custom radiation field tracking information loaded...\n");
@@ -1007,6 +1008,11 @@ void init_iharm_grid(char *fname)
   init_storage();
 
   hdf5_close();
+}
+
+void output_hdf5(hid_t fid)
+{
+  h5io_add_data_dbl(fid, "/header/t", data[0]->t); 
 }
 
 void load_iharm_data(int n, char *fname)

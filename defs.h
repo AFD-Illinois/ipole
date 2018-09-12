@@ -29,6 +29,7 @@ double T_unit;
 double RHO_unit;
 double U_unit;
 double B_unit;
+double Te_unit;
 
 int N1, N2, N3;
 

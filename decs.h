@@ -12,10 +12,14 @@
 #include "constants.h"
 #include <complex.h> 
 #include <omp.h>
+#include "h5io.h"
 #include "model.h"
 #include "par.h"
 
 #define NDIM	4
+
+#define xstr(s) str(s)
+#define str(s) #s
 
 #define STRLEN (2048)
 
@@ -73,6 +77,7 @@ extern double T_unit;
 extern double RHO_unit;
 extern double U_unit;
 extern double B_unit;
+extern double Te_unit;
 
 extern int N1, N2, N3;
 
@@ -92,7 +97,7 @@ int    stop_forward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
 int    stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
-void dump(double image[NX][NY],double imageS[NX][NY][NIMG], const char *fname, double scale) ;
+void dump(double image[NX][NY],double imageS[NX][NY][NIMG], const char *fname, double scale, double Dsource, double cam[NDIM]);
 
 /* geodesic integration */
 //void   push_photon(double X[NDIM], double Kcon[NDIM], double dl);
@@ -119,6 +124,7 @@ void get_model_bcon(double X[NDIM], double Bcon[NDIM]) ;
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]) ;
 void get_model_ucon(double X[NDIM], double Ucon[NDIM]) ;
 void update_data();
+void output_hdf5(hid_t fid);
 
 /* harm utilities */
 /*

@@ -492,9 +492,9 @@ int main(int argc, char *argv[])
     // output image
 
     if (params.loaded) {
-      dump(image, imageS, params.outf, scale);
+      dump(image, imageS, params.outf, scale, Dsource, Xcam);
     } else {
-      dump(image, imageS, "ipole.dat", scale);
+      dump(image, imageS, "ipole.dat", scale, Dsource, Xcam);
       IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
       make_ppm(image, freq, "ipole_lfnu.ppm");
     }
@@ -504,8 +504,73 @@ int main(int argc, char *argv[])
   }
 
   void dump(double image[NX][NY], double imageS[NX][NY][NIMG], const char *fname,
-      double scale)
+      double scale, double Dsource, double cam[NDIM])
   {
+    hid_t fid = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    if (fid < 0) {
+      fprintf(stderr, "! unable to open/create hdf5 output file.\n");
+      exit(-3);
+    }
+
+    h5io_add_attribute_str(fid, "/", "githash", xstr(VERSION));
+
+    h5io_add_group(fid, "/header");
+    h5io_add_data_dbl(fid, "/header/freqcgs", freqcgs);
+    h5io_add_data_dbl(fid, "/header/scale", scale);
+    h5io_add_data_dbl(fid, "/header/dsource", Dsource);
+
+    h5io_add_group(fid, "/header/camera");
+    h5io_add_data_int(fid, "/header/camera/nx", NX);
+    h5io_add_data_int(fid, "/header/camera/ny", NY);
+    h5io_add_data_dbl(fid, "/header/camera/dx", DX);
+    h5io_add_data_dbl(fid, "/header/camera/dy", DY);
+    h5io_add_data_dbl(fid, "/header/camera/fovx", fovx);
+    h5io_add_data_dbl(fid, "/header/camera/fovy", fovy);
+    h5io_add_data_dbl_1d(fid, "/header/camera/x", NDIM, cam);
+
+    h5io_add_group(fid, "/header/units");
+    h5io_add_data_dbl(fid, "/header/units/L_unit", L_unit);
+    h5io_add_data_dbl(fid, "/header/units/M_unit", M_unit);
+    h5io_add_data_dbl(fid, "/header/units/T_unit", T_unit);
+    h5io_add_data_dbl(fid, "/header/units/Thetae_unit", Te_unit);
+
+    // processing
+    double Ftot_unpol=0., Ftot=0.;
+    for (int i=0; i<NX; ++i) {
+      for (int j=0; j<NY; ++j) {
+        Ftot_unpol += image[i][j] * scale;
+        Ftot += imageS[i][j][0] * scale;
+      }
+    }
+        
+    // output stuff
+    h5io_add_data_dbl(fid, "/Ftot", Ftot);
+    h5io_add_data_dbl(fid, "/Ftot_unpol", Ftot_unpol);
+    h5io_add_data_dbl(fid, "/nuLnu", 4. * M_PI * Ftot * Dsource * Dsource * JY * freqcgs);
+    h5io_add_data_dbl(fid, "/nuLnu_unpol", 4. * M_PI * Ftot_unpol * Dsource * Dsource * JY * freqcgs);
+
+    h5io_add_data_dbl_2d(fid, "/unpol", NX, NY, image);
+    h5io_add_data_dbl_3d(fid, "/pol", NX, NY, 5, imageS);
+
+    // allow model to output
+    output_hdf5(fid);
+
+    // housekeeping
+    H5Fclose(fid);
+
+
+    /*
+
+
+    // write images
+    // unpol, I,Q,U,V
+    
+
+
+     */
+
+    /*
     FILE *fp;
     int i, j;
     double xx, yy;
@@ -535,6 +600,7 @@ int main(int argc, char *argv[])
       fprintf(fp, "\n");
     }
     fclose(fp);
+     */
   }
 
   void init_XK(int i, int j, double Xcam[4], double fovx, double fovy, 
