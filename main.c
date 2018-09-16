@@ -108,15 +108,14 @@ int main(int argc, char *argv[])
 
     int nprogress = 0;
 
-#pragma omp parallel for collapse(2) shared(nprogress,image,imageS)
+#pragma omp parallel for schedule(dynamic,1) collapse(2) shared(nprogress,image,imageS)
     for (int i=0; i<NX; ++i) {
       for (int j=0; j<NY; ++j) {
        
         double X[NDIM],Xhalf[NDIM],Xi[NDIM],Xf[NDIM],Kcon[NDIM],Kconhalf[NDIM],Kconi[NDIM],Kconf[NDIM];
         double dl, ji,ki, jf,kf;
-        double Intensity, tauf;
         double complex N_coord[NDIM][NDIM];
-        double Stokes_I, Stokes_Q, Stokes_U, Stokes_V, tauF;
+        double Intensity, Stokes_I, Stokes_Q, Stokes_U, Stokes_V, tauF;
 
         init_XK(i,j, Xcam, fovx,fovy, X, Kcon); 
         for (int k=0; k<NDIM; ++ k) Kcon[k] *= freq;
@@ -163,9 +162,11 @@ int main(int argc, char *argv[])
 
         init_N(Xi, Kconi, N_coord);
         Intensity = 0.0;
-        tauf = 0.;
+        tauF = 0.;
 
         get_jkinv(traj[nstep].X, traj[nstep].Kcon, &ji, &ki);
+
+        int flag = 0;
 
         while (nstep > 1) {
 
@@ -186,6 +187,18 @@ int main(int argc, char *argv[])
           // solve polarized transport
           evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
           if (isnan(creal(N_coord[0][0]))) exit(-1);
+
+          if (flag == 0) {
+            project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V);
+            if (Stokes_I < 0) {
+              void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
+              double tdel[NDIM];
+              int ti,tj,tk;
+              Xtoijk(Xf, &ti, &tj, &tk, tdel);
+              fprintf(stderr, "Stokes_I %g @ %d %d %d (%g %g %g %g)\n", Stokes_I, ti, tj, tk, Xf[0], Xf[1], Xf[2], Xf[3]);
+              flag = 1;
+            }
+          }
 
           // swap start and finish
           ji = jf;
