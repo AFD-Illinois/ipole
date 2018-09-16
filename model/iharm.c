@@ -44,6 +44,7 @@ void parse_input(int argc, char *argv[], Params *params)
     M_unit = params->M_unit;
     strcpy(fnam, params->dump);
     tp_over_te = params->tp_over_te;
+    counterjet = params->counterjet;
     return;
   }
 

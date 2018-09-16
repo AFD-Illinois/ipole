@@ -97,7 +97,8 @@ int    stop_forward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
 int    stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
-void dump(double image[NX][NY],double imageS[NX][NY][NIMG], const char *fname, double scale, double Dsource, double cam[NDIM]);
+void dump(double image[NX][NY],double imageS[NX][NY][NIMG], const char *fname, double scale, 
+          double Dsource, double cam[NDIM], double DX, double DY, double fovx, double fovy);
 
 /* geodesic integration */
 //void   push_photon(double X[NDIM], double Kcon[NDIM], double dl);

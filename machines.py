@@ -55,8 +55,17 @@ add_machine(name='lmc',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
-add_machine(name='stampede2',
+add_machine(name='stampede2gcc', # gcc
             compiler='h5pcc',
             c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
             l_flags='-lm -lgsl -lgslcblas',
+            gsl_dir='/opt/apps/gcc7_1/gsl/2.3')
+
+add_machine(name='stampede2', # intel
+            compiler='h5pcc',
+            c_flags='-O3 -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512 -std=c99 -Wall -qopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='/opt/apps/intel17/gsl/2.3')
+
+
+
