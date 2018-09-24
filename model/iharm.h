@@ -1,5 +1,5 @@
-#define NX (128)
-#define NY (128)
+#define NX (32)
+#define NY (32)
 
 #define KRHO 0
 #define UU   1
@@ -13,3 +13,4 @@
 #define KTOT 9
 
 void init_physical_quantities(int n);
+

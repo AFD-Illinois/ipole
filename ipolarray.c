@@ -98,9 +98,9 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 	      double Xf[NDIM], double Kconf[NDIM],
 	      double dlam, double complex N_coord[NDIM][NDIM], double *tauF)
 {
-    int k;
     double gcov[NDIM][NDIM];
     double Ucon[NDIM],Bcon[NDIM];
+    double Ucov[NDIM],Bcov[NDIM];
     double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
     double complex Nh[NDIM][NDIM];
     double complex N_tetrad[NDIM][NDIM];
@@ -121,6 +121,9 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 
     /* absorption/emission/rotation step.  only complete if radiating_region condition is satisfied */
     if ( radiating_region(Xf) ) {
+  
+  // get fluid parameters at Xf
+  get_model_fourv(Xf, Ucon, Ucov, Bcon, Bcov);
 
 	/* evaluate transport coefficients */
 	gcov_func(Xf, gcov);
@@ -138,16 +141,14 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
   }
 
 	/* make plasma tetrad */
-	get_model_ucon(Xf, Ucon);
 	B = get_model_b(Xf);	/* field in G */
-	if (B > 0.) {
-	    get_model_bcon(Xf, Bcon);
-	}
-	else {
-	    Bcon[0] = 0.;
-	    for (k = 1; k < NDIM; k++)
-		Bcon[k] = 1.;
-	}
+  if (B < 0.) {
+    Bcon[0] = 0.;
+    Bcon[1] = 1.;
+    Bcon[2] = 1.;
+    Bcon[3] = 1.;
+  }
+
 	make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
 
 	/* convert N to Stokes */

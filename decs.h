@@ -97,7 +97,8 @@ int    stop_forward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
 int    stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 	double Xcam[NDIM]) ;
-void dump(double image[NX][NY],double imageS[NX][NY][NIMG], const char *fname, double scale, double Dsource, double cam[NDIM]);
+void dump(double image[NX][NY],double imageS[NX][NY][NIMG], const char *fname, double scale, 
+          double Dsource, double cam[NDIM], double DX, double DY, double fovx, double fovy);
 
 /* geodesic integration */
 //void   push_photon(double X[NDIM], double Kcon[NDIM], double dl);
@@ -119,6 +120,7 @@ void init_model(char *args[]) ;
 double get_model_thetae(double X[NDIM]) ;
 double get_model_b(double X[NDIM]) ;
 double get_model_ne(double X[NDIM]) ;
+void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM]);
 void get_model_bcov(double X[NDIM], double Bcov[NDIM]) ;
 void get_model_bcon(double X[NDIM], double Bcon[NDIM]) ;
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]) ;
@@ -164,7 +166,7 @@ void rainbow_palette(double data, double min, double max, int *pRed, int *pGreen
 double Bnu_inv(double nu, double Thetae) ;
 double jnu_inv(double nu, double Thetae, double Ne, double B, double theta) ;
 double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM]) ;
-double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM]) ;
+double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM]);
 
 /* emissivity */ 
 double jnu_synch(double nu, double Ne, double Thetae, double B, double theta) ;

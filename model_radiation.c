@@ -44,18 +44,20 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
   double nu, Thetae, Ne, B, theta, nusq;
   double x, Xe, omega0, nuc;
   double Bnuinv;
-  double Ucov[NDIM];
+  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
   double Thetaer, wp2;
 
   Ne = get_model_ne(X);
-  get_model_ucov(X, Ucov);
+  get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
+
   if (isnan(Ucov[0])) {
     printf("UCOV[0] is nan! thread = %i\n", omp_get_thread_num());
     printf("X[] = %e %e %e %e\n", X[0],X[1],X[2],X[3]);
     printf("K[] = %e %e %e %e\n", Kcon[0],Kcon[1],Kcon[2],Kcon[3]);
     printf("Ne = %e\n", Ne);
   }
-  theta = get_bk_angle(X, Kcon, Ucov);	/* angle between k & b  */
+
+  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b  */
 
   if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
 
@@ -290,18 +292,13 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
   }
 
   /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
-  get_model_ucov(X, Ucov);
-  get_model_bcov(X, Bcov);
-
-  /*extra: print out stuff to test tetrads */
-  get_model_ucon(X, Ucon);
-  get_model_bcon(X, Bcon);
+  get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
 
   gcov_func(X, gcov);
   lower(Kcon, gcov, Kcov);
 
   //theta = M_PI/2.;//get_bk_angle(X,Kcon,Ucov) ; /* angle between k & b */
-  theta = get_bk_angle(X, Kcon, Ucov);	/* angle between k & b */
+  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
   if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
     *jnuinv = 0.;
     *knuinv = 0.;

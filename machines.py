@@ -13,7 +13,7 @@ def add_machine(name, compiler, c_flags, l_flags, gsl_dir):
 
 def get_machine():
   for key in machines:
-    if machines[key]['NAME'] in os.uname()[1]:
+    if machines[key]['NAME'] == os.uname()[1]:
     #if os.uname()[1] == machines[key]['NAME']:
       return machines[key]
   print('UNKNOWN MACHINE ' + os.uname()[1])
@@ -39,7 +39,7 @@ add_machine(name='bh21',
 
 add_machine(name='bh27',
             compiler='h5pcc',
-            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\" -D_DEFAULT_SOURCE',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
@@ -55,8 +55,17 @@ add_machine(name='lmc',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
-add_machine(name='stampede2',
+add_machine(name='stampede2gcc', # gcc
             compiler='h5pcc',
             c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
             l_flags='-lm -lgsl -lgslcblas',
+            gsl_dir='/opt/apps/gcc7_1/gsl/2.3')
+
+add_machine(name='stampede2', # intel
+            compiler='h5pcc',
+            c_flags='-O3 -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512 -std=c99 -Wall -qopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='/opt/apps/intel17/gsl/2.3')
+
+
+
