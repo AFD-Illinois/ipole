@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
   freq = freqcgs * HPL / (ME * CL * CL);
 
   /* fix camera location */
-  rcam = 240.;
+  rcam = 1000.;
   phicam = 0.0;
 
   if (params.loaded) {
@@ -150,6 +150,9 @@ int main(int argc, char *argv[])
           }
         }
 
+        //if ( X[1] < (log(1.05*Rh)) )
+        //fprintf(stderr, "Stopped at %g %g %g\n", X[1], X[2], X[3]);
+
         nstep--; // don't record final step because it violated "stop" condition
         /* DONE geodesic integration */
         
@@ -188,15 +191,17 @@ int main(int argc, char *argv[])
           evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
           if (isnan(creal(N_coord[0][0]))) exit(-1);
 
-          if (flag == 0) {
+          if (flag == 0 && 0) {
             project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V);
-            if (Stokes_I < 0) {
-              void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
+//            if (Stokes_I < 0 || fabs(Intensity - Stokes_I) > 1e-50 || 1) {
+            if ( Stokes_I < 0 || 1 ) { // || 1 ) {
+            //if ( i == 10 ) {
+              void Xtoijk(double Xf[NDIM], int *i, int *j, int *k, double del[NDIM]);
               double tdel[NDIM];
               int ti,tj,tk;
               Xtoijk(Xf, &ti, &tj, &tk, tdel);
-              fprintf(stderr, "Stokes_I %g @ %d %d %d (%g %g %g %g)\n", Stokes_I, ti, tj, tk, Xf[0], Xf[1], Xf[2], Xf[3]);
-              flag = 1;
+              fprintf(stderr, "Stokes_I %g (%g) @ %d %d %d (%g %g %g %g) [%d/%d]\n", Stokes_I, Intensity, ti, tj, tk, Xf[0], Xf[1], Xf[2], Xf[3], nstep, nstep);
+              flag = 0;
             }
           }
 

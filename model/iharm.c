@@ -710,7 +710,7 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
   phi = fmod(X[3], stopx[3]);
   //fold it to be positive and find index
   if(phi < 0.0) phi = stopx[3]+phi;
-  
+ 
   //give index of a zone - zone index is moved to the grid zone center/
   //to account for the fact that all variables are reconstrucuted at zone centers?
   *i = (int) ((X[1] - startx[1]) / dx[1] - 0.5 + 1000) - 1000;
@@ -1063,6 +1063,7 @@ void init_iharm_grid(char *fname)
  }
 
   rmax = MIN(50., Rout);
+  rmax = Rout;
 
   hdf5_set_directory("/");
   hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
