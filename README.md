@@ -7,13 +7,11 @@ You can build the ```ipole``` executable by using the python build script as fol
 ```bash
 $ python build.py [MODEL]
 ```
-where ```[MODEL]``` specifies the fluid data format. For all fluid data produced from illinois codes after September 2018, the ```iharm``` model should be used.
+where ```[MODEL]``` specifies the fluid data format. For all fluid data produced from Illinois codes after September 2018, the ```iharm``` model should be used.
 
 # running
 
 ipole can be run using either parameter files or command line arguments. 
-
-### parameter files
 
 ### command line arguments
 
@@ -38,4 +36,6 @@ If no parameter file is specified, then ipole reads arguments in the following f
 
 ```counterjet``` is one of {0,1,2} and specifies if certain parts of the domain should be "switched off" for emission. If counterjet == 1, only emission from X[2] > 0.5 is allowed. If counterjet == 2, only emission from X[2] < 0.5 is allowed. Otherwise, emission from all parts of the domain is allowed.
 
+### parameter files
 
+TODO
