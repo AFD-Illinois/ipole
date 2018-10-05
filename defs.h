@@ -27,6 +27,7 @@ double M_unit;
 double L_unit;
 double T_unit;
 double RHO_unit;
+double Ne_unit;
 double U_unit;
 double B_unit;
 double Te_unit;

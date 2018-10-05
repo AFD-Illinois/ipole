@@ -75,6 +75,7 @@ extern double M_unit;
 extern double L_unit;
 extern double T_unit;
 extern double RHO_unit;
+extern double Ne_unit;
 extern double U_unit;
 extern double B_unit;
 extern double Te_unit;

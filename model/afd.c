@@ -4,6 +4,10 @@
 //#define NVAR (10)
 #define SLOW_LIGHT (0)
 
+// Jet fixups
+#define USE_FLRADV (1)
+#define SIGMAC (1.)
+
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
 static double poly_norm, poly_xt, poly_alpha, mks_smooth;
@@ -16,7 +20,6 @@ static int with_radiation;
 static int with_electrons;
 static int with_flooradv;
 static int metric, NVAR;
-#define TPTE (3.)
 
 #define NSUP (3)
 struct of_data {
@@ -35,7 +38,7 @@ static int nloaded = 0;
 struct of_data dataA, dataB, dataC;
 struct of_data *data[NSUP];
   
-void load_iharm_data(int n, char *);
+void load_data(int n, char *);
 
 void print_usage()
 {
@@ -57,7 +60,7 @@ void parse_input(int argc, char *argv[], Params *params)
     strcpy(fnam, params->dump);
     tp_over_te = params->tp_over_te;
 
-    hdf5_open(fname);
+    hdf5_open(fnam);
     with_radiation = hdf5_exists("/header/has_radiation");
     with_electrons = hdf5_exists("/header/has_electrons");
     with_flooradv = hdf5_exists("/header/has_flooradv");
@@ -70,11 +73,11 @@ void parse_input(int argc, char *argv[], Params *params)
     print_usage();
   }
 
-  sscanf(argv[1], "%s", fname);
-  sscanf(argv[2], "%lf", &thcam);
+  sscanf(argv[1], "%s", fnam);
+  sscanf(argv[2], "%lf", &thetacam);
   sscanf(argv[3], "%lf", &freqcgs);
 
-  hdf5_open(fname);
+  hdf5_open(fnam);
   with_radiation = hdf5_exists("/header/has_radiation");
   with_electrons = hdf5_exists("/header/has_electrons");
   with_flooradv = hdf5_exists("/header/has_flooradv");
@@ -88,7 +91,7 @@ void parse_input(int argc, char *argv[], Params *params)
       sscanf(argv[4], "%lf", &M_unit);
       sscanf(argv[5], "%lf", &MBH);
     } else {
-      if (argv != 7) {
+      if (argc != 7) {
         print_usage();
       }
       sscanf(argv[4], "%lf", &M_unit);
@@ -147,7 +150,7 @@ void update_data()
       printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
     }
     
-    load_iharm_data(2, fnam);
+    load_data(2, fnam);
     #else // FAST LIGHT
     if (nloaded % 3 == 0) {
       data[0] = &dataA;
@@ -197,7 +200,7 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
     dxdX[2][2] = M_PI - (hslope - 1.)*M_PI*cos(2.*M_PI*X[2]);
     dxdX[3][3] = 1.;
   } else {
-    printf("ERROR metric %i not supported\n");
+    printf("ERROR metric %i not supported\n", metric);
     exit(-1);
   }
 
@@ -264,7 +267,7 @@ void get_connection(double X[4], double lconn[4][4][4])
 
 void init_model(char *args[])
 {
-  void init_iharm_grid(char *);
+  void init_grid(char *);
 
   // set up initial ordering of data[]
   data[0] = &dataA;
@@ -273,7 +276,7 @@ void init_model(char *args[])
 
   // set up grid for fluid data
   fprintf(stderr, "reading data header...\n");
-  init_iharm_grid(fnam);
+  init_grid(fnam);
   fprintf(stderr, "success\n");
 
   // set all dimensional quantities from loaded parameters
@@ -281,11 +284,11 @@ void init_model(char *args[])
 
   // read fluid data
   fprintf(stderr, "reading data...\n");
-  load_iharm_data(0, fnam);
+  load_data(0, fnam);
   update_data();
-  load_iharm_data(1, fnam);
+  load_data(1, fnam);
   update_data();
-  load_iharm_data(2, fnam);
+  load_data(2, fnam);
   //data[2]->t = 10000.;
   fprintf(stderr, "success\n");
 
@@ -759,12 +762,12 @@ void bl_coord(double X[NDIM], double *r, double *th)
 {
   *r = exp(X[1]);
 
-  if (DEREFINE_POLES) {
+  if (metric == MMKS) {
     double thG = M_PI*X[2] + ((1. - hslope)/2.)*sin(2.*M_PI*X[2]);
     double y = 2*X[2] - 1.;
     double thJ = poly_norm*y*(1. + pow(y/poly_xt,poly_alpha)/(poly_alpha+1.)) + 0.5*M_PI;
     *th = thG + exp(mks_smooth*(startx[1] - X[1]))*(thJ - thG);
-  } else {
+  } else if (metric == MKS) {
     *th = M_PI*X[2] + ((1. - hslope)/2.)*sin(2.*M_PI*X[2]);
   }
 }
@@ -801,7 +804,16 @@ void init_physical_quantities(int n)
   for (i = 0; i < N1+2; i++) {
     for (j = 0; j < N2+2; j++) {
       for (k = 0; k < N3+2; k++) {
-        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
+        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k]*Ne_unit;
+        /*if (with_flooradv && USE_FLRADV) {
+          double rho = data[n]->p[KRHO][i][j][k] - data[n]->p[RHOFL][i][j][k];
+          rho = MAX(rho, 0);
+          rho = MIN(rho, data[n]->p[KRHO][i][j][k]);
+          data[n]->ne[i][j][k] = rho*Ne_unit;
+        }*/
+
+        //if (k == 0 || k == 1 || k == N3 || k == N3 + 1) data[n]->ne[i][j][k] = 0.;
+        //if (j == 0 || j == 1 || j == N2 || j == N2+1) data[n]->ne[i][j][k] = 0.;
 
         bsq = data[n]->bcon[i][j][k][0] * data[n]->bcov[i][j][k][0] +
               data[n]->bcon[i][j][k][1] * data[n]->bcov[i][j][k][1] +
@@ -817,12 +829,16 @@ void init_physical_quantities(int n)
         //trat = trat_d * b2/(1. + b2) + trat_j /(1. + b2);
         //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
         
-        if (ELECTRONS) {
+        if (with_electrons) {
           data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
         } else {
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
-        data[n]->thetae[i][j][k] = MAX(data[n]->thetae[i][j][k], 1.e-3);
+        //data[n]->thetae[i][j][k] = MAX(data[n]->thetae[i][j][k], 1.e-3);
+        //data[n]->thetae[i][j][k] = MIN(data[n]->thetae[i][j][k], 1.e3);
+        //if (i==0 || i == N1+1 || j == 0 || j == N2+1 || k == 0 || k == N3+1) {
+        //  data[n]->thetae[i][j][k] = 0.;
+        //}
        
         //thetae[i][j][k] = (gam-1.)*MP/ME*p[UU][i][j][k]/p[KRHO][i][j][k];
         //printf("rho = %e thetae = %e\n", p[KRHO][i][j][k], thetae[i][j][k]);
@@ -831,7 +847,9 @@ void init_physical_quantities(int n)
         //printf("Thetae_unit = %e Thetae = %e\n", Thetae_unit, thetae[i][j][k]);
         
         //strongly magnetized = empty, no shiny spine
-        if (sigma_m > 1.0) data[n]->ne[i][j][k]=0.0;
+        if (sigma_m < SIGMAC) {
+          data[n]->ne[i][j][k] = 0.0;
+        }
       }
     }
   }
@@ -1036,6 +1054,11 @@ void init_grid(char *fname)
 
   //ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
 
+  if (with_flooradv && !with_electrons) {
+    printf("ERROR flooradv only supported with electrons\n");
+    exit(-1);
+  }
+
   char metric_name[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric_name, "metric", HDF5_STR_TYPE);
@@ -1052,11 +1075,20 @@ void init_grid(char *fname)
   //if ( strncmp(metric, "MMKS", 19) == 0 ) 
   //  DEREFINE_POLES = 1;
 
+  hdf5_set_directory("/header/");
   hdf5_read_single_val(&N1, "n1", H5T_STD_I32LE);
   hdf5_read_single_val(&N2, "n2", H5T_STD_I32LE);
   hdf5_read_single_val(&N3, "n3", H5T_STD_I32LE);
-  hdf5_read_single_val(&NVAR, "/header/n_prim", H5T_STD_I32LE);
-  if (with_radiation) hdf5_read_single_val(&MBH, "/header/Mbh", &MBH);
+  hdf5_read_single_val(&NVAR, "n_prim", H5T_STD_I32LE);
+  hdf5_read_single_val(&gam, "gam", H5T_IEEE_F64LE);
+  if (with_electrons) {
+    hdf5_read_single_val(&game, "game", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&gamp, "gamp", H5T_IEEE_F64LE);
+  }
+  if (with_radiation) hdf5_read_single_val(&MBH, "Mbh", H5T_IEEE_F64LE);
+  
+  //hdf5_set_directory("/header/geom/");
+  hdf5_set_directory("/geom/");
   startx[0] = 0.;
   hdf5_read_single_val(&startx[1], "startx1", H5T_IEEE_F64LE);
   hdf5_read_single_val(&startx[2], "startx2", H5T_IEEE_F64LE);
@@ -1065,89 +1097,71 @@ void init_grid(char *fname)
   hdf5_read_single_val(&dx[2], "dx2", H5T_IEEE_F64LE);
   hdf5_read_single_val(&dx[3], "dx3", H5T_IEEE_F64LE);
 
-  
-  
-  hdf5_read_single_val(&gam, "gam", H5T_IEEE_F64LE);
-
-  if (ELECTRONS) {
-    fprintf(stderr, "custom electron model loaded...\n");
-    hdf5_read_single_val(&game, "gam_e", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&gamp, "gam_p", H5T_IEEE_F64LE);
-    Thetae_unit = MP/ME;
-  } else {
-    Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
-  }
-  Te_unit = Thetae_unit;
-
-  if (RADIATION) {
-    fprintf(stderr, "custom radiation field tracking information loaded...\n");
-    hdf5_set_directory("/header/units/");
-    hdf5_read_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&Thetae_unit, "Thetae_unit", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&MBH, "Mbh", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&tp_over_te, "tp_over_te", H5T_IEEE_F64LE);
-  }
-
-  hdf5_set_directory("/header/geom/");
-  hdf5_read_single_val(&startx[1], "startx1", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&startx[2], "startx2", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&startx[3], "startx3", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&dx[1], "dx1", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&dx[2], "dx2", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&dx[3], "dx3", H5T_IEEE_F64LE);
-
-  hdf5_set_directory("/header/geom/mks/");
-  if ( DEREFINE_POLES ) hdf5_set_directory("/header/geom/mmks/");
-
-  hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&Rin, "Rin", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&Rout, "Rout", H5T_IEEE_F64LE);
-
-  if (DEREFINE_POLES) {
-    fprintf(stderr, "custom refinement at poles loaded...\n");
-    hdf5_read_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
+  R0 = 0.;
+  if (metric == MKS) {
+    //hdf5_set_directory("/header/geom/mks/");
+    hdf5_set_directory("/geom/mks/");
+    hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rin, "r_in", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rout, "r_out", H5T_IEEE_F64LE);
+  } else if (metric == MMKS) {
+    //hdf5_set_directory("/header/geom/mmks/");
+    hdf5_set_directory("/geom/mmks/");
+    hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
     hdf5_read_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
     hdf5_read_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rin, "r_in", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rout, "r_out", H5T_IEEE_F64LE);
     poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
- }
+  }
 
-  rmax = MIN(50., Rout);
+  if (with_radiation) {
+    hdf5_set_directory("/header/units/");
+    hdf5_read_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&RHO_unit, "RHO_unit", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&U_unit, "U_unit", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&B_unit, "B_unit", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Ne_unit, "Ne_unit", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Thetae_unit, "Thetae_unit", H5T_IEEE_F64LE);
+  } else {
+    L_unit = GNEWT*MBH/(CL*CL);
+    T_unit = L_unit/CL;
+    RHO_unit = M_unit/(L_unit*L_unit*L_unit);
+    U_unit = RHO_unit*CL*CL;
+    B_unit = CL*sqrt(4.*M_PI*RHO_unit);
+    Ne_unit = RHO_unit/(MP + ME);
+    if (with_electrons) {
+      Thetae_unit = MP/ME;
+    } else {
+      Thetae_unit = (gam-1.)*MP/ME/(1. + tp_over_te);
+    }
+  }
+  
+  Rh = 1. + sqrt(1. - a * a);
+  stopx[0] = 1.;
+  dx[0] = 1.;
+  stopx[1] = startx[1] + N1*dx[1];
+  stopx[2] = startx[2] + N2*dx[2];
+  stopx[3] = startx[3] + N3*dx[3];
+  printf("Header loaded!\n");
+  
+  // Ignore radiation interactions within one degree of polar axis
+  // OR IGNORE RADIATION IN ZONE CLOSEST TO POLAR AXIS??
+  //th_beg = 0.0174;
+  th_beg = 0.;
+
+  //rmax = MIN(50., Rout);
   rmax = Rout;
 
   hdf5_set_directory("/");
   hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
   
-  //startx[1] += 3*dx[1];
-  //startx[2] += 3*dx[2];
-  //      startx[3] += 3*dx[3];
-  
   fprintf(stdout,"start: %g %g %g \n",startx[1],startx[2],startx[3]);
-  //below is equivalent to the above
-  /*
-  startx[1] = log(Rin-R0);       
-        startx[2] = th_cutout/M_PI ; 
-  */
-
-  //fprintf(stdout,"th_cutout: %g  %d x %d x %d\n",th_cutout,N1,N2,N3);
-  
-
-  //th_beg=th_cutout;
-  //th_end=M_PI-th_cutout;
-  //th_len = th_end-th_beg;
-
-  // Ignore radiation interactions within one degree of polar axis
-  th_beg = 0.0174;
-  //th_end = 3.1241;
-
-  stopx[0] = 1.;
-  stopx[1] = startx[1]+N1*dx[1];
-  stopx[2] = startx[2]+N2*dx[2];
-  stopx[3] = startx[3]+N3*dx[3];
-
-  fprintf(stdout,"stop: %g %g %g \n",stopx[1],stopx[2],stopx[3]);
 
   init_storage();
 
@@ -1159,7 +1173,7 @@ void output_hdf5(hid_t fid)
   h5io_add_data_dbl(fid, "/header/t", data[0]->t); 
 }
 
-void load_iharm_data(int n, char *fname)
+void load_data(int n, char *fname)
 {
   // loads relevant information from fluid dump file stored at fname
   // to the n'th copy of data (e.g., for slow light)
@@ -1173,7 +1187,7 @@ void load_iharm_data(int n, char *fname)
   double dMact, Ladv;
   double r,th;
  
-  if ( hdf5_open(fname) < 0 ) {
+  if (hdf5_open(fname) < 0) {
     fprintf(stderr, "! unable to open file %s. Exiting!\n", fname);
     exit(-1);
   }
@@ -1207,11 +1221,20 @@ void load_iharm_data(int n, char *fname)
   fstart[3] = 7;
   hdf5_read_array(data[n]->p[B3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE); 
 
-  if (ELECTRONS) {
+  if (with_electrons) {
     fstart[3] = 8;
     hdf5_read_array(data[n]->p[KEL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
     fstart[3] = 9;
     hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+  }
+
+  if (with_flooradv) {
+    fstart[3] = 10;
+    hdf5_read_array(data[n]->p[RHOFL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+    fstart[3] = 11;
+    hdf5_read_array(data[n]->p[UUFL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+    fstart[3] = 12;
+    hdf5_read_array(data[n]->p[FAILFL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 
   hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);

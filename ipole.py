@@ -7,7 +7,7 @@ from scipy.ndimage.interpolation import rotate
 SMALL = 1.e-30
 
 if len(sys.argv) < 3 :
-	print "usage: ipole.py ipole.dat phi(deg)"
+	print("usage: ipole.py ipole.dat phi(deg)")
 	quit()
 
 fil = sys.argv[1]
@@ -24,8 +24,8 @@ with open(fil, 'r') as f:
   L_unit = float(line[5])
   M_unit = float(line[6])
 
-print 'NX = %i' % NX
-print 'NY = %i' % NY
+print('NX = %i' % NX)
+print('NY = %i' % NY)
 
 # read in data 
 i0, j0, x, y, Ia, Is, Qs, Us, Vs, tauF = np.loadtxt(fil, unpack=True, skiprows=1)
@@ -39,7 +39,7 @@ FOV = 40.
 
 # size of single pixel in rad: M/pixel . muas/pix . rad/muas
 FOV = 40.
-print "rendering FOV = ", FOV, "GM/c^2"
+print("rendering FOV = ", FOV, "GM/c^2")
 #
 #da = FOV/ImRes * 5. / (1.e6 * 206265.)
 # solid angle subtended by pixel
@@ -51,7 +51,7 @@ print "rendering FOV = ", FOV, "GM/c^2"
 #Jy = 1.e-23  # cgs
 #flux = dO*sum(Is)/Jy
 flux = sum(Is)*scale
-print "Flux [Jy]: ", flux
+print("Flux [Jy]: ", flux)
 
 # recast indices into offset in units of M
 i = (np.reshape(i0, (NX,NY))+1)*DX/NX - DY/2
@@ -101,9 +101,9 @@ ax.set_aspect('equal')
 Qb = sum(Qs)
 Ub = sum(Us)
 LP = np.sqrt(Qb*Qb + Ub*Ub)/sum(Is)
-print "LP [%]: ", LP*100.
+print("LP [%]: ", LP*100.)
 CP = sum(Vs)/sum(Is)
-print "CP [%]: ", CP*100.
+print("CP [%]: ", CP*100.)
 amp = np.sqrt(Qs*Qs + Us*Us)
 scal = max(amp)
 #print(scal)
