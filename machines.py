@@ -25,6 +25,12 @@ add_machine(name='meade',
             l_flags='',
             gsl_dir='/home/brryan/Software/gsl')
 
+add_machine(name='fortran90', 
+            compiler='h5pcc',  
+            c_flags='-O3 -Wall -Werror -fdiagnostics-color -fopenmp',
+            l_flags='',
+            gsl_dir='/home/brryan/software/gsl')
+
 add_machine(name='bh',
             compiler='h5pcc',
             c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',

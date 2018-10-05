@@ -174,7 +174,7 @@ int hdf5_make_directory(const char *name)
 // Set the current directory
 void hdf5_set_directory(const char *path)
 {
-  strncpy(hdf5_cur_dir, path, STRLEN);
+  strcpy(hdf5_cur_dir, path);//, STRLEN);
 }
 
 // Check if an object's name exists: returns 1 if it does
