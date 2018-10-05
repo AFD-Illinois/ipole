@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
   // initialization
   double time = omp_get_wtime();
   set_levi_civita();
+  counterjet = 0;
 
   double phicam, rcam, Xcam[NDIM];
   double freq, Dsource, scale;

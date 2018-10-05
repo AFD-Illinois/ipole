@@ -847,7 +847,7 @@ void init_physical_quantities(int n)
         //printf("Thetae_unit = %e Thetae = %e\n", Thetae_unit, thetae[i][j][k]);
         
         //strongly magnetized = empty, no shiny spine
-        if (sigma_m < SIGMAC) {
+        if (sigma_m > SIGMAC) {
           data[n]->ne[i][j][k] = 0.0;
         }
       }
