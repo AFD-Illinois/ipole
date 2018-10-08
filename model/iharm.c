@@ -588,6 +588,8 @@ double get_model_ne(double X[NDIM])
       return(0.) ;
   }
 
+  if ( X[2] < 0.05 || X[2] > 0.95 ) return 0.;
+
   double neA, neB, tfac;
   int nA, nB;
   set_tinterp_ns(X, &nA, &nB);
