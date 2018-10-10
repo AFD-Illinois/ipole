@@ -16,6 +16,8 @@ void load_par (const char *fname, Params *params) {
   // set default values here
   params->counterjet = 0;
   params->tp_over_te = 3.;
+  params->trat_small = 1.;
+  params->trat_large = 10.;
   params->phicam = 0.;
 
   // modify parameters/types below
@@ -31,6 +33,8 @@ void load_par (const char *fname, Params *params) {
     read_param(line, "MBH", &(params->MBH), TYPE_DBL);
     read_param(line, "M_unit", &(params->M_unit), TYPE_DBL);
     read_param(line, "tp_over_te", &(params->tp_over_te), TYPE_DBL);
+    read_param(line, "trat_small", &(params->trat_small), TYPE_DBL);
+    read_param(line, "trat_large", &(params->trat_large), TYPE_DBL);
 
     read_param(line, "dump", (void *)(params->dump), TYPE_STR);
     read_param(line, "outfile", (void *)(params->outf), TYPE_STR);

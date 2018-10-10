@@ -13,6 +13,8 @@
 // feel free to change any part of this structure
 typedef struct params_t {
   double tp_over_te;    // tp_over_te (defaults to 3.)
+  double trat_small;    // when beta << 1 (defaults to 1.)
+  double trat_large;    // when beta >> 1 (defaults to 10.)
   double thetacam;      // in degrees from the pole
   double phicam;        // in degrees
   double freqcgs;       // ... in cgs

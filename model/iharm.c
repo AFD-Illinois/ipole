@@ -3,6 +3,19 @@
 
 #define NVAR (10)
 #define SLOW_LIGHT (0)
+#define USE_FIXED_TPTE (0)
+#define USE_MIXED_TPTE (1)
+
+// these will be overwritten by anything found in par.c (or in runtime parameter file)
+static double tp_over_te = 3.; 
+static double trat_small = 1.;
+static double trat_large = 10.;
+
+// ELECTRONS -> 
+//    0 : constant TP_OVER_TE
+//    1 : use dump file model (kawazura?)
+//    2 : use mixed TP_OVER_TE (beta model)
+static int RADIATION, ELECTRONS, DEREFINE_POLES;
 
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
@@ -10,11 +23,8 @@ static double poly_norm, poly_xt, poly_alpha, mks_smooth;
 static double game, gamp;
 
 static double MBH, Mdotedd, tp_over_te, Thetae_unit;
-
-static int RADIATION, ELECTRONS, DEREFINE_POLES;
-#define TPTE (3.)
-
 #define NSUP (3)
+
 struct of_data {
   double t;
   double ****bcon;
@@ -44,10 +54,12 @@ void parse_input(int argc, char *argv[], Params *params)
     M_unit = params->M_unit;
     strcpy(fnam, params->dump);
     tp_over_te = params->tp_over_te;
+    trat_small = params->trat_small;
+    trat_large = params->trat_large;
     counterjet = params->counterjet;
+
     return;
   }
-
 
   if (argc != 7) {
     fprintf(stderr, "ERROR format is\n");
@@ -62,7 +74,6 @@ void parse_input(int argc, char *argv[], Params *params)
   sscanf(argv[4], "%lf", &M_unit);
   strcpy(fnam, argv[5]);
   sscanf(argv[6], "%d",  &counterjet);
-  tp_over_te = TPTE;
 }
 
 void set_tinterp_ns(double X[NDIM], int *nA, int *nB)
@@ -786,8 +797,14 @@ void init_physical_quantities(int n)
         //trat = trat_d * b2/(1. + b2) + trat_j /(1. + b2);
         //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
         
-        if (ELECTRONS) {
+        if (ELECTRONS == 1) {
           data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
+        } else if (ELECTRONS == 2) {
+          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
+          double betasq = beta*beta;
+          double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
+          Thetae_unit = (gam - 1.) * (MP / ME) / trat;
+          data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         } else {
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
@@ -1003,8 +1020,6 @@ void init_iharm_grid(char *fname)
   if ( hdf5_exists("has_derefine_poles") )
     hdf5_read_single_val(&DEREFINE_POLES, "has_derefine_poles", H5T_STD_I32LE);
 
-  ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
-
   char metric[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric, "metric", HDF5_STR_TYPE);
@@ -1018,17 +1033,41 @@ void init_iharm_grid(char *fname)
   hdf5_read_single_val(&gam, "gam", H5T_IEEE_F64LE);
 
   if (ELECTRONS) {
-    fprintf(stderr, "custom electron model loaded...\n");
+    fprintf(stderr, "custom electron model loaded from dump file...\n");
     hdf5_read_single_val(&game, "gam_e", H5T_IEEE_F64LE);
     hdf5_read_single_val(&gamp, "gam_p", H5T_IEEE_F64LE);
     Thetae_unit = MP/ME;
-  } else {
-    Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
   }
+  Te_unit = Thetae_unit;
+
+  // we can override which electron model to use here. print results if we're
+  // overriding anything. ELECTRONS should only be nonzero if we need to make
+  // use of extra variables (instead of just UU and RHO) for thetae
+  if (!USE_FIXED_TPTE && !USE_MIXED_TPTE) {
+    if (ELECTRONS != 1) {
+      fprintf(stderr, "! no electron temperature model specified in model/iharm.c\n");
+      exit(-3);
+    }
+    ELECTRONS = 1;
+  } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
+    ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
+    fprintf(stderr, "using fixed tp_over_te ratio = %g\n", tp_over_te);
+    Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
+  } else if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
+    ELECTRONS = 2;
+    fprintf(stderr, "using mixed tp_over_te with trat_small = %g and trat_large = %g\n", trat_small, trat_large);
+  } else {
+    fprintf(stderr, "! please change electron model in model/iharm.c\n");
+    exit(-3);
+  }
+
+  // by this point, we're sure that Thetae_unit is what we want so we can set
+  // Te_unit which is what ultimately get written to the dump files
   Te_unit = Thetae_unit;
 
   if (RADIATION) {
     fprintf(stderr, "custom radiation field tracking information loaded...\n");
+    fprintf(stderr, "!! warning, this branch is not tested!\n");
     hdf5_set_directory("/header/units/");
     hdf5_read_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
     hdf5_read_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
@@ -1155,7 +1194,7 @@ void load_iharm_data(int n, char *fname)
   fstart[3] = 7;
   hdf5_read_array(data[n]->p[B3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE); 
 
-  if (ELECTRONS) {
+  if (ELECTRONS == 1) {
     fstart[3] = 8;
     hdf5_read_array(data[n]->p[KEL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
     fstart[3] = 9;
