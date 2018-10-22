@@ -13,7 +13,7 @@ def add_machine(name, compiler, c_flags, l_flags, gsl_dir):
 
 def get_machine():
   for key in machines:
-    if machines[key]['NAME'] == os.uname()[1]:
+    if machines[key]['NAME'] in os.uname()[1]:
     #if os.uname()[1] == machines[key]['NAME']:
       return machines[key]
   print('UNKNOWN MACHINE ' + os.uname()[1])
@@ -24,6 +24,12 @@ add_machine(name='meade',
             c_flags='-O3 -Wall -Werror -fdiagnostics-color -fopenmp',
             l_flags='',
             gsl_dir='/home/brryan/Software/gsl')
+
+add_machine(name='elbert',
+            compiler='h5pcc',
+            c_flags='-Ofast -std=c99 -Wall -fopenmp -DVERSION=\"$(GIT_VERSION)\"',
+            l_flags='-lm -lgsl -lgslcblas',
+            gsl_dir='')
 
 add_machine(name='bh',
             compiler='h5pcc',
