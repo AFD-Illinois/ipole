@@ -17,7 +17,7 @@ void load_par (const char *fname, Params *params) {
   params->counterjet = 0;
   params->tp_over_te = 3.;
   params->trat_small = 1.;
-  params->trat_large = 10.;
+  params->trat_large = 30.;
   params->phicam = 0.;
 
   // modify parameters/types below

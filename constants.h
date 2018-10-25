@@ -36,7 +36,7 @@
 #define REARTH			(6.378e8			) /* Earth's radius */
 
 #define DSGRA			(8.27e3 * PC			) /* Distance from Earth to Sgr A*  */
-#define DM87			(16.7e6 * PC			) /* Distance from Earth to M87  */
+#define DM87			(16.9e6 * PC			) /* Distance from Earth to M87  */
 #define DABHB			(1.2e3 * PC			) /* Distance from Earth to A0620-00  */
 
 #define TCBR			(2.726				) /* CBR temperature, from COBE */

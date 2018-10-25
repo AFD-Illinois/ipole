@@ -1,5 +1,5 @@
-#define NX (128)
-#define NY (128)
+#define NX (160)
+#define NY (160)
 
 #define KRHO 0
 #define UU   1

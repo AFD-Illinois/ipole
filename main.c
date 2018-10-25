@@ -88,8 +88,18 @@ int main(int argc, char *argv[])
   /* units = GM/c^2 in plane of the hole */
   DX = 40.0;
   DY = 40.0;
+
+  /* these parameters are for a 160 uas fov at M87 */
+  DX = 44.17204102616254;  // 6.2e9
+
+  /* alternative way to set fov by using muas */
+  double fov_muas = 160.;
+  DX = fov_muas * Dsource / L_unit / 2.06265e11;
+  DY = DX;
+
   fovx = DX / rcam;
   fovy = DY / rcam;
+
 
   // Maximum radius of radiation interactions (GM/c^2)
   //rmax = 50.;
