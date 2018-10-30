@@ -76,13 +76,20 @@ void parse_input(int argc, char *argv[], Params *params)
   sscanf(argv[6], "%d",  &counterjet);
 }
 
-void set_tinterp_ns(double X[NDIM], int *nA, int *nB)
+double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
 {
+  #if SLOW_LIGHT
   if (X[0] < data[1]->t) {
     *nA = 0; *nB = 1;
   } else {
     *nA = 1; *nB = 2;
   }
+  return ( X[0] - data[nA]->t ) / ( data[nB]->t - data[nA]->t );
+  #else
+  *nA = 0;
+  *nB = 0;
+  return 0.;
+  #endif // SLOW_LIGHT
 }
 
 void update_data()
@@ -262,10 +269,12 @@ void init_model(char *args[])
   // read fluid data
   fprintf(stderr, "reading data...\n");
   load_iharm_data(0, fnam);
+  #if SLOW_LIGHT
   update_data();
   load_iharm_data(1, fnam);
   update_data();
   load_iharm_data(2, fnam);
+  #endif // SLOW_LIGHT
   data[2]->t =10000.;
   fprintf(stderr, "success\n");
 
@@ -317,8 +326,7 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
   double Vcon[NDIM];
   int nA, nB;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  tfac = set_tinterp_ns(X, &nA, &nB);
   U1A = interp_scalar(X, data[nA]->p[U1]);
   U2A = interp_scalar(X, data[nA]->p[U2]);
   U3A = interp_scalar(X, data[nA]->p[U3]);
@@ -346,8 +354,7 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
 
   // interpolate primitive variables first
   double B1A, B2A, B3A, B1B, B2B, B3B, Bcon1, Bcon2, Bcon3;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  tfac = set_tinterp_ns(X, &nA, &nB);
   B1A = interp_scalar(X, data[nA]->p[B1]);
   B2A = interp_scalar(X, data[nA]->p[B2]);
   B3A = interp_scalar(X, data[nA]->p[B3]);
@@ -446,8 +453,7 @@ void get_model_ucon(double X[NDIM], double Ucon[NDIM])
   double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
   double Vcon[NDIM];
   int nA, nB;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  tfac = set_tinterp_ns(X, &nA, &nB);
   U1A = interp_scalar(X, data[nA]->p[U1]);
   U2A = interp_scalar(X, data[nA]->p[U2]);
   U3A = interp_scalar(X, data[nA]->p[U3]);
@@ -515,8 +521,7 @@ void get_model_bcon(double X[NDIM], double Bcon[NDIM])
 
   // interpolate primitive variables first
   double B1A, B2A, B3A, B1B, B2B, B3B, Bcon1, Bcon2, Bcon3;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  tfac = set_tinterp_ns(X, &nA, &nB);
   B1A = interp_scalar(X, data[nA]->p[B1]);
   B2A = interp_scalar(X, data[nA]->p[B2]);
   B3A = interp_scalar(X, data[nA]->p[B3]);
@@ -552,8 +557,7 @@ double get_model_thetae(double X[NDIM])
   
   double thetaeA, thetaeB, tfac;
   int nA, nB;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  tfac = set_tinterp_ns(X, &nA, &nB);
   thetaeA = interp_scalar(X, data[nA]->thetae);
   thetaeB = interp_scalar(X, data[nB]->thetae);
 
@@ -582,8 +586,7 @@ double get_model_b(double X[NDIM])
   
   double bA, bB, tfac;
   int nA, nB;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  tfac = set_tinterp_ns(X, &nA, &nB);
   bA = interp_scalar(X, data[nA]->b);
   bB = interp_scalar(X, data[nB]->b);
 
@@ -601,8 +604,7 @@ double get_model_ne(double X[NDIM])
 
   double neA, neB, tfac;
   int nA, nB;
-  set_tinterp_ns(X, &nA, &nB);
-  tfac = (X[0] - data[nA]->t)/(data[nB]->t - data[nA]->t);
+  tfac = set_tinterp_ns(X, &nA, &nB);
   neA = interp_scalar(X, data[nA]->ne);
   neB = interp_scalar(X, data[nB]->ne);
   return tfac*neA + (1. - tfac)*neB;
