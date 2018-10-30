@@ -89,6 +89,9 @@ int main(int argc, char *argv[])
   DX = 40.0;
   DY = 40.0;
 
+  Dsource = DM87 ;
+  //Dsource = DSGRA;
+
   /* these parameters are for a 160 uas fov at M87 */
   DX = 44.17204102616254;  // 6.2e9
 
@@ -104,8 +107,6 @@ int main(int argc, char *argv[])
   // Maximum radius of radiation interactions (GM/c^2)
   //rmax = 50.;
 
-  Dsource = DM87 ;
-  //Dsource = DSGRA;
   scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
   printf("L_unit = %e DX = %e NX = %i Dsource = %e JY = %e\n", L_unit, DX, NX, Dsource,JY);
   fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
