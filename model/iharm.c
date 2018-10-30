@@ -61,7 +61,7 @@ void parse_input(int argc, char *argv[], Params *params)
     return;
   }
 
-  if (argc != 7) {
+  if (argc < 7 || argc > 8) {
     fprintf(stderr, "ERROR format is\n");
     fprintf(stderr, "  ipole theta[deg] freq[cgs] MBH[Msolar] M_unit[g] filename counterjet\n");
     exit(-1);

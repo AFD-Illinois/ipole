@@ -23,6 +23,7 @@ struct of_traj {
 // global variables
 double thetacam, freqcgs;
 char fnam[STRLEN];
+int quench_output = 0;
 
 Params params = { 0 };
 
@@ -52,7 +53,10 @@ int main(int argc, char *argv[])
   for (int i=0; i<argc-1; ++i) {
     if ( strcmp(argv[i], "-par") == 0 ) {
       load_par(argv[i+1], &params);
+    } else if ( strcmp(argv[i+1], "-quench") == 0 ) {
+      quench_output = 1;
     }
+    fprintf(stderr, "%s\n", argv[i+1]);
   }
 
   parse_input(argc, argv, &params);
@@ -467,14 +471,18 @@ int main(int argc, char *argv[])
         fprintf(stderr, "freq: %g Ftot: %g (%g unpol) scale=%g\n", freqcgs, Ftot, Ftot_unpol, scale);
         fprintf(stderr, "nuLnu = %g\n", 4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
 
-        // dump result. if parameters have been loaded, don't also
-        // output image
-        if (params.loaded) {
-          dump(image, imageS, params.outf, scale, Dsource, Xcam, DX, DY, fovx, fovy);
-        } else {
-          dump(image, imageS, "ipole.dat", scale, Dsource, Xcam, DX, DY, fovx, fovy);
-          IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
-          make_ppm(image, freq, "ipole_lfnu.ppm");
+        // don't dump if we've been asked to quench output. useful for batch jobs
+        // like when fitting light curve fluxes
+        if (!quench_output) {
+          // dump result. if parameters have been loaded, don't also
+          // output image
+          if (params.loaded) {
+            dump(image, imageS, params.outf, scale, Dsource, Xcam, DX, DY, fovx, fovy);
+          } else {
+            dump(image, imageS, "ipole.dat", scale, Dsource, Xcam, DX, DY, fovx, fovy);
+            IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
+            make_ppm(image, freq, "ipole_lfnu.ppm");
+          }
         }
 
         time = omp_get_wtime() - time;
