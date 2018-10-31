@@ -60,7 +60,6 @@ int main(int argc, char *argv[])
     } else if ( strcmp(argv[i+1], "-quench") == 0 ) {
       quench_output = 1;
     }
-    fprintf(stderr, "%s\n", argv[i+1]);
   }
 
   parse_input(argc, argv, &params);
@@ -449,7 +448,6 @@ int main(int argc, char *argv[])
         }
 
         // finish up
-        printf("\n");
         printf("scale = %e\n", scale);
 
         double Ftot = 0.;
@@ -490,7 +488,7 @@ int main(int argc, char *argv[])
         }
 
         time = omp_get_wtime() - time;
-        printf("Total wallclock time: %g s\n", time);
+        printf("Total wallclock time: %g s\n\n", time);
 
         return 0;
       }
