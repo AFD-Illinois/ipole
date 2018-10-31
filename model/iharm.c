@@ -3,7 +3,7 @@
 
 #define NVAR (10)
 #define SLOW_LIGHT (0)
-#define USE_FIXED_TPTE (0)
+#define USE_FIXED_TPTE (1)
 #define USE_MIXED_TPTE (0)
 
 // these will be overwritten by anything found in par.c (or in runtime parameter file)

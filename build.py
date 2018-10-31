@@ -21,7 +21,7 @@ class color:
   BLUE    = '\033[94m'
   NORMAL  = '\033[0m'
 
-def build():
+def build(model, notes):
   NOPARAM = 1
   DEBUG = 0
   for n in range(len(sys.argv)):
@@ -40,7 +40,7 @@ def build():
 
   host = machines.get_machine()
 
-  C_FLAGS = '-std=c99 ' + host['COMPILER_FLAGS']
+  C_FLAGS = '-std=c99 -DMODEL=' + model + " -DNOTES=" + notes + " -DVERSION=$(GIT_VERSION) " + host['COMPILER_FLAGS']
 
   # MATH AND DYNAMIC LINKING
   LIB_FLAGS = '-lm -ldl'
@@ -78,6 +78,7 @@ def build():
 
   # WRITE MAKEFILE
   mf = open('makefile', 'w')
+  mf.write('GIT_VERSION = $(shell git describe --dirty --always --tags)' + '\n')
   mf.write('CC = ' + host['COMPILER'] + '\n')
   mf.write('CCFLAGS = ' + C_FLAGS + ' ' + LIBRARIES + ' ' + INCLUDES + '\n')
   mf.write('LIB_FLAGS = ' + LIB_FLAGS + '\n')
@@ -137,7 +138,7 @@ def build():
 
   sys.exit()
 
-if len(sys.argv) != 2:
+if len(sys.argv) < 2 or len(sys.argv) > 3:
   print('ERROR: Format is')
   print('  python build.py [model]')
   sys.exit()
@@ -145,8 +146,13 @@ if (not os.path.isfile('model/' + sys.argv[1] + '.c')):
   print('ERROR Model %s does not exist' % sys.argv[1])
   sys.exit()
 
+if len(sys.argv) > 2:
+  notes = sys.argv[2]
+else:
+  notes = ""
+
 import shutil
 shutil.copyfile('model/' + sys.argv[1] + '.c', 'model.c')
 shutil.copyfile('model/' + sys.argv[1] + '.h', 'model.h')
-build()
+build(sys.argv[1], notes)
 

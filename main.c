@@ -29,6 +29,10 @@ Params params = { 0 };
 
 int main(int argc, char *argv[]) 
 {
+  // motd
+  fprintf(stderr, "ipole. githash: %s\n", xstr(VERSION));
+  fprintf(stderr, "notes: %s\n\n", xstr(NOTES));
+
   // initialization
   double time = omp_get_wtime();
   set_levi_civita();
