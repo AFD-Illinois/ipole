@@ -42,6 +42,7 @@ int main(int argc, char *argv[])
   double DX, DY, fovx, fovy;
 
   double image[NX][NY];
+  double taus[NX][NY];
   double imageS[NX][NY][NIMG];
 
   // "forward declarations"
@@ -237,12 +238,12 @@ int main(int argc, char *argv[])
 
               if (done[i][j] == 0) {
 
-                double ji, jf, ki, kf;
+                double ji, jf, ki, kf, fdum;
 
                 get_jkinv(Xprevgeo, Kconprevgeo, &ji, &ki);
                 get_jkinv(Xgeo[i][j], Kcongeo[i][j], &jf, &kf);
                 dl *= L_unit*HPL/(ME*CL*CL);
-                image[i][j] = approximate_solve(image[i][j], ji, ki, jf, kf, dl);
+                image[i][j] = approximate_solve(image[i][j], ji, ki, jf, kf, dl, &fdum);
 
                 evolve_N(Xprevgeo, Kconprevgeo, Xhalfgeo, Kconhalfgeo, Xgeo[i][j],
                     Kcongeo[i][j], dl, Ngeo[i][j], &tauFgeo[i][j]);
@@ -328,7 +329,7 @@ int main(int argc, char *argv[])
         double X[NDIM],Xhalf[NDIM],Xi[NDIM],Xf[NDIM],Kcon[NDIM],Kconhalf[NDIM],Kconi[NDIM],Kconf[NDIM];
         double dl, ji,ki, jf,kf;
         double complex N_coord[NDIM][NDIM];
-        double Intensity, Stokes_I, Stokes_Q, Stokes_U, Stokes_V, tauF;
+        double Intensity, Stokes_I, Stokes_Q, Stokes_U, Stokes_V, tauF, Tau;
 
         init_XK(i,j, Xcam, fovx,fovy, X, Kcon); 
         for (int k=0; k<NDIM; ++ k) Kcon[k] *= freq;
@@ -378,6 +379,7 @@ int main(int argc, char *argv[])
 
         init_N(Xi, Kconi, N_coord);
         Intensity = 0.0;
+        Tau = 0.;
         tauF = 0.;
 
         get_jkinv(traj[nstep].X, traj[nstep].Kcon, &ji, &ki);
@@ -398,7 +400,7 @@ int main(int argc, char *argv[])
 
           // solve total intensity equation alone
           get_jkinv(Xf, Kconi, &jf, &kf);
-          Intensity = approximate_solve(Intensity, ji, ki, jf, kf, traj[nstep].dl);
+          Intensity = approximate_solve(Intensity, ji, ki, jf, kf, traj[nstep].dl, &Tau);
 
           // solve polarized transport
           evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
@@ -427,6 +429,7 @@ int main(int argc, char *argv[])
 
             // deposit intensity and Stokes parameter in pixels
             image[i][j] = Intensity * pow(freqcgs, 3);
+            taus[i][j] = Tau;
             project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V);
             imageS[i][j][0] = Stokes_I * pow(freqcgs, 3);
             imageS[i][j][1] = Stokes_Q * pow(freqcgs, 3);
@@ -479,9 +482,9 @@ int main(int argc, char *argv[])
           // dump result. if parameters have been loaded, don't also
           // output image
           if (params.loaded) {
-            dump(image, imageS, params.outf, scale, Dsource, Xcam, DX, DY, fovx, fovy);
+            dump(image, imageS, taus, params.outf, scale, Dsource, Xcam, DX, DY, fovx, fovy);
           } else {
-            dump(image, imageS, "ipole.dat", scale, Dsource, Xcam, DX, DY, fovx, fovy);
+            dump(image, imageS, taus, "ipole.dat", scale, Dsource, Xcam, DX, DY, fovx, fovy);
             IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
             make_ppm(image, freq, "ipole_lfnu.ppm");
           }
@@ -494,9 +497,9 @@ int main(int argc, char *argv[])
       }
 
 
-      void dump(double image[NX][NY], double imageS[NX][NY][NIMG], const char *fname,
-          double scale, double Dsource, double cam[NDIM], double DX, double DY,
-          double fovx, double fovy)
+      void dump(double image[NX][NY], double imageS[NX][NY][NIMG], double taus[NX][NY],
+          const char *fname, double scale, double Dsource, double cam[NDIM], double DX, 
+          double DY, double fovx, double fovy)
       {
         hid_t fid = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
@@ -543,6 +546,7 @@ int main(int argc, char *argv[])
         h5io_add_data_dbl(fid, "/nuLnu_unpol", 4. * M_PI * Ftot_unpol * Dsource * Dsource * JY * freqcgs);
 
         h5io_add_data_dbl_2d(fid, "/unpol", NX, NY, image);
+        h5io_add_data_dbl_2d(fid, "/tau", NX, NY, taus);
         h5io_add_data_dbl_3d(fid, "/pol", NX, NY, 5, imageS);
 
         // allow model to output
@@ -608,7 +612,7 @@ int main(int argc, char *argv[])
        * return final intensity
        */
       double approximate_solve(double Ii, double ji, double ki, double jf,
-          double kf, double dl)
+          double kf, double dl, double *tau)
       {
         double efac, If, javg, kavg, dtau;
 
@@ -616,6 +620,7 @@ int main(int argc, char *argv[])
         kavg = (ki + kf) / 2.;
 
         dtau = dl * kavg;
+        *tau += dtau;
 
         if (dtau < 1.e-3) {
           If = Ii + (javg - Ii * kavg) * dl * (1. -
