@@ -258,7 +258,7 @@ double jnu_synch(double nu, double Ne, double Thetae, double B, double theta)
   double K2,nuc,nus,x,f,j,sth ;
 
   //K2 = gsl_sf_bessel_Kn(2,1./Thetae) ;
-  K2 = 2.*Thetae*Thetae ;
+  K2 = 2*Thetae*Thetae;
 
   nuc = EE*B/(2.*M_PI*ME*CL) ;
   sth = sin(theta) ;

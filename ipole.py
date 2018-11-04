@@ -15,6 +15,7 @@ phi = float(sys.argv[2])
 
 # read in header
 with open(fil, 'r') as f:
+  print(f.readline())
   line = f.readline().split(' ')
   NX = int(line[0])
   NY = int(line[1])

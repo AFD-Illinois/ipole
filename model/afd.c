@@ -5,8 +5,8 @@
 #define SLOW_LIGHT (0)
 
 // Jet fixups
-#define USE_FLRADV (1)
-#define SIGMAC (1.)
+#define USE_FLRADV (0)
+#define SIGMAC (10)
 
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
@@ -622,7 +622,9 @@ double get_model_ne(double X[NDIM])
       return(0.) ;
   }
 
-  if ( X[2] < 0.05 || X[2] > 0.95 ) return 0.;
+  //double DX2 = 2*dx[2];//0.04;
+  //if ( X[2] < DX2 || X[2] > 1. - DX2 ) return 0.;
+  //if (X[1] > 3.) return 0.;
 
   double neA, neB, tfac;
   int nA, nB;
@@ -807,12 +809,12 @@ void init_physical_quantities(int n)
     for (j = 0; j < N2+2; j++) {
       for (k = 0; k < N3+2; k++) {
         data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k]*Ne_unit;
-        /*if (with_flooradv && USE_FLRADV) {
+        if (with_flooradv && USE_FLRADV) {
           double rho = data[n]->p[KRHO][i][j][k] - data[n]->p[RHOFL][i][j][k];
           rho = MAX(rho, 0);
           rho = MIN(rho, data[n]->p[KRHO][i][j][k]);
           data[n]->ne[i][j][k] = rho*Ne_unit;
-        }*/
+        }
 
         //if (k == 0 || k == 1 || k == N3 || k == N3 + 1) data[n]->ne[i][j][k] = 0.;
         //if (j == 0 || j == 1 || j == N2 || j == N2+1) data[n]->ne[i][j][k] = 0.;
@@ -1089,8 +1091,8 @@ void init_grid(char *fname)
   }
   if (with_radiation) hdf5_read_single_val(&MBH, "Mbh", H5T_IEEE_F64LE);
   
-  //hdf5_set_directory("/header/geom/");
-  hdf5_set_directory("/geom/");
+  hdf5_set_directory("/header/geom/");
+  //hdf5_set_directory("/geom/");
   startx[0] = 0.;
   hdf5_read_single_val(&startx[1], "startx1", H5T_IEEE_F64LE);
   hdf5_read_single_val(&startx[2], "startx2", H5T_IEEE_F64LE);
@@ -1101,15 +1103,15 @@ void init_grid(char *fname)
 
   R0 = 0.;
   if (metric == MKS) {
-    //hdf5_set_directory("/header/geom/mks/");
-    hdf5_set_directory("/geom/mks/");
+    hdf5_set_directory("/header/geom/mks/");
+    //hdf5_set_directory("/geom/mks/");
     hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
     hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
     hdf5_read_single_val(&Rin, "r_in", H5T_IEEE_F64LE);
     hdf5_read_single_val(&Rout, "r_out", H5T_IEEE_F64LE);
   } else if (metric == MMKS) {
-    //hdf5_set_directory("/header/geom/mmks/");
-    hdf5_set_directory("/geom/mmks/");
+    hdf5_set_directory("/header/geom/mmks/");
+    //hdf5_set_directory("/geom/mmks/");
     hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
     hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
     hdf5_read_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
@@ -1130,6 +1132,15 @@ void init_grid(char *fname)
     hdf5_read_single_val(&B_unit, "B_unit", H5T_IEEE_F64LE);
     hdf5_read_single_val(&Ne_unit, "Ne_unit", H5T_IEEE_F64LE);
     hdf5_read_single_val(&Thetae_unit, "Thetae_unit", H5T_IEEE_F64LE);
+  
+    /*printf("\n\n\n\nFAKING M_UNIT!!!!\n\n\n\n");
+    double fac = 1.07;
+    M_unit *= fac;
+    RHO_unit *= fac;
+    U_unit *= fac;
+    B_unit *= sqrt(fac);
+    Ne_unit *= fac;*/
+
   } else {
     L_unit = GNEWT*MBH/(CL*CL);
     T_unit = L_unit/CL;
@@ -1186,7 +1197,7 @@ void load_data(int n, char *fname)
   int i,j,k,l,m;
   double X[NDIM],UdotU,ufac,udotB;
   double gcov[NDIM][NDIM],gcon[NDIM][NDIM], g;
-  double dMact, Ladv;
+  double dMact, Ladv, Pj;
   double r,th;
  
   if (hdf5_open(fname) < 0) {
@@ -1246,7 +1257,7 @@ void load_data(int n, char *fname)
   X[0] = 0.;
   //X[3] = 0.;
 
-  dMact = Ladv = 0.;
+  dMact = Ladv = Pj = 0.;
 
   // construct four-vectors over "real" zones
   for(i = 1; i < N1+1; i++){
@@ -1288,6 +1299,13 @@ void load_data(int n, char *fname)
         }
 
         lower(data[n]->bcon[i][j][k], gcov, data[n]->bcov[i][j][k]);
+        double bsq = 0.;
+        MULOOP bsq += data[n]->bcon[i][j][k][mu]*data[n]->bcov[i][j][k][mu];
+
+        //if (i <= 21 && bsq/data[n]->p[KRHO][i][j][k] > 1) {
+        if (i == 128) {
+          Pj += g*((gam*data[n]->p[UU][i][j][k] + bsq)*data[n]->ucon[i][j][k][1]*data[n]->ucov[i][j][k][0] - data[n]->bcon[i][j][k][1]*data[n]->bcon[i][j][k][0]);
+        }
 
         if(i <= 21) { dMact += g * data[n]->p[KRHO][i][j][k] * data[n]->ucon[i][j][k][1]; }
         if(i >= 21 && i < 41 && 0) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
@@ -1393,6 +1411,10 @@ void load_data(int n, char *fname)
   dMact /= 21. ;
   Ladv *= dx[3]*dx[2] ;
   Ladv /= 21. ;
+  Pj *= dx[3]*dx[2];
+  //Pj /= 21.;
+  Pj *= U_unit*pow(L_unit,3.)/T_unit;
+  Pj /= 2.; // Power for just one jet
 
   fprintf(stderr,"dMact: %g [code]\n",dMact) ;
   fprintf(stderr,"Ladv: %g [code]\n",Ladv) ;
@@ -1401,6 +1423,7 @@ void load_data(int n, char *fname)
   fprintf(stderr,"Mdot: %g [Mdotedd]\n",-dMact*M_unit/T_unit/Mdotedd) ;
   fprintf(stderr,"Mdotedd: %g [g/s]\n",Mdotedd) ;
   fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Mdotedd/(MSUN/YEAR)) ;
+  fprintf(stderr,"Pj: %g [erg/s]\n",Pj);
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
   init_physical_quantities(n);

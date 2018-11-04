@@ -88,8 +88,12 @@ int main(int argc, char *argv[])
 
   /* fix camera field of view */
   /* units = GM/c^2 in plane of the hole */
-  DX = 40.0;
-  DY = 40.0;
+  DX = 40.;
+  DY = 40.;
+
+  // Good for 43 GHz images of M87
+  //DX = 750.0;
+  //DY = 750.0;
   fovx = DX / rcam;
   fovy = DY / rcam;
 
