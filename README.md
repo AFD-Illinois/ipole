@@ -5,9 +5,9 @@ polarized covariant radiative transport code
 
 You can build the ```ipole``` executable by using the python build script as follows
 ```bash
-$ python build.py [MODEL]
+$ python build.py [MODEL] [NOTES]
 ```
-where ```[MODEL]``` specifies the fluid data format. For all fluid data produced from Illinois codes after September 2018, the ```iharm``` model should be used.
+where ```[MODEL]``` specifies the fluid data format. For all fluid data produced from Illinois codes after September 2018, the ```iharm``` model should be used. The optional argument ```[NOTES]``` can be any string (containing no spaces). This string will be "baked-in" to the executable and printed out whenever the program is run. 
 
 # running
 
