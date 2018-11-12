@@ -3,8 +3,8 @@
 
 #define NVAR (10)
 #define SLOW_LIGHT (0)
-#define USE_FIXED_TPTE (1)
-#define USE_MIXED_TPTE (0)
+#define USE_FIXED_TPTE (0)
+#define USE_MIXED_TPTE (1)
 
 // these will be overwritten by anything found in par.c (or in runtime parameter file)
 static double tp_over_te = 3.; 
@@ -805,7 +805,9 @@ void init_physical_quantities(int n)
           double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
           double betasq = beta*beta;
           double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
-          Thetae_unit = (gam - 1.) * (MP / ME) / trat;
+          //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
+          // see, e.g., Eq. 8 of the EHT GRRT formula list
+          Thetae_unit = (MP/ME) * (game-1.) * (gamp-1.) / ( (gamp-1.) + (game-1.)*trat );
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         } else {
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
