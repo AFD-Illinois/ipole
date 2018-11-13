@@ -1102,7 +1102,6 @@ void init_iharm_grid(char *fname)
   hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
   hdf5_read_single_val(&Rin, "Rin", H5T_IEEE_F64LE);
   hdf5_read_single_val(&Rout, "Rout", H5T_IEEE_F64LE);
-  if (a < 1.e-4) a = 1.e-4;
 
   if (DEREFINE_POLES) {
     fprintf(stderr, "custom refinement at poles loaded...\n");

@@ -583,7 +583,7 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
 
   /* construct *outgoing* wavevectors */
   Kcon_tetrad[0] = 0.;
-  Kcon_tetrad[1] = (i / ((double) NX) - 0.5) * fovx;
+  Kcon_tetrad[1] = ((i-0.01) / ((double) NX) - 0.5) * fovx;
   Kcon_tetrad[2] = (j / ((double) NY) - 0.5) * fovy;
   Kcon_tetrad[3] = 1.;
 
