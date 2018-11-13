@@ -48,6 +48,8 @@
 #define MULOOP for(int mu=0;mu<NDIM;mu++)                                        
 #define MUNULOOP for(int mu=0;mu<NDIM;mu++) for(int nu=0;nu<NDIM;nu++) 
 
+#define P4VEC(S,X) fprintf(stderr, "%s: %g %g %g %g\n", S, X[0], X[1], X[2], X[3]);
+
 /* some coordinate parameters */
 extern double a;
 

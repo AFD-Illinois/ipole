@@ -61,9 +61,12 @@ void parse_input(int argc, char *argv[], Params *params)
     return;
   }
 
-  if (argc < 7 || argc > 8) {
+  fprintf(stderr, "argc: %d\n", argc);
+
+  // 7 -> defaults, 8 -> fixed, 9 -> mixed
+  if (argc < 7 || argc > 9) {
     fprintf(stderr, "ERROR format is\n");
-    fprintf(stderr, "  ipole theta[deg] freq[cgs] MBH[Msolar] M_unit[g] filename counterjet\n");
+    fprintf(stderr, "  ipole theta[deg] freq[cgs] MBH[Msolar] M_unit[g] filename counterjet [...thermodynamics]\n");
     exit(-1);
   }
 
@@ -74,6 +77,15 @@ void parse_input(int argc, char *argv[], Params *params)
   sscanf(argv[4], "%lf", &M_unit);
   strcpy(fnam, argv[5]);
   sscanf(argv[6], "%d",  &counterjet);
+
+  if (argc == 8) {
+    sscanf(argv[7], "%lf", &tp_over_te);
+  }
+
+  if (argc == 9) {
+    sscanf(argv[7], "%lf", &trat_small);
+    sscanf(argv[8], "%lf", &trat_large);
+  }
 }
 
 double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
@@ -793,12 +805,6 @@ void init_physical_quantities(int n)
         data[n]->b[i][j][k] = sqrt(bsq)*B_unit;
         sigma_m = bsq/data[n]->p[KRHO][i][j][k];
 
-        // beta presciption
-        //beta=p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-        //b2=pow(beta,2);
-        //trat = trat_d * b2/(1. + b2) + trat_j /(1. + b2);
-        //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
-        
         if (ELECTRONS == 1) {
           data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
         } else if (ELECTRONS == 2) {
@@ -1096,6 +1102,7 @@ void init_iharm_grid(char *fname)
   hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
   hdf5_read_single_val(&Rin, "Rin", H5T_IEEE_F64LE);
   hdf5_read_single_val(&Rout, "Rout", H5T_IEEE_F64LE);
+  if (a < 1.e-4) a = 1.e-4;
 
   if (DEREFINE_POLES) {
     fprintf(stderr, "custom refinement at poles loaded...\n");
