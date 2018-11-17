@@ -12,6 +12,10 @@
 // groups
 void h5io_add_group(hid_t fid, const char *path);
 
+// blobs
+typedef hid_t hdf5_blob;
+void h5io_add_blob(hid_t fid, const char *path, hdf5_blob blob);
+
 // attributes
 void h5io_add_attribute_int(hid_t fid, const char *path, const char *name, int attribute);
 void h5io_add_attribute_dbl(hid_t fid, const char *path, const char *name, double attribute);

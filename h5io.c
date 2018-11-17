@@ -7,6 +7,11 @@ void h5io_add_group(hid_t fid, const char *path)
   H5Gclose(group_id);
 }
 
+void h5io_add_blob(hid_t fid, const char *path, hdf5_blob blob)
+{
+  H5Ocopy(blob, "blob", fid, path, H5P_DEFAULT, H5P_DEFAULT);
+}
+
 void h5io_add_attribute_int(hid_t fid, const char *path, const char *name, int attribute)
 {
   hid_t dataspace_id = H5Screate(H5S_SCALAR);

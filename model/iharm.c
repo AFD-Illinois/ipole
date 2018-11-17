@@ -22,6 +22,7 @@ double interp_scalar(double X[NDIM], double ***var) ;
 static double poly_norm, poly_xt, poly_alpha, mks_smooth;
 static double game, gamp;
 
+static hdf5_blob fluid_header = { 0 };
 static double MBH, Mdotedd, tp_over_te, Thetae_unit;
 #define NSUP (3)
 
@@ -1019,7 +1020,9 @@ void init_iharm_grid(char *fname)
     exit(-2);
   }
 
+  // get dump info to copy to ipole output
   hdf5_read_single_val(&t0, "t", H5T_IEEE_F64LE);
+  fluid_header = hdf5_get_blob("/header");
 
   hdf5_set_directory("/header/");
 
@@ -1154,6 +1157,8 @@ void init_iharm_grid(char *fname)
 void output_hdf5(hid_t fid)
 {
   h5io_add_data_dbl(fid, "/header/t", data[0]->t); 
+  h5io_add_blob(fid, "/fluid_header", fluid_header); 
+  hdf5_close_blob(fluid_header);
 }
 
 void load_iharm_data(int n, char *fname)
