@@ -1158,6 +1158,16 @@ void output_hdf5(hid_t fid)
 {
   h5io_add_data_dbl(fid, "/header/t", data[0]->t); 
   h5io_add_blob(fid, "/fluid_header", fluid_header); 
+
+  h5io_add_group(fid, "/header/electrons");
+  if (ELECTRONS == 0) {
+    h5io_add_data_dbl(fid, "/header/electrons/tp_over_te", tp_over_te);
+  } else if (ELECTRONS == 2) {
+    h5io_add_data_dbl(fid, "/header/electrons/rlow", trat_small);
+    h5io_add_data_dbl(fid, "/header/electrons/rhigh", trat_large);
+  }
+  h5io_add_data_int(fid, "/header/electrons/type", ELECTRONS);
+
   hdf5_close_blob(fluid_header);
 }
 

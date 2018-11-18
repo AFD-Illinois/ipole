@@ -95,12 +95,11 @@ void null_normalize(double Kcon[NDIM], double fnorm) ;
 void normalize(double *vcon, double gcov[][NDIM]);
 double approximate_solve(double Ii, double ji, double ki, double jf, double kf, double dl, double *tau);
 void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv);
-int    stop_forward_integration(double X[NDIM], double Kcon[NDIM],
-	double Xcam[NDIM]) ;
-int    stop_backward_integration(double X[NDIM], double Kcon[NDIM],
-	double Xcam[NDIM]) ;
-void dump(double image[NX][NY], double imageS[NX][NY][NIMG], double taus[NX][NY], const char *fname, double scale, 
-          double Dsource, double cam[NDIM], double DX, double DY, double fovx, double fovy);
+int    stop_forward_integration(double X[NDIM], double Kcon[NDIM], double Xcam[NDIM]);
+int    stop_backward_integration(double X[NDIM], double Kcon[NDIM], double Xcam[NDIM]);
+void dump(double image[NX][NY], double imageS[NX][NY][NIMG], double taus[NX][NY], 
+          const char *fname, double scale, double Dsource, double cam[NDIM], double DX, 
+          double DY, double fovx, double fovy, double rcam, double thetacam, double phicam);
 
 /* geodesic integration */
 //void   push_photon(double X[NDIM], double Kcon[NDIM], double dl);

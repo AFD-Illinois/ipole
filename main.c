@@ -490,9 +490,11 @@ int main(int argc, char *argv[])
     // dump result. if parameters have been loaded, don't also
     // output image
     if (params.loaded) {
-      dump(image, imageS, taus, params.outf, scale, Dsource, Xcam, DX, DY, fovx, fovy);
+      dump(image, imageS, taus, params.outf, scale, Dsource, Xcam, DX, DY, 
+           fovx, fovy, rcam, thetacam, phicam);
     } else {
-      dump(image, imageS, taus, "ipole.dat", scale, Dsource, Xcam, DX, DY, fovx, fovy);
+      dump(image, imageS, taus, "ipole.dat", scale, Dsource, Xcam, DX, DY, 
+           fovx, fovy, rcam, thetacam, phicam);
       IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
       make_ppm(image, freq, "ipole_lfnu.ppm");
     }
@@ -507,7 +509,7 @@ int main(int argc, char *argv[])
 
 void dump(double image[NX][NY], double imageS[NX][NY][NIMG], double taus[NX][NY],
     const char *fname, double scale, double Dsource, double cam[NDIM], double DX, 
-    double DY, double fovx, double fovy)
+    double DY, double fovx, double fovy, double rcam, double thetacam, double phicam)
 {
   hid_t fid = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
@@ -530,6 +532,9 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], double taus[NX][NY]
   h5io_add_data_dbl(fid, "/header/camera/dy", DY);
   h5io_add_data_dbl(fid, "/header/camera/fovx", fovx);
   h5io_add_data_dbl(fid, "/header/camera/fovy", fovy);
+  h5io_add_data_dbl(fid, "/header/camera/rcam", rcam);
+  h5io_add_data_dbl(fid, "/header/camera/thetacam", thetacam);
+  h5io_add_data_dbl(fid, "/header/camera/phicam", phicam);
   h5io_add_data_dbl_1d(fid, "/header/camera/x", NDIM, cam);
 
   h5io_add_group(fid, "/header/units");
