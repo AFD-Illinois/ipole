@@ -3,8 +3,8 @@
 
 #define NVAR (10)
 #define SLOW_LIGHT (0)
-#define USE_FIXED_TPTE (0)
-#define USE_MIXED_TPTE (1)
+#define USE_FIXED_TPTE (1)
+#define USE_MIXED_TPTE (0)
 
 // these will be overwritten by anything found in par.c (or in runtime parameter file)
 static double tp_over_te = 3.; 
@@ -15,12 +15,16 @@ static double trat_large = 30.;
 //    0 : constant TP_OVER_TE
 //    1 : use dump file model (kawazura?)
 //    2 : use mixed TP_OVER_TE (beta model)
-static int RADIATION, ELECTRONS, DEREFINE_POLES;
+static int RADIATION, ELECTRONS;
 
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
-static double poly_norm, poly_xt, poly_alpha, mks_smooth;
 static double game, gamp;
+
+// metric parameters
+static int DEREFINE_POLES, METRIC_MKS3;
+static double poly_norm, poly_xt, poly_alpha, mks_smooth; // mmks
+static double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 
 static hdf5_blob fluid_header = { 0 };
 static double MBH, Mdotedd, tp_over_te, Thetae_unit;
@@ -171,7 +175,23 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
 {
   MUNULOOP dxdX[mu][nu] = 0.;
 
-  if (DEREFINE_POLES) {
+  if ( METRIC_MKS3 ) {
+    // mks3 ..
+   
+    dxdX[0][0] = 1.;
+    dxdX[1][1] = exp(X[1]);
+    dxdX[2][1] = -(pow(2.,-1. + mks3MP0)*exp(X[1])*mks3H0*mks3MP0*(mks3MY1 - 
+              mks3MY2)*pow(M_PI,2)*pow(exp(X[1]) + mks3R0,-1 - mks3MP0)*(-1 + 
+              2*X[2])*1./tan((mks3H0*M_PI)/2.)*pow(1./cos(mks3H0*M_PI*(-0.5 + (mks3MY1 + 
+              (pow(2,mks3MP0)*(-mks3MY1 + mks3MY2))/pow(exp(X[1]) + mks3R0,mks3MP0))*(1 - 
+              2*X[2]) + X[2])),2));
+    dxdX[2][2]= (mks3H0*pow(M_PI,2)*(1 - 2*(mks3MY1 + (pow(2,mks3MP0)*(-mks3MY1 +
+             mks3MY2))/pow(exp(X[1]) + mks3R0,mks3MP0)))*1./tan((mks3H0*M_PI)/2.)*
+             pow(1./cos(mks3H0*M_PI*(-0.5 + (mks3MY1 + (pow(2,mks3MP0)*(-mks3MY1 +
+             mks3MY2))/pow(exp(X[1]) + mks3R0,mks3MP0))*(1 - 2*X[2]) + X[2])),2))/2.;
+    dxdX[3][3] = 1.;
+
+  } else if (DEREFINE_POLES) {
 
     // mmks
     dxdX[0][0] = 1.;
@@ -754,7 +774,10 @@ void bl_coord(double X[NDIM], double *r, double *th)
 {
   *r = exp(X[1]);
 
-  if (DEREFINE_POLES) {
+  if (METRIC_MKS3) {
+    *r = exp(X[1]) + mks3R0;
+    *th = (M_PI*(1. + 1./tan((mks3H0*M_PI)/2.)*tan(mks3H0*M_PI*(-0.5 + (mks3MY1 + (pow(2.,mks3MP0)*(-mks3MY1 + mks3MY2))/pow(exp(X[1])+mks3R0,mks3MP0))*(1. - 2.*X[2]) + X[2]))))/2.;
+  } else if (DEREFINE_POLES) {
     double thG = M_PI*X[2] + ((1. - hslope)/2.)*sin(2.*M_PI*X[2]);
     double y = 2*X[2] - 1.;
     double thJ = poly_norm*y*(1. + pow(y/poly_xt,poly_alpha)/(poly_alpha+1.)) + 0.5*M_PI;
@@ -1037,8 +1060,13 @@ void init_iharm_grid(char *fname)
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric, "metric", HDF5_STR_TYPE);
 
+  DEREFINE_POLES = 0;
+  METRIC_MKS3 = 0;
+
   if ( strncmp(metric, "MMKS", 19) == 0 ) 
     DEREFINE_POLES = 1;
+  else if ( strncmp(metric, "MKS3", 19) == 0 )
+    METRIC_MKS3 = 1;
 
   hdf5_read_single_val(&N1, "n1", H5T_STD_I32LE);
   hdf5_read_single_val(&N2, "n2", H5T_STD_I32LE);
@@ -1100,20 +1128,31 @@ void init_iharm_grid(char *fname)
 
   hdf5_set_directory("/header/geom/mks/");
   if ( DEREFINE_POLES ) hdf5_set_directory("/header/geom/mmks/");
+  if ( METRIC_MKS3 ) {
+    hdf5_set_directory("/header/geom/mks3/");
+    hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mks3R0, "R0", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mks3H0, "H0", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mks3MY1, "MY1", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mks3MY2, "MY2", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mks3MP0, "MP0", H5T_IEEE_F64LE);
+  } else {
+    hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rin, "Rin", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rout, "Rout", H5T_IEEE_F64LE);
 
-  hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&Rin, "Rin", H5T_IEEE_F64LE);
-  hdf5_read_single_val(&Rout, "Rout", H5T_IEEE_F64LE);
-
-  if (DEREFINE_POLES) {
-    fprintf(stderr, "custom refinement at poles loaded...\n");
-    hdf5_read_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
-    poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
- }
-
+    if (DEREFINE_POLES) {
+      fprintf(stderr, "custom refinement at poles loaded...\n");
+      hdf5_read_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
+      hdf5_read_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
+      hdf5_read_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
+      poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
+    }
+  }
+  
+  // DEBUG TODO Need to set Rout in a comprehensible way.
+  // also think about Rin ... do we ever rely on hslope, Rin, Rout?
   rmax = MIN(50., Rout);
   rmax = Rout;
 
