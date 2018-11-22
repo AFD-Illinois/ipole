@@ -17,11 +17,22 @@ static double trat_large = 30.;
 //    2 : use mixed TP_OVER_TE (beta model)
 static int RADIATION, ELECTRONS;
 
+static inline __attribute__((always_inline)) void set_dxdX_metric(double X[NDIM], double dxdX[NDIM][NDIM], int metric);
+static inline __attribute__((always_inline)) void gcov_ks(double r, double th, double gcov[NDIM][NDIM]);
+double gdet_zone(int i, int j, int k);
+void ijktoX(int i, int j, int k, double X[NDIM]);
+void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]) ;
+int X_in_domain(double X[NDIM]);
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
 static double game, gamp;
 
-// metric parameters
+// metric parameters 
+//  note: if METRIC_eKS, then the code will use "expoential KS" coordinates
+//        defined by x^a = { x^0, log(x^1), x^2, x^3 } where x^0, x^1, x^2,
+//        x^3 are normal KS coordinates. in addition, you must set METRIC_* 
+//        as well in order to specify how Xtoijk should work.
+int METRIC_eKS;
 static int DEREFINE_POLES, METRIC_MKS3;
 static double poly_norm, poly_xt, poly_alpha, mks_smooth; // mmks
 static double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
@@ -173,11 +184,24 @@ void update_data()
 
 void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
 {
+  set_dxdX_metric(X, dxdX, 0);
+}
+
+static inline __attribute__((always_inline)) void set_dxdX_metric(double X[NDIM], double dxdX[NDIM][NDIM], int metric)
+{
+  // Jacobian with respect to KS basis where X is given in
+  // non-KS basis
   MUNULOOP dxdX[mu][nu] = 0.;
 
-  if ( METRIC_MKS3 ) {
-    // mks3 ..
+  if ( METRIC_eKS && metric==0 ) {
+
+    MUNULOOP dxdX[mu][nu] = mu==nu ? 1 : 0;
+    dxdX[1][1] = exp(X[1]);
+    dxdX[2][2] = M_PI;
+
+  } else if ( METRIC_MKS3 ) {
    
+    // mks3 ..
     dxdX[0][0] = 1.;
     dxdX[1][1] = exp(X[1]);
     dxdX[2][1] = -(pow(2.,-1. + mks3MP0)*exp(X[1])*mks3H0*mks3MP0*(mks3MY1 - 
@@ -229,33 +253,14 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
  
   MUNULOOP gcov[mu][nu] = 0.;
     
-  double sth, cth, s2, rho2;
   double r, th;
 
   // despite the name, get equivalent values for
   // r, th for kerr coordinate system
   bl_coord(X, &r, &th);
 
-  cth = cos(th);
-  sth = sin(th);
-
-  s2 = sth*sth;
-  rho2 = r*r + a*a*cth*cth;
-
-  // compute ks metric for ks coordinates (cyclic in t,phi)
-  gcov[0][0] = -1. + 2.*r/rho2;
-  gcov[0][1] = 2.*r/rho2;
-  gcov[0][3] = -2.*a*r*s2/rho2;
-
-  gcov[1][0] = gcov[0][1];
-  gcov[1][1] = 1. + 2.*r/rho2;
-  gcov[1][3] = -a*s2*(1. + 2.*r/rho2);
-  
-  gcov[2][2] = rho2;
-  
-  gcov[3][0] = gcov[0][3];
-  gcov[3][1] = gcov[1][3];
-  gcov[3][3] = s2*(rho2 + a*a*s2*(1. + 2.*r/rho2));
+  // compute ks metric
+  gcov_ks(r, th, gcov);
 
   // convert from ks metric to mks/mmks
   double dxdX[NDIM][NDIM];
@@ -274,8 +279,66 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
       }
     }
   }
-
 }
+
+// return the gdet associated with zone coordinates for the zone at
+// i,j,k
+double gdet_zone(int i, int j, int k)
+{
+  // get the X for the zone (in geodesic coordinates for bl_coord) 
+  // and in zone coordinates (for set_dxdX_metric)
+  double X[NDIM], Xzone[NDIM];
+  ijktoX(i,j,k, X);
+  Xzone[0] = 0.;
+  Xzone[1] = startx[1] + (i+0.5)*dx[1];
+  Xzone[2] = startx[2] + (j+0.5)*dx[2];
+  Xzone[3] = startx[3] + (k+0.5)*dx[3];
+
+  // then get gcov for the zone (in zone coordinates)
+  double gcovKS[NDIM][NDIM], gcov[NDIM][NDIM];
+  double r, th;
+  double dxdX[NDIM][NDIM];
+  MUNULOOP gcovKS[mu][nu] = 0.;
+  MUNULOOP gcov[mu][nu] = 0.;
+  bl_coord(X, &r, &th);
+  gcov_ks(r, th, gcovKS);
+  set_dxdX_metric(Xzone, dxdX, 1);
+  MUNULOOP {
+    for (int lam=0; lam<NDIM; ++lam) {
+      for (int kap=0; kap<NDIM; ++kap) {
+        gcov[mu][nu] += gcovKS[lam][kap]*dxdX[lam][mu]*dxdX[kap][nu];
+      }
+    }
+  }
+
+  return gdet_func(gcov); 
+}
+
+// compute KS metric at point (r,th) in KS coordinates (cyclic in t, ph)
+static inline __attribute__((always_inline)) void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
+{
+  double cth = cos(th);
+  double sth = sin(th);
+
+  double s2 = sth*sth;
+  double rho2 = r*r + a*a*cth*cth;
+
+  // compute ks metric for ks coordinates (cyclic in t,phi)
+  gcov[0][0] = -1. + 2.*r/rho2;
+  gcov[0][1] = 2.*r/rho2;
+  gcov[0][3] = -2.*a*r*s2/rho2;
+
+  gcov[1][0] = gcov[0][1];
+  gcov[1][1] = 1. + 2.*r/rho2;
+  gcov[1][3] = -a*s2*(1. + 2.*r/rho2);
+
+  gcov[2][2] = rho2;
+
+  gcov[3][0] = gcov[0][3];
+  gcov[3][1] = gcov[1][3];
+  gcov[3][3] = s2*(rho2 + a*a*s2*(1. + 2.*r/rho2));
+}
+
 
 void get_connection(double X[4], double lconn[4][4][4])
 {
@@ -312,7 +375,8 @@ void init_model(char *args[])
   fprintf(stderr, "success\n");
 
   // horizon radius
-  Rh = 1 + sqrt(1. - a * a) ;
+  Rh = 1 + sqrt(1. - a * a);
+
 }
 
 /*
@@ -331,10 +395,7 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   // If we're outside of the logical domain, default to
   // normal observer velocity for Ucon/Ucov and default
   // Bcon/Bcov to zero.
-  if ( X[1] < startx[1] ||
-       X[1] > stopx[1]  || 
-       X[2] < startx[2] || 
-       X[2] > stopx[2] ) {
+  if ( X_in_domain(X) == 0 ) {
 
     Ucov[0] = -1./sqrt(-gcov[0][0]);
     Ucov[1] = 0.;
@@ -408,185 +469,9 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   lower(Bcon, gcov, Bcov);
 }
 
-void get_model_ucov(double X[NDIM], double Ucov[NDIM])
-{
-  double gcov[NDIM][NDIM];
-
-  gcov_func(X, gcov);
-
-  if(X[1] < startx[1] || 
-     X[1] > stopx[1]  || 
-     X[2] < startx[2] || 
-     X[2] > stopx[2]) {
-     
-    // sensible default value
-    Ucov[0] = -1./sqrt(-gcov[0][0]) ;
-    Ucov[1] = 0. ;
-    Ucov[2] = 0. ;
-    Ucov[3] = 0. ;
-
-    return ;
-  }
-
-  double Ucon[NDIM];
-  get_model_ucon(X, Ucon);
-  lower(Ucon, gcov, Ucov);
-
-}
-
-void get_model_ucon(double X[NDIM], double Ucon[NDIM])
-{
-  double gcov[NDIM][NDIM] ;
-  double gcon[NDIM][NDIM] ;
-  double tmp[NDIM] ;
-
-  gcov_func(X, gcov);
-  gcon_func(gcov, gcon);
-
-  if(X[1] < startx[1] || 
-     X[1] > stopx[1]  || 
-     X[2] < startx[2] || 
-     X[2] > stopx[2]) {
-      /* sensible default value */
-      gcov_func(X, gcov) ;
-
-    tmp[0] = -1./sqrt(-gcov[0][0]) ;
-    tmp[1] = 0. ;
-    tmp[2] = 0. ;
-    tmp[3] = 0. ;
-
-      gcon_func(gcov, gcon) ;
-    Ucon[0] = 
-      tmp[0]*gcon[0][0] +
-      tmp[1]*gcon[0][1] +
-      tmp[2]*gcon[0][2] +
-      tmp[3]*gcon[0][3] ;
-    Ucon[1] = 
-      tmp[0]*gcon[1][0] +
-      tmp[1]*gcon[1][1] +
-      tmp[2]*gcon[1][2] +
-      tmp[3]*gcon[1][3] ;
-    Ucon[2] = 
-      tmp[0]*gcon[2][0] +
-      tmp[1]*gcon[2][1] +
-      tmp[2]*gcon[2][2] +
-      tmp[3]*gcon[2][3] ;
-    Ucon[3] = 
-      tmp[0]*gcon[3][0] +
-      tmp[1]*gcon[3][1] +
-      tmp[2]*gcon[3][2] +
-      tmp[3]*gcon[3][3] ;
-  
-    return ;
-  }
- 
-  // safer version to recover four velocity
-
-  // interpolate primitive variables first
-  double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
-  double Vcon[NDIM];
-  int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  U1A = interp_scalar(X, data[nA]->p[U1]);
-  U2A = interp_scalar(X, data[nA]->p[U2]);
-  U3A = interp_scalar(X, data[nA]->p[U3]);
-  U1B = interp_scalar(X, data[nB]->p[U1]);
-  U2B = interp_scalar(X, data[nB]->p[U2]);
-  U3B = interp_scalar(X, data[nB]->p[U3]);
-  Vcon[1] = tfac*U1A + (1. - tfac)*U1B;
-  Vcon[2] = tfac*U2A + (1. - tfac)*U2B;
-  Vcon[3] = tfac*U3A + (1. - tfac)*U3B;
-
-  // translate to four velocity
-  double VdotV = 0.;
-  for (int i = 1; i < NDIM; i++)
-    for (int j = 1; j < NDIM; j++)
-      VdotV += gcov[i][j] * Vcon[i] * Vcon[j];
-  double Vfac = sqrt(-1. / gcon[0][0] * (1. + fabs(VdotV)));
-  Ucon[0] = -Vfac * gcon[0][0];
-  for (int i = 1; i < NDIM; i++)
-    Ucon[i] = Vcon[i] - Vfac * gcon[0][i];
-
-}
-
-void get_model_bcov(double X[NDIM], double Bcov[NDIM])
-{
-  if(X[1] < startx[1] || 
-     X[1] > stopx[1]  || 
-     X[2] < startx[2] || 
-     X[2] > stopx[2]) {
-
-      Bcov[0] = 0. ;
-      Bcov[1] = 0. ;
-      Bcov[2] = 0. ;
-      Bcov[3] = 0. ;
-
-    return ;
-  }
-
-  double Bcon[NDIM];
-  double gcov[NDIM][NDIM];
-
-  get_model_bcon(X, Bcon);
-  gcov_func(X, gcov);
-
-  lower(Bcon, gcov, Bcov);
-
-}
-
-void get_model_bcon(double X[NDIM], double Bcon[NDIM])
-{
-  if(X[1] < startx[1] || 
-     X[1] > stopx[1]  || 
-     X[2] < startx[2] || 
-     X[2] > stopx[2]) {
-
-      Bcon[0] = 0. ;
-      Bcon[1] = 0. ;
-      Bcon[2] = 0. ;
-      Bcon[3] = 0. ;
-
-    return;
-  }
-
-  int nA, nB;
-  double tfac;
-
-  // interpolate primitive variables first
-  double B1A, B2A, B3A, B1B, B2B, B3B, Bcon1, Bcon2, Bcon3;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  B1A = interp_scalar(X, data[nA]->p[B1]);
-  B2A = interp_scalar(X, data[nA]->p[B2]);
-  B3A = interp_scalar(X, data[nA]->p[B3]);
-  B1B = interp_scalar(X, data[nB]->p[B1]);
-  B2B = interp_scalar(X, data[nB]->p[B2]);
-  B3B = interp_scalar(X, data[nB]->p[B3]);
-  Bcon1 = tfac*B1A + (1. - tfac)*B1B;
-  Bcon2 = tfac*B2A + (1. - tfac)*B2B;
-  Bcon3 = tfac*B3A + (1. - tfac)*B3B;
-
-  double Ucon[NDIM], Ucov[NDIM];
-  double gcov[NDIM][NDIM];
-
-  gcov_func(X, gcov);
-  get_model_ucon(X, Ucon);
-  lower(Ucon, gcov, Ucov);
-
-  Bcon[0] = Bcon1*Ucov[1] + Bcon2*Ucov[2] + Bcon3*Ucov[3];
-  Bcon[1] = (Bcon1 + Ucon[1] * Bcon[0]) / Ucon[0];
-  Bcon[2] = (Bcon2 + Ucon[2] * Bcon[0]) / Ucon[0];
-  Bcon[3] = (Bcon3 + Ucon[3] * Bcon[0]) / Ucon[0];
-
-}
-
 double get_model_thetae(double X[NDIM])
 {
-  if(X[1] < startx[1] || 
-     X[1] > stopx[1]  || 
-     X[2] < startx[2] || 
-     X[2] > stopx[2]) {
-      return(0.) ;
-  }
+  if ( X_in_domain(X) == 0 ) return 0.;
   
   double thetaeA, thetaeB, tfac;
   int nA, nB;
@@ -603,19 +488,16 @@ double get_model_thetae(double X[NDIM])
     printf("thetae = %e tfac = %e thetaeA = %e thetaeB = %e nA = %i nB = %i\n",
     thetae, tfac, thetaeA, thetaeB, nA, nB);
   }
+
+  if (thetaeA < 0 || thetaeB < 0) fprintf(stderr, "TETE %g %g\n", thetaeA, thetaeB);
+
   return tfac*thetaeA + (1. - tfac)*thetaeB;
 }
 
 //b field strength in Gauss
 double get_model_b(double X[NDIM])
 {
-
-  if(X[1] < startx[1] || 
-     X[1] > stopx[1]  || 
-     X[2] < startx[2] || 
-     X[2] > stopx[2]) {
-      return(0.) ;
-  }
+  if ( X_in_domain(X) == 0 ) return 0.;
   
   double bA, bB, tfac;
   int nA, nB;
@@ -628,12 +510,7 @@ double get_model_b(double X[NDIM])
 
 double get_model_ne(double X[NDIM])
 {
-  if(X[1] < startx[1] || 
-     X[1] > stopx[1]  || 
-     X[2] < startx[2] || 
-     X[2] > stopx[2]) {
-      return(0.) ;
-  }
+  if ( X_in_domain(X) == 0 ) return 0.;
 
   double neA, neB, tfac;
   int nA, nB;
@@ -646,7 +523,6 @@ double get_model_ne(double X[NDIM])
 
 /** HARM utilities **/
 
-void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]) ;
 
 /********************************************************************
 
@@ -746,26 +622,158 @@ double interp_scalar(double X[NDIM], double ***var)
 
  ***********************************************************************************/
 
+int X_in_domain(double X[NDIM]) {
+  // returns 1 if X is within the computational grid.
+  // checks different sets of coordinates depending on
+  // specified grid coordinates
 
+  if (METRIC_eKS) {
+    double XG[4] = { 0 };
+    double Xks[4] = { X[0], exp(X[1]), M_PI*X[2], X[3] };
+
+    if (METRIC_MKS3) {
+      // if METRIC_MKS3, ignore theta boundaries
+      double H0 = mks3H0, MY1 = mks3MY1, MY2 = mks3MY2, MP0 = mks3MP0;
+      double KSx1 = Xks[1], KSx2 = Xks[2];
+      XG[0] = Xks[0];
+      XG[1] = log(Xks[1] - mks3R0);
+      XG[2] = (-(H0*pow(KSx1,MP0)*M_PI) - pow(2,1 + MP0)*H0*MY1*M_PI +
+        2*H0*pow(KSx1,MP0)*MY1*M_PI + pow(2,1 + MP0)*H0*MY2*M_PI +
+        2*pow(KSx1,MP0)*atan(((-2*KSx2 + M_PI)*tan((H0*M_PI)/2.))/M_PI))/(2.*
+        H0*(-pow(KSx1,MP0) - pow(2,1 + MP0)*MY1 + 2*pow(KSx1,MP0)*MY1 +
+          pow(2,1 + MP0)*MY2)*M_PI);
+      XG[3] = Xks[3];
+
+      if (XG[1] < startx[1] || XG[1] > stopx[1]) return 0;
+    }
+
+  } else {
+    if(X[1] < startx[1] ||
+       X[1] > stopx[1]  ||
+       X[2] < startx[2] ||
+       X[2] > stopx[2]) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+/*
+ *  returns geodesic coordinates associated with center of zone i,j,k
+ */
+void ijktoX(int i, int j, int k, double X[NDIM]) 
+{
+  // first do the naive thing 
+  X[1] = startx[1] + (i+0.5)*dx[1];
+  X[2] = startx[2] + (j+0.5)*dx[2];
+  X[3] = startx[3] + (k+0.5)*dx[3];
+
+  // now transform to geodesic coordinates if necessary by first
+  // converting to KS and then to destination coordinates (eKS).
+  if (METRIC_eKS) {
+      double xKS[4] = { 0 };
+    if (METRIC_MKS3) {
+      double x0 = X[0];
+      double x1 = X[1];
+      double x2 = X[2];
+      double x3 = X[3];
+
+      double H0 = mks3H0;
+      double MY1 = mks3MY1;
+      double MY2 = mks3MY2;
+      double MP0 = mks3MP0;
+      
+      xKS[0] = x0;
+      xKS[1] = exp(x1) + mks3R0;
+      xKS[2] = (M_PI*(1+1./tan((H0*M_PI)/2.)*tan(H0*M_PI*(-0.5+(MY1+(pow(2,MP0)*(-MY1+MY2))/pow(exp(x1)+R0,MP0))*(1-2*x2)+x2))))/2.;
+      xKS[3] = x3;
+    }
+    
+    X[0] = xKS[0];
+    X[1] = log(xKS[1]);
+    X[2] = xKS[2] / M_PI;
+    X[3] = xKS[3];
+  }
+}
+
+/*
+ *  translates geodesic coordinates to a grid zone and returns offset
+ *  for interpolation purposes. integer index corresponds to the zone
+ *  center "below" the desired point and del[i] \in [0,1) returns the
+ *  offset from that zone center.
+ *
+ *  0    0.5    1
+ *  [     |     ]
+ *  A  B  C DE  F
+ *
+ *  startx = 0.
+ *  dx = 0.5
+ *
+ *  A -> (-1, 0.5)
+ *  B -> ( 0, 0.0)
+ *  C -> ( 0, 0.5)
+ *  D -> ( 0, 0.9)
+ *  E -> ( 1, 0.0)
+ *  F -> ( 1, 0.5)
+ *
+ */
 void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
 {
   // unless we're reading from data, i,j,k are the normal expected thing
   double phi;
+  double XG[4];
 
-  /* Map X[3] into sim range, assume startx[3] = 0 */
-  phi = fmod(X[3], stopx[3]);
-  //fold it to be positive and find index
+  if (METRIC_eKS) {
+    // the geodesics are evolved in eKS so invert through KS -> zone coordinates
+    double Xks[4] = { X[0], exp(X[1]), M_PI*X[2], X[3] };
+    if (METRIC_MKS3) {
+      double H0 = mks3H0, MY1 = mks3MY1, MY2 = mks3MY2, MP0 = mks3MP0;
+      double KSx1 = Xks[1], KSx2 = Xks[2];
+      XG[0] = Xks[0];
+      XG[1] = log(Xks[1] - mks3R0);
+      XG[2] = (-(H0*pow(KSx1,MP0)*M_PI) - pow(2.,1. + MP0)*H0*MY1*M_PI + 
+        2.*H0*pow(KSx1,MP0)*MY1*M_PI + pow(2.,1. + MP0)*H0*MY2*M_PI + 
+        2.*pow(KSx1,MP0)*atan(((-2.*KSx2 + M_PI)*tan((H0*M_PI)/2.))/M_PI))/(2.*
+        H0*(-pow(KSx1,MP0) - pow(2.,1 + MP0)*MY1 + 2.*pow(KSx1,MP0)*MY1 + 
+          pow(2.,1. + MP0)*MY2)*M_PI);
+      XG[3] = Xks[3];
+    }
+  } else {
+    MULOOP XG[mu] = X[mu];
+  }
+
+  // the X[3] coordinate is allowed to vary so first map it to [0, stopx[3])
+  phi = fmod(XG[3], stopx[3]);
   if(phi < 0.0) phi = stopx[3]+phi;
- 
-  //give index of a zone - zone index is moved to the grid zone center/
-  //to account for the fact that all variables are reconstrucuted at zone centers?
-  *i = (int) ((X[1] - startx[1]) / dx[1] - 0.5 + 1000) - 1000;
-  *j = (int) ((X[2] - startx[2]) / dx[2] - 0.5 + 1000) - 1000;
+
+  // get provisional zone index. see note above function for details. note we
+  // shift to zone centers because that's where variables are most exact.
+  *i = (int) ((XG[1] - startx[1]) / dx[1] - 0.5 + 1000) - 1000;
+  *j = (int) ((XG[2] - startx[2]) / dx[2] - 0.5 + 1000) - 1000;
   *k = (int) ((phi  - startx[3]) / dx[3] - 0.5 + 1000) - 1000;  
 
-  del[1] = (X[1] - ((*i + 0.5) * dx[1] + startx[1])) / dx[1];
-  del[2] = (X[2] - ((*j + 0.5) * dx[2] + startx[2])) / dx[2];
+  // exotic coordinate systems sometime have issues. use this block to enforce
+  // reasonable limits on *i,*j and *k. in the normal coordinate systems, this
+  // block should never fire.
+  if (*i < -1) *i = -1;
+  if (*j < -1) *j = -1;
+  if (*k < -1) *k = -1;
+  if (*i >= N1) *i = N1-1;
+  if (*j >= N2) *j = N2-1;
+  if (*k >= N3) *k = N3-1;
+
+  // now construct del
+  del[1] = (XG[1] - ((*i + 0.5) * dx[1] + startx[1])) / dx[1];
+  del[2] = (XG[2] - ((*j + 0.5) * dx[2] + startx[2])) / dx[2];
   del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
+
+  // and enforce limits on del (for exotic coordinate systems)
+  for (int i=0; i<4; ++i) {
+    if (del[i] < 0.) del[i] = 0.;
+    if (del[i] >= 1.) del[i] = 1.;
+  }
+
 }
 
 //#define SINGSMALL (1.E-20)
@@ -774,7 +782,10 @@ void bl_coord(double X[NDIM], double *r, double *th)
 {
   *r = exp(X[1]);
 
-  if (METRIC_MKS3) {
+  if (METRIC_eKS) {
+    *r = exp(X[1]);
+    *th = M_PI * X[2];
+  } else if (METRIC_MKS3) {
     *r = exp(X[1]) + mks3R0;
     *th = (M_PI*(1. + 1./tan((mks3H0*M_PI)/2.)*tan(mks3H0*M_PI*(-0.5 + (mks3MY1 + (pow(2.,mks3MP0)*(-mks3MY1 + mks3MY2))/pow(exp(X[1])+mks3R0,mks3MP0))*(1. - 2.*X[2]) + X[2]))))/2.;
   } else if (DEREFINE_POLES) {
@@ -786,16 +797,6 @@ void bl_coord(double X[NDIM], double *r, double *th)
     *th = M_PI*X[2] + ((1. - hslope)/2.)*sin(2.*M_PI*X[2]);
   }
 }
-
-void coord(int i, int j, int k, double *X)
-{
-  // returns zone-centered X from i,j,k
-  X[0] = startx[0];
-  X[1] = startx[1] + (i + 0.5) * dx[1];
-  X[2] = startx[2] + (j + 0.5) * dx[2];
-  X[3] = startx[3] + (k + 0.5) * dx[3];
-}
-
 
 void set_units(char *munitstr)
 {
@@ -847,14 +848,12 @@ void init_physical_quantities(int n)
         //thetae[i][j][k] = (gam-1.)*MP/ME*p[UU][i][j][k]/p[KRHO][i][j][k];
         //printf("rho = %e thetae = %e\n", p[KRHO][i][j][k], thetae[i][j][k]);
 
-        //data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k]/4.;
-        //printf("Thetae_unit = %e Thetae = %e\n", Thetae_unit, thetae[i][j][k]);
-        
         //strongly magnetized = empty, no shiny spine
         if (sigma_m > 1.0) data[n]->ne[i][j][k]=0.0;
       }
     }
   }
+
 }
 
 // malloc utilities
@@ -1036,7 +1035,7 @@ void init_iharm_grid(char *fname)
  
   fprintf(stderr, "filename: %s\n", fname);
 
-  printf("init grid\n");
+  fprintf(stderr, "init grid\n");
 
   if ( hdf5_open(fname) < 0 ) {
     fprintf(stderr, "! unable to open file %s. exiting!\n", fname);
@@ -1063,10 +1062,13 @@ void init_iharm_grid(char *fname)
   DEREFINE_POLES = 0;
   METRIC_MKS3 = 0;
 
-  if ( strncmp(metric, "MMKS", 19) == 0 ) 
+  if ( strncmp(metric, "MMKS", 19) == 0 ) {
     DEREFINE_POLES = 1;
-  else if ( strncmp(metric, "MKS3", 19) == 0 )
+  } else if ( strncmp(metric, "MKS3", 19) == 0 ) {
+    METRIC_eKS = 1;
     METRIC_MKS3 = 1;
+    fprintf(stderr, "using eKS metric with exotic \"MKS3\" zones...\n");
+  }
 
   hdf5_read_single_val(&N1, "n1", H5T_STD_I32LE);
   hdf5_read_single_val(&N2, "n2", H5T_STD_I32LE);
@@ -1136,6 +1138,7 @@ void init_iharm_grid(char *fname)
     hdf5_read_single_val(&mks3MY1, "MY1", H5T_IEEE_F64LE);
     hdf5_read_single_val(&mks3MY2, "MY2", H5T_IEEE_F64LE);
     hdf5_read_single_val(&mks3MP0, "MP0", H5T_IEEE_F64LE);
+    Rout = 100.; 
   } else {
     hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
     hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
@@ -1150,29 +1153,15 @@ void init_iharm_grid(char *fname)
       poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
     }
   }
-  
+ 
   // DEBUG TODO Need to set Rout in a comprehensible way.
   // also think about Rin ... do we ever rely on hslope, Rin, Rout?
-  rmax = MIN(50., Rout);
+  rmax = MIN(100., Rout);
   rmax = Rout;
 
   hdf5_set_directory("/");
   hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
   
-  //startx[1] += 3*dx[1];
-  //startx[2] += 3*dx[2];
-  //      startx[3] += 3*dx[3];
-  
-  fprintf(stdout,"start: %g %g %g \n",startx[1],startx[2],startx[3]);
-  //below is equivalent to the above
-  /*
-  startx[1] = log(Rin-R0);       
-        startx[2] = th_cutout/M_PI ; 
-  */
-
-  //fprintf(stdout,"th_cutout: %g  %d x %d x %d\n",th_cutout,N1,N2,N3);
-  
-
   //th_beg=th_cutout;
   //th_end=M_PI-th_cutout;
   //th_len = th_end-th_beg;
@@ -1186,7 +1175,8 @@ void init_iharm_grid(char *fname)
   stopx[2] = startx[2]+N2*dx[2];
   stopx[3] = startx[3]+N3*dx[3];
 
-  fprintf(stdout,"stop: %g %g %g \n",stopx[1],stopx[2],stopx[3]);
+  fprintf(stderr, "start: %g %g %g \n", startx[1], startx[2], startx[3]);
+  fprintf(stderr, "stop: %g %g %g \n", stopx[1], stopx[2], stopx[3]);
 
   init_storage();
 
@@ -1215,7 +1205,7 @@ void load_iharm_data(int n, char *fname)
   // loads relevant information from fluid dump file stored at fname
   // to the n'th copy of data (e.g., for slow light)
 
-  printf("LOADING DATA\n");
+  fprintf(stderr, "LOADING DATA\n");
   nloaded++;
 
   int i,j,k,l,m;
@@ -1275,19 +1265,21 @@ void load_iharm_data(int n, char *fname)
   dMact = Ladv = 0.;
 
   // construct four-vectors over "real" zones
-  for(i = 1; i < N1+1; i++){
-    X[1] = startx[1] + ( i - 0.5)*dx[1];
-    for(j = 1; j < N2+1; j++){
-      X[2] = startx[2] + (j-0.5)*dx[2];
-      gcov_func(X, gcov); // in system with cut off
+  for(i = 1; i < N1+1; i++) {
+    for(j = 1; j < N2+1; j++) {
+
+      // this assumes axisymmetry in the coordinates
+      ijktoX(i,j,0, X);
+      gcov_func(X, gcov);
       gcon_func(gcov, gcon);
-      g = gdet_func(gcov);
+      g = gdet_zone(i,j,0);
 
       bl_coord(X, &r, &th);
 
       for(k = 1; k < N3+1; k++){
+
+        ijktoX(i,j,k,X);
         UdotU = 0.;
-        X[3] = startx[3] + (k-0.5)*dx[3];
         
         // the four-vector reconstruction should have gcov and gcon and gdet using the modified coordinates
         // interpolating the four vectors to the zone center !!!!

@@ -51,10 +51,17 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
   get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
 
   if (isnan(Ucov[0])) {
-    printf("UCOV[0] is nan! thread = %i\n", omp_get_thread_num());
-    printf("X[] = %e %e %e %e\n", X[0],X[1],X[2],X[3]);
-    printf("K[] = %e %e %e %e\n", Kcon[0],Kcon[1],Kcon[2],Kcon[3]);
-    printf("Ne = %e\n", Ne);
+    void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
+    int i,j,k;
+    double del[4];
+    Xtoijk(X, &i,&j,&k, del);
+    fprintf(stderr, "WWTTFF?\n");
+    fprintf(stderr, "UCOV[0] (%d,%d,%d) is nan! thread = %i\n", i,j,k, omp_get_thread_num());
+    P4VEC("Ucon", Ucon);
+    P4VEC("Ucov", Ucov);
+    fprintf(stderr, "X[] = %e %e %e %e\n", X[0],X[1],X[2],X[3]);
+    fprintf(stderr, "K[] = %e %e %e %e\n", Kcon[0],Kcon[1],Kcon[2],Kcon[3]);
+    fprintf(stderr, "Ne = %e\n", Ne);
   }
 
   theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b  */
@@ -138,17 +145,21 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *aU = *jU / Bnuinv;
     *aV = *jV / Bnuinv;
 
-    /* invariant rotativities */
+    // invariant rotativities
     *rQ *= nu;
     *rU *= nu;
     *rV *= nu;
 
+    // something bad has happened. report the details.
     if (isnan(*rV) || *rV > 1.e100 || *rV < -1.e100) {
-      printf("NAN RV! rV = %e nu = %e Ne = %e Thetae = %e x = %e\n", *rV, nu, Ne, Thetae, x);
-      printf("B = %e\n", B);
-      for (int mu = 0; mu < NDIM; mu++) {
-        printf("[%i] X[] = %e Kcon[] = %e Ucov[] = %e\n", mu,X[mu],Kcon[mu],Ucov[mu]);
-      }
+      int i,j,k;
+      double del[4];
+      void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
+      Xtoijk(X, &i,&j,&k, del);
+      fprintf(stderr, "NAN RV! rV = %e nu = %e Ne = %e Thetae = %e x = %e B = %e\n", *rV, nu, Ne, Thetae, x, B);
+      P4VEC("X", X);
+      P4VEC("Kcon", Kcon);
+      P4VEC("Ucov", Ucov);
     }
 
   }

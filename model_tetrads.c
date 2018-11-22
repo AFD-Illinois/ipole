@@ -37,6 +37,8 @@ model-dependent functions related to creation and manipulation of tetrads
 
 */
 
+extern int METRIC_eKS;
+
 #define SMALL_VECTOR (1.e-30)
 void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
 			double Bcon[NDIM], double Gcov[NDIM][NDIM],
@@ -89,12 +91,31 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM],
     /* check handedness */
     double dot = check_handedness(Econ, Gcov);
 
-    if (fabs(fabs(dot) - 1.) > 1.e-10) {
-      printf("Ucon[] = %e %e %e %e\n", Ucon[0], Ucon[1],Ucon[2],Ucon[3]);
-      printf("Kcon[] = %e %e %e %e\n", Kcon[0], Kcon[1],Kcon[2],Kcon[3]);
-      printf("Bcon[] = %e %e %e %e\n", Bcon[0], Bcon[1], Bcon[2], Bcon[3]);
+    // less restrictive condition on geometry for eKS coordinates which are
+    // used when the exotic is expected.
+    if ((fabs(fabs(dot) - 1.) > 1.e-10 && METRIC_eKS == 0) ||
+        (fabs(fabs(dot) - 1.) > 1.e-7  && METRIC_eKS == 1)) {
       fprintf(stderr, "that's odd: %g\n", fabs(dot) - 1.);
-      exit(-2);
+      fprintf(stderr, "Ucon[] = %e %e %e %e\n", Ucon[0], Ucon[1],Ucon[2],Ucon[3]);
+      fprintf(stderr, "Kcon[] = %e %e %e %e\n", Kcon[0], Kcon[1],Kcon[2],Kcon[3]);
+      fprintf(stderr, "Bcon[] = %e %e %e %e\n", Bcon[0], Bcon[1], Bcon[2], Bcon[3]);
+
+      double ucov[4];
+      lower(Ucon, Gcov, ucov);
+      double udotu=0., udotb=0.;
+      MULOOP {
+        udotu += Ucon[mu]*ucov[mu];
+        udotb += Bcon[mu]*ucov[mu];
+      }
+      fprintf(stderr, "u.u = %g  u.b = %g\n", udotu, udotb);
+
+      int i,j,k;
+      double del[NDIM];
+      double X[NDIM];
+      void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
+      Xtoijk(X, &i,&j,&k, del);
+      fprintf(stderr, "X[]: %g %g %g %g  (%d %d %d)\n", X[0],X[1],X[2],X[3], i,j,k);
+      //exit(-2);
     }
 
     /* we expect dot = 1. for right-handed system.  

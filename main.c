@@ -100,9 +100,9 @@ int main(int argc, char *argv[])
   Xcam[2] = root_find(x);
   Xcam[3] = phicam/180.*M_PI;
 
-  printf("Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
+  fprintf(stderr, "Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
 
-  fprintf(stdout,
+  fprintf(stderr,
       "cam_th_cal=%g [deg] th_beg=%g th_len=%g a=%g R0=%g hslope=%g\n",
       (th_beg + th_len * Xcam[2]) * 180. / M_PI, th_beg, th_len, a,
       R0, hslope);
@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
   //rmax = 50.;
 
   scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
-  printf("L_unit = %e DX = %e NX = %i Dsource = %e JY = %e\n", L_unit, DX, NX, Dsource,JY);
+  fprintf(stderr,"L_unit = %e DX = %e NX = %i Dsource = %e JY = %e\n", L_unit, DX, NX, Dsource,JY);
   fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
   fprintf(stderr,"Dsource: %g [cm]\n",Dsource);
   fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
@@ -459,7 +459,7 @@ int main(int argc, char *argv[])
   }
 
   // finish up
-  printf("scale = %e\n", scale);
+  fprintf(stderr, "\nscale = %e\n", scale);
 
   double Ftot = 0.;
   double Ftot_unpol = 0.;
