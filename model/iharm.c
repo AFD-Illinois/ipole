@@ -3,8 +3,8 @@
 
 #define NVAR (10)
 #define SLOW_LIGHT (0)
-#define USE_FIXED_TPTE (1)
-#define USE_MIXED_TPTE (0)
+#define USE_FIXED_TPTE (0)
+#define USE_MIXED_TPTE (1)
 
 // these will be overwritten by anything found in par.c (or in runtime parameter file)
 static double tp_over_te = 3.; 
@@ -1142,8 +1142,13 @@ void init_iharm_grid(char *fname)
   } else {
     hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
     hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&Rin, "Rin", H5T_IEEE_F64LE);
-    hdf5_read_single_val(&Rout, "Rout", H5T_IEEE_F64LE);
+    if (hdf5_exists("Rin")) {
+      hdf5_read_single_val(&Rin, "Rin", H5T_IEEE_F64LE);
+      hdf5_read_single_val(&Rout, "Rout", H5T_IEEE_F64LE);
+    } else {
+      hdf5_read_single_val(&Rin, "r_in", H5T_IEEE_F64LE);
+      hdf5_read_single_val(&Rout, "r_out", H5T_IEEE_F64LE);
+    }
 
     if (DEREFINE_POLES) {
       fprintf(stderr, "custom refinement at poles loaded...\n");
@@ -1269,16 +1274,16 @@ void load_iharm_data(int n, char *fname)
     for(j = 1; j < N2+1; j++) {
 
       // this assumes axisymmetry in the coordinates
-      ijktoX(i,j,0, X);
+      ijktoX(i-1,j-1,0, X);
       gcov_func(X, gcov);
       gcon_func(gcov, gcon);
-      g = gdet_zone(i,j,0);
+      g = gdet_zone(i-1,j-1,0);
 
       bl_coord(X, &r, &th);
 
       for(k = 1; k < N3+1; k++){
 
-        ijktoX(i,j,k,X);
+        ijktoX(i-1,j-1,k,X);
         UdotU = 0.;
         
         // the four-vector reconstruction should have gcov and gcon and gdet using the modified coordinates
@@ -1422,6 +1427,43 @@ void load_iharm_data(int n, char *fname)
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
   init_physical_quantities(n);
+
+  // optionally calculate average beta weighted by jnu
+  if (0 == 1) {
+    #define NBETABINS 64.
+    double betabins[64] = { 0 };
+    #define BETAMIN (0.001)
+    #define BETAMAX (200.)
+    double dlBeta = (log(BETAMAX)-log(BETAMIN))/NBETABINS;
+    double BETA0 = log(BETAMIN);
+    double betajnugdet = 0.;
+    double jnugdet = 0.;
+    for (i=1; i<N1+1; ++i) {
+      for (j=1; j<N2+1; ++j) {
+        for (k=1; k<N3+1; ++k) {
+          int zi = i-1; 
+          int zj = j-1;
+          int zk = k-1;
+          double bsq = 0.;
+          for (int l=0; l<4; ++l) bsq += data[n]->bcon[i][j][k][l]*data[n]->bcov[i][j][k][l];
+          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
+          double Ne = data[n]->ne[i][j][k];
+          double Thetae = data[n]->thetae[i][j][k];
+          double B = data[n]->b[i][j][k];
+          double jnu = jnu_synch(2.3e+11, Ne, Thetae, B, M_PI/3.);
+          double gdetzone = gdet_zone(zi,zj,zk);
+          betajnugdet += beta * jnu * gdetzone;
+          jnugdet += jnu * gdetzone;
+          int betai = (int) ( (log(beta) - BETA0) / dlBeta + 2.5 ) - 2;
+          betabins[betai] += jnu * gdetzone;
+        }
+      }
+    }
+    for (i=0; i<NBETABINS; ++i) {
+      fprintf(stderr, "%d %g %g\n", i, exp(BETA0 + (i+0.5)*dlBeta), betabins[i]);
+    }
+    fprintf(stderr, "<beta> = %g\n", betajnugdet / jnugdet);
+  }
 }
 
 double root_find(double x[NDIM])
