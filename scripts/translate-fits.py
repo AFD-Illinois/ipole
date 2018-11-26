@@ -76,7 +76,7 @@ def write_fits_from_ipole(fname, ofname):
   elif hfp['header']['electrons']['type'][()] == 1:
     hstring = "(kawazura Te)"
   elif hfp['header']['electrons']['type'][()] == 2:
-    hstring = "Rlow={0:s},Rhigh={0:s}".format(\
+    hstring = "Rlow={0:s},Rhigh={1:s}".format(\
       get_small_float_string(hfp['header']['electrons']['rlow'][()]),\
       get_small_float_string(hfp['header']['electrons']['rhigh'][()]))
   else:
