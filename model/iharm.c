@@ -479,7 +479,6 @@ double get_model_thetae(double X[NDIM])
   thetaeA = interp_scalar(X, data[nA]->thetae);
   thetaeB = interp_scalar(X, data[nB]->thetae);
 
-
   double thetae = tfac*thetaeA + (1. - tfac)*thetaeB;
   if (thetae < 0.) {
     printf("thetae negative!\n");
@@ -1075,7 +1074,7 @@ void init_iharm_grid(char *fname)
   hdf5_read_single_val(&N3, "n3", H5T_STD_I32LE);
   hdf5_read_single_val(&gam, "gam", H5T_IEEE_F64LE);
 
-  if (ELECTRONS) {
+  if (hdf5_exists("gam_e")) {
     fprintf(stderr, "custom electron model loaded from dump file...\n");
     hdf5_read_single_val(&game, "gam_e", H5T_IEEE_F64LE);
     hdf5_read_single_val(&gamp, "gam_p", H5T_IEEE_F64LE);
