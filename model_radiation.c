@@ -55,7 +55,6 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     int i,j,k;
     double del[4];
     Xtoijk(X, &i,&j,&k, del);
-    fprintf(stderr, "WWTTFF?\n");
     fprintf(stderr, "UCOV[0] (%d,%d,%d) is nan! thread = %i\n", i,j,k, omp_get_thread_num());
     P4VEC("Ucon", Ucon);
     P4VEC("Ucov", Ucov);
@@ -66,7 +65,23 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
   theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b  */
 
-  if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
+  if (Ne <= 0.) {  /* avoid 1./0. issues */
+
+    *jI = 0.0;
+    *jQ = 0.0;
+    *jU = 0.0;
+    *jV = 0.0;
+
+    *aI = 0.0;
+    *aQ = 0.0;
+    *aU = 0.0;
+    *aV = 0.0;
+
+    *rQ = 0.0;
+    *rU = 0.0;
+    *rV = 0.0;
+
+  } else if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
 
     *jI = 0.0;
     *jQ = 0.0;
