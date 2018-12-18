@@ -23,7 +23,6 @@ import sys
 import numpy as np
 import h5py
 from astropy.time import Time as aTime
-from astropy.coordinates import SkyCoord
 import astropy.io.fits as fits
 
 def get_small_float_string(num):
@@ -36,9 +35,16 @@ def write_fits_from_ipole(fname, ofname):
   hfp = h5py.File(fname,'r')
 
   # set various configuration attributes
-  loc = SkyCoord.from_name(source)
-  ra = loc.ra.deg
-  dec = loc.dec.deg
+  ra = None
+  dec = None
+  if source == "M87" and True:
+    ra = 187.70593075
+    dec = 12.391123306
+  else:
+    from astropy.coordinates import SkyCoord
+    loc = SkyCoord.from_name(source)
+    ra = loc.ra.deg
+    dec = loc.dec.deg
   DEGREE = 3.141592653589/180.0
   HOUR = 15.0*DEGREE
   RADPERAS = DEGREE/3600.0
