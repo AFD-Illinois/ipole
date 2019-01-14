@@ -37,6 +37,7 @@
 
 #define DSGRA			(8.27e3 * PC			) /* Distance from Earth to Sgr A*  */
 #define DM87			(16.9e6 * PC			) /* Distance from Earth to M87  */
+#define DM87_gas  (17.9e6 * PC      ) /* From Walsh+ 2013 */
 #define DABHB			(1.2e3 * PC			) /* Distance from Earth to A0620-00  */
 
 #define TCBR			(2.726				) /* CBR temperature, from COBE */

@@ -113,6 +113,7 @@ int main(int argc, char *argv[])
   DY = 40.0;
 
   Dsource = DM87 ;
+  Dsource = DM87_gas;
   //Dsource = DSGRA;
 
   /* these parameters are for a 160 uas fov at M87 */
