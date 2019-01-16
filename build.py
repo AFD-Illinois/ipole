@@ -40,7 +40,7 @@ def build(model, notes):
 
   host = machines.get_machine()
 
-  C_FLAGS = '-std=c99 -DMODEL=' + model + " -DNOTES=" + notes + " -DVERSION=$(GIT_VERSION) " + host['COMPILER_FLAGS']
+  C_FLAGS = '-std=c99 -DMODEL=' + model + " -DNOTES=" + notes + ' -DVERSION=\"$(GIT_VERSION)\" ' + host['COMPILER_FLAGS']
 
   # MATH AND DYNAMIC LINKING
   LIB_FLAGS = '-lm -ldl'
