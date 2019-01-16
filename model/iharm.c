@@ -1094,7 +1094,10 @@ void init_iharm_grid(char *fname)
   } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
     ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
     fprintf(stderr, "using fixed tp_over_te ratio = %g\n", tp_over_te);
-    Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
+    //Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
+    // see, e.g., Eq. 8 of the EHT GRRT formula list. 
+    // this formula assumes game = 4./3 and gamp = 5./3
+    Thetae_unit = 2./3. * MP/ME / (2. + tp_over_te);
   } else if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
     ELECTRONS = 2;
     fprintf(stderr, "using mixed tp_over_te with trat_small = %g and trat_large = %g\n", trat_small, trat_large);

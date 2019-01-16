@@ -26,6 +26,9 @@ void h5io_add_data_int(hid_t fid, const char *path, int data);
 void h5io_add_data_dbl(hid_t fid, const char *path, double data);
 void h5io_add_data_str(hid_t fid, const char *path, const char *data);
 
+void h5io_add_data_dbl_2ds(hid_t fid, const char *path, hsize_t n1, hsize_t n2, double data[]);
+void h5io_add_data_dbl_3ds(hid_t fid, const char *path, hsize_t n1, hsize_t n2, hsize_t n3, double data[]);
+
 void h5io_add_data_dbl_1d(hid_t fid, const char *path, hsize_t n1, double data[n1]);
 void h5io_add_data_dbl_2d(hid_t fid, const char *path, hsize_t n1, hsize_t n2, double data[n1][n2]);
 void h5io_add_data_dbl_3d(hid_t fid, const char *path, hsize_t n1, hsize_t n2, hsize_t n3, double data[n1][n2][n3]);

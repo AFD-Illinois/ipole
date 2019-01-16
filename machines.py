@@ -31,12 +31,6 @@ add_machine(name='elbert',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
-add_machine(name='bh',
-            compiler='h5pcc',
-            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
-            l_flags='-lm -lgsl -lgslcblas',
-            gsl_dir='')
-
 add_machine(name='bh21',
             compiler='h5pcc',
             c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
@@ -52,6 +46,12 @@ add_machine(name='bh27',
 add_machine(name='bh28',
             compiler='h5pcc',
             c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            l_flags='-lm -lgsl -lgslcblas',
+            gsl_dir='')
+
+add_machine(name='bh',
+            compiler='h5pcc',
+            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\" -D_DEFAULT_SOURCE',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
