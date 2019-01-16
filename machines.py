@@ -31,7 +31,6 @@ add_machine(name='elbert',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 
-# IL campus cluster machines
 add_machine(name='ccc',
             compiler='h5pcc',
             c_flags='-O3 -std=c99 -Wall -fopenmp -DVERSION=\"$(GIT_VERSION)\"',
@@ -43,13 +42,6 @@ add_machine(name='golubh',
             c_flags='-O3 -std=c99 -Wall -fopenmp -DVERSION=\"$(GIT_VERSION)\"',
             l_flags='-lgsl -lgslcblas',
             gsl_dir='/usr/local/src/gsl/2.5')
-
-# This is a common set of letters: bh overrides most following defs
-add_machine(name='bh',
-            compiler='h5pcc',
-            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
-            l_flags='-lm -lgsl -lgslcblas',
-            gsl_dir='')
 
 add_machine(name='bh21',
             compiler='h5pcc',
@@ -66,6 +58,12 @@ add_machine(name='bh27',
 add_machine(name='bh28',
             compiler='h5pcc',
             c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\"',
+            l_flags='-lm -lgsl -lgslcblas',
+            gsl_dir='')
+
+add_machine(name='bh',
+            compiler='h5pcc',
+            c_flags='-O3 -std=c99 -Wall -fopenmp -g -DVERSION=\"$(GIT_VERSION)\" -D_DEFAULT_SOURCE',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
 

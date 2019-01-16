@@ -97,7 +97,7 @@ double approximate_solve(double Ii, double ji, double ki, double jf, double kf, 
 void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv);
 int    stop_forward_integration(double X[NDIM], double Kcon[NDIM], double Xcam[NDIM]);
 int    stop_backward_integration(double X[NDIM], double Kcon[NDIM], double Xcam[NDIM]);
-void dump(double image[NX][NY], double imageS[NX][NY][NIMG], double taus[NX][NY], 
+void dump(double image[], double imageS[], double taus[], 
           const char *fname, double scale, double Dsource, double cam[NDIM], double DX, 
           double DY, double fovx, double fovy, double rcam, double thetacam, double phicam);
 
@@ -159,7 +159,7 @@ void   make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM
 void set_levi_civita();
 
 /* imaging */
-void make_ppm(double p[NX][NY], double freq, char filename[]) ;
+void make_ppm(double p[], double freq, char filename[]) ;
 void rainbow_palette(double data, double min, double max, int *pRed, int *pGreen, int *pBlue) ;
 
 /* radiation */

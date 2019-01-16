@@ -13,7 +13,7 @@ int compare_doubles(const void *a, const void *b)
 #define BOT_FRAC	(0.005)
 
 static double q[NX*NY];
-void make_ppm(double p[NX][NY], double freq, char filename[])
+void make_ppm(double p[], double freq, char filename[])
 {
 
 	int i, j, k;
@@ -23,7 +23,7 @@ void make_ppm(double p[NX][NY], double freq, char filename[])
 	k = 0 ;
         for (i = 0; i < NX; i++)
 	for (j = 0; j < NY; j++) {
-		q[k] = p[i][j];
+		q[k] = p[i*NY+j];
 		k++ ;
 	}
 
@@ -54,7 +54,7 @@ void make_ppm(double p[NX][NY], double freq, char filename[])
 	for (j = NY-1; j >= 0; j--) 
 	for (i = 0; i < NX; i++) 
 	{
-		rainbow_palette(p[i][j],min,max,&red,&green,&blue) ;
+		rainbow_palette(p[i*NY+j],min,max,&red,&green,&blue) ;
 		fputc((char) red, fp);
                 fputc((char) green, fp);
                 fputc((char) blue, fp);

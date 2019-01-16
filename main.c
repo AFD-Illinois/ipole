@@ -4,13 +4,6 @@
 
 #define MAXNSTEP 50000
 
-/* slow light globals here */
-static double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM];
-static double t[NX][NY], tmin[NX][NY], tauFgeo[NX][NY];
-static double complex Ngeo[NX][NY][NDIM][NDIM];
-#pragma omp threadprivate(Xgeo,Kcongeo,t,tmin,tauFgeo,Ngeo)
-
-
 struct of_traj {
   double dl;
   double X[NDIM];
@@ -42,9 +35,9 @@ int main(int argc, char *argv[])
   double freq, Dsource, scale;
   double DX, DY, fovx, fovy;
 
-  double image[NX][NY];
-  double taus[NX][NY];
-  double imageS[NX][NY][NIMG];
+  double *taus = malloc(sizeof(*taus) * NX*NY);
+  double *imageS = malloc(sizeof(*imageS) * NX*NY*NIMG);
+  double *image = malloc(sizeof(*image) * NX*NY);
 
   // "forward declarations"
   double root_find(double X[NDIM]);
@@ -113,7 +106,7 @@ int main(int argc, char *argv[])
   DY = 40.0;
 
   Dsource = DM87 ;
-  Dsource = DM87_gas;
+  //Dsource = DM87_gas;
   //Dsource = DSGRA;
 
   /* these parameters are for a 160 uas fov at M87 */
@@ -143,6 +136,12 @@ int main(int argc, char *argv[])
   // slow light (untested 2018.09.25 gnw)
   if (0) {
 
+    /* slow light globals here */
+    static double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM];
+    static double t[NX][NY], tmin[NX][NY], tauFgeo[NX][NY];
+    static double complex Ngeo[NX][NY][NDIM][NDIM];
+    #pragma omp threadprivate(Xgeo,Kcongeo,t,tmin,tauFgeo,Ngeo)
+
     fprintf(stderr, "\nBACKWARDS\n");
 
     // get photon trajectories
@@ -170,6 +169,7 @@ int main(int argc, char *argv[])
             if (Xgeo[i][j][1] < log(rmax) && tmin_set == 0) {
               tmin_set = 1;
               tmin[i][j] = t[i][j];
+              if (tmin[i][j]) ; // TODO get rid of unused warning
             }
             push_photon(Xgeo[i][j], Kcongeo[i][j], -dl, Xhalf, Kconhalf);
             ngeo++;
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
     for (int i=0; i<NX; ++i) {
       for (int j=0; j<NY; ++j) {
         done[i][j] = 0;
-        image[i][j] = 0;
+        image[i*NY+j] = 0;
         init_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j]);
         tauFgeo[i][j] = 0;
       }
@@ -259,7 +259,7 @@ int main(int argc, char *argv[])
                 get_jkinv(Xprevgeo, Kconprevgeo, &ji, &ki);
                 get_jkinv(Xgeo[i][j], Kcongeo[i][j], &jf, &kf);
                 dl *= L_unit*HPL/(ME*CL*CL);
-                image[i][j] = approximate_solve(image[i][j], ji, ki, jf, kf, dl, &fdum);
+                image[i*NY+j] = approximate_solve(image[i*NY+j], ji, ki, jf, kf, dl, &fdum);
 
                 evolve_N(Xprevgeo, Kconprevgeo, Xhalfgeo, Kconhalfgeo, Xgeo[i][j],
                     Kcongeo[i][j], dl, Ngeo[i][j], &tauFgeo[i][j]);
@@ -321,13 +321,13 @@ int main(int argc, char *argv[])
     for (int i=0; i<NX; ++i) {
       for (int j=0; j<NY; ++j) {
         fprintf(stderr, "Xgeo[%i][%i] = %e %e %e %e\n", i,j, Xgeo[i][j][0], Xgeo[i][j][1], Xgeo[i][j][2], Xgeo[i][j][3]);
-        image[i][j] *= pow(freqcgs, 3);
-        project_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j], &imageS[i][j][0], &imageS[i][j][1], &imageS[i][j][2], &imageS[i][j][3]);
-        imageS[i][j][0] *= pow(freqcgs, 3);
-        imageS[i][j][1] *= pow(freqcgs, 3);
-        imageS[i][j][2] *= pow(freqcgs, 3);
-        imageS[i][j][3] *= pow(freqcgs, 3);
-        imageS[i][j][4] = tauFgeo[i][j];
+        image[i*NY+j] *= pow(freqcgs, 3);
+        project_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j], &imageS[(i*NY+j)*NIMG], &imageS[(i*NY+j)*NIMG+1], &imageS[(i*NY+j)*NIMG+2], &imageS[(i*NY+j)*NIMG+3]);
+        imageS[(i*NY+j)*NIMG+0] *= pow(freqcgs, 3);
+        imageS[(i*NY+j)*NIMG+1] *= pow(freqcgs, 3);
+        imageS[(i*NY+j)*NIMG+2] *= pow(freqcgs, 3);
+        imageS[(i*NY+j)*NIMG+3] *= pow(freqcgs, 3);
+        imageS[(i*NY+j)*NIMG+4] = tauFgeo[i][j];
       }
     }
 
@@ -429,22 +429,22 @@ int main(int argc, char *argv[])
         }
 
         // deposit intensity and Stokes parameter in pixels
-        image[i][j] = Intensity * pow(freqcgs, 3);
-        taus[i][j] = Tau;
+        image[i*NY+j] = Intensity * pow(freqcgs, 3);
+        taus[i*NY+j] = Tau;
         if (! only_unpolarized) {
           project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V);
-          imageS[i][j][0] = Stokes_I * pow(freqcgs, 3);
-          imageS[i][j][1] = Stokes_Q * pow(freqcgs, 3);
-          imageS[i][j][2] = Stokes_U * pow(freqcgs, 3);
-          imageS[i][j][3] = Stokes_V * pow(freqcgs, 3);
-          imageS[i][j][4] = tauF;
-          if (isnan(imageS[i][j][0])) exit(-1);
+          imageS[(i*NY+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3);
+          imageS[(i*NY+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3);
+          imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3);
+          imageS[(i*NY+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3);
+          imageS[(i*NY+j)*NIMG+4] = tauF;
+          if (isnan(imageS[(i*NY+j)*NIMG+0])) exit(-1);
         } else {
-          imageS[i][j][0] = 0.;
-          imageS[i][j][1] = 0.;
-          imageS[i][j][2] = 0.;
-          imageS[i][j][3] = 0.;
-          imageS[i][j][4] = 0.;
+          imageS[(i*NY+j)*NIMG+0] = 0.;
+          imageS[(i*NY+j)*NIMG+1] = 0.;
+          imageS[(i*NY+j)*NIMG+2] = 0.;
+          imageS[(i*NY+j)*NIMG+3] = 0.;
+          imageS[(i*NY+j)*NIMG+4] = 0.;
         }
 
         // print progress
@@ -470,13 +470,13 @@ int main(int argc, char *argv[])
   int jmax = 0;
   for (int i = 0; i < NX; i++) {
     for (int j = 0; j < NY; j++) {
-      Ftot_unpol += image[i][j]*scale;
-      Ftot += imageS[i][j][0] * scale;
-      Iavg += imageS[i][j][0];
-      if (imageS[i][j][0] > Imax) {
+      Ftot_unpol += image[i*NY+j]*scale;
+      Ftot += imageS[(i*NY+j)*NIMG+0] * scale;
+      Iavg += imageS[(i*NY+j)*NIMG+0];
+      if (imageS[(i*NY+j)*NIMG+0] > Imax) {
         imax = i;
         jmax = j;
-        Imax = imageS[i][j][0];
+        Imax = imageS[(i*NY+j)*NIMG+0];
       }
     }
   }
@@ -496,7 +496,7 @@ int main(int argc, char *argv[])
     } else {
       dump(image, imageS, taus, "ipole.dat", scale, Dsource, Xcam, DX, DY, 
            fovx, fovy, rcam, thetacam, phicam);
-      IMLOOP image[i][j] = log(image[i][j] + 1.e-50);
+      IMLOOP image[i*NY+j] = log(image[i*NY+j] + 1.e-50);
       make_ppm(image, freq, "ipole_lfnu.ppm");
     }
   }
@@ -508,7 +508,7 @@ int main(int argc, char *argv[])
 }
 
 
-void dump(double image[NX][NY], double imageS[NX][NY][NIMG], double taus[NX][NY],
+void dump(double image[], double imageS[], double taus[],
     const char *fname, double scale, double Dsource, double cam[NDIM], double DX, 
     double DY, double fovx, double fovy, double rcam, double thetacam, double phicam)
 {
@@ -548,8 +548,8 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], double taus[NX][NY]
   double Ftot_unpol=0., Ftot=0.;
   for (int i=0; i<NX; ++i) {
     for (int j=0; j<NY; ++j) {
-      Ftot_unpol += image[i][j] * scale;
-      Ftot += imageS[i][j][0] * scale;
+      Ftot_unpol += image[i*NY+j] * scale;
+      Ftot += imageS[(i*NY+j)*NIMG+0] * scale;
     }
   }
 
@@ -559,9 +559,9 @@ void dump(double image[NX][NY], double imageS[NX][NY][NIMG], double taus[NX][NY]
   h5io_add_data_dbl(fid, "/nuLnu", 4. * M_PI * Ftot * Dsource * Dsource * JY * freqcgs);
   h5io_add_data_dbl(fid, "/nuLnu_unpol", 4. * M_PI * Ftot_unpol * Dsource * Dsource * JY * freqcgs);
 
-  h5io_add_data_dbl_2d(fid, "/unpol", NX, NY, image);
-  h5io_add_data_dbl_2d(fid, "/tau", NX, NY, taus);
-  h5io_add_data_dbl_3d(fid, "/pol", NX, NY, 5, imageS);
+  h5io_add_data_dbl_2ds(fid, "/unpol", NX, NY, image);
+  h5io_add_data_dbl_2ds(fid, "/tau", NX, NY, taus);
+  h5io_add_data_dbl_3ds(fid, "/pol", NX, NY, 5, imageS);
 
   // allow model to output
   output_hdf5(fid);
