@@ -51,23 +51,28 @@ void load_par (const char *fname, Params *params) {
 // the par file. this should be called after load_par. 
 void update_par(int argc, char *argv[], Params *params) {
 
-  for (int i=0; i<argc-1; ++i) {
+  char *word, *value, *saveptr;
+
+  for (int i=0; i<argc; ++i) {
     
     if (strlen(argv[i]) > 2 && argv[i][0] == '-' && argv[i][1] == '-') {
-  
-      set_by_word_val(argv[i]+2, argv[i+1], "counterjet", &(params->counterjet), TYPE_INT);
-      
-      set_by_word_val(argv[i]+2, argv[i+1], "thetacam", &(params->thetacam), TYPE_DBL);
-      set_by_word_val(argv[i]+2, argv[i+1], "phicam", &(params->phicam), TYPE_DBL);
-      set_by_word_val(argv[i]+2, argv[i+1], "freqcgs", &(params->freqcgs), TYPE_DBL);
-      set_by_word_val(argv[i]+2, argv[i+1], "MBH", &(params->MBH), TYPE_DBL);
-      set_by_word_val(argv[i]+2, argv[i+1], "M_unit", &(params->M_unit), TYPE_DBL);
-      set_by_word_val(argv[i]+2, argv[i+1], "tp_over_te", &(params->tp_over_te), TYPE_DBL);
-      set_by_word_val(argv[i]+2, argv[i+1], "trat_small", &(params->trat_small), TYPE_DBL);
-      set_by_word_val(argv[i]+2, argv[i+1], "trat_large", &(params->trat_large), TYPE_DBL);
 
-      set_by_word_val(argv[i]+2, argv[i+1], "dump", (void *)(params->dump), TYPE_STR);
-      set_by_word_val(argv[i]+2, argv[i+1], "outfile", (void *)(params->outf), TYPE_STR);
+      word = strtok_r(argv[i]+2, "=", &saveptr);
+      value = strtok_r(NULL, "=", &saveptr);
+
+      set_by_word_val(word, value, "counterjet", &(params->counterjet), TYPE_INT);
+      
+      set_by_word_val(word, value, "thetacam", &(params->thetacam), TYPE_DBL);
+      set_by_word_val(word, value, "phicam", &(params->phicam), TYPE_DBL);
+      set_by_word_val(word, value, "freqcgs", &(params->freqcgs), TYPE_DBL);
+      set_by_word_val(word, value, "MBH", &(params->MBH), TYPE_DBL);
+      set_by_word_val(word, value, "M_unit", &(params->M_unit), TYPE_DBL);
+      set_by_word_val(word, value, "tp_over_te", &(params->tp_over_te), TYPE_DBL);
+      set_by_word_val(word, value, "trat_small", &(params->trat_small), TYPE_DBL);
+      set_by_word_val(word, value, "trat_large", &(params->trat_large), TYPE_DBL);
+
+      set_by_word_val(word, value, "dump", (void *)(params->dump), TYPE_STR);
+      set_by_word_val(word, value, "outfile", (void *)(params->outf), TYPE_STR);
 
     }
 
