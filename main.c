@@ -52,6 +52,7 @@ int main(int argc, char *argv[])
   for (int i=0; i<argc-1; ++i) {
     if ( strcmp(argv[i], "-par") == 0 ) {
       load_par(argv[i+1], &params);
+      update_par(argc, argv, &params);
     } else if ( strcmp(argv[i+1], "-quench") == 0 ) {
       quench_output = 1;
     } else if ( strcmp(argv[i+1], "-unpol") == 0 ) {

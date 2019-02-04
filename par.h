@@ -27,10 +27,12 @@ typedef struct params_t {
 } Params;
 
 // if you modify the 'parameters' struct above, you'll need to
-// modify this function as well to deal with the changes
+// modify these functions as well to deal with the changes
 void load_par(const char *, Params *);
+void update_par(int, char *[], Params *);
 
 // only modify if you add/modify types
 void read_param(const char *, const char *, void *, int);
+void set_by_word_val (const char *word, const char *value, const char *key, void *val, int type);
 
 #endif // PAR_H
