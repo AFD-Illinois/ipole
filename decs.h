@@ -57,7 +57,7 @@ extern double theta_j;
 extern double trat_j;
 extern double trat_d;
 extern int counterjet;
-extern double rmax;
+extern double rmax_geo;
 
 //2d
 
@@ -83,7 +83,7 @@ extern double Te_unit;
 
 extern int N1, N2, N3;
 
-extern double freqcgs, thetacam;
+extern double freqcgs, thetacam, tf;
 
 extern double levi_civita[NDIM][NDIM][NDIM][NDIM];
 extern char fnam[STRLEN];
@@ -117,7 +117,7 @@ void   get_connection_num(double *X, double lconn[][NDIM][NDIM]);
 void   lower(double *ucon, double Gcov[NDIM][NDIM], double *ucov);
 void   raise(double *ucov, double Gcon[NDIM][NDIM], double *ucon);
 double stepsize(double X[NDIM], double K[NDIM]);
-void init_model(char *args[]) ;
+void init_model(double *tA, double *tB);
 double get_model_thetae(double X[NDIM]) ;
 double get_model_b(double X[NDIM]) ;
 double get_model_ne(double X[NDIM]) ;
@@ -126,7 +126,7 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM]) ;
 void get_model_bcon(double X[NDIM], double Bcon[NDIM]) ;
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]) ;
 void get_model_ucon(double X[NDIM], double Ucon[NDIM]) ;
-void update_data();
+void update_data(double *tA, double *tB);
 void output_hdf5(hid_t fid);
 
 /* harm utilities */
@@ -136,7 +136,7 @@ double interp_scalar(double X[NDIM], double **var) ;
 void Xtoij(double X[NDIM], int *i, int *j, double del[NDIM]) ;
 */
 void   bl_coord(double *X, double *r, double *th);
-void set_units(char *instr) ;
+void set_units();
 //void init_physical_quantities(int n) ;
 
 //for 3d coment out

@@ -14,8 +14,7 @@ stepsize
 /* condition for stopping the backwards-in-lambda
    integration of the photon geodesic */
 
-#define LRMAX (log(1.1*Rout))
-//#define LRMAX (log(rmax))
+#define LRMAX (log(1.1*rmax_geo))
 #define LRMIN (log(1.05*Rh))
 int stop_backward_integration(double X[NDIM], double Kcon[NDIM], 
   double Xcam[NDIM])

@@ -20,7 +20,9 @@ double trat_j;
 double theta_j;
 double trat_d;
 int counterjet;
-double rmax;
+
+// don't evolve (outward) geodesics beyond this point
+double rmax_geo;
 
 /* HARM model globals */
 double M_unit;

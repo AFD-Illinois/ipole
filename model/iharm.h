@@ -1,5 +1,7 @@
-#define NX (80)
-#define NY (80)
+#define NX (160)
+#define NY (160)
+
+#define SLOW_LIGHT (0)
 
 #define KRHO 0
 #define UU   1

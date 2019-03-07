@@ -2,7 +2,6 @@
 #include "hdf5_utils.h"
 
 #define NVAR (10)
-#define SLOW_LIGHT (0)
 #define USE_FIXED_TPTE (0)
 #define USE_MIXED_TPTE (1)
 
@@ -37,6 +36,8 @@ static int DEREFINE_POLES, METRIC_MKS3;
 static double poly_norm, poly_xt, poly_alpha, mks_smooth; // mmks
 static double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 
+static int dumpmin, dumpmax, dumpidx;
+
 static hdf5_blob fluid_header = { 0 };
 static double MBH, Mdotedd, tp_over_te, Thetae_unit;
 #define NSUP (3)
@@ -57,7 +58,7 @@ static int nloaded = 0;
 struct of_data dataA, dataB, dataC;
 struct of_data *data[NSUP];
   
-void load_iharm_data(int n, char *);
+void load_iharm_data(int n, char *, int dumpidx, int verbose);
 
 void parse_input(int argc, char *argv[], Params *params)
 {
@@ -73,6 +74,10 @@ void parse_input(int argc, char *argv[], Params *params)
     trat_small = params->trat_small;
     trat_large = params->trat_large;
     counterjet = params->counterjet;
+
+    dumpmin = params->dump_min;
+    dumpmax = params->dump_max;
+    dumpidx = dumpmin;
 
     return;
   }
@@ -112,7 +117,9 @@ double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
   } else {
     *nA = 1; *nB = 2;
   }
-  return ( X[0] - data[nA]->t ) / ( data[nB]->t - data[nA]->t );
+  double tinterp = ( X[0] - data[*nA]->t ) / ( data[*nB]->t - data[*nA]->t );
+  if (tinterp < 0.) fprintf(stderr, "NEG %g %g %g\n", X[0], data[*nA]->t, data[*nB]->t);
+  return ( X[0] - data[*nA]->t ) / ( data[*nB]->t - data[*nA]->t );
   #else
   *nA = 0;
   *nB = 0;
@@ -120,66 +127,51 @@ double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
   #endif // SLOW_LIGHT
 }
 
-void update_data()
+void update_data(double *tA, double *tB)
 {
-  #pragma omp single
-  {
-    #if SLOW_LIGHT
-    // Get new filename
-    int len = strlen(fnam);
-    char buf[STRLEN];
-    memmove(buf, fnam+len-11, 8);
-    buf[8] = '\0';
-    int fnum = atoi(buf);
-    fnum += 1;
-    char newfnam[STRLEN]; 
-    memmove(newfnam, fnam, len-11);
-    newfnam[len-11] = '\0';
-    sprintf(buf, "%08d", fnum);
-    strcat(newfnam+len-11, buf);
-    sprintf(buf, ".h5");
-    strcat(newfnam+len-8, buf);
-    strcpy(fnam, newfnam);
-    //exit(-1);
-
-    // Reorder dataA, dataB, dataC in data[]
-    if (nloaded % 3 == 0) {
-      data[0] = &dataA;
-      data[1] = &dataB;
-      data[2] = &dataC;
-    } else if (nloaded % 3 == 1) {
-      data[0] = &dataB;
-      data[1] = &dataC;
-      data[2] = &dataA;
-    } else if (nloaded % 3 == 2) {
-      data[0] = &dataC;
-      data[1] = &dataA;
-      data[2] = &dataB;
-    } else {
-      printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
-    }
-    
-    load_iharm_data(2, fnam);
-    #else // FAST LIGHT
-    if (nloaded % 3 == 0) {
-      data[0] = &dataA;
-      data[1] = &dataB;
-      data[2] = &dataC;
-    } else if (nloaded % 3 == 1) {
-      data[0] = &dataB;
-      data[1] = &dataC;
-      data[2] = &dataA;
-    } else if (nloaded % 3 == 2) {
-      data[0] = &dataC;
-      data[1] = &dataA;
-      data[2] = &dataB;
-    } else {
-      printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
-    }
-    data[2]->t = data[1]->t + DTd;
-    #endif 
-    //data[2]->t = data[1]->t + DTd;
-  } // omp single
+  #if SLOW_LIGHT
+  // Reorder dataA, dataB, dataC in data[]
+  if (nloaded % 3 == 0) {
+    data[0] = &dataB;
+    data[1] = &dataC;
+    data[2] = &dataA;
+  } else if (nloaded % 3 == 1) {
+    data[0] = &dataC;
+    data[1] = &dataA;
+    data[2] = &dataB;
+  } else {
+    data[0] = &dataA;
+    data[1] = &dataB;
+    data[2] = &dataC;
+  }
+  int nextdumpidx = dumpidx++;
+  if (nextdumpidx > dumpmax) {
+    load_iharm_data(2, fnam, --nextdumpidx, 0);
+    data[2]->t += 1.;
+  } else {
+    load_iharm_data(2, fnam, nextdumpidx, 0);
+  }
+  *tA = data[0]->t;
+  *tB = data[1]->t;
+  fprintf(stderr, "loaded data (dump %d) (%g < t < %g)\n", nextdumpidx, *tA, *tB);
+  #else // FAST LIGHT
+  if (nloaded % 3 == 0) {
+    data[0] = &dataA;
+    data[1] = &dataB;
+    data[2] = &dataC;
+  } else if (nloaded % 3 == 1) {
+    data[0] = &dataB;
+    data[1] = &dataC;
+    data[2] = &dataA;
+  } else if (nloaded % 3 == 2) {
+    data[0] = &dataC;
+    data[1] = &dataA;
+    data[2] = &dataB;
+  } else {
+    printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
+  }
+  data[2]->t = data[1]->t + DTd;
+  #endif 
 }
 
 void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
@@ -345,9 +337,27 @@ void get_connection(double X[4], double lconn[4][4][4])
   get_connection_num(X, lconn);
 }
 
-void init_model(char *args[])
+double get_dump_t(char *fnam, int dumpidx)
 {
-  void init_iharm_grid(char *);
+  char fname[256];
+  snprintf(fname, 255, fnam, dumpidx);
+  double t = -1.;
+
+  if ( hdf5_open(fname) < 0 ) {
+    fprintf(stderr, "! unable to open file %s. Exiting!\n", fname);
+    exit(-1);
+  }
+
+  hdf5_set_directory("/");
+  hdf5_read_single_val(&t, "/t", H5T_IEEE_F64LE);
+  hdf5_close();
+
+  return t;
+}
+
+void init_model(double *tA, double *tB)
+{
+  void init_iharm_grid(char *, int);
 
   // set up initial ordering of data[]
   data[0] = &dataA;
@@ -356,27 +366,26 @@ void init_model(char *args[])
 
   // set up grid for fluid data
   fprintf(stderr, "reading data header...\n");
-  init_iharm_grid(fnam);
+  init_iharm_grid(fnam, dumpmin);
   fprintf(stderr, "success\n");
 
   // set all dimensional quantities from loaded parameters
-  set_units(args[4]);
+  set_units();
 
   // read fluid data
   fprintf(stderr, "reading data...\n");
-  load_iharm_data(0, fnam);
+  load_iharm_data(0, fnam, dumpidx++, 1);
   #if SLOW_LIGHT
-  update_data();
-  load_iharm_data(1, fnam);
-  update_data();
-  load_iharm_data(2, fnam);
-  #endif // SLOW_LIGHT
+  update_data(tA, tB);
+  update_data(tA, tB);
+  tf = get_dump_t(fnam, dumpmax) - 1.e-5;
+  #else // FAST LIGHT
   data[2]->t =10000.;
+  #endif // SLOW_LIGHT
   fprintf(stderr, "success\n");
 
   // horizon radius
   Rh = 1 + sqrt(1. - a * a);
-
 }
 
 /*
@@ -797,7 +806,7 @@ void bl_coord(double X[NDIM], double *r, double *th)
   }
 }
 
-void set_units(char *munitstr)
+void set_units()
 {
   L_unit = GNEWT * MBH / (CL * CL);
   T_unit = L_unit / CL;
@@ -812,22 +821,20 @@ void set_units(char *munitstr)
 
 void init_physical_quantities(int n)
 {
-  int i, j, k;
-  double bsq,sigma_m;
-
   // cover everything, even ghost zones
-  for (i = 0; i < N1+2; i++) {
-    for (j = 0; j < N2+2; j++) {
-      for (k = 0; k < N3+2; k++) {
+#pragma omp parallel for collapse(3)
+  for (int i = 0; i < N1+2; i++) {
+    for (int j = 0; j < N2+2; j++) {
+      for (int k = 0; k < N3+2; k++) {
         data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
 
-        bsq = data[n]->bcon[i][j][k][0] * data[n]->bcov[i][j][k][0] +
+        double bsq = data[n]->bcon[i][j][k][0] * data[n]->bcov[i][j][k][0] +
               data[n]->bcon[i][j][k][1] * data[n]->bcov[i][j][k][1] +
               data[n]->bcon[i][j][k][2] * data[n]->bcov[i][j][k][2] +
               data[n]->bcon[i][j][k][3] * data[n]->bcov[i][j][k][3] ;
 
         data[n]->b[i][j][k] = sqrt(bsq)*B_unit;
-        sigma_m = bsq/data[n]->p[KRHO][i][j][k];
+        double sigma_m = bsq/data[n]->p[KRHO][i][j][k];
 
         if (ELECTRONS == 1) {
           data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
@@ -1027,10 +1034,13 @@ void init_storage(void)
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
-void init_iharm_grid(char *fname)
+void init_iharm_grid(char *fnam, int dumpidx)
 {
   // called at the beginning of the run and sets the static parameters
   // along with setting up the grid
+  
+  char fname[256];
+  snprintf(fname, 255, fnam, dumpidx);
  
   fprintf(stderr, "filename: %s\n", fname);
 
@@ -1161,10 +1171,7 @@ void init_iharm_grid(char *fname)
     }
   }
  
-  // DEBUG TODO Need to set Rout in a comprehensible way.
-  // also think about Rin ... do we ever rely on hslope, Rin, Rout?
-  rmax = MIN(100., Rout);
-  rmax = Rout;
+  rmax_geo = MIN(100., Rout);
 
   hdf5_set_directory("/");
   hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
@@ -1192,7 +1199,11 @@ void init_iharm_grid(char *fname)
 
 void output_hdf5(hid_t fid)
 {
+#if SLOW_LIGHT
+  h5io_add_data_dbl(fid, "/header/t", data[1]->t); 
+#else // FAST LIGHT
   h5io_add_data_dbl(fid, "/header/t", data[0]->t); 
+#endif
   h5io_add_blob(fid, "/fluid_header", fluid_header); 
 
   h5io_add_group(fid, "/header/electrons");
@@ -1203,24 +1214,21 @@ void output_hdf5(hid_t fid)
     h5io_add_data_dbl(fid, "/header/electrons/rhigh", trat_large);
   }
   h5io_add_data_int(fid, "/header/electrons/type", ELECTRONS);
-
-  hdf5_close_blob(fluid_header);
 }
 
-void load_iharm_data(int n, char *fname)
+void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
 {
   // loads relevant information from fluid dump file stored at fname
   // to the n'th copy of data (e.g., for slow light)
 
-  fprintf(stderr, "LOADING DATA\n");
+  double dMact, Ladv;
+
+  char fname[256];
+  snprintf(fname, 255, fnam, dumpidx);
+
+  if (verbose) fprintf(stderr, "LOADING DATA\n");
   nloaded++;
 
-  int i,j,k,l,m;
-  double X[NDIM],UdotU,ufac,udotB;
-  double gcov[NDIM][NDIM],gcon[NDIM][NDIM], g;
-  double dMact, Ladv;
-  double r,th;
- 
   if ( hdf5_open(fname) < 0 ) {
     fprintf(stderr, "! unable to open file %s. Exiting!\n", fname);
     exit(-1);
@@ -1266,14 +1274,16 @@ void load_iharm_data(int n, char *fname)
 
   hdf5_close();
 
-  X[0] = 0.;
-  //X[3] = 0.;
-
   dMact = Ladv = 0.;
 
   // construct four-vectors over "real" zones
-  for(i = 1; i < N1+1; i++) {
-    for(j = 1; j < N2+1; j++) {
+#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv)
+  for(int i = 1; i < N1+1; i++) {
+    for(int j = 1; j < N2+1; j++) {
+
+      double X[NDIM] = { 0. };
+      double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+      double g, r, th;
 
       // this assumes axisymmetry in the coordinates
       ijktoX(i-1,j-1,0, X);
@@ -1283,32 +1293,32 @@ void load_iharm_data(int n, char *fname)
 
       bl_coord(X, &r, &th);
 
-      for(k = 1; k < N3+1; k++){
+      for(int k = 1; k < N3+1; k++){
 
         ijktoX(i-1,j-1,k,X);
-        UdotU = 0.;
+        double UdotU = 0.;
         
         // the four-vector reconstruction should have gcov and gcon and gdet using the modified coordinates
         // interpolating the four vectors to the zone center !!!!
-        for(l = 1; l < NDIM; l++) 
-          for(m = 1; m < NDIM; m++) 
+        for(int l = 1; l < NDIM; l++) 
+          for(int m = 1; m < NDIM; m++) 
             UdotU += gcov[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
-        ufac = sqrt(-1./gcon[0][0]*(1 + fabs(UdotU)));
+        double ufac = sqrt(-1./gcon[0][0]*(1 + fabs(UdotU)));
         data[n]->ucon[i][j][k][0] = -ufac*gcon[0][0];
-        for(l = 1; l < NDIM; l++) 
+        for(int l = 1; l < NDIM; l++) 
           data[n]->ucon[i][j][k][l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon[0][l];
         lower(data[n]->ucon[i][j][k], gcov, data[n]->ucov[i][j][k]);
 
         // reconstruct the magnetic field three vectors
-        udotB = 0.;
+        double udotB = 0.;
         
-        for (l = 1; l < NDIM; l++) {
+        for (int l = 1; l < NDIM; l++) {
           udotB += data[n]->ucov[i][j][k][l]*data[n]->p[B1+l-1][i][j][k];
         }
         
         data[n]->bcon[i][j][k][0] = udotB;
 
-        for (l = 1; l < NDIM; l++) {
+        for (int l = 1; l < NDIM; l++) {
           data[n]->bcon[i][j][k][l] = (data[n]->p[B1+l-1][i][j][k] + data[n]->ucon[i][j][k][l]*udotB)/data[n]->ucon[i][j][k][0];
         }
 
@@ -1325,9 +1335,10 @@ void load_iharm_data(int n, char *fname)
   // now copy primitives and four-vectors according to boundary conditions
 
   // radial -- just extend zones
-  for (j=1; j<N2+1; ++j) {
-    for (k=1; k<N3+1; ++k) {
-      for (l=0; l<NDIM; ++l) {
+#pragma omp parallel for collapse(2)
+  for (int j=1; j<N2+1; ++j) {
+    for (int k=1; k<N3+1; ++k) {
+      for (int l=0; l<NDIM; ++l) {
         data[n]->bcon[0][j][k][l] = data[n]->bcon[1][j][k][l];
         data[n]->bcon[N1+1][j][k][l] = data[n]->bcon[N1][j][k][l];
         data[n]->bcov[0][j][k][l] = data[n]->bcov[1][j][k][l];
@@ -1337,7 +1348,7 @@ void load_iharm_data(int n, char *fname)
         data[n]->ucov[0][j][k][l] = data[n]->ucov[1][j][k][l];
         data[n]->ucov[N1+1][j][k][l] = data[n]->ucov[N1][j][k][l];
       }
-      for (l=0; l<NVAR; ++l) {
+      for (int l=0; l<NVAR; ++l) {
         data[n]->p[l][0][j][k] = data[n]->p[l][1][j][k];
         data[n]->p[l][N1+1][j][k] = data[n]->p[l][N1][j][k];
       }
@@ -1345,11 +1356,12 @@ void load_iharm_data(int n, char *fname)
   }
 
   // elevation -- flip (this is a rotation by pi)
-  for (i=0; i<N1+2; ++i) {
-    for (k=1; k<N3+1; ++k) {
+#pragma omp parallel for collapse(2)
+  for (int i=0; i<N1+2; ++i) {
+    for (int k=1; k<N3+1; ++k) {
       if (N3%2 == 0) {
         int kflip = ( k + (N3/2) ) % N3;
-        for (l=0; l<NDIM; ++l) {
+        for (int l=0; l<NDIM; ++l) {
           data[n]->bcon[i][0][k][l] = data[n]->bcon[i][1][kflip][l];
           data[n]->bcon[i][N2+1][k][l] = data[n]->bcon[i][N2][kflip][l];
           data[n]->bcov[i][0][k][l] = data[n]->bcov[i][1][kflip][l];
@@ -1359,14 +1371,14 @@ void load_iharm_data(int n, char *fname)
           data[n]->ucov[i][0][k][l] = data[n]->ucov[i][1][kflip][l];
           data[n]->ucov[i][N2+1][k][l] = data[n]->ucov[i][N2][kflip][l];
         }
-        for (l=0; l<NVAR; ++l) {
+        for (int l=0; l<NVAR; ++l) {
           data[n]->p[l][i][0][k] = data[n]->p[l][i][1][kflip];
           data[n]->p[l][i][N2+1][k] = data[n]->p[l][i][N2][kflip];
         }
       } else {
         int kflip1 = ( k + (N3/2) ) % N3;
         int kflip2 = ( k + (N3/2) + 1 ) % N3;
-        for (l=0; l<NDIM; ++l) {
+        for (int l=0; l<NDIM; ++l) {
           data[n]->bcon[i][0][k][l]    = ( data[n]->bcon[i][1][kflip1][l] 
                                          + data[n]->bcon[i][1][kflip2][l] ) / 2.;
           data[n]->bcon[i][N2+1][k][l] = ( data[n]->bcon[i][N2][kflip1][l]
@@ -1384,7 +1396,7 @@ void load_iharm_data(int n, char *fname)
           data[n]->ucov[i][N2+1][k][l] = ( data[n]->ucov[i][N2][kflip1][l] 
                                          + data[n]->ucov[i][N2][kflip2][l] ) / 2.;
         }
-        for (l=0; l<NVAR; ++l) {
+        for (int l=0; l<NVAR; ++l) {
           data[n]->p[l][i][0][k]    = ( data[n]->p[l][i][1][kflip1]
                                       + data[n]->p[l][i][1][kflip2] ) / 2.;
           data[n]->p[l][i][N2+1][k] = ( data[n]->p[l][i][N2][kflip1]
@@ -1395,9 +1407,10 @@ void load_iharm_data(int n, char *fname)
   }
 
   // azimuth -- periodic
-  for (i=0; i<N1+2; ++i) {
-    for (j=0; j<N2+2; ++j) {
-      for (l=0; l<NDIM; ++l) {
+#pragma omp parallel for collapse(2)
+  for (int i=0; i<N1+2; ++i) {
+    for (int j=0; j<N2+2; ++j) {
+      for (int l=0; l<NDIM; ++l) {
         data[n]->bcon[i][j][0][l] = data[n]->bcon[i][j][N3][l];
         data[n]->bcon[i][j][N3+1][l] = data[n]->bcon[i][j][1][l];
         data[n]->bcov[i][j][0][l] = data[n]->bcov[i][j][N3][l];
@@ -1407,7 +1420,7 @@ void load_iharm_data(int n, char *fname)
         data[n]->ucov[i][j][0][l] = data[n]->ucov[i][j][N3][l];
         data[n]->ucov[i][j][N3+1][l] = data[n]->ucov[i][j][1][l];
       }
-      for (l=0; l<NVAR; ++l) {
+      for (int l=0; l<NVAR; ++l) {
         data[n]->p[l][i][j][0] = data[n]->p[l][i][j][N3];
         data[n]->p[l][i][j][N3+1] = data[n]->p[l][i][j][1];
       }
@@ -1419,13 +1432,15 @@ void load_iharm_data(int n, char *fname)
   Ladv *= dx[3]*dx[2] ;
   Ladv /= 21. ;
 
-  fprintf(stderr,"dMact: %g [code]\n",dMact) ;
-  fprintf(stderr,"Ladv: %g [code]\n",Ladv) ;
-  fprintf(stderr,"Mdot: %g [g/s] \n",-dMact*M_unit/T_unit) ;
-  fprintf(stderr,"Mdot: %g [MSUN/YR] \n",-dMact*M_unit/T_unit/(MSUN / YEAR)) ;
-  fprintf(stderr,"Mdot: %g [Mdotedd]\n",-dMact*M_unit/T_unit/Mdotedd) ;
-  fprintf(stderr,"Mdotedd: %g [g/s]\n",Mdotedd) ;
-  fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Mdotedd/(MSUN/YEAR)) ;
+  if (verbose) {
+    fprintf(stderr,"dMact: %g [code]\n",dMact) ;
+    fprintf(stderr,"Ladv: %g [code]\n",Ladv) ;
+    fprintf(stderr,"Mdot: %g [g/s] \n",-dMact*M_unit/T_unit) ;
+    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",-dMact*M_unit/T_unit/(MSUN / YEAR)) ;
+    fprintf(stderr,"Mdot: %g [Mdotedd]\n",-dMact*M_unit/T_unit/Mdotedd) ;
+    fprintf(stderr,"Mdotedd: %g [g/s]\n",Mdotedd) ;
+    fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Mdotedd/(MSUN/YEAR)) ;
+  }
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
   init_physical_quantities(n);
@@ -1440,9 +1455,9 @@ void load_iharm_data(int n, char *fname)
     double BETA0 = log(BETAMIN);
     double betajnugdet = 0.;
     double jnugdet = 0.;
-    for (i=1; i<N1+1; ++i) {
-      for (j=1; j<N2+1; ++j) {
-        for (k=1; k<N3+1; ++k) {
+    for (int i=1; i<N1+1; ++i) {
+      for (int j=1; j<N2+1; ++j) {
+        for (int k=1; k<N3+1; ++k) {
           int zi = i-1; 
           int zj = j-1;
           int zk = k-1;
@@ -1461,7 +1476,7 @@ void load_iharm_data(int n, char *fname)
         }
       }
     }
-    for (i=0; i<NBETABINS; ++i) {
+    for (int i=0; i<NBETABINS; ++i) {
       fprintf(stderr, "%d %g %g\n", i, exp(BETA0 + (i+0.5)*dlBeta), betabins[i]);
     }
     fprintf(stderr, "<beta> = %g\n", betajnugdet / jnugdet);
@@ -1521,7 +1536,7 @@ double theta_func(double X[NDIM])
 
 int radiating_region(double X[NDIM])
 {
-  if (X[1] < log(rmax) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) {
+  if (X[1] < log(rmax_geo) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) {
     return 1;
   } else {
     return 0;

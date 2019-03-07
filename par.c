@@ -38,7 +38,12 @@ void load_par (const char *fname, Params *params) {
 
     read_param(line, "dump", (void *)(params->dump), TYPE_STR);
     read_param(line, "outfile", (void *)(params->outf), TYPE_STR);
-    
+
+    // for slow light
+    read_param(line, "dump_min", &(params->dump_min), TYPE_INT);
+    read_param(line, "dump_max", &(params->dump_max), TYPE_INT);
+    read_param(line, "img_cadence", &(params->img_cadence), TYPE_DBL);
+
   }
 
   fclose(fp);

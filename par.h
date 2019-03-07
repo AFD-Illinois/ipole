@@ -24,6 +24,11 @@ typedef struct params_t {
   const char dump[256];
   const char outf[256];
   char loaded;
+
+  // slow light
+  int dump_min;
+  int dump_max;
+  double img_cadence;
 } Params;
 
 // if you modify the 'parameters' struct above, you'll need to

@@ -4,6 +4,8 @@
 
 #define MAXNSTEP 50000
 
+#define imgindex(n,i,j) (((n)*NX+(i))*NY+(j))
+
 struct of_traj {
   double dl;
   double X[NDIM];
@@ -13,11 +15,22 @@ struct of_traj {
 } traj[MAXNSTEP];
 #pragma omp threadprivate(traj)
 
+// used for slow light
+struct of_image {
+  int nstep;
+  double intensity;
+  double tau;
+  double tauF;
+  double complex N_coord[NDIM][NDIM];
+};
+
 // global variables
 double thetacam, freqcgs;
 char fnam[STRLEN];
 int quench_output = 0;
 int only_unpolarized = 0;
+
+double tf = 0.;
 
 Params params = { 0 };
 
@@ -31,6 +44,7 @@ int main(int argc, char *argv[])
   double time = omp_get_wtime();
   set_levi_civita();
 
+  double tA, tB; // for slow light
   double phicam, rcam, Xcam[NDIM];
   double freq, Dsource, scale;
   double DX, DY, fovx, fovy;
@@ -72,55 +86,50 @@ int main(int argc, char *argv[])
     }
   }
 
+  // now that we've loaded all parameters, tell our model about
+  // them and use init_model to load the first dump
   parse_input(argcs, argvs, &params);
-
-  init_model(argvs);
+  init_model(&tA, &tB);
   R0 = 0.0;
 
-  /* normalize frequency to electron rest-mass energy */
+  // normalize frequency to electron rest-mass energy
   freq = freqcgs * HPL / (ME * CL * CL);
 
-  /* fix camera location */
+  // set camera location
+  //   rcam       [ GM/c^2 ]
+  //   thetacam   [ degrees ]
+  //   phicam     [ degrees ]
   rcam = 1000.;
   phicam = 0.0;
-
-  if (params.loaded) {
-    phicam = params.phicam;
-  }
-
+  if (params.loaded) phicam = params.phicam;
+  // translate to geodesic coordinates
+  double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam/180.*M_PI};
   Xcam[0] = 0.0;
   Xcam[1] = log(rcam);
-  double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam/180.*M_PI};
   Xcam[2] = root_find(x);
   Xcam[3] = phicam/180.*M_PI;
-
   fprintf(stderr, "Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
-
   fprintf(stderr,
       "cam_th_cal=%g [deg] th_beg=%g th_len=%g a=%g R0=%g hslope=%g\n",
       (th_beg + th_len * Xcam[2]) * 180. / M_PI, th_beg, th_len, a,
       R0, hslope);
 
-  /* fix camera field of view */
-  /* units = GM/c^2 in plane of the hole */
-  DX = 40.0;
-  DY = 40.0;
-
-  Dsource = DM87 ;
+  // choose source distance here
+  Dsource = DM87;
   //Dsource = DM87_gas;
   //Dsource = DSGRA;
 
-  /* these parameters are for a 160 uas fov at M87 */
-  DX = 44.17204102616254;  // 6.2e9
-
-  /* alternative way to set fov by using muas */
+  // set DX/DY using fov_muas to ensure full fov is given uas x uas
   double fov_muas = 160.;
   DX = fov_muas * Dsource / L_unit / 2.06265e11;
-  DY = DX;
 
+  // alternatively, set DX, DY here to ensure full fov is M x M
+  // DX = 40.; // fov = 40 GM/c^2 in plane of the hole
+
+  // make image square and set other fov values
+  DY = DX;
   fovx = DX / rcam;
   fovy = DY / rcam;
-
 
   // Maximum radius of radiation interactions (GM/c^2)
   //rmax = 50.;
@@ -134,202 +143,281 @@ int main(int argc, char *argv[])
   fprintf(stderr,"FOVx, FOVy: %g %g [rad]\n",DX*L_unit/Dsource,DY*L_unit/Dsource);
   fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
 
-  // slow light (untested 2018.09.25 gnw)
-  if (0) {
+  // slow light
+  if (SLOW_LIGHT) {
 
-    /* slow light globals here */
-    static double Xgeo[NX][NY][NDIM], Kcongeo[NX][NY][NDIM];
-    static double t[NX][NY], tmin[NX][NY], tauFgeo[NX][NY];
-    static double complex Ngeo[NX][NY][NDIM][NDIM];
-    #pragma omp threadprivate(Xgeo,Kcongeo,t,tmin,tauFgeo,Ngeo)
+    // maximum number of steps, needed for dtraj (saving geodesics) 
+    int maxsteplength = -1;
 
-    fprintf(stderr, "\nBACKWARDS\n");
+    // minimum time, used to track the longest geodesic
+    double t0 = 0.;
 
-    // get photon trajectories
-#pragma omp parallel
-    {
-      int ngeomax = 0;
-#pragma omp for collapse(2)
-      for (int i=0; i<NX; ++i) {
-        for (int j=0; j<NY; ++j) {
+    // time when first geodesic first goes inside of R<100 ball.
+    // the difference (t0 - tgeoi) is the minimum amount of time
+    // required to be within the dumps. i.e., if the integration
+    // must go beyond this range, it is not required to load new
+    // dumps here. similar for tgeof, as the diagram below shows
+    //
+    //  rmax_geo      r=100.  r=100.                    r=rcam
+    //
+    //      |-----------|--------|----------------------> [cam]
+    //      t0        tgeof    tgeoi                       t=0
+    //
+    double tgeoi = -1.e100;
+    double tgeof = 0.;
 
-          double Xhalf[NDIM], Kconhalf[NDIM];
+    int nsteps[NX][NY];
 
-          if (!j) fprintf(stderr, "%i\n", i);
+    // first pass through geodesics to find lengths
+#pragma omp parallel for schedule(dynamic,2) collapse(2) reduction(max:tgeoi) reduction(max:maxsteplength) reduction(min:t0) reduction(min:tgeof) shared(nsteps)
+    for (int i=0; i<NX; ++i) {
+      for (int j=0; j<NY; ++j) {
+        if (j==0) fprintf(stderr, "%d ", i);
 
-          init_XK(i, j, Xcam, fovx, fovy, Xgeo[i][j], Kcongeo[i][j]);
-          for (int k=0; k<NDIM; ++k) Kcongeo[i][j][k] *= freq;
+        int nstep = 0;
+        double dl;
+        double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
+        init_XK(i,j, Xcam, fovx,fovy, X, Kcon);
+        for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
-          // integrate geodesic backwards
-          int ngeo = 0;
-          int tmin_set = 0;
-          double dl;
-          while (!stop_backward_integration(Xgeo[i][j], Kcongeo[i][j], Xcam)) {
-            dl = stepsize(Xgeo[i][j], Kcongeo[i][j]);
-            t[i][j] = Xgeo[i][j][0];
-            if (Xgeo[i][j][1] < log(rmax) && tmin_set == 0) {
-              tmin_set = 1;
-              tmin[i][j] = t[i][j];
-              if (tmin[i][j]) ; // TODO get rid of unused warning
+        double tgeoitmp = 1.;
+        double tgeoftmp = 1.;
+
+        while (!stop_backward_integration(X, Kcon, Xcam)) {
+          dl = stepsize(X, Kcon);
+          push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
+          nstep++;
+
+          if (nstep > MAXNSTEP - 2) {
+            fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j,i);
+            break;
+          }
+
+          if (tgeoitmp > 0. && X[1] < log(100.)) tgeoitmp = X[0];
+          if (tgeoftmp > 0. && X[1] > log(100.) && Kcon[1] < 0.) tgeoftmp = X[0]; // Kcon is for forward integration
+        }
+
+        nsteps[i][j] = nstep--;
+
+        if (nstep > maxsteplength) maxsteplength = nstep;
+        if (X[0] < t0) t0 = X[0];
+        if (tgeoitmp < 0. && tgeoitmp > tgeoi) tgeoi = tgeoitmp;
+        if (tgeoftmp < 0. && tgeoftmp < tgeof) tgeof = tgeoftmp;
+        else if (tgeoftmp > 0. && X[0] < tgeof) tgeof = X[0];
+      }
+    }
+
+    fprintf(stderr, "\n");
+
+    fprintf(stderr, "%g %g %g\n", t0, tgeoi, tgeof);
+
+    // now create data structures for geodesics and light rays
+    maxsteplength += 2;
+    fprintf(stderr, "geodesic size = %g GB\n", 1. * sizeof(struct of_traj) * NX*NY * maxsteplength / 1024/1024/1024);
+    struct of_traj *dtraj = malloc(sizeof(*dtraj) * NX*NY * maxsteplength);
+
+    // TODO: if DTd is different, we'll have to calcluate this a different way
+    int nconcurrentimgs = 2. + 1. * fabs(t0) / params.img_cadence;
+    fprintf(stderr, "images size = %g GB\n", 1. * sizeof(struct of_image) * NX*NY * nconcurrentimgs / 1024/1024/1024);
+    struct of_image *dimage = malloc(sizeof(*dimage) * NX*NY * nconcurrentimgs);
+
+    // now populate the geodesic data structures
+#pragma omp parallel for schedule(dynamic,2) collapse(2)
+    for (int i=0; i<NX; ++i) {
+      for (int j=0; j<NY; ++j) {
+        if (j==0) fprintf(stderr, "%d ", i);
+
+        int nstep = 0;
+        double dl;
+        double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
+        init_XK(i,j, Xcam, fovx,fovy, X, Kcon);
+        for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
+
+        while (!stop_backward_integration(X, Kcon, Xcam)) {
+          dl = stepsize(X, Kcon);
+          push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
+          nstep++;
+
+          int stepidx = imgindex(nstep,i,j);
+
+          dtraj[stepidx].dl = dl * L_unit * HPL / (ME * CL * CL);
+          for (int k=0; k<NDIM; ++k) {
+            dtraj[stepidx].X[k] = X[k];
+            dtraj[stepidx].Kcon[k] = Kcon[k];
+            dtraj[stepidx].Xhalf[k] = Xhalf[k];
+            dtraj[stepidx].Kconhalf[k] = Kconhalf[k];
+          }
+
+          if (nstep > MAXNSTEP - 2) {
+            fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j,i);
+            break;
+          }
+        }
+
+      }
+    }
+
+    fprintf(stderr, "\n\nnow beginning radiative transfer calculation ...\n");
+
+    // initialize state
+    int nimg = 0, nopenimgs = 0;
+    double last_img_target = tA - tgeof;
+    double *target_times = malloc(sizeof(*target_times) * nconcurrentimgs);
+    int *valid_images = malloc(sizeof(*valid_images) * nconcurrentimgs);
+    for (int i=0; i<nconcurrentimgs; ++i) valid_images[i] = 0;
+
+    fprintf(stderr, "first image will be produced for t = %g\n", last_img_target);
+
+    // TODO, enable emergency "save state" functionality
+    //   save  target_times
+    //         valid_images
+    //         dimage[*]
+    //   (opt) dtraj[*]
+
+    // now do radiative transfer
+    while (1) {
+
+      while ( last_img_target + t0 < tB ) {
+        // add a new image if the final time for that image is before the final valid dump
+        target_times[nimg] = last_img_target;
+        if ( last_img_target + tgeoi < tf ) {
+          valid_images[nimg] = 1;
+          nopenimgs++;
+          for (int i=0; i<NX; ++i) {
+            for (int j=0; j<NY; ++j) {
+              int pxidx = imgindex(nimg,i,j);
+              dimage[pxidx].nstep = nsteps[i][j];
+              dimage[pxidx].intensity = 0.;
+              dimage[pxidx].tau = 0.;
+              dimage[pxidx].tauF = 0.;
             }
-            push_photon(Xgeo[i][j], Kcongeo[i][j], -dl, Xhalf, Kconhalf);
-            ngeo++;
           }
-
-          if (ngeo > MAXNSTEP - 2) {
-            fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j, i);
-            exit(1);
-          }
-
-          if (ngeo > ngeomax) ngeomax = ngeo;
+          if (++nimg == nconcurrentimgs) nimg = 0;
         }
+        last_img_target += params.img_cadence;
       }
-    }  // omp parallel
 
-    // get information about "age" of geodesics
-    double tmax = 0;
-    int imax = 0;
-    int jmax = 0;
-    for (int i=0; i<NX; ++i) {
-      for (int j=0; j<NY; ++j) {
-        if (t[i][j] < tmax) {
-          tmax = t[i][j];
-          imax = i;
-          jmax = j;
-        }
-      }
-    }
-    for (int i=0; i<NX; ++i) {
-      for (int j=0; j<NY; ++j) {
-        Xgeo[i][j][0] = t0 + t[i][j] - tmax;
-      }
-    }
-    fprintf(stderr, "tmax = %g @ pixel [%d %d]\n", tmax, imax, jmax);
+      for (int k=0; k<nconcurrentimgs; ++k) {  // images
 
-    // radiative transfer below
+        if (valid_images[k] == 0) continue;
 
-    int done[NX][NY];
+        int do_output = 1;
 
-#pragma omp parallel for collapse(2)
-    for (int i=0; i<NX; ++i) {
-      for (int j=0; j<NY; ++j) {
-        done[i][j] = 0;
-        image[i*NY+j] = 0;
-        init_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j]);
-        tauFgeo[i][j] = 0;
-      }
-    }
-
-    // TODO: note there is the assumption that DTd is constant.
-
-    double tcurr = t0;
-    int nloop = 0;
-
-    while (tcurr < t0 - tmax) {
-
-      fprintf(stderr, "\ntcurr = %g\n\n", tcurr);
-
-#pragma omp parallel
-      {
-
-        // first loop over all pixels as much as can be done given the time
-        // range that the loaded fluid data corresponds to
-#pragma omp for collapse(2)
+#pragma omp parallel for schedule(dynamic,2) collapse(2)
         for (int i=0; i<NX; ++i) {
           for (int j=0; j<NY; ++j) {
 
-            double Xhalfgeo[NDIM], Kconhalfgeo[NDIM];
-            double Xprevgeo[NDIM], Kconprevgeo[NDIM];
 
-            while (Xgeo[i][j][0] < tcurr + DTd) {
+            double ji,ki, jf,kf;
+            double Xi[NDIM],Xhalf[NDIM],Xf[NDIM];
+            double Kconi[NDIM],Kconhalf[NDIM],Kconf[NDIM];
 
-              for (int mu = 0; mu < NDIM; mu++) {
-                Xprevgeo[mu] = Xgeo[i][j][mu];
-                Kconprevgeo[mu] = Kcongeo[i][j][mu];
+            int pxidx = imgindex(k,i,j);
+
+            while (dimage[pxidx].nstep > 1) {
+
+              int stepidx = imgindex(dimage[pxidx].nstep,i,j);
+              int pstepidx = imgindex(dimage[pxidx].nstep-1,i,j);
+
+              for (int l=0; l<NDIM; ++l) {
+                Xi[l]       = dtraj[stepidx].X[l];
+                Xhalf[l]    = dtraj[stepidx].Xhalf[l];
+                Xf[l]       = dtraj[pstepidx].X[l];
+                Kconi[l]    = dtraj[stepidx].Kcon[l];
+                Kconhalf[l] = dtraj[stepidx].Kconhalf[l];
+                Kconf[l]    = dtraj[pstepidx].Kcon[l];
               }
 
-              double dl;
+              // adjust time. constant factor is to avoid floating point precision issues
+              Xi[0] += target_times[k] + 1.e-5;
+              Xhalf[0] += target_times[k] + 1.e-5;
+              Xf[0] += target_times[k] + 1.e-5;
 
-              dl = stepsize(Xgeo[i][j], Kcongeo[i][j]);
-              push_photon(Xgeo[i][j], Kcongeo[i][j], dl, Xhalfgeo, Kconhalfgeo);
+              // only integrate for points within the bounds
+              if (Xi[0] < tA) {
+                // this should only fire when we first start the program
+                Xf[0] += tA - Xi[0];
+                Xhalf[0] += tA - Xi[0];
+                Xi[0] = tA;
+              }
+              if (Xi[0] >= tB) {
+                if (Xf[0] >= tf) {
+                  Xi[0] += tf - Xf[0];
+                  Xhalf[0] += tf - Xf[0];
+                  Xf[0] = tf;
+                } else {
+                  break;
+                }
+              }
 
-              if (done[i][j] == 0) {
+              get_jkinv(Xi, Kconi, &ji, &ki);
+              get_jkinv(Xf, Kconf, &jf, &kf);
 
-                double ji, jf, ki, kf, fdum;
-
-                get_jkinv(Xprevgeo, Kconprevgeo, &ji, &ki);
-                get_jkinv(Xgeo[i][j], Kcongeo[i][j], &jf, &kf);
-                dl *= L_unit*HPL/(ME*CL*CL);
-                image[i*NY+j] = approximate_solve(image[i*NY+j], ji, ki, jf, kf, dl, &fdum);
-
-                evolve_N(Xprevgeo, Kconprevgeo, Xhalfgeo, Kconhalfgeo, Xgeo[i][j],
-                    Kcongeo[i][j], dl, Ngeo[i][j], &tauFgeo[i][j]);
-
-                if (isnan(creal(Ngeo[i][j][0][0]))) {
-                  printf("NGEO NAN! %e\n", creal(Ngeo[i][j][0][0]));
-                  printf("[%i %i]\n", i,j);
-                  printf("X[] = %e %e %e %e\n", Xgeo[i][j][0], Xgeo[i][j][1], Xgeo[i][j][2], Xgeo[i][j][3]);
-                  printf("K[] = %e %e %e %e\n", Kcongeo[i][j][0], Kcongeo[i][j][1], Kcongeo[i][j][2], Kcongeo[i][j][3]);
+              dimage[pxidx].intensity = 
+                approximate_solve(dimage[pxidx].intensity, ji,ki,jf,kf, dtraj[stepidx].dl, &(dimage[pxidx].tau));
+              
+              // polarized transport
+              if (! only_unpolarized) {
+                evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF));
+                if (isnan(creal(dimage[pxidx].N_coord[0][0]))) {
                   exit(-1);
                 }
+              }
 
-                if (tauFgeo[i][j] > 1.e100 || tauFgeo[i][j] < -1.e100) {
-                  printf("i,j = %i %i t = %e, X0 = %e\n", i,j, t[i][j], Xgeo[i][j][0]);
-                  for (int mu = 0; mu < NDIM; mu++) {
-                    printf("[%i] X = %e Kcon = %e\n", mu, Xgeo[i][j][mu], Kcongeo[i][j][mu]);
-                    printf("     Xprev = %e Kconprev = %e\n", Xprevgeo[mu], Kconprevgeo[mu]);
-                    printf("     Xhalf = %e Kconhalf = %e\n", Xhalfgeo[mu], Kconhalfgeo[mu]);
-                  }
-                  exit(-1);
-                }
-              } 
-            } // should not continuing this geodesic because we're after the valid set
-            // of loaded fluid data. this closes the while.
+              dimage[pxidx].nstep -= 1;
+            }
 
-            if (Kcongeo[i][j][1] > 0. && Xgeo[i][j][1] > log(rmax)) {
-              done[i][j] = 1;
+            if (dimage[pxidx].nstep != 1) {
+              do_output = 0;
+            }
+
+          }
+        }
+
+        if (do_output) {
+
+          // image, imageS, taus
+          for (int i=0; i<NX; ++i) {
+            for (int j=0; j<NY; ++j) {
+
+              int pxidx = imgindex(k,i,j);
+              int pstepidx = imgindex(dimage[pxidx].nstep,i,j);
+
+              image[i*NY+j] = dimage[pxidx].intensity * pow(freqcgs, 3.);
+              taus[i*NY+j] = dimage[pxidx].tau;
+
+              if (! only_unpolarized) {
+                double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
+                project_N(dtraj[pstepidx].X, dtraj[pstepidx].Kcon, dimage[pxidx].N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V);
+                imageS[(i*NY+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3.);
+                imageS[(i*NY+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3.);
+                imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
+                imageS[(i*NY+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3.);
+                imageS[(i*NY+j)*NIMG+4] = dimage[pxidx].tauF * pow(freqcgs, 3.);
+              } else {
+                imageS[(i*NY+j)*NIMG+0] = 0.;
+                imageS[(i*NY+j)*NIMG+1] = 0.;
+                imageS[(i*NY+j)*NIMG+2] = 0.;
+                imageS[(i*NY+j)*NIMG+3] = 0.;
+                imageS[(i*NY+j)*NIMG+4] = 0.;
+              }
             }
           }
+
+          //fprintf(stderr, "saving image %d at t = %g\n", k, target_times[k]);
+          char dfname[256];
+          snprintf(dfname, 255, params.outf, target_times[k]);
+          dump(image, imageS, taus, dfname, scale, Dsource, Xcam, DX, DY,
+               fovx, fovy, rcam, thetacam, phicam);
+          valid_images[k] = 0;
+          nopenimgs--;
         }
 
-#pragma omp single
-
-        // check if we've finished every pixel
-        fprintf(stderr, "tcurr = %g\n", tcurr);
-        int alldone = 1;
-        for (int i=0; i<NX; ++i) {
-          for (int j=0; j<NY; ++j) {
-            if (done[i][j] == 0) alldone = 0;
-          }
-        }
-
-        // update fluid
-        if (!alldone) {
-#pragma omp single
-          fprintf(stderr, "LOADING NEW DATA\n");
-          update_data();
-        }
-
-#pragma omp single
-        tcurr += DTd;
-#pragma omp single
-        nloop++;
-
-      } 
-    } // omp parallel
-
-    // conversion factors
-    for (int i=0; i<NX; ++i) {
-      for (int j=0; j<NY; ++j) {
-        fprintf(stderr, "Xgeo[%i][%i] = %e %e %e %e\n", i,j, Xgeo[i][j][0], Xgeo[i][j][1], Xgeo[i][j][2], Xgeo[i][j][3]);
-        image[i*NY+j] *= pow(freqcgs, 3);
-        project_N(Xgeo[i][j], Kcongeo[i][j], Ngeo[i][j], &imageS[(i*NY+j)*NIMG], &imageS[(i*NY+j)*NIMG+1], &imageS[(i*NY+j)*NIMG+2], &imageS[(i*NY+j)*NIMG+3]);
-        imageS[(i*NY+j)*NIMG+0] *= pow(freqcgs, 3);
-        imageS[(i*NY+j)*NIMG+1] *= pow(freqcgs, 3);
-        imageS[(i*NY+j)*NIMG+2] *= pow(freqcgs, 3);
-        imageS[(i*NY+j)*NIMG+3] *= pow(freqcgs, 3);
-        imageS[(i*NY+j)*NIMG+4] = tauFgeo[i][j];
       }
+
+      if (nopenimgs < 1) break;
+      update_data(&tA, &tB);
+
     }
 
   }
@@ -411,7 +499,7 @@ int main(int argc, char *argv[])
           }
 
           // solve total intensity equation alone
-          get_jkinv(Xf, Kconi, &jf, &kf);
+          get_jkinv(Xf, Kconf, &jf, &kf);
           Intensity = approximate_solve(Intensity, ji, ki, jf, kf, traj[nstep].dl, &Tau);
 
           // solve polarized transport
@@ -458,48 +546,49 @@ int main(int argc, char *argv[])
 
       }
     }
-  }
 
-  // finish up
-  fprintf(stderr, "\nscale = %e\n", scale);
+    // finish up
+    fprintf(stderr, "\nscale = %e\n", scale);
 
-  double Ftot = 0.;
-  double Ftot_unpol = 0.;
-  double Imax = 0.0;
-  double Iavg = 0.0;
-  int imax = 0;
-  int jmax = 0;
-  for (int i = 0; i < NX; i++) {
-    for (int j = 0; j < NY; j++) {
-      Ftot_unpol += image[i*NY+j]*scale;
-      Ftot += imageS[(i*NY+j)*NIMG+0] * scale;
-      Iavg += imageS[(i*NY+j)*NIMG+0];
-      if (imageS[(i*NY+j)*NIMG+0] > Imax) {
-        imax = i;
-        jmax = j;
-        Imax = imageS[(i*NY+j)*NIMG+0];
+    double Ftot = 0.;
+    double Ftot_unpol = 0.;
+    double Imax = 0.0;
+    double Iavg = 0.0;
+    int imax = 0;
+    int jmax = 0;
+    for (int i = 0; i < NX; i++) {
+      for (int j = 0; j < NY; j++) {
+        Ftot_unpol += image[i*NY+j]*scale;
+        Ftot += imageS[(i*NY+j)*NIMG+0] * scale;
+        Iavg += imageS[(i*NY+j)*NIMG+0];
+        if (imageS[(i*NY+j)*NIMG+0] > Imax) {
+          imax = i;
+          jmax = j;
+          Imax = imageS[(i*NY+j)*NIMG+0];
+        }
       }
     }
-  }
 
-  fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax, Iavg/(NX*NY));
-  fprintf(stderr, "freq: %g Ftot: %g (%g unpol) scale=%g\n", freqcgs, Ftot, Ftot_unpol, scale);
-  fprintf(stderr, "nuLnu = %g\n", 4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
+    fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax, Iavg/(NX*NY));
+    fprintf(stderr, "freq: %g Ftot: %g (%g unpol) scale=%g\n", freqcgs, Ftot, Ftot_unpol, scale);
+    fprintf(stderr, "nuLnu = %g\n", 4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
 
-  // don't dump if we've been asked to quench output. useful for batch jobs
-  // like when fitting light curve fluxes
-  if (!quench_output) {
-    // dump result. if parameters have been loaded, don't also
-    // output image
-    if (params.loaded) {
-      dump(image, imageS, taus, params.outf, scale, Dsource, Xcam, DX, DY, 
-           fovx, fovy, rcam, thetacam, phicam);
-    } else {
-      dump(image, imageS, taus, "ipole.dat", scale, Dsource, Xcam, DX, DY, 
-           fovx, fovy, rcam, thetacam, phicam);
-      IMLOOP image[i*NY+j] = log(image[i*NY+j] + 1.e-50);
-      make_ppm(image, freq, "ipole_lfnu.ppm");
+    // don't dump if we've been asked to quench output. useful for batch jobs
+    // like when fitting light curve fluxes
+    if (!quench_output) {
+      // dump result. if parameters have been loaded, don't also
+      // output image
+      if (params.loaded) {
+        dump(image, imageS, taus, params.outf, scale, Dsource, Xcam, DX, DY, 
+             fovx, fovy, rcam, thetacam, phicam);
+      } else {
+        dump(image, imageS, taus, "ipole.dat", scale, Dsource, Xcam, DX, DY, 
+             fovx, fovy, rcam, thetacam, phicam);
+        IMLOOP image[i*NY+j] = log(image[i*NY+j] + 1.e-50);
+        make_ppm(image, freq, "ipole_lfnu.ppm");
+      }
     }
+
   }
 
   time = omp_get_wtime() - time;
