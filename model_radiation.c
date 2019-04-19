@@ -310,6 +310,8 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
 
   /* get fluid parameters */
   Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
+  B = get_model_b(X);		/* field in G */
+  Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
 
   if (Ne == 0.) {
     *jnuinv = 0.;
@@ -320,11 +322,25 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
   /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
   get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
 
+  /*
+  // threshold on sigma per interpolation point
+  double sigma = B*B/Ne * RHO_unit / (MP+ME) / B_unit / B_unit;
+
+  if (flag) fprintf(stderr, "%g ", sigma);
+
+  if (sigma > SIGMA_CUT) {
+    *jnuinv = 0.;
+    *knuinv = 0.;
+    return;
+  }
+   */
+
   gcov_func(X, gcov);
   lower(Kcon, gcov, Kcov);
 
   //theta = M_PI/2.;//get_bk_angle(X,Kcon,Ucov) ; /* angle between k & b */
   theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
+
   if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
     *jnuinv = 0.;
     *knuinv = 0.;
@@ -332,9 +348,6 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
   }
 
   nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
-
-  B = get_model_b(X);		/* field in G */
-  Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
 
   /* assume emission is thermal */
   Bnuinv = Bnu_inv(nu, Thetae);
@@ -344,6 +357,9 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
     *knuinv = SMALL;
   else
     *knuinv = *jnuinv / Bnuinv;
+
+  // optically thin
+  //*knuinv = 0.;
 
   if (isnan(*jnuinv) || isnan(*knuinv)) {
     fprintf(stderr, "\nisnan get_jkinv\n");

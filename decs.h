@@ -39,6 +39,7 @@
 
 /* numerical convenience */
 #define SMALL	1.e-40
+#define SIGMA_CUT (1.)
 
 #define sign(x) (((x) < 0) ? -1 : ((x) > 0))
 #define MAX(a,b) (((a)>(b))?(a):(b))

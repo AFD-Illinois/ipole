@@ -118,8 +118,9 @@ double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
     *nA = 1; *nB = 2;
   }
   double tinterp = ( X[0] - data[*nA]->t ) / ( data[*nB]->t - data[*nA]->t );
-  if (tinterp < 0.) fprintf(stderr, "NEG %g %g %g\n", X[0], data[*nA]->t, data[*nB]->t);
-  return ( X[0] - data[*nA]->t ) / ( data[*nB]->t - data[*nA]->t );
+  if (tinterp < 0.) tinterp = 0.; //  in slow light, when we reset based on tB, sometimes we overshoot
+  if (tinterp > 1.) tinterp = 1.; //  TODO, this should really only happen at r >> risco, but still...
+  return tinterp;
   #else
   *nA = 0;
   *nB = 0;
@@ -855,7 +856,11 @@ void init_physical_quantities(int n)
         //printf("rho = %e thetae = %e\n", p[KRHO][i][j][k], thetae[i][j][k]);
 
         //strongly magnetized = empty, no shiny spine
-        if (sigma_m > 1.0) data[n]->ne[i][j][k]=0.0;
+        if (sigma_m > SIGMA_CUT) {
+          data[n]->b[i][j][k]=0.0;
+          data[n]->ne[i][j][k]=0.0;
+          data[n]->thetae[i][j][k]=0.0;
+        }
       }
     }
   }
