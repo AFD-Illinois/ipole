@@ -28,6 +28,7 @@ typedef struct params_t {
   // slow light
   int dump_min;
   int dump_max;
+  int dump_skip;
   double img_cadence;
 } Params;
 

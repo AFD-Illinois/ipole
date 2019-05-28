@@ -1,5 +1,5 @@
-#define NX (160)
-#define NY (160)
+#define NX (1280)
+#define NY (1280)
 
 #define SLOW_LIGHT (0)
 

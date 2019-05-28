@@ -36,7 +36,7 @@ static int DEREFINE_POLES, METRIC_MKS3;
 static double poly_norm, poly_xt, poly_alpha, mks_smooth; // mmks
 static double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 
-static int dumpmin, dumpmax, dumpidx;
+static int dumpmin, dumpmax, dumpidx, dumpskip;
 
 static hdf5_blob fluid_header = { 0 };
 static double MBH, Mdotedd, tp_over_te, Thetae_unit;
@@ -77,6 +77,7 @@ void parse_input(int argc, char *argv[], Params *params)
 
     dumpmin = params->dump_min;
     dumpmax = params->dump_max;
+    dumpskip = params->dump_skip;
     dumpidx = dumpmin;
 
     return;
@@ -145,7 +146,8 @@ void update_data(double *tA, double *tB)
     data[1] = &dataB;
     data[2] = &dataC;
   }
-  int nextdumpidx = dumpidx++;
+  int nextdumpidx = dumpidx;
+  dumpidx += dumpskip;
   if (nextdumpidx > dumpmax) {
     load_iharm_data(2, fnam, --nextdumpidx, 0);
     data[2]->t += 1.;
@@ -375,7 +377,8 @@ void init_model(double *tA, double *tB)
 
   // read fluid data
   fprintf(stderr, "reading data...\n");
-  load_iharm_data(0, fnam, dumpidx++, 1);
+  load_iharm_data(0, fnam, dumpidx, 1);
+  dumpidx += dumpskip;
   #if SLOW_LIGHT
   update_data(tA, tB);
   update_data(tA, tB);

@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
   // choose source distance here
   Dsource = DM87;
   //Dsource = DM87_gas;
-  //Dsource = DSGRA;
+  Dsource = DSGRA;
 
   // set DX/DY using fov_muas to ensure full fov is given uas x uas
   double fov_muas = 160.;
@@ -360,7 +360,7 @@ int main(int argc, char *argv[])
               if (! only_unpolarized) {
                 evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF));
                 if (isnan(creal(dimage[pxidx].N_coord[0][0]))) {
-                  exit(-1);
+                  exit(-2);
                 }
               }
 
@@ -506,7 +506,7 @@ int main(int argc, char *argv[])
           if (! only_unpolarized ) {
             evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
             if (isnan(creal(N_coord[0][0]))) {
-              exit(-1);
+              exit(-3);
             }
           }
 

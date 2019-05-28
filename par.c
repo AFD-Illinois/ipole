@@ -20,6 +20,8 @@ void load_par (const char *fname, Params *params) {
   params->trat_large = 40.;
   params->phicam = 0.;
 
+  params->dump_skip = 1;
+
   // modify parameters/types below
   while (fgets(line, 255, fp) != NULL) {
 
@@ -42,6 +44,7 @@ void load_par (const char *fname, Params *params) {
     // for slow light
     read_param(line, "dump_min", &(params->dump_min), TYPE_INT);
     read_param(line, "dump_max", &(params->dump_max), TYPE_INT);
+    read_param(line, "dump_skip", &(params->dump_skip), TYPE_INT);
     read_param(line, "img_cadence", &(params->img_cadence), TYPE_DBL);
 
   }
@@ -61,6 +64,8 @@ void update_par(int argc, char *argv[], Params *params) {
   for (int i=0; i<argc; ++i) {
     
     if (strlen(argv[i]) > 2 && argv[i][0] == '-' && argv[i][1] == '-') {
+
+      
 
       word = strtok_r(argv[i]+2, "=", &saveptr);
       value = strtok_r(NULL, "=", &saveptr);
