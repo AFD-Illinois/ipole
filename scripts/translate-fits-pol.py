@@ -134,10 +134,10 @@ def write_fits_from_ipole(fname, ofname):
   header['STOKES'] = 'Q'
   hduq = fits.ImageHDU(Qdata, name='Q', header=header)
   header['STOKES'] = 'U'
-  hduq = fits.ImageHDU(Udata, name='U', header=header)
+  hduu = fits.ImageHDU(Udata, name='U', header=header)
   header['STOKES'] = 'V'
-  hduq = fits.ImageHDU(Vdata, name='V', header=header)
-  hdulist = [hdu, hduq, hduu]
+  hduv = fits.ImageHDU(Vdata, name='V', header=header)
+  hdulist = [hdu, hduq, hduu, hduv]
   hdulist = fits.HDUList(hdulist)
 
   # save the file
