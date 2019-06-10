@@ -132,7 +132,7 @@ def build(model, notes):
   #os.rename(PATHS['SRC'] + 'bhlight', PATHS['BUILD'] + 'bhlight')
 
   print("\n  BUILD SUCCESSFUL\n")
-  if os.uname().sysname == "Darwin":
+  if os.uname()[0] == "Darwin":
     subprocess.call(['md5','ipole'])
   else:
     subprocess.call(['md5sum','ipole'])
