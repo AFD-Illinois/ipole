@@ -126,3 +126,14 @@ void h5io_add_data_dbl_3d(hid_t fid, const char *path, hsize_t n1, hsize_t n2, h
   H5Sclose(dataspace_id); 
 }
 
+void h5io_add_data_int_1d(hid_t fid, const char *path, hsize_t n1, int data[n1]) 
+{
+  hsize_t dims[1] = { n1 };
+  hid_t dataspace_id = H5Screate_simple(1, dims, NULL);
+  hid_t dataset_id = H5Dcreate2(fid, path, H5IO_FMT_INT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  H5Dwrite(dataset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+  H5Dclose(dataset_id);
+  H5Sclose(dataspace_id);
+}
+
+

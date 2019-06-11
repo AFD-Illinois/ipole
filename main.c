@@ -1,6 +1,7 @@
 #include "decs.h"
 #include "defs.h"
 #include <omp.h>
+#include "hdf5_utils.h"
 
 #define MAXNSTEP 50000
 
@@ -29,6 +30,14 @@ double thetacam, freqcgs;
 char fnam[STRLEN];
 int quench_output = 0;
 int only_unpolarized = 0;
+
+// can be moved to decs if so desired
+void write_restart(const char *fname, double tA, double tB, double last_img_target,
+    int nopenimgs, int nimg, int nconcurrentimgs, int s2,
+    double *target_times, int *valid_imgs, struct of_image *dimages);
+void read_restart(const char *fname, double *tA, double *tB, double *last_img_target,
+    int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
+    double *target_times, int *valid_imgs, struct of_image *dimages);
 
 double tf = 0.;
 
@@ -117,7 +126,7 @@ int main(int argc, char *argv[])
   // choose source distance here
   Dsource = DM87;
   //Dsource = DM87_gas;
-  Dsource = DSGRA;
+  //Dsource = DSGRA;
 
   // set DX/DY using fov_muas to ensure full fov is given uas x uas
   double fov_muas = 160.;
@@ -145,6 +154,9 @@ int main(int argc, char *argv[])
 
   // slow light
   if (SLOW_LIGHT) {
+
+    // used to track when to write restart files
+    double next_restart_after = -1.;
 
     // maximum number of steps, needed for dtraj (saving geodesics) 
     int maxsteplength = -1;
@@ -268,11 +280,16 @@ int main(int argc, char *argv[])
 
     fprintf(stderr, "first image will be produced for t = %g\n", last_img_target);
 
-    // TODO, enable emergency "save state" functionality
-    //   save  target_times
-    //         valid_images
-    //         dimage[*]
-    //   (opt) dtraj[*]
+    // optionally start from restart file
+    if( access("restart.h5", F_OK) != -1 ) {
+
+      fprintf(stderr, "attempting to load restart file...\n");
+      double ttA, ttB;
+      read_restart("restart.h5", &ttA, &ttB, &last_img_target, &nopenimgs, &nimg,
+            nconcurrentimgs, nconcurrentimgs*NX*NY,
+            target_times, valid_images, dimage);
+      update_data_until(&tA, &tB, ttA);
+    }
 
     // now do radiative transfer
     while (1) {
@@ -306,7 +323,6 @@ int main(int argc, char *argv[])
 #pragma omp parallel for schedule(dynamic,2) collapse(2)
         for (int i=0; i<NX; ++i) {
           for (int j=0; j<NY; ++j) {
-
 
             double ji,ki, jf,kf;
             double Xi[NDIM],Xhalf[NDIM],Xf[NDIM];
@@ -417,6 +433,16 @@ int main(int argc, char *argv[])
 
       if (nopenimgs < 1) break;
       update_data(&tA, &tB);
+
+      // write a restart file however frequency as desired
+      if (params.restart_int > 0. && tA > next_restart_after) {
+        while (tA > next_restart_after) next_restart_after += params.restart_int;
+        char rfname[256];
+        snprintf(rfname, 200, "restarts/restart_%05.1f.h5", tA);
+        write_restart(rfname, tA, tB, last_img_target, nopenimgs, nimg, 
+              nconcurrentimgs, nconcurrentimgs*NX*NY,
+              target_times, valid_images, dimage);
+      }
 
     }
 
@@ -595,6 +621,120 @@ int main(int argc, char *argv[])
   printf("Total wallclock time: %g s\n\n", time);
 
   return 0;
+}
+
+void read_restart(const char *fname, double *tA, double *tB, double *last_img_target,
+        int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
+        double *target_times, int *valid_imgs, struct of_image *dimages) {
+
+  hdf5_open(fname);
+
+  hdf5_set_directory("/");
+  hdf5_read_single_val(tA, "/tA", H5T_IEEE_F64LE);
+  hdf5_read_single_val(tB, "/tB", H5T_IEEE_F64LE);
+  hdf5_read_single_val(last_img_target, "/last_img_target", H5T_IEEE_F64LE);
+  hdf5_read_single_val(nimg, "/nimg", H5T_STD_I32LE);
+  hdf5_read_single_val(nopenimgs, "/nopenimgs", H5T_STD_I32LE);
+
+  int *tint = malloc(s2 * sizeof(*tint));
+  double *tdbl = malloc(s2 * sizeof(*tdbl));
+
+  for (int i=0; i<nconcurrentimgs; ++i) {
+    tdbl[i] = target_times[i];
+    tint[i] = valid_imgs[i];
+  }
+
+  hsize_t dims[] = { nconcurrentimgs };
+  hsize_t start[] = { 0 };
+
+  hdf5_read_array(target_times, "/target_times", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
+  hdf5_read_array(valid_imgs, "/valid_images", 1, dims, start, dims, dims, start, H5T_STD_I32LE);
+
+  dims[0] = s2;  
+  
+  hdf5_read_array(tint, "/dimg/nstep", 1, dims, start, dims, dims, start, H5T_STD_I32LE);
+  for (int i=0; i<s2; ++i) dimages[i].nstep = tint[i];
+
+  hdf5_read_array(tdbl, "/dimg/intensity", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
+  for (int i=0; i<s2; ++i) dimages[i].intensity = tdbl[i];
+
+  hdf5_read_array(tdbl, "/dimg/tau", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
+  for (int i=0; i<s2; ++i) dimages[i].tau = tdbl[i];
+
+  hdf5_read_array(tdbl, "/dimg/tauF", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
+  for (int i=0; i<s2; ++i) dimages[i].tauF = tdbl[i];
+
+  for (int mu=0; mu<4; ++mu) {
+    for (int nu=0; nu<4; ++nu) {
+      char tgt[20];
+      snprintf(tgt, 18, "/dimg/Nr%d%d", mu, nu);
+      hdf5_read_array(tdbl, tgt, 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
+      for (int i=0; i<s2; ++i) dimages[i].N_coord[mu][nu] = tdbl[i];
+      snprintf(tgt, 18, "/dimg/Ni%d%d", mu, nu);
+      hdf5_read_array(tdbl, tgt, 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
+      for (int i=0; i<s2; ++i) dimages[i].N_coord[mu][nu] += tdbl[i] * _Complex_I;
+    }
+  }
+
+  free(tint);
+  free(tdbl);
+
+  hdf5_close();
+
+}
+
+void write_restart(const char *fname, double tA, double tB, double last_img_target,
+        int nopenimgs, int nimg, int nconcurrentimgs, int s2, 
+        double *target_times, int *valid_imgs, struct of_image *dimages) {
+
+  hid_t fid = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  if (fid < 0) {
+    fprintf(stderr, "! unable to create hdf5 restart file.\n");
+    exit(-4);
+  }
+
+  h5io_add_attribute_str(fid, "/", "githash", xstr(VERSION));
+  h5io_add_data_dbl(fid, "/tA", tA);
+  h5io_add_data_dbl(fid, "/tB", tB);
+  h5io_add_data_dbl(fid, "/last_img_target", last_img_target);
+  h5io_add_data_int(fid, "/nimg", nimg);
+  h5io_add_data_int(fid, "/nopenimgs", nopenimgs);
+  h5io_add_data_dbl_1d(fid, "/target_times", nconcurrentimgs, target_times);
+  h5io_add_data_int_1d(fid, "/valid_images", nconcurrentimgs, valid_imgs);
+  h5io_add_group(fid, "/dimg");
+
+  // save dimg struct
+  int *tint = malloc(s2 * sizeof(*tint));
+  double *tdbl = malloc(s2 * sizeof(*tdbl));
+
+  for (int i=0; i<s2; ++i) tint[i] = dimages[i].nstep;
+  h5io_add_data_int_1d(fid, "/dimg/nstep", s2, tint);
+  
+  for (int i=0; i<s2; ++i) tdbl[i] = dimages[i].intensity;
+  h5io_add_data_dbl_1d(fid, "/dimg/intensity", s2, tdbl);
+    
+  for (int i=0; i<s2; ++i) tdbl[i] = dimages[i].tau;
+  h5io_add_data_dbl_1d(fid, "/dimg/tau", s2, tdbl);
+
+  for (int i=0; i<s2; ++i) tdbl[i] = dimages[i].tauF;
+  h5io_add_data_dbl_1d(fid, "/dimg/tauF", s2, tdbl);
+
+  for (int mu=0; mu<4; ++mu) {
+    for (int nu=0; nu<4; ++nu) {
+      char tgt[20];
+      snprintf(tgt, 18, "/dimg/Nr%d%d", mu, nu);
+      for (int i=0; i<s2; ++i) tdbl[i] = creal(dimages[i].N_coord[mu][nu]);
+      h5io_add_data_dbl_1d(fid, tgt, s2, tdbl); 
+      snprintf(tgt, 18, "/dimg/Ni%d%d", mu, nu);
+      for (int i=0; i<s2; ++i) tdbl[i] = cimag(dimages[i].N_coord[mu][nu]);
+      h5io_add_data_dbl_1d(fid, tgt, s2, tdbl); 
+    }
+  }
+
+  free(tint);
+  free(tdbl);
+  
+  H5Fclose(fid);
 }
 
 

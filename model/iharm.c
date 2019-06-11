@@ -59,6 +59,7 @@ struct of_data dataA, dataB, dataC;
 struct of_data *data[NSUP];
   
 void load_iharm_data(int n, char *, int dumpidx, int verbose);
+double get_dump_t(char *fnam, int dumpidx);
 
 void parse_input(int argc, char *argv[], Params *params)
 {
@@ -110,25 +111,31 @@ void parse_input(int argc, char *argv[], Params *params)
   }
 }
 
-double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
+// Advance through dumps until we are closer to the next set
+// of dumps corresponding to tA == tgt. Used when attempting
+// to restart from slowlight restart file.
+void update_data_until(double *tA, double *tB, double tgt)
 {
-  #if SLOW_LIGHT
-  if (X[0] < data[1]->t) {
-    *nA = 0; *nB = 1;
-  } else {
-    *nA = 1; *nB = 2;
+  double tC = data[2]->t;
+
+  while (tC < tgt) {
+    dumpidx += dumpskip;
+    tC = get_dump_t(fnam, dumpidx);
   }
-  double tinterp = ( X[0] - data[*nA]->t ) / ( data[*nB]->t - data[*nA]->t );
-  if (tinterp < 0.) tinterp = 0.; //  in slow light, when we reset based on tB, sometimes we overshoot
-  if (tinterp > 1.) tinterp = 1.; //  TODO, this should really only happen at r >> risco, but still...
-  return tinterp;
-  #else
-  *nA = 0;
-  *nB = 0;
-  return 0.;
-  #endif // SLOW_LIGHT
+
+  // reset dump index, just to be safe, then load on out ...
+  dumpidx -= dumpskip;
+  while (*tA < tgt) update_data(tA, tB);
 }
 
+// Use internal dumpidx variable to load the next "expected"
+// dump into memory (used for slowlight mode). After calling
+// this function, it is guaranteed that data are ordered:
+//
+//   data[0]->t < data[1]->t < data[2]->t
+//
+// This function uses dataA, dataB, dataC to save the actual
+// data locations and then swaps which members live where.
 void update_data(double *tA, double *tB)
 {
   #if SLOW_LIGHT
@@ -334,7 +341,6 @@ static inline __attribute__((always_inline)) void gcov_ks(double r, double th, d
   gcov[3][3] = s2*(rho2 + a*a*s2*(1. + 2.*r/rho2));
 }
 
-
 void get_connection(double X[4], double lconn[4][4][4])
 {
   get_connection_num(X, lconn);
@@ -397,6 +403,32 @@ void init_model(double *tA, double *tB)
   these supply basic model data to ipole
 
 */
+
+// In slowlight mode, we perform linear interpolation in time. This function tells
+// us how far we've progressed from data[nA]->t to data[nB]->t but "in reverse" as
+// tinterp == 1 -> we're exactly on nA and tinterp == 0 -> we're exactly on nB.
+double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
+{
+  #if SLOW_LIGHT
+  if (X[0] < data[1]->t) {
+    *nA = 0; *nB = 1;
+  } else {
+    *nA = 1; *nB = 2;
+  }
+  double tinterp = 1. - ( X[0] - data[*nA]->t ) / ( data[*nB]->t - data[*nA]->t );
+  if (tinterp < 0.) tinterp = 0.; //  in slow light, when we reset based on tB, sometimes we overshoot
+  if (tinterp > 1.) tinterp = 1.; //  TODO, this should really only happen at r >> risco, but still...
+  return tinterp;
+  #else
+  *nA = 0;
+  *nB = 0;
+  return 0.;
+  #endif // SLOW_LIGHT
+}
+
+// Calculate Ucon,Ucov,Bcon,Bcov from primitives at location X using 
+// interpolation (on the primitives). This has been all wrapped into
+// a single function because some calculations require each other.
 void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
                                      double Bcon[NDIM], double Bcov[NDIM])
 {
@@ -414,12 +446,16 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
     Ucov[1] = 0.;
     Ucov[2] = 0.;
     Ucov[3] = 0.;
+    Ucon[0] = 0.;
+    Ucon[1] = 0.;
+    Ucon[2] = 0.;
+    Ucon[3] = 0.;
 
     for (int mu=0; mu<NDIM; ++mu) {
-      Ucon[0] = Ucov[mu] * gcon[0][mu];
-      Ucon[1] = Ucov[mu] * gcon[1][mu];
-      Ucon[2] = Ucov[mu] * gcon[2][mu];
-      Ucon[3] = Ucov[mu] * gcon[3][mu];
+      Ucon[0] += Ucov[mu] * gcon[0][mu];
+      Ucon[1] += Ucov[mu] * gcon[1][mu];
+      Ucon[2] += Ucov[mu] * gcon[2][mu];
+      Ucon[3] += Ucov[mu] * gcon[3][mu];
       Bcon[mu] = 0.;
       Bcov[mu] = 0.;
     }

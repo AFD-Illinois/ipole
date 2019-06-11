@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <math.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_sf_bessel.h>
@@ -128,6 +129,7 @@ void get_model_bcon(double X[NDIM], double Bcon[NDIM]) ;
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]) ;
 void get_model_ucon(double X[NDIM], double Ucon[NDIM]) ;
 void update_data(double *tA, double *tB);
+void update_data_until(double *tA, double *tB, double tgt);
 void output_hdf5(hid_t fid);
 
 /* harm utilities */

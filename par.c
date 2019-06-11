@@ -21,6 +21,7 @@ void load_par (const char *fname, Params *params) {
   params->phicam = 0.;
 
   params->dump_skip = 1;
+  params->restart_int = -1.;
 
   // modify parameters/types below
   while (fgets(line, 255, fp) != NULL) {
@@ -46,6 +47,7 @@ void load_par (const char *fname, Params *params) {
     read_param(line, "dump_max", &(params->dump_max), TYPE_INT);
     read_param(line, "dump_skip", &(params->dump_skip), TYPE_INT);
     read_param(line, "img_cadence", &(params->img_cadence), TYPE_DBL);
+    read_param(line, "restart_int", &(params->restart_int), TYPE_DBL);
 
   }
 

@@ -30,6 +30,7 @@ typedef struct params_t {
   int dump_max;
   int dump_skip;
   double img_cadence;
+  double restart_int;
 } Params;
 
 // if you modify the 'parameters' struct above, you'll need to
