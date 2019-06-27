@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
   set_levi_civita();
 
   double tA, tB; // for slow light
-  double phicam, rcam, Xcam[NDIM];
+  double phicam, rotcam, rcam, Xcam[NDIM];
   double freq, Dsource, scale;
   double DX, DY, fovx, fovy;
 
@@ -110,7 +110,11 @@ int main(int argc, char *argv[])
   //   phicam     [ degrees ]
   rcam = 1000.;
   phicam = 0.0;
-  if (params.loaded) phicam = params.phicam;
+  rotcam = 0.0;
+  if (params.loaded) {
+    phicam = params.phicam;
+    rotcam = params.rotcam*M_PI/180.;
+  }
   // translate to geodesic coordinates
   double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam/180.*M_PI};
   Xcam[0] = 0.0;
@@ -189,7 +193,7 @@ int main(int argc, char *argv[])
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, Xcam, fovx,fovy, X, Kcon);
+        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam);
         for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
         double tgeoitmp = 1.;
@@ -242,7 +246,7 @@ int main(int argc, char *argv[])
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, Xcam, fovx,fovy, X, Kcon);
+        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam);
         for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
         while (!stop_backward_integration(X, Kcon, Xcam)) {
@@ -404,7 +408,7 @@ int main(int argc, char *argv[])
 
               if (! only_unpolarized) {
                 double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
-                project_N(dtraj[pstepidx].X, dtraj[pstepidx].Kcon, dimage[pxidx].N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V);
+                project_N(dtraj[pstepidx].X, dtraj[pstepidx].Kcon, dimage[pxidx].N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V, rotcam);
                 imageS[(i*NY+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3.);
                 imageS[(i*NY+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3.);
                 imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
@@ -462,7 +466,7 @@ int main(int argc, char *argv[])
         double complex N_coord[NDIM][NDIM];
         double Intensity, Stokes_I, Stokes_Q, Stokes_U, Stokes_V, tauF, Tau;
 
-        init_XK(i,j, Xcam, fovx,fovy, X, Kcon); 
+        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam); 
         for (int k=0; k<NDIM; ++ k) Kcon[k] *= freq;
 
         /* integrate geodesic backwards */
@@ -547,7 +551,7 @@ int main(int argc, char *argv[])
         image[i*NY+j] = Intensity * pow(freqcgs, 3);
         taus[i*NY+j] = Tau;
         if (! only_unpolarized) {
-          project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V);
+          project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V, rotcam);
           imageS[(i*NY+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3);
           imageS[(i*NY+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3);
           imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3);
@@ -809,7 +813,7 @@ void dump(double image[], double imageS[], double taus[],
  *   ("x" for the image plane)
  */
 void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy, 
-    double X[NDIM], double Kcon[NDIM]) 
+    double X[NDIM], double Kcon[NDIM], double rotcam) 
 {
   double Econ[NDIM][NDIM];
   double Ecov[NDIM][NDIM];
@@ -818,9 +822,11 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
   make_camera_tetrad(Xcam, Econ, Ecov);
 
   /* construct *outgoing* wavevectors */
+  double xoff = (i-0.01)/(double)NX - 0.5;
+  double yoff = j/(double)NY - 0.5;
   Kcon_tetrad[0] = 0.;
-  Kcon_tetrad[1] = ((i-0.01) / ((double) NX) - 0.5) * fovx;
-  Kcon_tetrad[2] = (j / ((double) NY) - 0.5) * fovy;
+  Kcon_tetrad[1] = (xoff*cos(rotcam) - yoff*sin(rotcam)) * fovx;
+  Kcon_tetrad[2] = (xoff*sin(rotcam) + yoff*cos(rotcam)) * fovy;
   Kcon_tetrad[3] = 1.;
 
   /* normalize */

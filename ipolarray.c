@@ -281,16 +281,24 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 /* converts tensor N to Stokes parameters detected at the camera*/
 void project_N(double X[NDIM], double Kcon[NDIM],
 	       double complex N_coord[NDIM][NDIM], double *Stokes_I,
-	       double *Stokes_Q, double *Stokes_U, double *Stokes_V)
+	       double *Stokes_Q, double *Stokes_U, double *Stokes_V,
+         double rotcam)
 {
     double complex N_tetrad[NDIM][NDIM];
     double Econ[NDIM][NDIM], Ecov[NDIM][NDIM];
+    double Q,U;
 
     make_camera_tetrad(X, Econ, Ecov);
 
     complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
 
-    tensor_to_stokes(N_tetrad, Stokes_I, Stokes_Q, Stokes_U, Stokes_V);
+    tensor_to_stokes(N_tetrad, Stokes_I, &Q, &U, Stokes_V);
+
+    // rotate Stokes Q, U to be oriented correctly according to
+    // a rotated camera
+    rotcam *= -2.;
+    *Stokes_Q = Q*cos(rotcam) - U*sin(rotcam);
+    *Stokes_U = Q*sin(rotcam) + U*cos(rotcam);
 
     return;
 

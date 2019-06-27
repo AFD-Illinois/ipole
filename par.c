@@ -19,6 +19,7 @@ void load_par (const char *fname, Params *params) {
   params->trat_small = 1.;
   params->trat_large = 40.;
   params->phicam = 0.;
+  params->rotcam = 0.;
 
   params->dump_skip = 1;
   params->restart_int = -1.;
@@ -32,6 +33,7 @@ void load_par (const char *fname, Params *params) {
 
     read_param(line, "thetacam", &(params->thetacam), TYPE_DBL);
     read_param(line, "phicam", &(params->phicam), TYPE_DBL);
+    read_param(line, "rotcam", &(params->rotcam), TYPE_DBL);
     read_param(line, "freqcgs", &(params->freqcgs), TYPE_DBL);
     read_param(line, "MBH", &(params->MBH), TYPE_DBL);
     read_param(line, "M_unit", &(params->M_unit), TYPE_DBL);

@@ -17,6 +17,7 @@ typedef struct params_t {
   double trat_large;    // when beta >> 1 (defaults to 10.)
   double thetacam;      // in degrees from the pole
   double phicam;        // in degrees
+  double rotcam;        // in degrees
   double freqcgs;       // ... in cgs
   double MBH;           // in Msun
   double M_unit;        // in cgs
