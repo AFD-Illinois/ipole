@@ -5,6 +5,11 @@
 
 #define MAXNSTEP 50000
 
+// QU convention sets whether QU/EVPA is measured as
+//   - 0  "East of North"  or  "observer convention" 
+//   - 1  "North of West"  
+#define QU_CONVENTION 0 
+
 #define imgindex(n,i,j) (((n)*NX+(i))*NY+(j))
 
 struct of_traj {
@@ -414,6 +419,10 @@ int main(int argc, char *argv[])
                 imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
                 imageS[(i*NY+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3.);
                 imageS[(i*NY+j)*NIMG+4] = dimage[pxidx].tauF * pow(freqcgs, 3.);
+                if (QU_CONVENTION == 0) {
+                  imageS[(i*NY+j)*NIMG+1] *= -1;
+                  imageS[(i*NY+j)*NIMG+2] *= -1;
+                }
               } else {
                 imageS[(i*NY+j)*NIMG+0] = 0.;
                 imageS[(i*NY+j)*NIMG+1] = 0.;
@@ -557,6 +566,10 @@ int main(int argc, char *argv[])
           imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3);
           imageS[(i*NY+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3);
           imageS[(i*NY+j)*NIMG+4] = tauF;
+          if (QU_CONVENTION == 0) {
+            imageS[(i*NY+j)*NIMG+1] *= -1;
+            imageS[(i*NY+j)*NIMG+2] *= -1;
+          }
           if (isnan(imageS[(i*NY+j)*NIMG+0])) exit(-1);
         } else {
           imageS[(i*NY+j)*NIMG+0] = 0.;
@@ -759,6 +772,9 @@ void dump(double image[], double imageS[], double taus[],
   h5io_add_data_dbl(fid, "/header/freqcgs", freqcgs);
   h5io_add_data_dbl(fid, "/header/scale", scale);
   h5io_add_data_dbl(fid, "/header/dsource", Dsource);
+
+  if (QU_CONVENTION == 0) h5io_add_data_str(fid, "/header/evpa_0", "N");
+  else h5io_add_data_str(fid, "/header/evpa_0", "W");
 
   h5io_add_group(fid, "/header/camera");
   h5io_add_data_int(fid, "/header/camera/nx", NX);
