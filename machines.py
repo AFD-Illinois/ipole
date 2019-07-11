@@ -63,7 +63,7 @@ add_machine(name='bh28',
             gsl_dir='')
 
 add_machine(name='bh',
-            compiler='h5pcc',
+            compiler='/usr/lib64/mpi/gcc/openmpi/bin/h5pcc',
             c_flags='-O3 -std=c99 -Wall -fopenmp -g -D_DEFAULT_SOURCE',
             l_flags='-lm -lgsl -lgslcblas',
             gsl_dir='')
