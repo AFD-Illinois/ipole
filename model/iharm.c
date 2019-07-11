@@ -63,52 +63,26 @@ double get_dump_t(char *fnam, int dumpidx);
 
 void parse_input(int argc, char *argv[], Params *params)
 {
+  // no longer supports fixed-order command line arguments!
+  // we are forced to read from params. if !params->loaded,
+  // then exit inelegantly.
+  if ( ! params->loaded ) exit(-66);
 
-  // if params has been loaded, just read from it
-  if ( params->loaded ) {
-    thetacam = params->thetacam;
-    freqcgs = params->freqcgs;
-    MBH = params->MBH * MSUN;
-    M_unit = params->M_unit;
-    strcpy(fnam, params->dump);
-    tp_over_te = params->tp_over_te;
-    trat_small = params->trat_small;
-    trat_large = params->trat_large;
-    counterjet = params->counterjet;
+  thetacam = params->thetacam;
+  freqcgs = params->freqcgs;
+  MBH = params->MBH * MSUN;
+  M_unit = params->M_unit;
+  strcpy(fnam, params->dump);
+  tp_over_te = params->tp_over_te;
+  trat_small = params->trat_small;
+  trat_large = params->trat_large;
+  counterjet = params->counterjet;
 
-    dumpmin = params->dump_min;
-    dumpmax = params->dump_max;
-    dumpskip = params->dump_skip;
-    dumpidx = dumpmin;
+  dumpmin = params->dump_min;
+  dumpmax = params->dump_max;
+  dumpskip = params->dump_skip;
+  dumpidx = dumpmin;
 
-    return;
-  }
-
-  fprintf(stderr, "argc: %d\n", argc);
-
-  // 7 -> defaults, 8 -> fixed, 9 -> mixed
-  if (argc < 7 || argc > 9) {
-    fprintf(stderr, "ERROR format is\n");
-    fprintf(stderr, "  ipole theta[deg] freq[cgs] MBH[Msolar] M_unit[g] filename counterjet [...thermodynamics]\n");
-    exit(-1);
-  }
-
-  sscanf(argv[1], "%lf", &thetacam);
-  sscanf(argv[2], "%lf", &freqcgs);
-  sscanf(argv[3], "%lf", &MBH);
-  MBH *= MSUN;
-  sscanf(argv[4], "%lf", &M_unit);
-  strcpy(fnam, argv[5]);
-  sscanf(argv[6], "%d",  &counterjet);
-
-  if (argc == 8) {
-    sscanf(argv[7], "%lf", &tp_over_te);
-  }
-
-  if (argc == 9) {
-    sscanf(argv[7], "%lf", &trat_small);
-    sscanf(argv[8], "%lf", &trat_large);
-  }
 }
 
 // Advance through dumps until we are closer to the next set
@@ -855,6 +829,7 @@ void set_units()
   B_unit = CL * sqrt(4.*M_PI*RHO_unit);
   Mdotedd=4.*M_PI*GNEWT*MBH*MP/CL/0.1/SIGMA_THOMSON;
 
+  fprintf(stderr,"MBH: %g [Msun]\n",MBH/MSUN);
   fprintf(stderr,"L,T,M units: %g [cm] %g [s] %g [g]\n",L_unit,T_unit,M_unit) ;
   fprintf(stderr,"rho,u,B units: %g [g cm^-3] %g [g cm^-1 s^-2] %g [G] \n",RHO_unit,U_unit,B_unit) ;
 }

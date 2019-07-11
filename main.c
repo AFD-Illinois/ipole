@@ -75,34 +75,19 @@ int main(int argc, char *argv[])
     fprintf(stderr, "nthreads = %d\n", omp_get_num_threads());
   }
 
-  // load values from parameter file if passed. handle all
-  // actual model parameter comprehension in model/* files
-  for (int i=0; i<argc-1; ++i) {
-    if ( strcmp(argv[i], "-par") == 0 ) {
-      load_par(argv[i+1], &params);
-      update_par(argc, argv, &params);
-    } else if ( strcmp(argv[i+1], "-quench") == 0 ) {
-      quench_output = 1;
-    } else if ( strcmp(argv[i+1], "-unpol") == 0 ) {
-      only_unpolarized = 1;
-    }
-  }
+  // load values from parameter file. handle all actual
+  // model parameter comprehension in the model/* files
+  load_par_from_argv(argc, argv, &params);
 
-  // this is a quick and dirty kludge
-  int argcs = argc;
-  char *argvs[argc];
-  int tmpi = 0;
+  // figure out if we should run in a custom mode
   for (int i=0; i<argc; ++i) {
-    if (argv[i][0] != '-') {
-      argvs[tmpi++] = argv[i];
-    } else {
-      argcs--;
-    }
+    if ( strcmp(argv[i], "-quench") == 0 ) quench_output = 1;
+    else if ( strcmp(argv[i], "-unpol") == 0 ) only_unpolarized = 1;
   }
 
   // now that we've loaded all parameters, tell our model about
   // them and use init_model to load the first dump
-  parse_input(argcs, argvs, &params);
+  parse_input(argc, argv, &params);
   init_model(&tA, &tB);
   R0 = 0.0;
 
