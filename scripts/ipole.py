@@ -12,7 +12,24 @@
 
 import subprocess
 
-def run(thetacam, freqcgs, Mbh, Munit, fname, Rlow=None, Rhigh=None, exe="./ipole", counterjet=0, 
+def run(args, exe="./ipole", quench=False, verbose=0, unpol=False):
+  """Runs ipole with config as specified by args."""
+  if quench: args.append("-quench")
+  if unpol: args.append("-unpol")
+  args = [ exe, *args ]
+  if verbose>0: print(" ".join(args))
+  proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  output = [ z for y in [ str(x)[2:-1].split("\\n") for x in proc.communicate() ] for z in y ]
+  results = {}
+  for line in output:
+    if verbose>1: print(line)
+    if "Ftot" in line:
+      proc = line.replace('(','').replace(')','').split()
+      results['Ftot_pol'] = float(proc[3])
+      results['Ftot_unpol'] = float(proc[4])
+  return results
+
+def run_legacy(thetacam, freqcgs, Mbh, Munit, fname, Rlow=None, Rhigh=None, exe="./ipole", counterjet=0, 
         quench=False, verbose=False, unpol=False):
   """ runs ipole with config as specified by input arguments """
   if Rlow is None and Rhigh is not None: Rlow = 1.
