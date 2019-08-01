@@ -46,6 +46,9 @@ if __name__ == "__main__":
     hfp = h5py.File(fname,'r')    
     dx = hfp['header']['camera']['dx'][()]
     scale = hfp['header']['scale'][()]
+    evpa_0 = 'W'
+    if 'evpa_0' in hfp['header']:
+      evpa_0 = hfp['header']['evpa_0'][()]
     unpol = np.copy(hfp['unpol']).transpose((1,0))
     imagep = np.copy(hfp['pol']).transpose((1,0,2))
     I = imagep[:,:,0]
@@ -88,6 +91,12 @@ if __name__ == "__main__":
 
     # evpa
     evpa = (180./3.14159)*0.5*np.arctan2(U,Q)
+    if evpa_0 == "W":
+      evpa += 90.
+      evpa[evpa > 90.] -= 180.
+    if EVPA_CONV == "NofW":
+      evpa += 90.
+      evpa[evpa > 90.] -= 180.
     im3 = ax3.imshow(evpa, cmap='hsv', vmin=-90., vmax=90., origin='lower', extent=extent)
     colorbar(im3)
 
@@ -112,7 +121,16 @@ if __name__ == "__main__":
     print("I,Q,U,V [Jy]: {0:g} {1:g} {2:g} {3:g}".format(I.sum()*scale,Q.sum()*scale,U.sum()*scale,V.sum()*scale))
     print("LP [%]:       {0:g}".format(100.*np.sqrt(Q.sum()**2+U.sum()**2)/I.sum()))
     print("CP [%]:       {0:g}".format(100.*V.sum()/I.sum()))
-    print("EVPA [deg]:   {0:g}".format(180./3.14159*0.5*np.arctan2(U.sum(),Q.sum())))
+    evpatot = 180./3.14159*0.5*np.arctan2(U.sum(),Q.sum())
+    if evpa_0 == "W":
+      evpatot += 90. 
+      if evpatot > 90.:
+        evpatot -= 180
+    if EVPA_CONV == "NofW":
+      evpatot += 90.
+      if evpatot > 90.:
+        evpatot -= 180
+    print("EVPA [deg]:   {0:g}".format(evpatot))
 
     # formatting and text
     ax1.set_title("Stokes I [cgs]")
