@@ -45,6 +45,9 @@ if __name__ == "__main__":
     # load
     hfp = h5py.File(fname,'r')    
     dx = hfp['header']['camera']['dx'][()]
+    dsource = hfp['header']['dsource'][()]
+    lunit = hfp['header']['units']['L_unit'][()]
+    fov_muas = dx / dsource * lunit * 2.06265e11
     scale = hfp['header']['scale'][()]
     evpa_0 = 'W'
     if 'evpa_0' in hfp['header']:
@@ -59,7 +62,7 @@ if __name__ == "__main__":
 
     # set extent (assumption of square image)
     if FOV_UNITS == "muas":
-      extent = [ -40, 40, -40, 40 ]
+      extent = [ -fov_muas/2, fov_muas/2, -fov_muas/2, fov_muas/2 ]
     elif FOV_UNITS == "M":
       extent = [ -dx/2, dx/2, -dx/2, dx/2 ]
     else:
@@ -102,7 +105,7 @@ if __name__ == "__main__":
 
     # quiver on intensity
     npix = I.shape[0]
-    xs = np.linspace(-40,40,npix)
+    xs = np.linspace(-fov_muas/2,fov_muas/2,npix)
     Xs,Ys = np.meshgrid(xs,xs)
     lpscal = np.max(np.sqrt(Q*Q+U*U))
     vxp = np.sqrt(Q*Q+U*U)*np.sin(evpa*3.14159/180.)/lpscal
@@ -113,7 +116,7 @@ if __name__ == "__main__":
       width=0.005,
       color='#00ff00', 
       units='width', 
-      scale=2,
+      scale=4,
       pivot='mid')
 
     # command line output
