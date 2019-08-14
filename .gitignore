@@ -1,9 +1,13 @@
-model.c
-model.h
-*.mp4
-*.p
-*.dat
+# Compiled products
+__pycache__/
+*.pyc
+*.o
 ipole
+# Data
+*.p
+*.h5
+# Viz
 *.png
 *.ppm
+*.mp4
 *.vtk
