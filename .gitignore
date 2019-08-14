@@ -1,6 +1,7 @@
-# Compiled products
+# Development
 __pycache__/
 *.pyc
+build_archive/
 *.o
 ipole
 # Data
