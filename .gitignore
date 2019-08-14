@@ -7,6 +7,7 @@ ipole
 # Data
 *.p
 *.h5
+*.fits
 # Viz
 *.png
 *.ppm
