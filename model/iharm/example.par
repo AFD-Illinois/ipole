@@ -1,0 +1,11 @@
+# example.par  --  an example parameter file
+# Note that lines beginning with the '#' character and
+# empty lines are ignored by the parser. 
+
+dump dump_00001750.h5
+thetacam 90
+phicam 0 
+freqcgs 230e.9
+MBH 1.e8
+M_unit 1.e40
+outfile image.h5
