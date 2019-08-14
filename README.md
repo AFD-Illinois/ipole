@@ -55,7 +55,7 @@ Knowing this order may be useful for adding new variables that should be loaded 
 dump /path/to/fluid/dump.h5
 thetacam 90
 phicam 0 
-freqcgs 230e.9
+freqcgs 230.e9
 MBH 1.e8
 M_unit 1.e40
 outfile data/image.h5
