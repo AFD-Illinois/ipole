@@ -16,6 +16,8 @@ void load_par_from_argv (int argc, char *argv[], Params *params) {
   params->rotcam = 0.;
   params->dump_skip = 1;
   params->restart_int = -1.;
+  params->xoff = 0.;
+  params->yoff = 0.;
 
   // process each command line argument
   for (int i=0; i<argc; ++i) {
@@ -57,6 +59,9 @@ void try_set_parameter (const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "tp_over_te", &(params->tp_over_te), TYPE_DBL);
   set_by_word_val(word, value, "trat_small", &(params->trat_small), TYPE_DBL);
   set_by_word_val(word, value, "trat_large", &(params->trat_large), TYPE_DBL);
+
+  set_by_word_val(word, value, "xoff", &(params->xoff), TYPE_DBL);
+  set_by_word_val(word, value, "yoff", &(params->yoff), TYPE_DBL);
 
   set_by_word_val(word, value, "dump", (void *)(params->dump), TYPE_STR);
   set_by_word_val(word, value, "outfile", (void *)(params->outf), TYPE_STR);

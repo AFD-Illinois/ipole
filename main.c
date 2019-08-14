@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
 
   double tA, tB; // for slow light
   double phicam, rotcam, rcam, Xcam[NDIM];
+  double xoff, yoff;
   double freq, Dsource, scale;
   double DX, DY, fovx, fovy;
 
@@ -101,9 +102,13 @@ int main(int argc, char *argv[])
   rcam = 1000.;
   phicam = 0.0;
   rotcam = 0.0;
+  xoff = 0.0;
+  yoff = 0.0;
   if (params.loaded) {
     phicam = params.phicam;
     rotcam = params.rotcam*M_PI/180.;
+    xoff = params.xoff;
+    yoff = params.yoff;
   }
   // translate to geodesic coordinates
   double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam/180.*M_PI};
@@ -183,7 +188,8 @@ int main(int argc, char *argv[])
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam);
+        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam, xoff, yoff);
+
         for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
         double tgeoitmp = 1.;
@@ -236,7 +242,7 @@ int main(int argc, char *argv[])
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam);
+        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam, xoff, yoff);
         for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
         while (!stop_backward_integration(X, Kcon, Xcam)) {
@@ -422,7 +428,7 @@ int main(int argc, char *argv[])
           char dfname[256];
           snprintf(dfname, 255, params.outf, target_times[k]);
           dump(image, imageS, taus, dfname, scale, Dsource, Xcam, DX, DY,
-               fovx, fovy, rcam, thetacam, phicam);
+               fovx, fovy, rcam, thetacam, phicam, rotcam, xoff, yoff);
           valid_images[k] = 0;
           nopenimgs--;
         }
@@ -460,7 +466,7 @@ int main(int argc, char *argv[])
         double complex N_coord[NDIM][NDIM];
         double Intensity, Stokes_I, Stokes_Q, Stokes_U, Stokes_V, tauF, Tau;
 
-        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam); 
+        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam, xoff, yoff);
         for (int k=0; k<NDIM; ++ k) Kcon[k] *= freq;
 
         /* integrate geodesic backwards */
@@ -608,10 +614,10 @@ int main(int argc, char *argv[])
       // output image
       if (params.loaded) {
         dump(image, imageS, taus, params.outf, scale, Dsource, Xcam, DX, DY, 
-             fovx, fovy, rcam, thetacam, phicam);
+             fovx, fovy, rcam, thetacam, phicam, rotcam, xoff, yoff);
       } else {
         dump(image, imageS, taus, "ipole.dat", scale, Dsource, Xcam, DX, DY, 
-             fovx, fovy, rcam, thetacam, phicam);
+             fovx, fovy, rcam, thetacam, phicam, rotcam, xoff, yoff);
         IMLOOP image[i*NY+j] = log(image[i*NY+j] + 1.e-50);
         make_ppm(image, freq, "ipole_lfnu.ppm");
       }
@@ -742,7 +748,8 @@ void write_restart(const char *fname, double tA, double tB, double last_img_targ
 
 void dump(double image[], double imageS[], double taus[],
     const char *fname, double scale, double Dsource, double cam[NDIM], double DX, 
-    double DY, double fovx, double fovy, double rcam, double thetacam, double phicam)
+    double DY, double fovx, double fovy, double rcam, double thetacam, double phicam,
+    double rotcam, double xoff, double yoff)
 {
   hid_t fid = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
@@ -771,6 +778,9 @@ void dump(double image[], double imageS[], double taus[],
   h5io_add_data_dbl(fid, "/header/camera/rcam", rcam);
   h5io_add_data_dbl(fid, "/header/camera/thetacam", thetacam);
   h5io_add_data_dbl(fid, "/header/camera/phicam", phicam);
+  h5io_add_data_dbl(fid, "/header/camera/rotcam", rotcam);
+  h5io_add_data_dbl(fid, "/header/camera/xoff", xoff);
+  h5io_add_data_dbl(fid, "/header/camera/yoff", yoff);
   h5io_add_data_dbl_1d(fid, "/header/camera/x", NDIM, cam);
 
   h5io_add_group(fid, "/header/units");
@@ -814,7 +824,7 @@ void dump(double image[], double imageS[], double taus[],
  *   ("x" for the image plane)
  */
 void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy, 
-    double X[NDIM], double Kcon[NDIM], double rotcam) 
+    double X[NDIM], double Kcon[NDIM], double rotcam, double xoff, double yoff)
 {
   double Econ[NDIM][NDIM];
   double Ecov[NDIM][NDIM];
@@ -823,11 +833,11 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
   make_camera_tetrad(Xcam, Econ, Ecov);
 
   /* construct *outgoing* wavevectors */
-  double xoff = (i-0.01)/(double)NX - 0.5;
-  double yoff = j/(double)NY - 0.5;
+  double dxoff = (xoff+i-0.01)/(double)NX - 0.5;
+  double dyoff = (yoff+j)/(double)NY - 0.5;
   Kcon_tetrad[0] = 0.;
-  Kcon_tetrad[1] = (xoff*cos(rotcam) - yoff*sin(rotcam)) * fovx;
-  Kcon_tetrad[2] = (xoff*sin(rotcam) + yoff*cos(rotcam)) * fovy;
+  Kcon_tetrad[1] = (dxoff*cos(rotcam) - dyoff*sin(rotcam)) * fovx;
+  Kcon_tetrad[2] = (dxoff*sin(rotcam) + dyoff*cos(rotcam)) * fovy;
   Kcon_tetrad[3] = 1.;
 
   /* normalize */

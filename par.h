@@ -26,6 +26,9 @@ typedef struct params_t {
   const char outf[256];
   char loaded;
 
+  // ML parameters
+  double xoff, yoff;    // in pixels
+
   // slow light
   int dump_min;
   int dump_max;
