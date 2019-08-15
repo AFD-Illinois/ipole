@@ -1,5 +1,5 @@
 # Problem to compile
-PROB = iharm
+MODEL = iharm
 
 # Top directory of HDF5, or blank if using h5pcc
 HDF5_DIR =
@@ -36,7 +36,6 @@ endif
 GIT_VERSION := $(shell cd $(MAKEFILE_PATH); git describe --dirty --always --tags)
 
 ## LINKING PARAMETERS ##
-
 LINK = $(CC)
 LDFLAGS = $(CFLAGS)
 
@@ -44,17 +43,16 @@ HDF5_LIB = -lhdf5_hl -lhdf5
 GSL_LIB = -lgsl -lgslcblas
 
 ## LOGIC FOR PATHS ##
-
 CORE_DIR := $(MAKEFILE_PATH)/src/
-PROB_DIR := $(MAKEFILE_PATH)/model/$(PROB)/
-VPATH = $(CORE_DIR):$(PROB_DIR)
+MODEL_DIR := $(MAKEFILE_PATH)/model/$(MODEL)/
+VPATH = $(CORE_DIR):$(MODEL_DIR)
 
-#ARC_DIR := $(MAKEFILE_PATH)/model/$(PROB)/build_archive/
+#ARC_DIR := $(MAKEFILE_PATH)/model/$(MODEL)/build_archive/
 # TODO this is I think gmake-specific
 ARC_DIR := $(CURDIR)/build_archive/
 
-SRC := $(wildcard $(CORE_DIR)/*.c) $(wildcard $(PROB_DIR)/*.c)
-HEAD := $(wildcard $(CORE_DIR)/*.h) $(wildcard $(PROB_DIR)/*.h)
+SRC := $(wildcard $(CORE_DIR)/*.c) $(wildcard $(MODEL_DIR)/*.c)
+HEAD := $(wildcard $(CORE_DIR)/*.h) $(wildcard $(MODEL_DIR)/*.h)
 
 HEAD_ARC := $(addprefix $(ARC_DIR)/, $(notdir $(HEAD)))
 OBJ := $(addprefix $(ARC_DIR)/, $(notdir $(SRC:%.c=%.o)))
@@ -79,13 +77,12 @@ ifneq ($(strip $(SYSTEM_LIBDIR)),)
 endif
 
 ## TARGETS ##
-
 .PRECIOUS: $(ARC_DIR)/$(EXE) $(ARC_DIR)/%
 
 default: build
 
 build: $(EXE)
-	@echo -e "Completed build of prob: $(PROB)"
+	@echo -e "Completed build with model: $(MODEL)"
 	@echo -e "CFLAGS: $(CFLAGS)"
 
 debug: CFLAGS += -g -Wall -Werror -Wno-unused-variable -Wno-unused-but-set-variable
@@ -114,7 +111,7 @@ $(ARC_DIR)/$(EXE): $(OBJ)
 
 $(ARC_DIR)/%.o: $(ARC_DIR)/%.c $(HEAD_ARC)
 	@echo -e "\tCompiling $(notdir $<)"
-	@$(CC) $(CFLAGS) $(INC) -DVERSION=$(GIT_VERSION) -DNOTES=$(shell echo \"${NOTES}\") -c $< -o $@
+	$(CC) $(CFLAGS) $(INC) -DVERSION=$(GIT_VERSION) -DNOTES=$(NOTES) -DMODEL=$(MODEL) -c $< -o $@
 
 $(ARC_DIR)/%: % | $(ARC_DIR)
 	@cp $< $(ARC_DIR)
