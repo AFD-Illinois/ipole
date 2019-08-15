@@ -19,32 +19,9 @@ where ```[MODEL]``` specifies the fluid data format. For all fluid data produced
 
 These options may be provided at any time in any order and do not affect the rest of the arguments.
 
-### command line arguments
+### command line arguments and parameter files
 
-If no parameter file is specified, then ipole reads arguments in the following format
-
-```bash
-./ipole thetacam freqcgs Mbh M_unit path/to/dump counterjet
-
-# as example
-./ipole 17 230.e9 1.e8 2.3e21 /data/bh28-fs1/dumps/iharm/mad/0.9375_256x128x128/dumps/dump_00000000.h5 0
-```
-
-```thetacam``` should be given in degrees away from the polar axis.
-
-```freqcgs``` is the desired frequency for the image (given in Hz).
-
-```Mbh``` is the mass of the central black hole in units of Msun (overwritten if the dump comes from a GRRMHD run)
-
-```M_unit``` is the mass unit for the simulation in cgs (overwritten if the dump compes from a GRRMHD run)
-
-```path/to/dump``` is the absolute or relative path to the fluid dump file
-
-```counterjet``` is one of {0,1,2} and specifies if certain parts of the domain should be "switched off" for emission. If counterjet == 1, only emission from X[2] > 0.5 is allowed. If counterjet == 2, only emission from X[2] < 0.5 is allowed. Otherwise, emission from all parts of the domain is allowed.
-
-### parameter files
-
-In addition to providing parameters via the fixed-order command line arguments specified above, ```ipole``` accepts parameter files, specified by the command line arguments ```-par path/to/par.file```. If directed to use a parameter file, ```ipole``` will ignore any non-flagged (see below) command line input.
+To facilitate runs over many files with similar parameters, ```ipole``` can read parameter files, specified by consecutive the command line arguments ```-par path/to/par.file```.
 
 Parameter files should be lists of key value pairs, written one line at a time. Empty lines and lines beginning with the ```#``` character are ignored. A full list of accepted parameters can be found by reading the ```par.c``` file. An example parameter file can be found at [the bottom](#example-parameter-file) of this document. Expected keys that do not appear in the parameter file will be set to default value (see ```par.c``` for more information). Unexpected keys that appear in the parameter file will be silently ignored.
 
@@ -54,7 +31,7 @@ $ ./ipole -par default.par --key1=value1 --key2=value2
 $ ./ipole --key1=value1 -par default.par --key2=value2
 ```
 
-In both of the above examples, ```ipole``` will first read the ```default.par``` parameter file and then overwrite the ```key1``` parameter value to be ```value1``` and so on. The order of the arguments is unimportant.
+In all cases, ```ipole``` reads parameters in the order they are specified, overwriting when encountering a repeated parameter name.
 
 
 ## program loading order
