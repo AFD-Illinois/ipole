@@ -1,0 +1,1 @@
+CFLAGS += -D_DEFAULT_SOURCE -shlib

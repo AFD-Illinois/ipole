@@ -28,6 +28,10 @@ HOST := $(shell hostname)
 ifneq (,$(findstring stampede2,$(HOST)))
 	-include $(MAKEFILE_PATH)/machines/stampede2.make
 endif
+# Hack to check only whether host begins with bh*
+ifneq (,$(findstring beginsbh,begins$(HOST)))
+        -include $(MAKEFILE_PATH)/machines/bh-cluster.make
+endif
 -include $(MAKEFILE_PATH)/machines/$(HOST).make
 
 # Everything below this should be static
@@ -111,7 +115,7 @@ $(ARC_DIR)/$(EXE): $(OBJ)
 
 $(ARC_DIR)/%.o: $(ARC_DIR)/%.c $(HEAD_ARC)
 	@echo -e "\tCompiling $(notdir $<)"
-	$(CC) $(CFLAGS) $(INC) -DVERSION=$(GIT_VERSION) -DNOTES=$(NOTES) -DMODEL=$(MODEL) -c $< -o $@
+	@$(CC) $(CFLAGS) $(INC) -DVERSION=$(GIT_VERSION) -DNOTES=$(NOTES) -DMODEL=$(MODEL) -c $< -o $@
 
 $(ARC_DIR)/%: % | $(ARC_DIR)
 	@cp $< $(ARC_DIR)
