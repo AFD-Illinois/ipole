@@ -34,6 +34,9 @@ ifneq (,$(findstring beginsbh,begins$(HOST)))
 endif
 -include $(MAKEFILE_PATH)/machines/$(HOST).make
 
+# Allow overrides of which cflags to add
+CFLAGS += $(CFLAGS_CUSTOM)
+
 # Everything below this should be static
 
 ## VERSION PRESERVATION ##
