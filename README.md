@@ -19,9 +19,10 @@ where ```[MODEL]``` specifies the fluid data format. For all fluid data produced
 
 These options may be provided at any time in any order and do not affect the rest of the arguments.
 
-### parameter files
+=======
+### command line arguments and parameter files
 
-In addition to the simple arguments above, ```ipole``` accepts parameter files, specified by the command line arguments ```-par path/to/par.file```. If directed to use a parameter file, ```ipole``` will ignore any non-flagged (see below) command line input.
+To facilitate runs over many files with similar parameters, ```ipole``` can read parameter files, specified by consecutive the command line arguments ```-par path/to/par.file```.
 
 Parameter files should be lists of key value pairs, one per line. Empty lines and lines beginning with the ```#``` character are ignored. A full list of accepted parameters can be found by reading the ```par.c``` file. An example parameter file can be found at [the bottom](#example-parameter-file) of this document. Expected keys that do not appear in the parameter file will be set to default value (see ```par.c``` for more information). Unexpected keys that appear in the parameter file will be silently ignored.
 
@@ -31,7 +32,7 @@ $ ./ipole -par default.par --key1=value1 --key2=value2
 $ ./ipole --key1=value1 -par default.par --key2=value2
 ```
 
-In both of the above examples, ```ipole``` will first read the ```default.par``` parameter file and then overwrite the ```key1``` parameter value to be ```value1``` and so on. The order of the arguments is unimportant.
+In all cases, ```ipole``` reads parameters in the order they are specified, overwriting when encountering a repeated parameter name.
 
 
 ## program loading order
@@ -59,8 +60,6 @@ freqcgs 230.e9
 MBH 1.e8
 M_unit 1.e40
 outfile data/image.h5
-
-
 ```
 
 
