@@ -1,0 +1,18 @@
+# Camera location for thin-disk comparison
+thetacam 75
+phicam 0
+
+# Frequency corresponding to 1 eV photons
+freqcgs 2.417989e17
+
+# MBH in solar masses
+MBH 10
+
+# Thin disk "M_unit" is just the accretion rate
+# as fraction of Eddington
+M_unit 0.1
+
+# BH dimensionless spin
+a 0.99
+
+outfile image.h5

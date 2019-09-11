@@ -4,6 +4,10 @@ __pycache__/
 build_archive/
 *.o
 ipole
+
+# Output
+out*.txt
+
 # Data
 *.p
 *.h5
