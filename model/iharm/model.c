@@ -1,9 +1,41 @@
+#include "model.h"
+
 #include "decs.h"
 #include "hdf5_utils.h"
+
+#include "coordinates.h"
+#include "geometry.h"
+
+#include "grid.h"
+#include "par.h"
+#include "utils.h"
 
 #define NVAR (10)
 #define USE_FIXED_TPTE (0)
 #define USE_MIXED_TPTE (1)
+#define NSUP (3)
+
+// UNITS
+double M_unit;
+double L_unit;
+double T_unit;
+double RHO_unit;
+double U_unit;
+double B_unit;
+double Te_unit;
+
+// MODEL PARAMETERS
+double freqcgs;
+double thetacam;
+double gam;
+double DTd;
+double t0;
+double trat_j;
+double theta_j;
+double trat_d;
+int counterjet;
+double rmax_geo;
+char fnam[STRLEN];
 
 // these will be overwritten by anything found in par.c (or in runtime parameter file)
 static double tp_over_te = 3.; 
@@ -16,31 +48,12 @@ static double trat_large = 30.;
 //    2 : use mixed TP_OVER_TE (beta model)
 static int RADIATION, ELECTRONS;
 
-static inline __attribute__((always_inline)) void set_dxdX_metric(double X[NDIM], double dxdX[NDIM][NDIM], int metric);
-static inline __attribute__((always_inline)) void gcov_ks(double r, double th, double gcov[NDIM][NDIM]);
-double gdet_zone(int i, int j, int k);
-void ijktoX(int i, int j, int k, double X[NDIM]);
-void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]) ;
-int X_in_domain(double X[NDIM]);
-void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
-double interp_scalar(double X[NDIM], double ***var) ;
 static double game, gamp;
-
-// metric parameters 
-//  note: if METRIC_eKS, then the code will use "expoential KS" coordinates
-//        defined by x^a = { x^0, log(x^1), x^2, x^3 } where x^0, x^1, x^2,
-//        x^3 are normal KS coordinates. in addition, you must set METRIC_* 
-//        as well in order to specify how Xtoijk should work.
-int METRIC_eKS;
-static int DEREFINE_POLES, METRIC_MKS3;
-static double poly_norm, poly_xt, poly_alpha, mks_smooth; // mmks
-static double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 
 static int dumpmin, dumpmax, dumpidx, dumpskip;
 
 static hdf5_blob fluid_header = { 0 };
-static double MBH, Mdotedd, tp_over_te, Thetae_unit;
-#define NSUP (3)
+static double Thetae_unit, MBH, Mdotedd, tp_over_te;
 
 struct of_data {
   double t;
@@ -57,9 +70,6 @@ static int nloaded = 0;
 
 struct of_data dataA, dataB, dataC;
 struct of_data *data[NSUP];
-  
-void load_iharm_data(int n, char *, int dumpidx, int verbose);
-double get_dump_t(char *fnam, int dumpidx);
 
 void parse_input(int argc, char *argv[], Params *params)
 {
@@ -158,168 +168,6 @@ void update_data(double *tA, double *tB)
   #endif 
 }
 
-void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
-{
-  set_dxdX_metric(X, dxdX, 0);
-}
-
-static inline __attribute__((always_inline)) void set_dxdX_metric(double X[NDIM], double dxdX[NDIM][NDIM], int metric)
-{
-  // Jacobian with respect to KS basis where X is given in
-  // non-KS basis
-  MUNULOOP dxdX[mu][nu] = 0.;
-
-  if ( METRIC_eKS && metric==0 ) {
-
-    MUNULOOP dxdX[mu][nu] = mu==nu ? 1 : 0;
-    dxdX[1][1] = exp(X[1]);
-    dxdX[2][2] = M_PI;
-
-  } else if ( METRIC_MKS3 ) {
-   
-    // mks3 ..
-    dxdX[0][0] = 1.;
-    dxdX[1][1] = exp(X[1]);
-    dxdX[2][1] = -(pow(2.,-1. + mks3MP0)*exp(X[1])*mks3H0*mks3MP0*(mks3MY1 - 
-              mks3MY2)*pow(M_PI,2)*pow(exp(X[1]) + mks3R0,-1 - mks3MP0)*(-1 + 
-              2*X[2])*1./tan((mks3H0*M_PI)/2.)*pow(1./cos(mks3H0*M_PI*(-0.5 + (mks3MY1 + 
-              (pow(2,mks3MP0)*(-mks3MY1 + mks3MY2))/pow(exp(X[1]) + mks3R0,mks3MP0))*(1 - 
-              2*X[2]) + X[2])),2));
-    dxdX[2][2]= (mks3H0*pow(M_PI,2)*(1 - 2*(mks3MY1 + (pow(2,mks3MP0)*(-mks3MY1 +
-             mks3MY2))/pow(exp(X[1]) + mks3R0,mks3MP0)))*1./tan((mks3H0*M_PI)/2.)*
-             pow(1./cos(mks3H0*M_PI*(-0.5 + (mks3MY1 + (pow(2,mks3MP0)*(-mks3MY1 +
-             mks3MY2))/pow(exp(X[1]) + mks3R0,mks3MP0))*(1 - 2*X[2]) + X[2])),2))/2.;
-    dxdX[3][3] = 1.;
-
-  } else if (DEREFINE_POLES) {
-
-    // mmks
-    dxdX[0][0] = 1.;
-    dxdX[1][1] = exp(X[1]);
-    dxdX[2][1] = -exp(mks_smooth*(startx[1]-X[1]))*mks_smooth*(
-      M_PI/2. -
-      M_PI*X[2] +
-      poly_norm*(2.*X[2]-1.)*(1+(pow((-1.+2*X[2])/poly_xt,poly_alpha))/(1 + poly_alpha)) -
-      1./2.*(1. - hslope)*sin(2.*M_PI*X[2])
-      );
-    dxdX[2][2] = M_PI + (1. - hslope)*M_PI*cos(2.*M_PI*X[2]) +
-      exp(mks_smooth*(startx[1]-X[1]))*(
-        -M_PI +
-        2.*poly_norm*(1. + pow((2.*X[2]-1.)/poly_xt,poly_alpha)/(poly_alpha+1.)) +
-        (2.*poly_alpha*poly_norm*(2.*X[2]-1.)*pow((2.*X[2]-1.)/poly_xt,poly_alpha-1.))/((1.+poly_alpha)*poly_xt) -
-        (1.-hslope)*M_PI*cos(2.*M_PI*X[2])
-        );
-    dxdX[3][3] = 1.;
-
-  } else {
-
-    // mks
-    dxdX[0][0] = 1.;
-    dxdX[1][1] = exp(X[1]);
-    dxdX[2][2] = M_PI - (hslope - 1.)*M_PI*cos(2.*M_PI*X[2]);
-    dxdX[3][3] = 1.;
-
-  }
-
-}
-
-void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
-{
-  // returns g_{munu} at location specified by X
- 
-  MUNULOOP gcov[mu][nu] = 0.;
-    
-  double r, th;
-
-  // despite the name, get equivalent values for
-  // r, th for kerr coordinate system
-  bl_coord(X, &r, &th);
-
-  // compute ks metric
-  gcov_ks(r, th, gcov);
-
-  // convert from ks metric to mks/mmks
-  double dxdX[NDIM][NDIM];
-  set_dxdX(X, dxdX);
-
-  double gcov_ks[NDIM][NDIM];
-  MUNULOOP {
-    gcov_ks[mu][nu] = gcov[mu][nu];
-    gcov[mu][nu] = 0.;
-  }
-
-  MUNULOOP {
-    for (int lam=0; lam<NDIM; ++lam) {
-      for (int kap=0; kap<NDIM; ++kap) {
-        gcov[mu][nu] += gcov_ks[lam][kap]*dxdX[lam][mu]*dxdX[kap][nu];
-      }
-    }
-  }
-}
-
-// return the gdet associated with zone coordinates for the zone at
-// i,j,k
-double gdet_zone(int i, int j, int k)
-{
-  // get the X for the zone (in geodesic coordinates for bl_coord) 
-  // and in zone coordinates (for set_dxdX_metric)
-  double X[NDIM], Xzone[NDIM];
-  ijktoX(i,j,k, X);
-  Xzone[0] = 0.;
-  Xzone[1] = startx[1] + (i+0.5)*dx[1];
-  Xzone[2] = startx[2] + (j+0.5)*dx[2];
-  Xzone[3] = startx[3] + (k+0.5)*dx[3];
-
-  // then get gcov for the zone (in zone coordinates)
-  double gcovKS[NDIM][NDIM], gcov[NDIM][NDIM];
-  double r, th;
-  double dxdX[NDIM][NDIM];
-  MUNULOOP gcovKS[mu][nu] = 0.;
-  MUNULOOP gcov[mu][nu] = 0.;
-  bl_coord(X, &r, &th);
-  gcov_ks(r, th, gcovKS);
-  set_dxdX_metric(Xzone, dxdX, 1);
-  MUNULOOP {
-    for (int lam=0; lam<NDIM; ++lam) {
-      for (int kap=0; kap<NDIM; ++kap) {
-        gcov[mu][nu] += gcovKS[lam][kap]*dxdX[lam][mu]*dxdX[kap][nu];
-      }
-    }
-  }
-
-  return gdet_func(gcov); 
-}
-
-// compute KS metric at point (r,th) in KS coordinates (cyclic in t, ph)
-static inline __attribute__((always_inline)) void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
-{
-  double cth = cos(th);
-  double sth = sin(th);
-
-  double s2 = sth*sth;
-  double rho2 = r*r + a*a*cth*cth;
-
-  // compute ks metric for ks coordinates (cyclic in t,phi)
-  gcov[0][0] = -1. + 2.*r/rho2;
-  gcov[0][1] = 2.*r/rho2;
-  gcov[0][3] = -2.*a*r*s2/rho2;
-
-  gcov[1][0] = gcov[0][1];
-  gcov[1][1] = 1. + 2.*r/rho2;
-  gcov[1][3] = -a*s2*(1. + 2.*r/rho2);
-
-  gcov[2][2] = rho2;
-
-  gcov[3][0] = gcov[0][3];
-  gcov[3][1] = gcov[1][3];
-  gcov[3][3] = s2*(rho2 + a*a*s2*(1. + 2.*r/rho2));
-}
-
-void get_connection(double X[4], double lconn[4][4][4])
-{
-  get_connection_num(X, lconn);
-}
-
 double get_dump_t(char *fnam, int dumpidx)
 {
   char fname[256];
@@ -340,8 +188,6 @@ double get_dump_t(char *fnam, int dumpidx)
 
 void init_model(double *tA, double *tB)
 {
-  void init_iharm_grid(char *, int);
-
   // set up initial ordering of data[]
   data[0] = &dataA;
   data[1] = &dataB;
@@ -373,9 +219,7 @@ void init_model(double *tA, double *tB)
 }
 
 /*
- 
   these supply basic model data to ipole
-
 */
 
 // In slowlight mode, we perform linear interpolation in time. This function tells
@@ -465,7 +309,7 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
     Ucon[i] = Vcon[i] - Vfac * gcon[0][i];
 
   // lower
-  lower(Ucon, gcov, Ucov);
+  flip_index(Ucon, gcov, Ucov);
 
   // Now set Bcon and get Bcov by lowering
 
@@ -489,7 +333,7 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   Bcon[3] = (Bcon3 + Ucon[3] * Bcon[0]) / Ucon[0];
 
   // lower
-  lower(Bcon, gcov, Bcov);
+  flip_index(Bcon, gcov, Bcov);
 }
 
 double get_model_thetae(double X[NDIM])
@@ -540,284 +384,6 @@ double get_model_ne(double X[NDIM])
   neA = interp_scalar(X, data[nA]->ne);
   neB = interp_scalar(X, data[nB]->ne);
   return tfac*neA + (1. - tfac)*neB;
-}
-
-
-/** HARM utilities **/
-
-
-/********************************************************************
-
-        Interpolation routines
-
- ********************************************************************/
-
-/* return fluid four-vector in simulation units */
-void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]){
-  double del[NDIM],b1,b2,b3,d1,d2,d3,d4;
-  int i, j, k, ip1, jp1, kp1;
-
-  /* find the current zone location and offsets del[0], del[1] */
-  Xtoijk(X, &i, &j, &k, del);
-
-  // since we read from data, adjust i,j,k for ghost zones
-  i += 1;
-  j += 1;
-  k += 1;
-
-  ip1 = i + 1;
-  jp1 = j + 1;
-  kp1 = k + 1;
-  
-  b1 = 1.-del[1];
-  b2 = 1.-del[2];
-  b3 = 1.-del[3];
-
-  d1 = b1*b2;
-  d3 = del[1] * b2;
-  d2 = del[2] * b1;
-  d4 = del[1] * del[2];
-
-
-  /* Interpolate along x1,x2 first */
-  Fourv[0] = d1*fourv[i][j][k][0] + d2*fourv[i][jp1][k][0] + d3*fourv[ip1][j][k][0] + d4*fourv[ip1][jp1][k][0];
-  Fourv[1] = d1*fourv[i][j][k][1] + d2*fourv[i][jp1][k][1] + d3*fourv[ip1][j][k][1] + d4*fourv[ip1][jp1][k][1];
-  Fourv[2] = d1*fourv[i][j][k][2] + d2*fourv[i][jp1][k][2] + d3*fourv[ip1][j][k][2] + d4*fourv[ip1][jp1][k][2];
-  Fourv[3] = d1*fourv[i][j][k][3] + d2*fourv[i][jp1][k][3] + d3*fourv[ip1][j][k][3] + d4*fourv[ip1][jp1][k][3];
-
-  /* Now interpolate above in x3 */
-  Fourv[0] = b3*Fourv[0] + del[3]*(d1*fourv[i][j][kp1][0] + d2*fourv[i][jp1][kp1][0] + d3*fourv[ip1][j][kp1][0] + d4*fourv[ip1][jp1][kp1][0]);
-  Fourv[1] = b3*Fourv[1] + del[3]*(d1*fourv[i][j][kp1][1] + d2*fourv[i][jp1][kp1][1] + d3*fourv[ip1][j][kp1][1] + d4*fourv[ip1][jp1][kp1][1]);
-  Fourv[2] = b3*Fourv[2] + del[3]*(d1*fourv[i][j][kp1][2] + d2*fourv[i][jp1][kp1][2] + d3*fourv[ip1][j][kp1][2] + d4*fourv[ip1][jp1][kp1][2]);
-  Fourv[3] = b3*Fourv[3] + del[3]*(d1*fourv[i][j][kp1][3] + d2*fourv[i][jp1][kp1][3] + d3*fourv[ip1][j][kp1][3] + d4*fourv[ip1][jp1][kp1][3]);
-  //new
-
-  //no interpolation of vectors at all
- 
-  //Fourv[0]=fourv[i][j][k][0];
-  //Fourv[1]=fourv[i][j][k][1];
-  //Fourv[2]=fourv[i][j][k][2];
-  //Fourv[3]=fourv[i][j][k][3];
-  
-}
-
-/* return scalar in cgs units */
-double interp_scalar(double X[NDIM], double ***var)
-{
-  double del[NDIM],b1,b2,interp;
-  int i, j, k, ip1, jp1, kp1;
-
-  // zone and offset from X
-  Xtoijk(X, &i, &j, &k, del);
-
-  // since we read from data, adjust i,j,k for ghost zones
-  i += 1;
-  j += 1;
-  k += 1;
-
-  ip1 = i+1;
-  jp1 = j+1;
-  kp1 = k+1;
-
-  b1 = 1.-del[1];
-  b2 = 1.-del[2];
-
-  // interpolate in x1 and x2
-  interp = var[i][j][k]*b1*b2 + 
-    var[i][jp1][k]*b1*del[2] + 
-    var[ip1][j][k]*del[1]*b2 + 
-    var[ip1][jp1][k]*del[1]*del[2];
-
-  // then interpolate in x3
-  interp = (1.-del[3])*interp + 
-        del[3]*(var[i  ][j  ][kp1]*b1*b2 +
-      var[i  ][jp1][kp1]*del[2]*b1 +
-      var[ip1][j  ][kp1]*del[1]*b2 +
-      var[ip1][jp1][kp1]*del[1]*del[2]);
-  
-  return interp;
-}
-
-/***********************************************************************************
-
-          End interpolation routines
-
- ***********************************************************************************/
-
-int X_in_domain(double X[NDIM]) {
-  // returns 1 if X is within the computational grid.
-  // checks different sets of coordinates depending on
-  // specified grid coordinates
-
-  if (METRIC_eKS) {
-    double XG[4] = { 0 };
-    double Xks[4] = { X[0], exp(X[1]), M_PI*X[2], X[3] };
-
-    if (METRIC_MKS3) {
-      // if METRIC_MKS3, ignore theta boundaries
-      double H0 = mks3H0, MY1 = mks3MY1, MY2 = mks3MY2, MP0 = mks3MP0;
-      double KSx1 = Xks[1], KSx2 = Xks[2];
-      XG[0] = Xks[0];
-      XG[1] = log(Xks[1] - mks3R0);
-      XG[2] = (-(H0*pow(KSx1,MP0)*M_PI) - pow(2,1 + MP0)*H0*MY1*M_PI +
-        2*H0*pow(KSx1,MP0)*MY1*M_PI + pow(2,1 + MP0)*H0*MY2*M_PI +
-        2*pow(KSx1,MP0)*atan(((-2*KSx2 + M_PI)*tan((H0*M_PI)/2.))/M_PI))/(2.*
-        H0*(-pow(KSx1,MP0) - pow(2,1 + MP0)*MY1 + 2*pow(KSx1,MP0)*MY1 +
-          pow(2,1 + MP0)*MY2)*M_PI);
-      XG[3] = Xks[3];
-
-      if (XG[1] < startx[1] || XG[1] > stopx[1]) return 0;
-    }
-
-  } else {
-    if(X[1] < startx[1] ||
-       X[1] > stopx[1]  ||
-       X[2] < startx[2] ||
-       X[2] > stopx[2]) {
-      return 0;
-    }
-  }
-
-  return 1;
-}
-
-/*
- *  returns geodesic coordinates associated with center of zone i,j,k
- */
-void ijktoX(int i, int j, int k, double X[NDIM]) 
-{
-  // first do the naive thing 
-  X[1] = startx[1] + (i+0.5)*dx[1];
-  X[2] = startx[2] + (j+0.5)*dx[2];
-  X[3] = startx[3] + (k+0.5)*dx[3];
-
-  // now transform to geodesic coordinates if necessary by first
-  // converting to KS and then to destination coordinates (eKS).
-  if (METRIC_eKS) {
-      double xKS[4] = { 0 };
-    if (METRIC_MKS3) {
-      double x0 = X[0];
-      double x1 = X[1];
-      double x2 = X[2];
-      double x3 = X[3];
-
-      double H0 = mks3H0;
-      double MY1 = mks3MY1;
-      double MY2 = mks3MY2;
-      double MP0 = mks3MP0;
-      
-      xKS[0] = x0;
-      xKS[1] = exp(x1) + mks3R0;
-      xKS[2] = (M_PI*(1+1./tan((H0*M_PI)/2.)*tan(H0*M_PI*(-0.5+(MY1+(pow(2,MP0)*(-MY1+MY2))/pow(exp(x1)+R0,MP0))*(1-2*x2)+x2))))/2.;
-      xKS[3] = x3;
-    }
-    
-    X[0] = xKS[0];
-    X[1] = log(xKS[1]);
-    X[2] = xKS[2] / M_PI;
-    X[3] = xKS[3];
-  }
-}
-
-/*
- *  translates geodesic coordinates to a grid zone and returns offset
- *  for interpolation purposes. integer index corresponds to the zone
- *  center "below" the desired point and del[i] \in [0,1) returns the
- *  offset from that zone center.
- *
- *  0    0.5    1
- *  [     |     ]
- *  A  B  C DE  F
- *
- *  startx = 0.
- *  dx = 0.5
- *
- *  A -> (-1, 0.5)
- *  B -> ( 0, 0.0)
- *  C -> ( 0, 0.5)
- *  D -> ( 0, 0.9)
- *  E -> ( 1, 0.0)
- *  F -> ( 1, 0.5)
- *
- */
-void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
-{
-  // unless we're reading from data, i,j,k are the normal expected thing
-  double phi;
-  double XG[4];
-
-  if (METRIC_eKS) {
-    // the geodesics are evolved in eKS so invert through KS -> zone coordinates
-    double Xks[4] = { X[0], exp(X[1]), M_PI*X[2], X[3] };
-    if (METRIC_MKS3) {
-      double H0 = mks3H0, MY1 = mks3MY1, MY2 = mks3MY2, MP0 = mks3MP0;
-      double KSx1 = Xks[1], KSx2 = Xks[2];
-      XG[0] = Xks[0];
-      XG[1] = log(Xks[1] - mks3R0);
-      XG[2] = (-(H0*pow(KSx1,MP0)*M_PI) - pow(2.,1. + MP0)*H0*MY1*M_PI + 
-        2.*H0*pow(KSx1,MP0)*MY1*M_PI + pow(2.,1. + MP0)*H0*MY2*M_PI + 
-        2.*pow(KSx1,MP0)*atan(((-2.*KSx2 + M_PI)*tan((H0*M_PI)/2.))/M_PI))/(2.*
-        H0*(-pow(KSx1,MP0) - pow(2.,1 + MP0)*MY1 + 2.*pow(KSx1,MP0)*MY1 + 
-          pow(2.,1. + MP0)*MY2)*M_PI);
-      XG[3] = Xks[3];
-    }
-  } else {
-    MULOOP XG[mu] = X[mu];
-  }
-
-  // the X[3] coordinate is allowed to vary so first map it to [0, stopx[3])
-  phi = fmod(XG[3], stopx[3]);
-  if(phi < 0.0) phi = stopx[3]+phi;
-
-  // get provisional zone index. see note above function for details. note we
-  // shift to zone centers because that's where variables are most exact.
-  *i = (int) ((XG[1] - startx[1]) / dx[1] - 0.5 + 1000) - 1000;
-  *j = (int) ((XG[2] - startx[2]) / dx[2] - 0.5 + 1000) - 1000;
-  *k = (int) ((phi  - startx[3]) / dx[3] - 0.5 + 1000) - 1000;  
-
-  // exotic coordinate systems sometime have issues. use this block to enforce
-  // reasonable limits on *i,*j and *k. in the normal coordinate systems, this
-  // block should never fire.
-  if (*i < -1) *i = -1;
-  if (*j < -1) *j = -1;
-  if (*k < -1) *k = -1;
-  if (*i >= N1) *i = N1-1;
-  if (*j >= N2) *j = N2-1;
-  if (*k >= N3) *k = N3-1;
-
-  // now construct del
-  del[1] = (XG[1] - ((*i + 0.5) * dx[1] + startx[1])) / dx[1];
-  del[2] = (XG[2] - ((*j + 0.5) * dx[2] + startx[2])) / dx[2];
-  del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
-
-  // and enforce limits on del (for exotic coordinate systems)
-  for (int i=0; i<4; ++i) {
-    if (del[i] < 0.) del[i] = 0.;
-    if (del[i] >= 1.) del[i] = 1.;
-  }
-
-}
-
-//#define SINGSMALL (1.E-20)
-/* return boyer-lindquist coordinate of point */
-void bl_coord(double X[NDIM], double *r, double *th)
-{
-  *r = exp(X[1]);
-
-  if (METRIC_eKS) {
-    *r = exp(X[1]);
-    *th = M_PI * X[2];
-  } else if (METRIC_MKS3) {
-    *r = exp(X[1]) + mks3R0;
-    *th = (M_PI*(1. + 1./tan((mks3H0*M_PI)/2.)*tan(mks3H0*M_PI*(-0.5 + (mks3MY1 + (pow(2.,mks3MP0)*(-mks3MY1 + mks3MY2))/pow(exp(X[1])+mks3R0,mks3MP0))*(1. - 2.*X[2]) + X[2]))))/2.;
-  } else if (DEREFINE_POLES) {
-    double thG = M_PI*X[2] + ((1. - hslope)/2.)*sin(2.*M_PI*X[2]);
-    double y = 2*X[2] - 1.;
-    double thJ = poly_norm*y*(1. + pow(y/poly_xt,poly_alpha)/(poly_alpha+1.)) + 0.5*M_PI;
-    *th = thG + exp(mks_smooth*(startx[1] - X[1]))*(thJ - thG);
-  } else {
-    *th = M_PI*X[2] + ((1. - hslope)/2.)*sin(2.*M_PI*X[2]);
-  }
 }
 
 void set_units()
@@ -881,157 +447,6 @@ void init_physical_quantities(int n)
 
 }
 
-// malloc utilities
-void *malloc_rank1(int n1, int size)
-{
-  void *A;
-
-  if ((A = malloc(n1*size)) == NULL) {
-    fprintf(stderr,"malloc failure in malloc_rank1\n");
-    exit(123);
-  }
-
-  return A;
-}
-
-double **malloc_rank2(int n1, int n2)
-{
-
-  double **A;
-  double *space;
-  int i;
-
-  space = malloc_rank1(n1*n2, sizeof(double));
-  A = malloc_rank1(n1, sizeof(double *));
-  for(i = 0; i < n1; i++) A[i] = &(space[i*n2]);
-
-  return A;
-}
-
-
-double ***malloc_rank3(int n1, int n2, int n3)
-{
-
-  double ***A;
-  double *space;
-  int i,j;
-
-  space = malloc_rank1(n1*n2*n3, sizeof(double));
-  A = malloc_rank1(n1, sizeof(double *));
-  for(i = 0; i < n1; i++){
-    A[i] = malloc_rank1(n2,sizeof(double *));
-    for(j = 0; j < n2; j++){
-      A[i][j] = &(space[n3*(j + n2*i)]);
-    }
-  }
-
-  return A;
-}
-
-float **malloc_rank2_float(int n1, int n2)
-{
-
-  float **A;
-  float *space;
-  int i;
-
-  space = malloc_rank1(n1*n2, sizeof(float));
-  A = malloc_rank1(n1, sizeof(float *));
-  for(i = 0; i < n1; i++) A[i] = &(space[i*n2]);
-
-  return A;
-}
-
-
-float ***malloc_rank3_float(int n1, int n2, int n3)
-{
-
-  float ***A;
-  float *space;
-  int i,j;
-
-  space = malloc_rank1(n1*n2*n3, sizeof(float));
-  A = malloc_rank1(n1, sizeof(float *));
-  for(i = 0; i < n1; i++){
-    A[i] = malloc_rank1(n2,sizeof(float *));
-    for(j = 0; j < n2; j++){
-      A[i][j] = &(space[n3*(j + n2*i)]);
-    }
-  }
-
-  return A;
-}
-
-float ****malloc_rank4_float(int n1, int n2, int n3, int n4)
-{
-
-  float ****A;
-  float *space;
-  int i,j,k;
-
-  space = malloc_rank1(n1*n2*n3*n4, sizeof(float));
-  A = malloc_rank1(n1, sizeof(float *));
-  for(i=0;i<n1;i++){
-    A[i] = malloc_rank1(n2,sizeof(float *));
-    for(j=0;j<n2;j++){
-      A[i][j] = malloc_rank1(n3,sizeof(float *));
-      for(k=0;k<n3;k++){
-        A[i][j][k] = &(space[n4*(k + n3*(j + n2*i))]);
-      }
-    }
-  }
-
-  return A;
-}
-
-
-double ****malloc_rank4(int n1, int n2, int n3, int n4)
-{
-
-  double ****A;
-  double *space;
-  int i,j,k;
-
-  space = malloc_rank1(n1*n2*n3*n4, sizeof(double));
-  A = malloc_rank1(n1, sizeof(double *));
-  for(i=0;i<n1;i++){
-    A[i] = malloc_rank1(n2,sizeof(double *));
-    for(j=0;j<n2;j++){
-      A[i][j] = malloc_rank1(n3,sizeof(double *));
-      for(k=0;k<n3;k++){
-        A[i][j][k] = &(space[n4*(k + n3*(j + n2*i))]);
-      }
-    }
-  }
-
-  return A;
-}
-
-double *****malloc_rank5(int n1, int n2, int n3, int n4, int n5)
-{
-
-  double *****A;
-  double *space;
-  int i,j,k,l;
-
-  space = malloc_rank1(n1*n2*n3*n4*n5, sizeof(double));
-  A = malloc_rank1(n1, sizeof(double *));
-  for(i=0;i<n1;i++){
-    A[i] = malloc_rank1(n2, sizeof(double *));
-    for(j=0;j<n2;j++){
-      A[i][j] = malloc_rank1(n3, sizeof(double *));
-      for(k=0;k<n3;k++){
-        A[i][j][k] = malloc_rank1(n4, sizeof(double *));
-        for(l=0;l<n4;l++){
-          A[i][j][k][l] = &(space[n5*(l + n4*(k + n3*(j + n2*i)))]);
-        }
-      }
-    }
-  }
-
-  return A;
-}
-
 void init_storage(void)
 {
   // one ghost zone on each side of the domain
@@ -1049,10 +464,6 @@ void init_storage(void)
   }
 }
 
-/* HDF5 v1.8 API */
-#include <hdf5.h>
-#include <hdf5_hl.h>
-
 void init_iharm_grid(char *fnam, int dumpidx)
 {
   // called at the beginning of the run and sets the static parameters
@@ -1060,15 +471,8 @@ void init_iharm_grid(char *fnam, int dumpidx)
   
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
- 
   fprintf(stderr, "filename: %s\n", fname);
-
-  fprintf(stderr, "init grid\n");
-
-  if ( hdf5_open(fname) < 0 ) {
-    fprintf(stderr, "! unable to open file %s. exiting!\n", fname);
-    exit(-2);
-  }
+  hdf5_open(fname);
 
   // get dump info to copy to ipole output
   hdf5_read_single_val(&t0, "t", H5T_IEEE_F64LE);
@@ -1081,17 +485,17 @@ void init_iharm_grid(char *fnam, int dumpidx)
   if ( hdf5_exists("has_radiation") ) 
     hdf5_read_single_val(&RADIATION, "has_radiation", H5T_STD_I32LE);
   if ( hdf5_exists("has_derefine_poles") )
-    hdf5_read_single_val(&DEREFINE_POLES, "has_derefine_poles", H5T_STD_I32LE);
+    hdf5_read_single_val(&METRIC_FMKS, "has_derefine_poles", H5T_STD_I32LE);
 
   char metric[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric, "metric", HDF5_STR_TYPE);
 
-  DEREFINE_POLES = 0;
+  METRIC_FMKS = 0;
   METRIC_MKS3 = 0;
 
   if ( strncmp(metric, "MMKS", 19) == 0 ) {
-    DEREFINE_POLES = 1;
+    METRIC_FMKS = 1;
   } else if ( strncmp(metric, "MKS3", 19) == 0 ) {
     METRIC_eKS = 1;
     METRIC_MKS3 = 1;
@@ -1160,7 +564,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
   hdf5_read_single_val(&dx[3], "dx3", H5T_IEEE_F64LE);
 
   hdf5_set_directory("/header/geom/mks/");
-  if ( DEREFINE_POLES ) hdf5_set_directory("/header/geom/mmks/");
+  if ( METRIC_FMKS ) hdf5_set_directory("/header/geom/mmks/");
   if ( METRIC_MKS3 ) {
     hdf5_set_directory("/header/geom/mks3/");
     hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
@@ -1181,7 +585,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
       hdf5_read_single_val(&Rout, "r_out", H5T_IEEE_F64LE);
     }
 
-    if (DEREFINE_POLES) {
+    if (METRIC_FMKS) {
       fprintf(stderr, "custom refinement at poles loaded...\n");
       hdf5_read_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
       hdf5_read_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
@@ -1212,27 +616,29 @@ void init_iharm_grid(char *fnam, int dumpidx)
   fprintf(stderr, "stop: %g %g %g \n", stopx[1], stopx[2], stopx[3]);
 
   init_storage();
-
   hdf5_close();
 }
 
-void output_hdf5(hid_t fid)
+void output_hdf5()
 {
-#if SLOW_LIGHT
-  h5io_add_data_dbl(fid, "/header/t", data[1]->t); 
-#else // FAST LIGHT
-  h5io_add_data_dbl(fid, "/header/t", data[0]->t); 
-#endif
-  h5io_add_blob(fid, "/fluid_header", fluid_header); 
+  hdf5_write_blob(fluid_header, "/fluid_header");
 
-  h5io_add_group(fid, "/header/electrons");
+  hdf5_set_directory("/header");
+#if SLOW_LIGHT
+  hdf5_write_single_val(&(data[1]->t), "t", H5T_IEEE_F64LE);
+#else // FAST LIGHT
+  hdf5_write_single_val(&(data[0]->t), "t", H5T_IEEE_F64LE);
+#endif
+
+  hdf5_make_directory("electrons");
+  hdf5_set_directory("/header/electrons");
   if (ELECTRONS == 0) {
-    h5io_add_data_dbl(fid, "/header/electrons/tp_over_te", tp_over_te);
+    hdf5_write_single_val(&tp_over_te, "tp_over_te", H5T_IEEE_F64LE);
   } else if (ELECTRONS == 2) {
-    h5io_add_data_dbl(fid, "/header/electrons/rlow", trat_small);
-    h5io_add_data_dbl(fid, "/header/electrons/rhigh", trat_large);
+    hdf5_write_single_val(&trat_small, "rlow", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&trat_large, "rhigh", H5T_IEEE_F64LE);
   }
-  h5io_add_data_int(fid, "/header/electrons/type", ELECTRONS);
+  hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
 }
 
 void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
@@ -1326,7 +732,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         data[n]->ucon[i][j][k][0] = -ufac*gcon[0][0];
         for(int l = 1; l < NDIM; l++) 
           data[n]->ucon[i][j][k][l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon[0][l];
-        lower(data[n]->ucon[i][j][k], gcov, data[n]->ucov[i][j][k]);
+        flip_index(data[n]->ucon[i][j][k], gcov, data[n]->ucov[i][j][k]);
 
         // reconstruct the magnetic field three vectors
         double udotB = 0.;
@@ -1341,7 +747,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
           data[n]->bcon[i][j][k][l] = (data[n]->p[B1+l-1][i][j][k] + data[n]->ucon[i][j][k][l]*udotB)/data[n]->ucon[i][j][k][0];
         }
 
-        lower(data[n]->bcon[i][j][k], gcov, data[n]->bcov[i][j][k]);
+        flip_index(data[n]->bcon[i][j][k], gcov, data[n]->bcov[i][j][k]);
 
         if(i <= 21) { dMact += g * data[n]->p[KRHO][i][j][k] * data[n]->ucon[i][j][k][1]; }
         if(i >= 21 && i < 41 && 0) Ladv += g * data[n]->p[UU][i][j][k] * data[n]->ucon[i][j][k][1] * data[n]->ucov[i][j][k][0] ;
@@ -1500,57 +906,6 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
     }
     fprintf(stderr, "<beta> = %g\n", betajnugdet / jnugdet);
   }
-}
-
-double root_find(double x[NDIM])
-{
-    double th = x[2];
-    double thb, thc;
-    double dtheta_func(double X[NDIM]), theta_func(double X[NDIM]);
-
-    double Xa[NDIM], Xb[NDIM], Xc[NDIM];
-    Xa[1] = log(x[1]);
-    Xa[3] = x[3];
-    Xb[1] = Xa[1];
-    Xb[3] = Xa[3];
-    Xc[1] = Xa[1];
-    Xc[3] = Xa[3];
-
-    if (x[2] < M_PI / 2.) {
-      Xa[2] = 0. - SMALL;
-      Xb[2] = 0.5 + SMALL;
-    } else {
-      Xa[2] = 0.5 - SMALL;
-      Xb[2] = 1. + SMALL;
-    }
-
-    //tha = theta_func(Xa);
-    thb = theta_func(Xb);
-
-    /* bisect for a bit */
-    double tol = 1.e-6;
-    for (int i = 0; i < 100; i++) {
-      Xc[2] = 0.5 * (Xa[2] + Xb[2]);
-      thc = theta_func(Xc);
-
-      if ((thc - th) * (thb - th) < 0.)
-        Xa[2] = Xc[2];
-      else
-        Xb[2] = Xc[2];
-
-      double err = theta_func(Xc) - th;
-      if (fabs(err) < tol) break;
-    }
-
-    return (Xa[2]);
-}
-
-/*this does not depend on theta cut-outs there is no squizzing*/
-double theta_func(double X[NDIM])
-{
-  double r, th;
-  bl_coord(X, &r, &th);
-  return th;
 }
 
 int radiating_region(double X[NDIM])

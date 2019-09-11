@@ -1,15 +1,15 @@
 
-/* 
-
-model-dependent routines for integrating geodesics, 
-including:
-
-stop_backward_integration
-stepsize
-
-*/
+/*
+ * model-dependent routines for integrating geodesics,
+ * including:
+ *
+ * stop_backward_integration
+ * stepsize
+ */
 
 #include "decs.h"
+#include "model.h"
+#include "coordinates.h"
 
 /* condition for stopping the backwards-in-lambda
    integration of the photon geodesic */
@@ -29,8 +29,6 @@ int stop_backward_integration(double X[NDIM], double Kcon[NDIM],
 }
 #undef LRMIN
 #undef LRMAX
-
-//#define EPS     0.01
 
 double stepsize(double X[NDIM], double Kcon[NDIM])
 {
@@ -58,5 +56,4 @@ double stepsize(double X[NDIM], double Kcon[NDIM])
 
   return dl;
 }
-//#undef EPS
 

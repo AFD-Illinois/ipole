@@ -22,6 +22,7 @@ typedef struct params_t {
   double MBH;           // in Msun
   double M_unit;        // in cgs
   int counterjet;       // 0,1,2
+  int add_ppm;         // Whether to additionally make a ppm image of I
   const char dump[256];
   const char outf[256];
   char loaded;

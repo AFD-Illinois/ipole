@@ -3,7 +3,7 @@
 
 // sets default values for elements of params and then calls other
 // loading functions
-void load_par_from_argv (int argc, char *argv[], Params *params) {
+void load_par_from_argv(int argc, char *argv[], Params *params) {
 
   char *word, *value, *saveptr;
 
@@ -16,8 +16,9 @@ void load_par_from_argv (int argc, char *argv[], Params *params) {
   params->rotcam = 0.;
   params->dump_skip = 1;
   params->restart_int = -1.;
-  params->xoff = 0.;
-  params->yoff = 0.;
+  params->xoff = 0.5;
+  params->yoff = 0.5;
+  params->add_ppm = 0;
 
   // process each command line argument
   for (int i=0; i<argc; ++i) {
@@ -46,9 +47,10 @@ void load_par_from_argv (int argc, char *argv[], Params *params) {
 }
 
 // sets parameter file entry if any key==word
-void try_set_parameter (const char *word, const char *value, Params *params) {
+void try_set_parameter(const char *word, const char *value, Params *params) {
 
   set_by_word_val(word, value, "counterjet", &(params->counterjet), TYPE_INT);
+  set_by_word_val(word, value, "add_ppm", &(params->add_ppm), TYPE_INT);
 
   set_by_word_val(word, value, "thetacam", &(params->thetacam), TYPE_DBL);
   set_by_word_val(word, value, "phicam", &(params->phicam), TYPE_DBL);
@@ -76,7 +78,7 @@ void try_set_parameter (const char *word, const char *value, Params *params) {
 }
 
 // sets default values for elements of params (if desired) and loads from par file 'fname'
-void load_par (const char *fname, Params *params) {
+void load_par(const char *fname, Params *params) {
  
   char line[256], word[256], value[256];
   FILE *fp = fopen(fname, "r");
@@ -100,7 +102,7 @@ void load_par (const char *fname, Params *params) {
 }
 
 // loads value -> (type *)*val if word==key
-void set_by_word_val (const char *word, const char *value, const char *key, void *val, int type) {
+void set_by_word_val(const char *word, const char *value, const char *key, void *val, int type) {
 
   if (strcmp(word, key) == 0) {
     switch (type) {

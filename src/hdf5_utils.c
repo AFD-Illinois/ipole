@@ -143,6 +143,22 @@ int hdf5_open(const char *fname)
   return 0;
 }
 
+// Set this library to use a previously opened file (not recommended)
+int hdf5_set_file(hid_t fid)
+{
+
+  file_id = fid;
+
+  // Everyone expects directory to be root after open
+  hdf5_set_directory("/");
+
+  // Quiet HDF5's own errors, so we can control them
+  H5Eset_auto2(H5E_DEFAULT, NULL, NULL);
+
+  if(file_id < 0) FAIL((int) file_id, "hdf5_set_file", "external file");
+  return 0;
+}
+
 // Close a file
 int hdf5_close()
 {
@@ -301,6 +317,13 @@ int hdf5_write_array(const void *data, const char *name, size_t rank,
   return 0;
 }
 
+int hdf5_write_full_array(const void *data, const char *name, size_t rank, hsize_t *dims, hsize_t hdf5_type)
+{
+  hsize_t start[rank];
+  for (int i=0; i<rank; i++) start[i] = 0;
+  return hdf5_write_array(data, name, rank, dims, start, dims, dims, start, hdf5_type);
+}
+
 // Write a single value of hdf5_type to a file
 int hdf5_write_single_val(const void *val, const char *name, hsize_t hdf5_type)
 {
@@ -391,4 +414,11 @@ int hdf5_read_array(void *data, const char *name, size_t rank,
   H5Sclose(memspace);
 
   return 0;
+}
+
+int hdf5_read_full_array(void *data, const char *name, size_t rank, hsize_t *dims, hsize_t hdf5_type)
+{
+  hsize_t start[rank];
+  for (int i=0; i<rank; i++) start[i] = 0;
+  return hdf5_write_array(data, name, rank, dims, start, dims, dims, start, hdf5_type);
 }

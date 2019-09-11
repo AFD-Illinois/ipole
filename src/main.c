@@ -1,48 +1,31 @@
 #include "decs.h"
-#include "defs.h"
-#include <omp.h>
 #include "hdf5_utils.h"
+#include "model.h"
+#include "coordinates.h"
+#include "geometry.h"
+#include "geodesics.h"
+#include "image.h"
+#include "io.h"
 
-#define MAXNSTEP 50000
-
-// QU convention sets whether QU/EVPA is measured as
-//   - 0  "East of North"  or  "observer convention" 
-//   - 1  "North of West"  
-#define QU_CONVENTION 0 
-
-#define imgindex(n,i,j) (((n)*NX+(i))*NY+(j))
-
-struct of_traj {
-  double dl;
-  double X[NDIM];
-  double Kcon[NDIM];
-  double Xhalf[NDIM];
-  double Kconhalf[NDIM];
-} traj[MAXNSTEP];
-#pragma omp threadprivate(traj)
-
-// used for slow light
-struct of_image {
-  int nstep;
-  double intensity;
-  double tau;
-  double tauF;
-  double complex N_coord[NDIM][NDIM];
-};
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <math.h>
+#include <complex.h>
+#include <omp.h>
 
 // global variables
-double thetacam, freqcgs;
-char fnam[STRLEN];
 int quench_output = 0;
 int only_unpolarized = 0;
 
 // can be moved to decs if so desired
 void write_restart(const char *fname, double tA, double tB, double last_img_target,
-    int nopenimgs, int nimg, int nconcurrentimgs, int s2,
-    double *target_times, int *valid_imgs, struct of_image *dimages);
+                   int nopenimgs, int nimg, int nconcurrentimgs, int s2,
+                   double *target_times, int *valid_imgs, struct of_image *dimages);
 void read_restart(const char *fname, double *tA, double *tB, double *last_img_target,
-    int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
-    double *target_times, int *valid_imgs, struct of_image *dimages);
+                  int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
+                  double *target_times, int *valid_imgs, struct of_image *dimages);
 
 double tf = 0.;
 
@@ -56,7 +39,6 @@ int main(int argc, char *argv[])
 
   // initialization
   double time = omp_get_wtime();
-  set_levi_civita();
 
   double tA, tB; // for slow light
   double phicam, rotcam, rcam, Xcam[NDIM];
@@ -67,9 +49,6 @@ int main(int argc, char *argv[])
   double *taus = malloc(sizeof(*taus) * NX*NY);
   double *imageS = malloc(sizeof(*imageS) * NX*NY*NIMG);
   double *image = malloc(sizeof(*image) * NX*NY);
-
-  // "forward declarations"
-  double root_find(double X[NDIM]);
 
 #pragma omp parallel
   if (omp_get_thread_num() == 0) {
@@ -90,7 +69,6 @@ int main(int argc, char *argv[])
   // them and use init_model to load the first dump
   parse_input(argc, argv, &params);
   init_model(&tA, &tB);
-  R0 = 0.0;
 
   // normalize frequency to electron rest-mass energy
   freq = freqcgs * HPL / (ME * CL * CL);
@@ -99,11 +77,11 @@ int main(int argc, char *argv[])
   //   rcam       [ GM/c^2 ]
   //   thetacam   [ degrees ]
   //   phicam     [ degrees ]
-  rcam = 1000.;
+  rcam = 1.e4;
   phicam = 0.0;
   rotcam = 0.0;
-  xoff = 0.0;
-  yoff = 0.0;
+  xoff = 0.5;
+  yoff = 0.5;
   if (params.loaded) {
     phicam = params.phicam;
     rotcam = params.rotcam*M_PI/180.;
@@ -409,7 +387,7 @@ int main(int argc, char *argv[])
                 imageS[(i*NY+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3.);
                 imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
                 imageS[(i*NY+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3.);
-                imageS[(i*NY+j)*NIMG+4] = dimage[pxidx].tauF * pow(freqcgs, 3.);
+                imageS[(i*NY+j)*NIMG+4] = dimage[pxidx].tauF;
                 if (QU_CONVENTION == 0) {
                   imageS[(i*NY+j)*NIMG+1] *= -1;
                   imageS[(i*NY+j)*NIMG+2] *= -1;
@@ -450,10 +428,8 @@ int main(int argc, char *argv[])
 
     }
 
-  }
-
-  // fast light
-  else {
+  // FAST LIGHT
+  } else {
 
     int nprogress = 0;
 
@@ -612,207 +588,19 @@ int main(int argc, char *argv[])
     if (!quench_output) {
       // dump result. if parameters have been loaded, don't also
       // output image
-      if (params.loaded) {
-        dump(image, imageS, taus, params.outf, scale, Dsource, Xcam, DX, DY, 
-             fovx, fovy, rcam, thetacam, phicam, rotcam, xoff, yoff);
-      } else {
-        dump(image, imageS, taus, "ipole.dat", scale, Dsource, Xcam, DX, DY, 
-             fovx, fovy, rcam, thetacam, phicam, rotcam, xoff, yoff);
-        IMLOOP image[i*NY+j] = log(image[i*NY+j] + 1.e-50);
-        make_ppm(image, freq, "ipole_lfnu.ppm");
+      dump(image, imageS, taus, params.outf, scale, Dsource, Xcam, DX, DY,
+           fovx, fovy, rcam, thetacam, phicam, rotcam, xoff, yoff);
+      if (params.add_ppm) {
+        // TODO respect filename from params?
+        make_ppm(image, freq, NX, NY, "ipole_lfnu.ppm");
       }
     }
-
   }
 
   time = omp_get_wtime() - time;
   printf("Total wallclock time: %g s\n\n", time);
 
   return 0;
-}
-
-void read_restart(const char *fname, double *tA, double *tB, double *last_img_target,
-        int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
-        double *target_times, int *valid_imgs, struct of_image *dimages) {
-
-  hdf5_open(fname);
-
-  hdf5_set_directory("/");
-  hdf5_read_single_val(tA, "/tA", H5T_IEEE_F64LE);
-  hdf5_read_single_val(tB, "/tB", H5T_IEEE_F64LE);
-  hdf5_read_single_val(last_img_target, "/last_img_target", H5T_IEEE_F64LE);
-  hdf5_read_single_val(nimg, "/nimg", H5T_STD_I32LE);
-  hdf5_read_single_val(nopenimgs, "/nopenimgs", H5T_STD_I32LE);
-
-  int *tint = malloc(s2 * sizeof(*tint));
-  double *tdbl = malloc(s2 * sizeof(*tdbl));
-
-  for (int i=0; i<nconcurrentimgs; ++i) {
-    tdbl[i] = target_times[i];
-    tint[i] = valid_imgs[i];
-  }
-
-  hsize_t dims[] = { nconcurrentimgs };
-  hsize_t start[] = { 0 };
-
-  hdf5_read_array(target_times, "/target_times", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-  hdf5_read_array(valid_imgs, "/valid_images", 1, dims, start, dims, dims, start, H5T_STD_I32LE);
-
-  dims[0] = s2;  
-  
-  hdf5_read_array(tint, "/dimg/nstep", 1, dims, start, dims, dims, start, H5T_STD_I32LE);
-  for (int i=0; i<s2; ++i) dimages[i].nstep = tint[i];
-
-  hdf5_read_array(tdbl, "/dimg/intensity", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-  for (int i=0; i<s2; ++i) dimages[i].intensity = tdbl[i];
-
-  hdf5_read_array(tdbl, "/dimg/tau", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-  for (int i=0; i<s2; ++i) dimages[i].tau = tdbl[i];
-
-  hdf5_read_array(tdbl, "/dimg/tauF", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-  for (int i=0; i<s2; ++i) dimages[i].tauF = tdbl[i];
-
-  for (int mu=0; mu<4; ++mu) {
-    for (int nu=0; nu<4; ++nu) {
-      char tgt[20];
-      snprintf(tgt, 18, "/dimg/Nr%d%d", mu, nu);
-      hdf5_read_array(tdbl, tgt, 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-      for (int i=0; i<s2; ++i) dimages[i].N_coord[mu][nu] = tdbl[i];
-      snprintf(tgt, 18, "/dimg/Ni%d%d", mu, nu);
-      hdf5_read_array(tdbl, tgt, 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-      for (int i=0; i<s2; ++i) dimages[i].N_coord[mu][nu] += tdbl[i] * _Complex_I;
-    }
-  }
-
-  free(tint);
-  free(tdbl);
-
-  hdf5_close();
-
-}
-
-void write_restart(const char *fname, double tA, double tB, double last_img_target,
-        int nopenimgs, int nimg, int nconcurrentimgs, int s2, 
-        double *target_times, int *valid_imgs, struct of_image *dimages) {
-
-  hid_t fid = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-  if (fid < 0) {
-    fprintf(stderr, "! unable to create hdf5 restart file.\n");
-    exit(-4);
-  }
-
-  h5io_add_attribute_str(fid, "/", "githash", xstr(VERSION));
-  h5io_add_data_dbl(fid, "/tA", tA);
-  h5io_add_data_dbl(fid, "/tB", tB);
-  h5io_add_data_dbl(fid, "/last_img_target", last_img_target);
-  h5io_add_data_int(fid, "/nimg", nimg);
-  h5io_add_data_int(fid, "/nopenimgs", nopenimgs);
-  h5io_add_data_dbl_1d(fid, "/target_times", nconcurrentimgs, target_times);
-  h5io_add_data_int_1d(fid, "/valid_images", nconcurrentimgs, valid_imgs);
-  h5io_add_group(fid, "/dimg");
-
-  // save dimg struct
-  int *tint = malloc(s2 * sizeof(*tint));
-  double *tdbl = malloc(s2 * sizeof(*tdbl));
-
-  for (int i=0; i<s2; ++i) tint[i] = dimages[i].nstep;
-  h5io_add_data_int_1d(fid, "/dimg/nstep", s2, tint);
-  
-  for (int i=0; i<s2; ++i) tdbl[i] = dimages[i].intensity;
-  h5io_add_data_dbl_1d(fid, "/dimg/intensity", s2, tdbl);
-    
-  for (int i=0; i<s2; ++i) tdbl[i] = dimages[i].tau;
-  h5io_add_data_dbl_1d(fid, "/dimg/tau", s2, tdbl);
-
-  for (int i=0; i<s2; ++i) tdbl[i] = dimages[i].tauF;
-  h5io_add_data_dbl_1d(fid, "/dimg/tauF", s2, tdbl);
-
-  for (int mu=0; mu<4; ++mu) {
-    for (int nu=0; nu<4; ++nu) {
-      char tgt[20];
-      snprintf(tgt, 18, "/dimg/Nr%d%d", mu, nu);
-      for (int i=0; i<s2; ++i) tdbl[i] = creal(dimages[i].N_coord[mu][nu]);
-      h5io_add_data_dbl_1d(fid, tgt, s2, tdbl); 
-      snprintf(tgt, 18, "/dimg/Ni%d%d", mu, nu);
-      for (int i=0; i<s2; ++i) tdbl[i] = cimag(dimages[i].N_coord[mu][nu]);
-      h5io_add_data_dbl_1d(fid, tgt, s2, tdbl); 
-    }
-  }
-
-  free(tint);
-  free(tdbl);
-  
-  H5Fclose(fid);
-}
-
-
-void dump(double image[], double imageS[], double taus[],
-    const char *fname, double scale, double Dsource, double cam[NDIM], double DX, 
-    double DY, double fovx, double fovy, double rcam, double thetacam, double phicam,
-    double rotcam, double xoff, double yoff)
-{
-  hid_t fid = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-  if (fid < 0) {
-    fprintf(stderr, "! unable to open/create hdf5 output file.\n");
-    exit(-3);
-  }
-
-  h5io_add_attribute_str(fid, "/", "githash", xstr(VERSION));
-
-  h5io_add_group(fid, "/header");
-  h5io_add_data_dbl(fid, "/header/freqcgs", freqcgs);
-  h5io_add_data_dbl(fid, "/header/scale", scale);
-  h5io_add_data_dbl(fid, "/header/dsource", Dsource);
-
-  if (QU_CONVENTION == 0) h5io_add_data_str(fid, "/header/evpa_0", "N");
-  else h5io_add_data_str(fid, "/header/evpa_0", "W");
-
-  h5io_add_group(fid, "/header/camera");
-  h5io_add_data_int(fid, "/header/camera/nx", NX);
-  h5io_add_data_int(fid, "/header/camera/ny", NY);
-  h5io_add_data_dbl(fid, "/header/camera/dx", DX);
-  h5io_add_data_dbl(fid, "/header/camera/dy", DY);
-  h5io_add_data_dbl(fid, "/header/camera/fovx", fovx);
-  h5io_add_data_dbl(fid, "/header/camera/fovy", fovy);
-  h5io_add_data_dbl(fid, "/header/camera/rcam", rcam);
-  h5io_add_data_dbl(fid, "/header/camera/thetacam", thetacam);
-  h5io_add_data_dbl(fid, "/header/camera/phicam", phicam);
-  h5io_add_data_dbl(fid, "/header/camera/rotcam", rotcam);
-  h5io_add_data_dbl(fid, "/header/camera/xoff", xoff);
-  h5io_add_data_dbl(fid, "/header/camera/yoff", yoff);
-  h5io_add_data_dbl_1d(fid, "/header/camera/x", NDIM, cam);
-
-  h5io_add_group(fid, "/header/units");
-  h5io_add_data_dbl(fid, "/header/units/L_unit", L_unit);
-  h5io_add_data_dbl(fid, "/header/units/M_unit", M_unit);
-  h5io_add_data_dbl(fid, "/header/units/T_unit", T_unit);
-  h5io_add_data_dbl(fid, "/header/units/Thetae_unit", Te_unit);
-
-  // processing
-  double Ftot_unpol=0., Ftot=0.;
-  for (int i=0; i<NX; ++i) {
-    for (int j=0; j<NY; ++j) {
-      Ftot_unpol += image[i*NY+j] * scale;
-      Ftot += imageS[(i*NY+j)*NIMG+0] * scale;
-    }
-  }
-
-  // output stuff
-  h5io_add_data_dbl(fid, "/Ftot", Ftot);
-  h5io_add_data_dbl(fid, "/Ftot_unpol", Ftot_unpol);
-  h5io_add_data_dbl(fid, "/nuLnu", 4. * M_PI * Ftot * Dsource * Dsource * JY * freqcgs);
-  h5io_add_data_dbl(fid, "/nuLnu_unpol", 4. * M_PI * Ftot_unpol * Dsource * Dsource * JY * freqcgs);
-
-  h5io_add_data_dbl_2ds(fid, "/unpol", NX, NY, image);
-  h5io_add_data_dbl_2ds(fid, "/tau", NX, NY, taus);
-  h5io_add_data_dbl_3ds(fid, "/pol", NX, NY, 5, imageS);
-
-  // allow model to output
-  output_hdf5(fid);
-
-  // housekeeping
-  H5Fclose(fid);
 }
 
 /* construct orthonormal tetrad.
@@ -848,22 +636,6 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
 
   /* set position */
   for (int mu = 0; mu < NDIM; mu++) X[mu] = Xcam[mu];
-
-}
-
-/* normalize null vector in a tetrad frame */
-void null_normalize(double Kcon[NDIM], double fnorm)
-{
-  double inorm;
-
-  inorm =
-    sqrt(Kcon[1] * Kcon[1] + Kcon[2] * Kcon[2] + Kcon[3] * Kcon[3]);
-
-  Kcon[0] = fnorm;
-  Kcon[1] *= fnorm / inorm;
-  Kcon[2] *= fnorm / inorm;
-  Kcon[3] *= fnorm / inorm;
-
 }
 
 /* must be a stable, approximate solution to radiative transfer

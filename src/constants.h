@@ -50,3 +50,5 @@
 #define SOLX			(0.70				) /* H */
 #define SOLY			(0.28				) /* He */
 #define SOLZ			(0.02				) /* Metals */
+
+#define SMALL 1.e-40
