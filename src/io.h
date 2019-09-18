@@ -9,6 +9,7 @@
 #define IO_H
 
 #include "decs.h"
+#include "par.h"
 
 void write_restart(const char *fname, double tA, double tB, double last_img_target,
                    int nopenimgs, int nimg, int nconcurrentimgs, int s2,
@@ -17,9 +18,8 @@ void read_restart(const char *fname, double *tA, double *tB, double *last_img_ta
                   int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
                   double *target_times, int *valid_imgs, struct of_image *dimages);
 
-void dump (double image[], double imageS[], double taus[], const char *fname,
-      double scale, double Dsource, double cam[NDIM], double DX, double DY,
-      double fovx, double fovy, double rcam, double thetacam, double phicam,
-      double rotcam, double xoff, double yoff);
+void dump(double image[], double imageS[], double taus[],
+          const char *fname, double scale, double cam[NDIM],
+          double fovx, double fovy, Params *params);
 
 #endif // IO_H

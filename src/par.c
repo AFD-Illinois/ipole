@@ -1,5 +1,12 @@
 
 #include "par.h"
+#include "decs.h"
+#include "model.h"
+
+#include <stdio.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 // sets default values for elements of params and then calls other
 // loading functions
@@ -8,17 +15,22 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   char *word, *value, *saveptr;
 
   // set default values here
-  params->counterjet = 0;
-  params->tp_over_te = 3.;
-  params->trat_small = 1.;
-  params->trat_large = 40.;
+  params->add_ppm = 0;
+  params->qu_conv = 0;
+
+  params->rcam = 1000.;
+  params->thetacam = 90.;
   params->phicam = 0.;
   params->rotcam = 0.;
-  params->dump_skip = 1;
+  params->nx = 160;
+  params->ny = 160;
+
+  params->dsource = DM87_PC; // or DSGRA_PC
+
   params->restart_int = -1.;
-  params->xoff = 0.5;
-  params->yoff = 0.5;
-  params->add_ppm = 0;
+
+  params->xoff = 0.0;
+  params->yoff = 0.0;
 
   // process each command line argument
   for (int i=0; i<argc; ++i) {
@@ -40,41 +52,48 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
     }
 
   }
-
-  // just in case
-  params->loaded = 1;
-
 }
 
 // sets parameter file entry if any key==word
 void try_set_parameter(const char *word, const char *value, Params *params) {
+  // Required parameters
+  set_by_word_val(word, value, "freqcgs", &(params->freqcgs), TYPE_DBL);
 
-  set_by_word_val(word, value, "counterjet", &(params->counterjet), TYPE_INT);
+  // Optional (defaulted) parameters
   set_by_word_val(word, value, "add_ppm", &(params->add_ppm), TYPE_INT);
+  set_by_word_val(word, value, "qu_conv", &(params->qu_conv), TYPE_INT);
 
+  set_by_word_val(word, value, "rcam", &(params->rcam), TYPE_DBL);
   set_by_word_val(word, value, "thetacam", &(params->thetacam), TYPE_DBL);
   set_by_word_val(word, value, "phicam", &(params->phicam), TYPE_DBL);
   set_by_word_val(word, value, "rotcam", &(params->rotcam), TYPE_DBL);
-  set_by_word_val(word, value, "freqcgs", &(params->freqcgs), TYPE_DBL);
-  set_by_word_val(word, value, "MBH", &(params->MBH), TYPE_DBL);
-  set_by_word_val(word, value, "M_unit", &(params->M_unit), TYPE_DBL);
-  set_by_word_val(word, value, "tp_over_te", &(params->tp_over_te), TYPE_DBL);
-  set_by_word_val(word, value, "trat_small", &(params->trat_small), TYPE_DBL);
-  set_by_word_val(word, value, "trat_large", &(params->trat_large), TYPE_DBL);
+  set_by_word_val(word, value, "dsource", &(params->dsource), TYPE_DBL);
+
+  // There are many ways to specify a FOV
+  set_by_word_val(word, value, "fovx", &(params->fovx_dsource), TYPE_DBL);
+  set_by_word_val(word, value, "fovy", &(params->fovy_dsource), TYPE_DBL);
+  set_by_word_val(word, value, "fovx_dsource", &(params->fovx_dsource), TYPE_DBL);
+  set_by_word_val(word, value, "fovy_dsource", &(params->fovy_dsource), TYPE_DBL);
+  set_by_word_val(word, value, "fov", &(params->fovx_dsource), TYPE_DBL);
+  set_by_word_val(word, value, "fov", &(params->fovy_dsource), TYPE_DBL);
+  // Even in the plane
+  set_by_word_val(word, value, "dx", &(params->dx), TYPE_DBL);
+  set_by_word_val(word, value, "dy", &(params->dy), TYPE_DBL);
+
+  set_by_word_val(word, value, "nx", &(params->nx), TYPE_INT);
+  set_by_word_val(word, value, "ny", &(params->ny), TYPE_INT);
 
   set_by_word_val(word, value, "xoff", &(params->xoff), TYPE_DBL);
   set_by_word_val(word, value, "yoff", &(params->yoff), TYPE_DBL);
 
-  set_by_word_val(word, value, "dump", (void *)(params->dump), TYPE_STR);
   set_by_word_val(word, value, "outfile", (void *)(params->outf), TYPE_STR);
 
   // for slow light
-  set_by_word_val(word, value, "dump_min", &(params->dump_min), TYPE_INT);
-  set_by_word_val(word, value, "dump_max", &(params->dump_max), TYPE_INT);
-  set_by_word_val(word, value, "dump_skip", &(params->dump_skip), TYPE_INT);
   set_by_word_val(word, value, "img_cadence", &(params->img_cadence), TYPE_DBL);
   set_by_word_val(word, value, "restart_int", &(params->restart_int), TYPE_DBL);
 
+  // Let models add/parse their own parameters we don't understand
+  try_set_model_parameter(word, value);
 }
 
 // sets default values for elements of params (if desired) and loads from par file 'fname'
@@ -96,8 +115,6 @@ void load_par(const char *fname, Params *params) {
   }
 
   fclose(fp);
-
-  params->loaded = 1;
 
 }
 

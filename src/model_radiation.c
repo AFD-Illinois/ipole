@@ -10,10 +10,13 @@
 /****************and then rewritten by C.Gammie ***********/
 /**********************************************************/
 
-#include "decs.h"
+#include "model_radiation.h"
+
 #include "model.h"
+#include "radiation.h"
 #include "coordinates.h"
 #include "geometry.h"
+#include "decs.h"
 
 #include <omp.h>
 
@@ -306,7 +309,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
 
   if (flag) fprintf(stderr, "%g ", sigma);
 
-  if (sigma > SIGMA_CUT) {
+  if (sigma > sigma_cut) {
     *jnuinv = 0.;
     *knuinv = 0.;
     return;

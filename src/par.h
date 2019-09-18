@@ -1,10 +1,7 @@
 #ifndef PAR_H
 #define PAR_H
 
-#include <stdio.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
+#include "decs.h"
 
 #define TYPE_INT (1)
 #define TYPE_DBL (2)
@@ -12,28 +9,26 @@
 
 // feel free to change any part of this structure
 typedef struct params_t {
-  double tp_over_te;    // tp_over_te (defaults to 3.)
-  double trat_small;    // when beta << 1 (defaults to 1.)
-  double trat_large;    // when beta >> 1 (defaults to 10.)
+  double rcam;          // Camera radius in r_g
   double thetacam;      // in degrees from the pole
   double phicam;        // in degrees
   double rotcam;        // in degrees
+  double dx, dy;        // FOV in-plane in r_g
+  double fovx_dsource, fovy_dsource; // FOV (from Earth) in degrees
+  int nx, ny;           // image dimensions in px
+  double dsource;       // in pc
   double freqcgs;       // ... in cgs
-  double MBH;           // in Msun
-  double M_unit;        // in cgs
-  int counterjet;       // 0,1,2
-  int add_ppm;         // Whether to additionally make a ppm image of I
-  const char dump[256];
-  const char outf[256];
-  char loaded;
+
+  int add_ppm;          // Whether to additionally make a ppm image of I
+  int qu_conv;          // Convention for Stokes Q,U.  0 (default) -> East of North (observer).  1 -> North of West
+
+  const char dump[STRLEN];
+  const char outf[STRLEN];
 
   // ML parameters
   double xoff, yoff;    // in pixels
 
   // slow light
-  int dump_min;
-  int dump_max;
-  int dump_skip;
   double img_cadence;
   double restart_int;
 } Params;
@@ -46,6 +41,6 @@ void try_set_parameter(const char *, const char *, Params *);
 
 // only modify if you add/modify types
 void load_par(const char *, Params *);
-void set_by_word_val (const char *word, const char *value, const char *key, void *val, int type);
+void set_by_word_val(const char *word, const char *value, const char *key, void *val, int type);
 
 #endif // PAR_H

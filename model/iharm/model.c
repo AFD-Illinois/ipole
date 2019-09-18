@@ -5,10 +5,12 @@
 
 #include "coordinates.h"
 #include "geometry.h"
-
 #include "grid.h"
+#include "model_radiation.h" // Only for outputting emissivities
 #include "par.h"
 #include "utils.h"
+
+#include <string.h>
 
 #define NVAR (10)
 #define USE_FIXED_TPTE (0)
@@ -24,36 +26,39 @@ double U_unit;
 double B_unit;
 double Te_unit;
 
-// MODEL PARAMETERS
-double freqcgs;
-double thetacam;
-double gam;
+// MODEL PARAMETERS: PUBLIC
 double DTd;
-double t0;
-double trat_j;
-double theta_j;
-double trat_d;
-int counterjet;
-double rmax_geo;
-char fnam[STRLEN];
+int counterjet = 0;
+double rmax_geo = 100.;
+double sigma_cut = 1.0;
 
-// these will be overwritten by anything found in par.c (or in runtime parameter file)
-static double tp_over_te = 3.; 
+// MODEL PARAMETERS: PRIVATE
+static char fnam[STRLEN] = "dump.h5";
+static double tp_over_te = 3.;
 static double trat_small = 1.;
 static double trat_large = 30.;
+static int dumpskip = 1;
+static int dumpmin, dumpmax, dumpidx;
+static double MBH_solar = 6.2e9;
+static double MBH; // Set from previous
+
+// MAYBES
+//static double t0;
 
 // ELECTRONS -> 
 //    0 : constant TP_OVER_TE
 //    1 : use dump file model (kawazura?)
 //    2 : use mixed TP_OVER_TE (beta model)
 static int RADIATION, ELECTRONS;
+static double gam, game, gamp;
+static double Thetae_unit, Mdotedd;
 
-static double game, gamp;
+// Ignore radiation interactions within one degree of polar axis
+static double th_beg = 0.0174;
+static int nloaded = 0;
 
-static int dumpmin, dumpmax, dumpidx, dumpskip;
 
 static hdf5_blob fluid_header = { 0 };
-static double Thetae_unit, MBH, Mdotedd, tp_over_te;
 
 struct of_data {
   double t;
@@ -66,33 +71,38 @@ struct of_data {
   double ***thetae;
   double ***b;
 };
-static int nloaded = 0;
+static struct of_data dataA, dataB, dataC;
+static struct of_data *data[NSUP];
 
-struct of_data dataA, dataB, dataC;
-struct of_data *data[NSUP];
+// Definitions for functions not in model.h interface
+void set_units();
+void load_iharm_data(int n, char *, int dumpidx, int verbose);
+double get_dump_t(char *fnam, int dumpidx);
+void init_iharm_grid(char *fnam, int dumpidx);
+void init_physical_quantities(int n);
+void init_storage(void);
 
-void parse_input(int argc, char *argv[], Params *params)
+void try_set_model_parameter(const char *word, const char *value)
 {
-  // no longer supports fixed-order command line arguments!
-  // we are forced to read from params. if !params->loaded,
-  // then exit inelegantly.
-  if ( ! params->loaded ) exit(-66);
+  // TODO remember to set defaults!
 
-  thetacam = params->thetacam;
-  freqcgs = params->freqcgs;
-  MBH = params->MBH * MSUN;
-  M_unit = params->M_unit;
-  strcpy(fnam, params->dump);
-  tp_over_te = params->tp_over_te;
-  trat_small = params->trat_small;
-  trat_large = params->trat_large;
-  counterjet = params->counterjet;
+  // ipole no longer supports fixed-order command line arguments!
+  // assume params is populated
+  set_by_word_val(word, value, "MBH", &MBH_solar, TYPE_DBL);
+  set_by_word_val(word, value, "M_unit", &M_unit, TYPE_DBL);
 
-  dumpmin = params->dump_min;
-  dumpmax = params->dump_max;
-  dumpskip = params->dump_skip;
+  set_by_word_val(word, value, "dump", (void *)fnam, TYPE_STR);
+  set_by_word_val(word, value, "counterjet", &counterjet, TYPE_INT);
+
+  set_by_word_val(word, value, "tp_over_te", &tp_over_te, TYPE_DBL);
+  set_by_word_val(word, value, "trat_small", &trat_small, TYPE_DBL);
+  set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
+
+  // for slow light
+  set_by_word_val(word, value, "dump_min", &dumpmin, TYPE_INT);
+  set_by_word_val(word, value, "dump_max", &dumpmax, TYPE_INT);
+  set_by_word_val(word, value, "dump_skip", &dumpskip, TYPE_INT);
   dumpidx = dumpmin;
-
 }
 
 // Advance through dumps until we are closer to the next set
@@ -174,11 +184,7 @@ double get_dump_t(char *fnam, int dumpidx)
   snprintf(fname, 255, fnam, dumpidx);
   double t = -1.;
 
-  if ( hdf5_open(fname) < 0 ) {
-    fprintf(stderr, "! unable to open file %s. Exiting!\n", fname);
-    exit(-1);
-  }
-
+  hdf5_open(fname);
   hdf5_set_directory("/");
   hdf5_read_single_val(&t, "/t", H5T_IEEE_F64LE);
   hdf5_close();
@@ -388,6 +394,7 @@ double get_model_ne(double X[NDIM])
 
 void set_units()
 {
+  MBH = MBH_solar * MSUN; // Convert to CGS
   L_unit = GNEWT * MBH / (CL * CL);
   T_unit = L_unit / CL;
   RHO_unit = M_unit / pow(L_unit, 3);
@@ -436,7 +443,7 @@ void init_physical_quantities(int n)
         //printf("rho = %e thetae = %e\n", p[KRHO][i][j][k], thetae[i][j][k]);
 
         //strongly magnetized = empty, no shiny spine
-        if (sigma_m > SIGMA_CUT) {
+        if (sigma_m > sigma_cut) {
           data[n]->b[i][j][k]=0.0;
           data[n]->ne[i][j][k]=0.0;
           data[n]->thetae[i][j][k]=0.0;
@@ -475,7 +482,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
   hdf5_open(fname);
 
   // get dump info to copy to ipole output
-  hdf5_read_single_val(&t0, "t", H5T_IEEE_F64LE);
+//  hdf5_read_single_val(&t0, "t", H5T_IEEE_F64LE);
   fluid_header = hdf5_get_blob("/header");
 
   hdf5_set_directory("/header/");
@@ -598,14 +605,6 @@ void init_iharm_grid(char *fnam, int dumpidx)
 
   hdf5_set_directory("/");
   hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
-  
-  //th_beg=th_cutout;
-  //th_end=M_PI-th_cutout;
-  //th_len = th_end-th_beg;
-
-  // Ignore radiation interactions within one degree of polar axis
-  th_beg = 0.0174;
-  //th_end = 3.1241;
 
   stopx[0] = 1.;
   stopx[1] = startx[1]+N1*dx[1];

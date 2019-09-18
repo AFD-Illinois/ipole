@@ -80,3 +80,30 @@ double check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM])
   return (dot);
 }
 
+/*
+ * project out vconb from vcona
+ * both arguments are index up (contravariant)
+ * covariant metric is third argument.
+ * overwrite the first argument on return
+ */
+void project_out(double vcona[NDIM], double vconb[NDIM], double Gcov[4][4])
+{
+
+  double adotb, vconb_sq;
+  int k, l;
+
+  vconb_sq = 0.;
+  for (k = 0; k < 4; k++)
+    for (l = 0; l < 4; l++)
+      vconb_sq += vconb[k] * vconb[l] * Gcov[k][l];
+
+  adotb = 0.;
+  for (k = 0; k < 4; k++)
+    for (l = 0; l < 4; l++)
+      adotb += vcona[k] * vconb[l] * Gcov[k][l];
+
+  for (k = 0; k < 4; k++)
+    vcona[k] -= vconb[k] * adotb / vconb_sq;
+
+  return;
+}

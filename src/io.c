@@ -8,6 +8,9 @@
 #include "decs.h"
 #include "hdf5_utils.h"
 #include "model.h"
+#include "par.h"
+
+#include <string.h>
 
 void read_restart(const char *fname, double *tA, double *tB, double *last_img_target,
                   int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
@@ -123,9 +126,8 @@ void write_restart(const char *fname, double tA, double tB, double last_img_targ
 
 
 void dump(double image[], double imageS[], double taus[],
-    const char *fname, double scale, double Dsource, double cam[NDIM], double DX,
-    double DY, double fovx, double fovy, double rcam, double thetacam, double phicam,
-    double rotcam, double xoff, double yoff)
+    const char *fname, double scale, double cam[NDIM],
+    double fovx, double fovy, Params *params)
 {
   hdf5_create(fname);
   hid_t dtype_version = hdf5_make_str_type(strlen(xstr(VERSION)));
@@ -133,34 +135,40 @@ void dump(double image[], double imageS[], double taus[],
 
   hdf5_make_directory("header");
   hdf5_set_directory("/header/");
+  // Make locals for things we'll use later
+  double freqcgs = params->freqcgs;
+  double dsource = params->dsource;
   hdf5_write_single_val(&freqcgs, "freqcgs", H5T_IEEE_F64LE);
   hdf5_write_single_val(&scale, "scale", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&Dsource, "dsource", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&dsource, "dsource", H5T_IEEE_F64LE);
 
-  char *conv;
-  if (QU_CONVENTION == 0) {
-    conv = "N";
+  char conv[2];
+  if (params->qu_conv == 0) {
+    strncpy(conv,"N",2);
   } else {
-    conv = "W";
+    strncpy(conv,"W",2);
   }
-  hdf5_write_single_val(conv, "evpa_0", H5T_C_S1);
+  hid_t dtype_evpa = hdf5_make_str_type(2);
+  hdf5_write_single_val(conv, "evpa_0", dtype_evpa);
 
   hdf5_make_directory("camera");
   hdf5_set_directory("/header/camera/");
-  int nx = NX;
-  int ny = NY;
+  int nx = params->nx;
+  int ny = params->ny;
   hdf5_write_single_val(&nx, "nx", H5T_STD_I32LE);
   hdf5_write_single_val(&ny, "ny", H5T_STD_I32LE);
-  hdf5_write_single_val(&DX, "dx", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&DY, "dy", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->dx), "dx", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->dy), "dy", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->fovx_dsource), "fovx_dsource", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->fovy_dsource), "fovy_dsource", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->rcam), "rcam", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->thetacam), "thetacam", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->phicam), "phicam", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->rotcam), "rotcam", H5T_IEEE_F64LE);
   hdf5_write_single_val(&fovx, "fovx", H5T_IEEE_F64LE);
   hdf5_write_single_val(&fovy, "fovy", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&rcam, "rcam", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&thetacam, "thetacam", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&phicam, "phicam", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&rotcam, "rotcam", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&xoff, "xoff", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&yoff, "yoff", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->xoff), "xoff", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&(params->yoff), "yoff", H5T_IEEE_F64LE);
   hsize_t vec_dim[1] = {NDIM};
   hdf5_write_full_array(cam, "x", 1, vec_dim, H5T_IEEE_F64LE);
 
@@ -174,10 +182,10 @@ void dump(double image[], double imageS[], double taus[],
 
   // processing
   double Ftot_unpol=0., Ftot=0.;
-  for (int i=0; i<NX; ++i) {
-    for (int j=0; j<NY; ++j) {
-      Ftot_unpol += image[i*NY+j] * scale;
-      Ftot += imageS[(i*NY+j)*NIMG+0] * scale;
+  for (int i=0; i<nx; ++i) {
+    for (int j=0; j<ny; ++j) {
+      Ftot_unpol += image[i*ny+j] * scale;
+      Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
     }
   }
 
@@ -185,13 +193,13 @@ void dump(double image[], double imageS[], double taus[],
   // output stuff
   hdf5_write_single_val(&Ftot, "Ftot", H5T_IEEE_F64LE);
   hdf5_write_single_val(&Ftot_unpol, "Ftot_unpol", H5T_IEEE_F64LE);
-  double nuLnu = 4. * M_PI * Ftot * Dsource * Dsource * JY * freqcgs;
+  double nuLnu = 4. * M_PI * Ftot * dsource * dsource * JY * freqcgs;
   hdf5_write_single_val(&nuLnu, "nuLnu", H5T_IEEE_F64LE);
-  nuLnu = 4. * M_PI * Ftot_unpol * Dsource * Dsource * JY * freqcgs;
+  nuLnu = 4. * M_PI * Ftot_unpol * dsource * dsource * JY * freqcgs;
   hdf5_write_single_val(&nuLnu, "nuLnu_unpol", H5T_IEEE_F64LE);
 
-  hsize_t unpol_dim[2] = {NX, NY};
-  hsize_t pol_dim[3] = {NX, NY, NIMG};
+  hsize_t unpol_dim[2] = {nx, ny};
+  hsize_t pol_dim[3] = {nx, ny, NIMG};
   hdf5_write_full_array(image, "unpol", 2, unpol_dim, H5T_IEEE_F64LE);
   hdf5_write_full_array(taus, "tau", 2, unpol_dim, H5T_IEEE_F64LE);
   hdf5_write_full_array(imageS, "pol", 3, pol_dim, H5T_IEEE_F64LE);

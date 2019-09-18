@@ -12,7 +12,6 @@ double poly_norm, poly_xt, poly_alpha, mks_smooth; // mmks
 double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double R0, Rin, Rout, Rh;
-double th_beg, th_len;
 
 void bl_coord(double X[NDIM], double *r, double *th)
 {

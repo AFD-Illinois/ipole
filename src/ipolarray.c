@@ -16,12 +16,9 @@
 #include "coordinates.h"
 #include "geometry.h"
 #include "model.h"
+#include "model_radiation.h"
+#include "model_tetrads.h"
 #include <complex.h>
-
-/* transfer coefficients in tetrad frame */
-void jar_calc(double X[NDIM], double Kcon[NDIM], double *jI, double *jQ,
-              double *jU, double *jV, double *aI, double *aQ, double *aU,
-              double *aV, double *rQ, double *rU, double *rV);
 
 /* tensor tools*/
 void check_N(double complex N[NDIM][NDIM], double Kcon[NDIM],
@@ -107,7 +104,6 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double SI0, SQ0, SU0, SV0;
   double SI1, SQ1, SU1, SV1;
   double SI2, SQ2, SU2, SV2;
-  int radiating_region(double X[4]);
 
   /* parallel transport N by a half, and then full, step */
   push_polar(Xi, Xi, Xhalf, Kconi, Kconi, Kconhalf, N_coord, N_coord, Nh, 0.5 * dlam);
@@ -266,6 +262,33 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
      }*/
 
   }
+
+#if THIN_DISK
+  // The thin disk problem emits nowhere but uses a boundary condition region defined by thindisk_region
+  // In this region, it sets all Stokes parameters according to the function get_model_stokes
+
+  //check_N(N[NDIM][NDIM], Kcon[NDIM], gcov[NDIM][NDIM]);
+
+  // If we're in exactly the thin disk...
+  if (thindisk_region(Xi, Xf)) {
+    // get fluid parameters at Xf -- B is set to grtrans' "polarization direction"
+    double gcov[NDIM][NDIM];
+    gcov_func(Xf, gcov);
+    get_model_fourv_K(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
+
+    make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
+    // Otherwise N_tetrad is uninitialized memory.  Probably fine but meh
+    complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
+    tensor_to_stokes(N_tetrad, &SI0, &SQ0, &SU0, &SV0);
+
+    get_model_stokes(Xf, Kconf, &SI, &SQ, &SU, &SV);
+
+    stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
+    complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
+  }
+
+  //check_N(N[NDIM][NDIM], Kcon[NDIM], gcov[NDIM][NDIM]);
+#endif
 
   /* SOURCE STEP DONE */
 

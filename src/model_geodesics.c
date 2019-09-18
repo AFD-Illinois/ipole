@@ -14,38 +14,52 @@
 /* condition for stopping the backwards-in-lambda
    integration of the photon geodesic */
 
-#define LRMAX (log(1.1*rmax_geo))
-#define LRMIN (log(1.05*Rh))
-int stop_backward_integration(double X[NDIM], double Kcon[NDIM], 
+int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[NDIM],
   double Xcam[NDIM])
 {
-    if ((X[1] > LRMAX && Kcon[1] < 0.) ||       /* out far */
-        X[1] < LRMIN            /* in deep */
-        )
-        return (1);
-    else
-        return (0);             /* neither out far nor in deep */
+  // Necessary geometric stop conditions
+  if ((X[1] > log (1.1 * rmax_geo) && Kcon[1] < 0.) || // Stop either beyond rmax_geo
+      X[1] < log (1.05 * Rh)) { // Or right near the horizon
+    return (1);
+  }
 
+  // Additional stop condition for thin disks: the disk is opaque
+#if THIN_DISK
+  static int n_left = -1;
+#pragma omp threadprivate(n_left)
+
+  if (thindisk_region(X, Xhalf) && n_left < 0) { // Set timer when we reach disk
+    n_left = 2;
+    return 0;
+  } else if (n_left < 0) { // Otherwise continue normally
+    return 0;
+  } else if (n_left > 0) { // Or decrement the timer if we need
+    n_left--;
+    return 0;
+  } else {  // If timer is 0, stop and reset
+    n_left = -1;
+    return 1;
+  }
+#endif
+
+  return (0);
 }
-#undef LRMIN
-#undef LRMAX
 
 double stepsize(double X[NDIM], double Kcon[NDIM])
 {
-  double eps = 0.01;
-  double small = 1.e-40; 
+  double eps = 0.01; // TODO take as parameter w/MAXNSTEP?
 
   double dl, dlx1, dlx2, dlx3;
   double idlx1,idlx2,idlx3 ;
 
-  dlx1 = eps / (fabs(Kcon[1]) + small*small) ;
+  dlx1 = eps / (fabs(Kcon[1]) + SMALL*SMALL) ;
   //dlx2 = EPS * GSL_MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
-  dlx2 = eps * MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + small*small) ;
-  dlx3 = eps / (fabs(Kcon[3]) + small*small) ;
+  dlx2 = eps * MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
+  dlx3 = eps / (fabs(Kcon[3]) + SMALL*SMALL) ;
 
-  idlx1 = 1./(fabs(dlx1) + small*small) ;
-  idlx2 = 1./(fabs(dlx2) + small*small) ;
-  idlx3 = 1./(fabs(dlx3) + small*small) ;
+  idlx1 = 1./(fabs(dlx1) + SMALL*SMALL) ;
+  idlx2 = 1./(fabs(dlx2) + SMALL*SMALL) ;
+  idlx3 = 1./(fabs(dlx3) + SMALL*SMALL) ;
 
   dl = 1. / (idlx1 + idlx2 + idlx3) ;
 

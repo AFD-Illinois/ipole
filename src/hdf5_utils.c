@@ -190,6 +190,7 @@ int hdf5_make_directory(const char *name)
 // Set the current directory
 void hdf5_set_directory(const char *path)
 {
+  if(DEBUG) printf("Setting dir %s\n", path);
   strncpy(hdf5_cur_dir, path, STRLEN);
 }
 

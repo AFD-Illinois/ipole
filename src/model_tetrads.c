@@ -7,6 +7,7 @@
 #include "decs.h"
 #include "coordinates.h"
 #include "geometry.h"
+#include "tetrads.h"
 
 /** tetrad making routines **/
 
@@ -31,11 +32,6 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
                         double Ecov[NDIM][NDIM])
 {
   int k, l;
-  void normalize(double *vcon, double Gcov[4][4]);
-  void project_out(double *vcona, double *vconb, double Gcov[4][4]);
-  double check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM]);
-
-  void set_Econ_from_trial(double Econ[4], int defdir, double trial[4]);
 
   // start w/ time component parallel to U
   set_Econ_from_trial(Econ[0], 0, Ucon);
@@ -129,29 +125,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
     Ecov[0][l] *= -1.;
   }
 
-  /* paranoia: check orthonormality */
-  /*
-   double sum ;
-   int m ;
-   fprintf(stderr,"ortho check [plasma]:\n") ;
-   for(k=0;k<NDIM;k++)
-   for(l=0;l<NDIM;l++) {
-   sum = 0. ;
-   for(m=0;m<NDIM;m++) {
-   sum += Econ[k][m]*Ecov[l][m] ;
-   }
-   fprintf(stderr,"sum: %d %d %g\n",k,l,sum) ;
-   }
-   fprintf(stderr,"\n") ;
-   for(k=0;k<NDIM;k++)
-   for(l=0;l<NDIM;l++) {
-   fprintf(stderr,"%d %d %g\n",k,l,Econ[k][l]) ;
-   }
-   fprintf(stderr,"done ortho check.\n") ;
-   fprintf(stderr,"\n") ;
-   */
-
-  /* done! */
+  // For paranoia could run check_ortho here
 
   return;
 }
@@ -177,7 +151,7 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
 {
   double Gcov[NDIM][NDIM], Gcon[NDIM][NDIM];
   double Ucam[NDIM];
-  double Kcov[NDIM], Kcon[NDIM], Kcon_ks[NDIM];
+  double Kcov[NDIM], Kcon[NDIM]; //, Kcon_ks[NDIM];
   double trial[NDIM];
 
   /* could use normal observer here; at present, camera has dx^i/dtau = 0 */
