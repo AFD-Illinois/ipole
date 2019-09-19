@@ -21,6 +21,7 @@ int hdf5_close_blob(hdf5_blob blob);
 // File
 int hdf5_create(const char *fname);
 int hdf5_open(const char *fname);
+int hdf5_append(const char *fname);
 int hdf5_set_file(hid_t fid);
 int hdf5_close();
 
@@ -33,6 +34,8 @@ int hdf5_write_single_val(const void *val, const char *name, hsize_t hdf5_type);
 int hdf5_write_full_array(const void *data, const char *name, size_t rank, hsize_t *dims, hsize_t hdf5_type);
 int hdf5_write_array(const void *data, const char *name, size_t rank,
                       hsize_t *fdims, hsize_t *fstart, hsize_t *fcount, hsize_t *mdims, hsize_t *mstart, hsize_t hdf5_type);
+int hdf5_write_chunked_array(const void *data, const char *name, size_t rank,
+                      hsize_t *fdims, hsize_t *fstart, hsize_t *fcount, hsize_t *mdims, hsize_t *mstart, hsize_t *chunk_size, hsize_t hdf5_type);
 
 // Read
 int hdf5_exists(const char *name);

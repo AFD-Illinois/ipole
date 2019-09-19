@@ -10,6 +10,7 @@
 #include "model.h"
 #include "par.h"
 
+#include <unistd.h>
 #include <string.h>
 
 void read_restart(const char *fname, double *tA, double *tB, double *last_img_target,
@@ -208,5 +209,65 @@ void dump(double image[], double imageS[], double taus[],
   output_hdf5();
 
   // housekeeping
+  hdf5_close();
+}
+
+/*
+ * Given a path, dump a variable computed along that path into a file.
+ * Note this is most definitely *not* thread-safe
+ * TODO make this take the var as an option?  Like a case statement?
+ */
+void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny, const char *fname)
+{
+  if (access(fname, F_OK) != -1) {
+    hdf5_append(fname);
+  } else {
+    hdf5_create(fname);
+  }
+
+  int n_to_save = 1;
+  double *save = calloc(n_to_save*nstep, sizeof(double));
+  double *X = calloc(NDIM*nstep, sizeof(double));
+  double *K = calloc(NDIM*nstep, sizeof(double));
+  for (int i=0; i<nstep; i++) {
+    save[i*n_to_save+0] = get_model_b(traj[i].X);
+
+    MULOOP { X[i*NDIM+mu] = traj[i].X[mu]; K[i*NDIM+mu] = traj[i].Kcon[mu]; }
+  }
+
+  // PICTURES: Anything with one value for every pixel
+  hsize_t fdims_p[] = { nx, ny };
+  hsize_t fstart_p[] = { i, j };
+  hsize_t fcount_p[] = { 1, 1 };
+  hsize_t mdims_p[] =  { 1, 1 };
+  hsize_t mstart_p[] = { 0, 0 };
+
+  hdf5_write_array(&nstep, "nstep", 2, fdims_p, fstart_p, fcount_p, mdims_p, mstart_p, H5T_STD_I32LE);
+
+  // SCALARS: Anything with one value for every geodesic step
+  hsize_t fdims_s[] = { nx, ny, MAXNSTEP };
+  hsize_t chunk_s[] =  { 1, 1, 200 };
+  hsize_t fstart_s[] = { i, j, 0 };
+  hsize_t fcount_s[] = { 1, 1, nstep };
+  hsize_t mdims_s[] =  { 1, 1, nstep };
+  hsize_t mstart_s[] = { 0, 0, 0 };
+
+  hdf5_write_chunked_array(save, "variable", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+
+  // VECTORS: Anything with 4 values per geodesic step
+  hsize_t fdims_v[] = { nx, ny, MAXNSTEP, 4 };
+  hsize_t chunk_v[] =  { 1, 1, 200, 4 };
+  hsize_t fstart_v[] = { i, j, 0, 0 };
+  hsize_t fcount_v[] = { 1, 1, nstep, 4 };
+  hsize_t mdims_v[] =  { 1, 1, nstep, 4 };
+  hsize_t mstart_v[] = { 0, 0, 0, 0 };
+
+  hdf5_write_chunked_array(X, "X", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(K, "K", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+
+  free(save);
+  free(X);
+  free(K);
+
   hdf5_close();
 }

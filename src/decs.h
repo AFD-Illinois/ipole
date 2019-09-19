@@ -29,7 +29,15 @@
 // TODO phase out for print_vector from debug_tools?
 #define P4VEC(S,X) fprintf(stderr, "%s: %g %g %g %g\n", S, X[0], X[1], X[2], X[3]);
 
-#define MAXNSTEP 50000
+#define MAXNSTEP 10000
+
+struct of_traj {
+  double dl;
+  double X[NDIM];
+  double Kcon[NDIM];
+  double Xhalf[NDIM];
+  double Kconhalf[NDIM];
+};
 
 // used for slow light
 struct of_image {

@@ -27,15 +27,6 @@ static double tf = 0.;
 
 Params params = { 0 };
 
-struct of_traj {
-  double dl;
-  double X[NDIM];
-  double Kcon[NDIM];
-  double Xhalf[NDIM];
-  double Kconhalf[NDIM];
-} traj[MAXNSTEP];
-#pragma omp threadprivate(traj)
-
 // Functions defined & used only here.  TODO move. Introduce a camera.c or similar?
 void init_XK (int i, int j, double Xcam[4], double fovx, double fovy,
               double X[4], double Kcon[4], double rotcam, double xoff,
@@ -326,6 +317,7 @@ int main(int argc, char *argv[])
 #pragma omp parallel for schedule(dynamic,2) collapse(2)
         for (int i=0; i<nx; ++i) {
           for (int j=0; j<ny; ++j) {
+            if (j==0) fprintf(stderr, "%d ", i);
 
             double ji,ki, jf,kf;
             double Xi[NDIM],Xhalf[NDIM],Xf[NDIM];
@@ -455,24 +447,24 @@ int main(int argc, char *argv[])
   // FAST LIGHT
   } else {
 
-    int nprogress = 0;
-
-#pragma omp parallel for schedule(dynamic,1) collapse(2) shared(nprogress,image,imageS)
+#pragma omp parallel for schedule(dynamic,1) collapse(2) shared(image,imageS)
     for (int i=0; i<nx; ++i) {
       for (int j=0; j<ny; ++j) {
+        if (j==0) fprintf(stderr, "%d ", i);
 
         double X[NDIM],Xhalf[NDIM],Xi[NDIM],Xf[NDIM],Kcon[NDIM],Kconhalf[NDIM],Kconi[NDIM],Kconf[NDIM];
         double dl, ji,ki, jf,kf;
         double complex N_coord[NDIM][NDIM];
         double Intensity, Stokes_I, Stokes_Q, Stokes_U, Stokes_V, tauF, Tau;
 
+        // Setup geodesic
         init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam, xoff, yoff);
         MULOOP Kcon[mu] *= freq;
-
-        /* integrate geodesic backwards */
-        int nstep = 0;
-
         MULOOP Xhalf[mu] = X[mu];
+        int nstep = 0;
+        struct of_traj *traj = calloc(MAXNSTEP, sizeof(struct of_traj));
+
+        // Integrate backwards
         while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
           /* This stepsize function can be troublesome inside of R = 2M,
              and should be used cautiously in this region. */
@@ -502,19 +494,19 @@ int main(int argc, char *argv[])
         //fprintf(stderr, "Geodesic i: %d j: %d nsteps: %d\n", i, j, nstep);
 
         // integrate forwards along trajectory, including radiative transfer equation
-        // initialize N, Intensity -- need X, K for this.
-        MULOOP {
-          Xi[mu] = traj[nstep].X[mu];
-          Kconi[mu] = traj[nstep].Kcon[mu];
-        }
-
+        // initialize X, K
+        MULOOP { Xi[mu] = traj[nstep].X[mu];
+                 Kconi[mu] = traj[nstep].Kcon[mu]; }
+        // Initialize emision variables
         init_N(Xi, Kconi, N_coord);
         Intensity = 0.0;
         Tau = 0.;
         tauF = 0.;
-
         get_jkinv(traj[nstep].X, traj[nstep].Kcon, &ji, &ki);
         
+        // Option to save a variable along the geodesic
+        int nstep_save = nstep+1;
+
         while (nstep > 1) {
           // initialize X,K
           MULOOP {
@@ -550,6 +542,11 @@ int main(int argc, char *argv[])
           nstep--;
         }
 
+#pragma omp critical
+        dump_var_along(i, j, nstep_save, traj, nx, ny, "test.h5");
+
+        free(traj);
+
         // deposit intensity and Stokes parameter in pixels
         image[i*ny+j] = Intensity * pow(freqcgs, 3);
         taus[i*ny+j] = Tau;
@@ -572,15 +569,6 @@ int main(int argc, char *argv[])
           imageS[(i*ny+j)*NIMG+3] = 0.;
           imageS[(i*ny+j)*NIMG+4] = 0.;
         }
-
-        // print progress
-        if ( (nprogress % ny) == 0 ) {
-          fprintf(stderr, "%d ", nprogress/ny);
-        }
-
-#pragma omp atomic
-        nprogress += 1;
-
       }
     }
 
