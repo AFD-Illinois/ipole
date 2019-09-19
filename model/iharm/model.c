@@ -342,6 +342,24 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   flip_index(Bcon, gcov, Bcov);
 }
 
+// Get the primitive variables interpolated to a point X,
+// And fill them in the next 8 array slots after p
+// Not used for transport but useful for plotting along a geodesic later
+void get_model_primitives(double X[NDIM], double *p)
+{
+  if ( X_in_domain(X) == 0 ) return;
+
+  double bA, bB, tfac;
+  int nA, nB;
+  tfac = set_tinterp_ns(X, &nA, &nB);
+
+  for (int np=0; np<8; np++) {
+    bA = interp_scalar(X, data[nA]->p[np]);
+    bB = interp_scalar(X, data[nB]->p[np]);
+    p[np] = tfac*bA + (1. - tfac)*bB;
+  }
+}
+
 double get_model_thetae(double X[NDIM])
 {
   if ( X_in_domain(X) == 0 ) return 0.;
@@ -620,9 +638,10 @@ void init_iharm_grid(char *fnam, int dumpidx)
 
 void output_hdf5()
 {
+  hdf5_set_directory("/");
   hdf5_write_blob(fluid_header, "/fluid_header");
 
-  hdf5_set_directory("/header");
+  hdf5_set_directory("/header/");
 #if SLOW_LIGHT
   hdf5_write_single_val(&(data[1]->t), "t", H5T_IEEE_F64LE);
 #else // FAST LIGHT
@@ -630,7 +649,7 @@ void output_hdf5()
 #endif
 
   hdf5_make_directory("electrons");
-  hdf5_set_directory("/header/electrons");
+  hdf5_set_directory("/header/electrons/");
   if (ELECTRONS == 0) {
     hdf5_write_single_val(&tp_over_te, "tp_over_te", H5T_IEEE_F64LE);
   } else if (ELECTRONS == 2) {

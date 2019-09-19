@@ -542,8 +542,13 @@ int main(int argc, char *argv[])
           nstep--;
         }
 
+        if (params.trace) {
+          int stride = params.trace_stride;
+          if (i % stride == 0 && j % stride == 0) {
 #pragma omp critical
-        dump_var_along(i, j, nstep_save, traj, nx, ny, "test.h5");
+            dump_var_along(i/stride, j/stride, nstep_save, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
+          }
+        }
 
         free(traj);
 

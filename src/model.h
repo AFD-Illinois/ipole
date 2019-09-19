@@ -28,9 +28,13 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM]);
 void get_model_bcon(double X[NDIM], double Bcon[NDIM]);
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]);
 void get_model_ucon(double X[NDIM], double Ucon[NDIM]);
+
 void update_data(double *tA, double *tB);
 void update_data_until(double *tA, double *tB, double tgt);
 
 void output_hdf5();
+
+// Optional function to be able to trace primitives along a geodesic
+void get_model_primitives(double X[NDIM], double *p);
 
 #endif // MODEL_H

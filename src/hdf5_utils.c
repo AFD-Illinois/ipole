@@ -47,9 +47,6 @@ static char hdf5_cur_dir[STRLEN] = "/";
 // Keep the file pointer globally.  This means ONE FILE AT A TIME!
 hid_t file_id;
 
-// Make the attempt at being OpenMP thread-safe...
-#pragma omp threadprivate(hdf5_cur_dir, file_id)
-
 // Create a new HDF5 file in memory and group specified by name to
 // the root of the new HDF5 file and return pointer to blob.
 // Returns NULL on failure.

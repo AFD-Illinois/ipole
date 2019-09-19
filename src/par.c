@@ -17,6 +17,8 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   // set default values here
   params->add_ppm = 0;
   params->qu_conv = 0;
+  params->quench_output = 0;
+  params->only_unpolarized = 0;
 
   params->rcam = 1000.;
   params->thetacam = 90.;
@@ -32,14 +34,30 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->xoff = 0.0;
   params->yoff = 0.0;
 
+  params->trace = 0;
+  params->trace_stride = 1;
+  params->trace_var = 0;
+  // This is what the par infra does.
+  // I'm not sure there's still any advantage to "const" if we do this,
+  // but hey, no warnings
+  sscanf("trace.h5", "%s", (char *) (void *) params->trace_outf);
+
   // process each command line argument
   for (int i=0; i<argc; ++i) {
+    if ( strcmp(argv[i], "-quench") == 0 ) params->quench_output = 1;
+    else if ( strcmp(argv[i], "-unpol") == 0 ) params->only_unpolarized = 1;
 
     // read parameter from command line
     if ( strlen(argv[i])>2 && argv[i][0]=='-' && argv[i][1]=='-' ) {
       word = strtok_r(argv[i]+2, "=", &saveptr);
       value = strtok_r(NULL, "=", &saveptr);
-      try_set_parameter(word, value, params);
+      if (value != NULL) {
+        try_set_parameter(word, value, params);
+      } else if (i == argc-1 || (argv[i+1][0]=='-' && argv[i+1][1]=='-')) {
+        try_set_parameter(word, "1", params);
+      } else {
+        try_set_parameter(word, argv[i+1], params);
+      }
     }
     
     // read parameter file
@@ -62,6 +80,8 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   // Optional (defaulted) parameters
   set_by_word_val(word, value, "add_ppm", &(params->add_ppm), TYPE_INT);
   set_by_word_val(word, value, "qu_conv", &(params->qu_conv), TYPE_INT);
+  set_by_word_val(word, value, "quench_output", &(params->quench_output), TYPE_INT);
+  set_by_word_val(word, value, "only_unpolarized", &(params->only_unpolarized), TYPE_INT);
 
   set_by_word_val(word, value, "rcam", &(params->rcam), TYPE_DBL);
   set_by_word_val(word, value, "thetacam", &(params->thetacam), TYPE_DBL);
@@ -91,6 +111,12 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   // for slow light
   set_by_word_val(word, value, "img_cadence", &(params->img_cadence), TYPE_DBL);
   set_by_word_val(word, value, "restart_int", &(params->restart_int), TYPE_DBL);
+
+  // Save out variables along paths
+  set_by_word_val(word, value, "trace", &(params->trace), TYPE_INT);
+  set_by_word_val(word, value, "trace_stride", &(params->trace_stride), TYPE_INT);
+  set_by_word_val(word, value, "trace_var", &(params->trace_var), TYPE_INT);
+  set_by_word_val(word, value, "trace_outf", (void *)(params->trace_outf), TYPE_STR);
 
   // Let models add/parse their own parameters we don't understand
   try_set_model_parameter(word, value);

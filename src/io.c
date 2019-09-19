@@ -13,6 +13,9 @@
 #include <unistd.h>
 #include <string.h>
 
+void write_header(double scale, double cam[NDIM],
+    double fovx, double fovy, Params *params);
+
 void read_restart(const char *fname, double *tA, double *tB, double *last_img_target,
                   int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
                   double *target_times, int *valid_imgs, struct of_image *dimages) {
@@ -125,12 +128,9 @@ void write_restart(const char *fname, double tA, double tB, double last_img_targ
   hdf5_close();
 }
 
-
-void dump(double image[], double imageS[], double taus[],
-    const char *fname, double scale, double cam[NDIM],
+void write_header(double scale, double cam[NDIM],
     double fovx, double fovy, Params *params)
 {
-  hdf5_create(fname);
   hid_t dtype_version = hdf5_make_str_type(strlen(xstr(VERSION)));
   hdf5_add_attr(xstr(VERSION), "githash", "/", dtype_version);
 
@@ -181,6 +181,23 @@ void dump(double image[], double imageS[], double taus[],
   hdf5_write_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
   hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
 
+  // allow model to output its parameters
+  output_hdf5();
+}
+
+void dump(double image[], double imageS[], double taus[],
+    const char *fname, double scale, double cam[NDIM],
+    double fovx, double fovy, Params *params)
+{
+  hdf5_create(fname);
+
+  write_header(scale, cam, fovx, fovy, params);
+
+  int nx = params->nx;
+  int ny = params->ny;
+  double freqcgs = params->freqcgs;
+  double dsource = params->dsource;
+
   // processing
   double Ftot_unpol=0., Ftot=0.;
   for (int i=0; i<nx; ++i) {
@@ -205,9 +222,6 @@ void dump(double image[], double imageS[], double taus[],
   hdf5_write_full_array(taus, "tau", 2, unpol_dim, H5T_IEEE_F64LE);
   hdf5_write_full_array(imageS, "pol", 3, pol_dim, H5T_IEEE_F64LE);
 
-  // allow model to output
-  output_hdf5();
-
   // housekeeping
   hdf5_close();
 }
@@ -217,20 +231,30 @@ void dump(double image[], double imageS[], double taus[],
  * Note this is most definitely *not* thread-safe
  * TODO make this take the var as an option?  Like a case statement?
  */
-void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny, const char *fname)
+void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny,
+                    double scale, double cam[NDIM], double fovx, double fovy, Params *params)
 {
-  if (access(fname, F_OK) != -1) {
-    hdf5_append(fname);
+  if (access(params->trace_outf, F_OK) != -1) {
+    hdf5_append(params->trace_outf);
   } else {
-    hdf5_create(fname);
+    hdf5_create(params->trace_outf);
+    write_header(scale, cam, fovx, fovy, params);
   }
 
-  int n_to_save = 1;
-  double *save = calloc(n_to_save*nstep, sizeof(double));
+  int nprims = 8;
+  double *prims = calloc(nprims*nstep, sizeof(double));
+  double *b = calloc(nstep, sizeof(double));
+  double *ne = calloc(nstep, sizeof(double));
+  double *thetae = calloc(nstep, sizeof(double));
+
   double *X = calloc(NDIM*nstep, sizeof(double));
   double *K = calloc(NDIM*nstep, sizeof(double));
   for (int i=0; i<nstep; i++) {
-    save[i*n_to_save+0] = get_model_b(traj[i].X);
+    get_model_primitives(traj[i].X, &(prims[i*nprims]));
+
+    b[i] = get_model_b(traj[i].X);
+    ne[i] = get_model_ne(traj[i].X);
+    thetae[i] = get_model_thetae(traj[i].X);
 
     MULOOP { X[i*NDIM+mu] = traj[i].X[mu]; K[i*NDIM+mu] = traj[i].Kcon[mu]; }
   }
@@ -242,19 +266,22 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hsize_t mdims_p[] =  { 1, 1 };
   hsize_t mstart_p[] = { 0, 0 };
 
+  // Could just flat record the final emission values here...
   hdf5_write_array(&nstep, "nstep", 2, fdims_p, fstart_p, fcount_p, mdims_p, mstart_p, H5T_STD_I32LE);
 
   // SCALARS: Anything with one value for every geodesic step
   hsize_t fdims_s[] = { nx, ny, MAXNSTEP };
   hsize_t chunk_s[] =  { 1, 1, 200 };
   hsize_t fstart_s[] = { i, j, 0 };
-  hsize_t fcount_s[] = { 1, 1, nstep };
+  hsize_t fcount_s[] = { 0, 1, nstep };
   hsize_t mdims_s[] =  { 1, 1, nstep };
   hsize_t mstart_s[] = { 0, 0, 0 };
 
-  hdf5_write_chunked_array(save, "variable", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(b, "b", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(ne, "ne", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(thetae, "thetae", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
 
-  // VECTORS: Anything with 4 values per geodesic step
+  // VECTORS: Anything with N values per geodesic step
   hsize_t fdims_v[] = { nx, ny, MAXNSTEP, 4 };
   hsize_t chunk_v[] =  { 1, 1, 200, 4 };
   hsize_t fstart_v[] = { i, j, 0, 0 };
@@ -264,10 +291,17 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   hdf5_write_chunked_array(X, "X", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(K, "K", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 8;
+  hdf5_write_chunked_array(prims, "prims", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-  free(save);
+  free(b);
+  free(ne);
+  free(thetae);
+  free(prims);
   free(X);
   free(K);
+
+  // Include the model-specific stuff but none of the ipole header
 
   hdf5_close();
 }

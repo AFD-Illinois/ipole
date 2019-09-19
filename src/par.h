@@ -21,6 +21,8 @@ typedef struct params_t {
 
   int add_ppm;          // Whether to additionally make a ppm image of I
   int qu_conv;          // Convention for Stokes Q,U.  0 (default) -> East of North (observer).  1 -> North of West
+  int quench_output;    // Quench output, i.e. "quench" argument
+  int only_unpolarized; // Unpolarized transport only
 
   const char dump[STRLEN];
   const char outf[STRLEN];
@@ -31,6 +33,12 @@ typedef struct params_t {
   // slow light
   double img_cadence;
   double restart_int;
+
+  // Save out variables along
+  int trace;
+  int trace_stride;
+  int trace_var;
+  const char trace_outf[STRLEN];
 } Params;
 
 // modify this to set default values
