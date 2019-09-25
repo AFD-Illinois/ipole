@@ -1,15 +1,11 @@
 /**********************************************************/
-
 /*** all you need to make a polarized radiative transfer***/
-/***** used in ipole to evolve complex tensor N *******/
+/***** used in ipole to evolve complex tensor N ***********/
 /***** along with standard evolution for I scalar *********/
 /**********************************************************/
 /**** written by Monika Moscibrodzka on 09 July 2014 ******/
 /************ @ Eindhoven Airport *************************/
-/************  last update: 9 May 2017   ******************/
-
 /****************and then rewritten by C.Gammie ***********/
-
 /**********************************************************/
 
 #include "decs.h"
@@ -18,11 +14,10 @@
 #include "model.h"
 #include "model_radiation.h"
 #include "model_tetrads.h"
+#include "debug_tools.h"
 #include <complex.h>
 
 /* tensor tools*/
-void check_N(double complex N[NDIM][NDIM], double Kcon[NDIM],
-    double gcov[NDIM][NDIM]);
 void complex_lower(double complex N[NDIM][NDIM], double gcov[NDIM][NDIM],
     int low1, int low2, double complex Nl[NDIM][NDIM]);
 void stokes_to_tensor(double fI, double fQ, double fU, double fV,
@@ -323,88 +318,6 @@ void project_N(double X[NDIM], double Kcon[NDIM],
 /***************************END MAIN FUNCTIONS******************************/
 
 /*************************SUPPORTING FUNCTIONS******************************/
-
-/*
- Check that the coherency tensor N satisfies certain
- basic properties:
- k . N = N . k = 0
- hermitian
- evaluate the invariants: I, Q^2 + U^2, V^2
- */
-
-void check_N(double complex N[NDIM][NDIM],
-    double Kcon[NDIM], double gcov[NDIM][NDIM])
-{
-  double complex dot;
-  double Kcov[NDIM];
-  int i, j;
-
-  fprintf(stderr, "enter check_N\n");
-
-  /* compute k . N */
-  flip_index(Kcon, gcov, Kcov);
-  fprintf(stderr, "(k . N\n");
-  /* first one way */
-  for (i = 0; i < 4; i++) {
-    dot = 0. + I * 0.;
-    for (j = 0; j < 4; j++)
-    dot += Kcov[j] * N[j][i];
-    fprintf(stderr, "%d %g + i %g\n", i, creal(dot), cimag(dot));
-  }
-  /* then the other */
-  for (i = 0; i < 4; i++) {
-    dot = 0. + I * 0.;
-    for (j = 0; j < 4; j++)
-    dot += Kcov[j] * N[i][j];
-    fprintf(stderr, "%d %g + i %g\n", i, creal(dot), cimag(dot));
-  }
-  fprintf(stderr, "k . N)\n");
-
-  /* check for hermiticity */
-  fprintf(stderr, "(herm:\n");
-  for (i = 0; i < 4; i++)
-  for (j = 0; j < 4; j++)
-  fprintf(stderr, "%d %d %g + i %g\n", i, j,
-      creal(N[i][j] - conj(N[j][i])),
-      cimag(N[i][j] - conj(N[j][i]))
-  );
-  fprintf(stderr, "herm)\n");
-
-  /* check invariants */
-  double complex Nud[NDIM][NDIM];
-  void complex_lower(double complex N[NDIM][NDIM],
-      double gcov[NDIM][NDIM], int low1, int low2,
-      double complex Nl[NDIM][NDIM]);
-  complex_lower(N, gcov, 0, 1, Nud);
-  for (i = 0; i < 4; i++)
-  fprintf(stderr, "N: %d %g + i %g\n", i, creal(N[i][i]),
-      cimag(N[i][i]));
-  for (i = 0; i < 4; i++)
-  fprintf(stderr, "Nud: %d %g + i %g\n", i, creal(Nud[i][i]),
-      cimag(Nud[i][i]));
-  dot = 0. + I * 0.;
-  for (i = 0; i < 4; i++)
-  dot += Nud[i][i];
-  fprintf(stderr, "I: %g + i %g\n", creal(dot), cimag(dot));
-
-  double complex Ndd[NDIM][NDIM];
-  complex_lower(N, gcov, 1, 1, Ndd);
-  dot = 0. + I * 0.;
-  for (i = 0; i < 4; i++)
-  for (j = 0; j < 4; j++)
-  dot +=
-  2. * 0.25 * (N[i][j] + N[j][i]) * (Ndd[i][j] + Ndd[j][i]);
-  fprintf(stderr, "IQUsq: %g + i %g\n", creal(dot), cimag(dot));
-
-  dot = 0. + I * 0.;
-  for (i = 0; i < 4; i++)
-  for (j = 0; j < 4; j++)
-  dot +=
-  -2. * 0.25 * (N[i][j] - N[j][i]) * (Ndd[i][j] - Ndd[j][i]);
-  fprintf(stderr, "Vsqsq: %g + i %g\n", creal(dot), cimag(dot));
-
-  fprintf(stderr, "leave check_N\n");
-}
 
 /*
  *
