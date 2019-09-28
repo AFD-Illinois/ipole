@@ -91,6 +91,7 @@ default: build
 build: $(EXE)
 	@echo -e "Completed build with model: $(MODEL)"
 	@echo -e "CFLAGS: $(CFLAGS)"
+	@echo -e "MD5: $(shell md5sum $(EXE))"
 
 debug: CFLAGS += -g -Wall -Werror -Wno-unused-variable -Wno-unused-but-set-variable
 debug: CFLAGS += -DDEBUG=1
