@@ -1,6 +1,11 @@
 #!/bin/bash
 
-# TODO download if necessary?
+# Run all the ipole tests
+# Tests have the form test_name/test_name.par
+# Different compilation options are usually not necessary,
+# except thin_disk, special-cased here
+
+# TODO download the reference files if necessary?
 
 for folder in */
 do
@@ -13,8 +18,7 @@ do
       make -f ../../makefile -j8 MODEL=thin_disk
     fi
     ./ipole -par $folder.par &> out_$folder.txt
-    h5diff -d 1.e-10 image.h5 ../test-resources/$folder.h5
-    h5diff -p 1.e-6 image.h5 ../test-resources/$folder.h5
+    ../verify.sh
     cd -
   fi
 done
