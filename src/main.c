@@ -117,15 +117,15 @@ int main(int argc, char *argv[])
     //if (params.fovy_dsource == 0.0) params.fovy_dsource = params.fovx_dsource;
   } else if (params.dx != 0.0) {
     //if (params.dy == 0.0) params.dy = params.dx;
-    params.fovx_dsource = (params.dx / fov_to_d) / (3600*1.e6);
-    params.fovy_dsource = (params.dy / fov_to_d) / (3600*1.e6);
+    params.fovx_dsource = params.dx / fov_to_d;
+    params.fovy_dsource = params.dy / fov_to_d;
   } else {
     fprintf(stderr, "No FOV was specified. Using default 160muas!\n");
-    params.fovx_dsource = 160. / (3600*1.e6);
-    params.fovy_dsource = 160. / (3600*1.e6);
+    params.fovx_dsource = 160.;
+    params.fovy_dsource = 160.;
   }
-  DX = (params.fovx_dsource*3600*1.e6) * fov_to_d;
-  DY = (params.fovy_dsource*3600*1.e6) * fov_to_d;
+  DX = params.fovx_dsource * fov_to_d;
+  DY = params.fovy_dsource * fov_to_d;
   params.dx = DX;
   params.dy = DY;
 
