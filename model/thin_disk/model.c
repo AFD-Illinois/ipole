@@ -364,6 +364,7 @@ int radiating_region(double X[NDIM]) {return 0;}
 double get_model_thetae(double X[NDIM]) {return 0;}
 double get_model_b(double X[NDIM]) {return 0;}
 double get_model_ne(double X[NDIM]) {return 0;}
+void get_model_primitives(double X[NDIM], double *p) {return;}
 void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
                      double Bcon[NDIM], double Bcov[NDIM]) {return;}
 void get_model_bcov(double X[NDIM], double Bcov[NDIM]) {return;}
