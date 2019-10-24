@@ -12,6 +12,8 @@
 
 void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
                     double Ecov[NDIM][NDIM]);
+void make_camera_tetrad_grtrans(double X[NDIM], double Econ[NDIM][NDIM],
+                                double Ecov[NDIM][NDIM]);
 void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
                     double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM],
                     double Ecov[NDIM][NDIM]);
