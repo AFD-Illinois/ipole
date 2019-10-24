@@ -28,9 +28,10 @@ static double tf = 0.;
 Params params = { 0 };
 
 // Functions defined & used only here.  TODO move. Introduce a camera.c or similar?
-void init_XK(int i, int j, double Xcam[4], double fovx, double fovy,
-             double X[4], double Kcon[4], double rotcam, double xoff,
-             double yoff);
+void init_XK (int i, int j, double Xcam[4], double fovx, double fovy,
+              double X[4], double Kcon[4], double rotcam, double xoff,
+              double yoff);
+
 double approximate_solve (double Ii, double ji, double ki, double jf, double kf,
                    double dl, double *tau);
 
@@ -138,7 +139,7 @@ int main(int argc, char *argv[])
   fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
   fprintf(stderr,"Dsource: %g [cm]\n",Dsource);
   fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
-  fprintf(stderr,"FOVx, FOVy: %.8g %.8g [GM/c^2]\n",DX,DY);
+  fprintf(stderr,"FOVx, FOVy: %g %g [GM/c^2]\n",DX,DY);
   fprintf(stderr,"FOVx, FOVy: %g %g [rad]\n",DX*L_unit/Dsource,DY*L_unit/Dsource);
   fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
 
@@ -635,7 +636,7 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
   double Ecov[NDIM][NDIM];
   double Kcon_tetrad[NDIM];
 
-  make_camera_tetrad_grtrans(Xcam, Econ, Ecov);
+  make_camera_tetrad(Xcam, Econ, Ecov);
 
   // Construct outgoing wavevectors
   // xoff: allow arbitrary offset for e.g. ML training imgs
@@ -644,7 +645,12 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
   double dxoff = (xoff+i+0.5-0.01)/nx - 0.5;
   double dyoff = (yoff+j+0.5)/ny - 0.5;
   Kcon_tetrad[0] = 0.;
+#if THIN_DISK
+  // TODO correct this more generally and take as parameter
+  Kcon_tetrad[1] = (dxoff*cos(rotcam) - dyoff*sin(rotcam)) * fovx  - (0.659986/40*fovx);
+#else
   Kcon_tetrad[1] = (dxoff*cos(rotcam) - dyoff*sin(rotcam)) * fovx;
+#endif
   Kcon_tetrad[2] = (dxoff*sin(rotcam) + dyoff*cos(rotcam)) * fovy;
   Kcon_tetrad[3] = 1.;
 

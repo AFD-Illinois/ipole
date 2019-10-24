@@ -180,37 +180,3 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   //make_plasma_tetrad(Ucam, Kcon_ks, trial, Gcov, Econ, Ecov);
 }
 
-void make_camera_tetrad_grtrans(double X[NDIM], double Econ[NDIM][NDIM],
-                        double Ecov[NDIM][NDIM])
-{
-  double Gcov[NDIM][NDIM], Gcon[NDIM][NDIM];
-  double Ucam[NDIM];
-  double Kcov[NDIM], Kcon[NDIM]; //, Kcon_ks[NDIM];
-  double trial[NDIM];
-
-  /* could use normal observer here; at present, camera has dx^i/dtau = 0 */
-  Ucam[0] = 1.;
-  Ucam[1] = 0.;
-  Ucam[2] = 0.;
-  Ucam[3] = 0.;
-
-  /* this puts a photon with zero angular momentum in the center of
-   the field of view */
-  Kcon[0] = -1.;
-  Kcon[1] = 1.;
-  Kcon[2] = 0.;
-  Kcon[3] = 0.;
-  gcov_func(X, Gcov);
-  gcon_func(Gcov, Gcon);
-//  flip_index(Kcov, Gcon, Kcon);
-  //bl_to_ks(X, Kcon, Kcon_ks);
-
-  trial[0] = 0.;
-  trial[1] = 0.;
-  trial[2] = 1.;
-  trial[3] = 0.;
-
-  make_plasma_tetrad(Ucam, Kcon, trial, Gcon, Ecov, Econ);
-  //make_plasma_tetrad(Ucam, Kcon_ks, trial, Gcov, Econ, Ecov);
-}
-
