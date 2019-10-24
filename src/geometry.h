@@ -15,6 +15,10 @@ double gdet_func(double gcov[][NDIM]);
 void get_connection(double *X, double lconn[][NDIM][NDIM]);
 
 void flip_index(double *ucon, double Gcov[NDIM][NDIM], double *ucov);
+// Old names aliased
+inline void lower(double *ucon, double Gcov[NDIM][NDIM], double *ucov) {flip_index(ucon, Gcov, ucov);};
+inline void raise(double *ucov, double Gcon[NDIM][NDIM], double *ucon) {flip_index(ucov, Gcon, ucon);};
+
 void null_normalize(double Kcon[NDIM], double fnorm);
 void normalize(double *vcon, double gcov[][NDIM]);
 
