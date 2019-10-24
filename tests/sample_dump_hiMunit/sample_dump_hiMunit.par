@@ -6,8 +6,8 @@ rcam 1.e4
 thetacam 163
 phicam 0
 
-fovx_dsource 4.444444444444445e-08
-fovy_dsource 4.444444444444445e-08
+fovx_dsource 160
+fovy_dsource 160
 
 freqcgs 230.e9
 trat_small 3
