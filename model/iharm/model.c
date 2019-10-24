@@ -30,6 +30,7 @@ double Te_unit;
 double DTd;
 int counterjet = 0;
 double rmax_geo = 100.;
+double rmin_geo = 1.;
 double sigma_cut = 1.0;
 
 // MODEL PARAMETERS: PRIVATE
@@ -97,6 +98,9 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "tp_over_te", &tp_over_te, TYPE_DBL);
   set_by_word_val(word, value, "trat_small", &trat_small, TYPE_DBL);
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
+
+  set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
+  set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
   // for slow light
   set_by_word_val(word, value, "dump_min", &dumpmin, TYPE_INT);
@@ -314,8 +318,8 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   for (int i = 1; i < NDIM; i++)
     Ucon[i] = Vcon[i] - Vfac * gcon[0][i];
 
-  // lower
-  flip_index(Ucon, gcov, Ucov);
+  // lower (needed for Bcon)
+  lower(Ucon, gcov, Ucov);
 
   // Now set Bcon and get Bcov by lowering
 
@@ -339,7 +343,7 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   Bcon[3] = (Bcon3 + Ucon[3] * Bcon[0]) / Ucon[0];
 
   // lower
-  flip_index(Bcon, gcov, Bcov);
+  lower(Bcon, gcov, Bcov);
 }
 
 // Get the primitive variables interpolated to a point X,
@@ -618,8 +622,10 @@ void init_iharm_grid(char *fnam, int dumpidx)
       poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
     }
   }
- 
-  rmax_geo = MIN(100., Rout);
+
+  // Don't emit beyond specified limit, coordinate limit, or 100M, whichever is *least*
+  rmax_geo = MIN(rmax_geo, MIN(100., Rout));
+  rmin_geo = MAX(rmin_geo, Rin);
 
   hdf5_set_directory("/");
   hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
@@ -928,7 +934,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
 
 int radiating_region(double X[NDIM])
 {
-  if (X[1] < log(rmax_geo) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) {
+  if (X[1] > log(rmin_geo) && X[1] < log(rmax_geo) && X[2] > th_beg/M_PI && X[2] < (1.-th_beg/M_PI) ) {
     return 1;
   } else {
     return 0;
