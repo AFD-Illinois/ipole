@@ -8,6 +8,35 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * ## program loading order
+ * 
+ * Knowing this order may be useful for adding new variables that should be
+ * loaded / overwritten before / during / after other parameters are set.
+ * 
+ * 1. ```par.c:load_par(...)``` may be called if triggered by the command line
+ * arguments ```-par path/to/par/file```. This function populates the
+ * ```Params``` struct with various user-defined variables (often similar to/a
+ * superset of values you would pass at runtime) such as inclination angle,
+ * M_unit, and so on. If this function is called, the ```params``` data
+ * structure is marked as having been loaded.
+ * 2. ```model.c:parse_input(...)``` is called. This function is responsible for
+ * populating model-defined variables such as M_unit, freqcgs, and so on. These
+ * variables tend to live within the model.c/h files (as static globals) and
+ * thus should not be referenced from without. If the params data structure is
+ * marked as loaded from above, then this function ignores command line input
+ * and sets all model variables according to the params structure. (TODO in the
+ * future, it might be nice to allow command line arguments to override
+ * parameter file values.)
+ * 3. ```model.c:init_model(...)``` is called. This function is responsible for
+ * setting up the initial data structures associated with the fluid dump file(s)
+ * and grid geometry. By the time this function has returned, all initial dump
+ * files should be loaded into memory. Before returning, this function may call
+ * ```load_*_data(...)``` below.
+ * 4. ```model.c:load_*_data(...)``` may be called on initial load or during the
+ * ```update_data``` stage, if ipole is running in the slow-light configuration.
+ */
+
 // sets default values for elements of params and then calls other
 // loading functions
 void load_par_from_argv(int argc, char *argv[], Params *params) {
