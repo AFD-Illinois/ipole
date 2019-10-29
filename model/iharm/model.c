@@ -37,7 +37,7 @@ double sigma_cut = 1.0;
 static char fnam[STRLEN] = "dump.h5";
 static double tp_over_te = 3.;
 static double trat_small = 1.;
-static double trat_large = 30.;
+static double trat_large = 40.;
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
 static double MBH_solar = 6.2e9;
