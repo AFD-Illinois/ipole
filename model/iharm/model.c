@@ -51,7 +51,7 @@ static double MBH; // Set from previous
 //    1 : use dump file model (kawazura?)
 //    2 : use mixed TP_OVER_TE (beta model)
 static int RADIATION, ELECTRONS;
-static double gam, game, gamp;
+static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
 
 // Ignore radiation interactions within one degree of polar axis
@@ -509,12 +509,16 @@ void init_iharm_grid(char *fnam, int dumpidx)
 
   hdf5_set_directory("/header/");
 
-  if ( hdf5_exists("has_electrons") )
+  if ( hdf5_exists("has_electrons") ) {
     hdf5_read_single_val(&ELECTRONS, "has_electrons", H5T_STD_I32LE);
-  if ( hdf5_exists("has_radiation") ) 
+  } else {
+    ELECTRONS = 0;
+  }
+  if ( hdf5_exists("has_radiation") ) {
     hdf5_read_single_val(&RADIATION, "has_radiation", H5T_STD_I32LE);
-  if ( hdf5_exists("has_derefine_poles") )
-    hdf5_read_single_val(&METRIC_FMKS, "has_derefine_poles", H5T_STD_I32LE);
+  } else {
+    RADIATION = 0;
+  }
 
   char metric[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
@@ -522,6 +526,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
 
   METRIC_FMKS = 0;
   METRIC_MKS3 = 0;
+  METRIC_eKS = 0;
 
   if ( strncmp(metric, "MMKS", 19) == 0 ) {
     METRIC_FMKS = 1;
@@ -540,8 +545,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
     fprintf(stderr, "custom electron model loaded from dump file...\n");
     hdf5_read_single_val(&game, "gam_e", H5T_IEEE_F64LE);
     hdf5_read_single_val(&gamp, "gam_p", H5T_IEEE_F64LE);
-    Thetae_unit = MP/ME;
-  }
+  } // Else use default values set above
   Te_unit = Thetae_unit;
 
   // we can override which electron model to use here. print results if we're
@@ -553,6 +557,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
       exit(-3);
     }
     ELECTRONS = 1;
+    Thetae_unit = MP/ME;
   } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
     ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
     fprintf(stderr, "using fixed tp_over_te ratio = %g\n", tp_over_te);
@@ -563,6 +568,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
   } else if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
     ELECTRONS = 2;
     fprintf(stderr, "using mixed tp_over_te with trat_small = %g and trat_large = %g\n", trat_small, trat_large);
+    // Thetae_unit set per-zone below
   } else {
     fprintf(stderr, "! please change electron model in model/iharm.c\n");
     exit(-3);
