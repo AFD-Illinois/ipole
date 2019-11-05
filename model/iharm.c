@@ -24,9 +24,7 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]) ;
 int X_in_domain(double X[NDIM]);
 void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]) ;
 double interp_scalar(double X[NDIM], double ***var) ;
-
-// Set defaults here since we're not sure to read these from dump
-static double game = 1.333333, gamp = 1.666667;
+static double game, gamp;
 
 // metric parameters 
 //  note: if METRIC_eKS, then the code will use "expoential KS" coordinates
@@ -1091,7 +1089,6 @@ void init_iharm_grid(char *fnam, int dumpidx)
 
   DEREFINE_POLES = 0;
   METRIC_MKS3 = 0;
-  METRIC_eKS = 0;
 
   if ( strncmp(metric, "MMKS", 19) == 0 ) {
     DEREFINE_POLES = 1;
