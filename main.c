@@ -51,7 +51,7 @@ Params params = { 0 };
 int main(int argc, char *argv[]) 
 {
   // motd
-  fprintf(stderr, "ipole. githash: %s\n", xstr(VERSION));
+  fprintf(stderr, "%s. githash: %s\n", VERSION_STR, xstr(VERSION));
   fprintf(stderr, "notes: %s\n\n", xstr(NOTES));
 
   // initialization
@@ -760,6 +760,7 @@ void dump(double image[], double imageS[], double taus[],
 
   h5io_add_attribute_str(fid, "/", "githash", xstr(VERSION));
 
+
   h5io_add_group(fid, "/header");
   h5io_add_data_dbl(fid, "/header/freqcgs", freqcgs);
   h5io_add_data_dbl(fid, "/header/scale", scale);
@@ -767,6 +768,8 @@ void dump(double image[], double imageS[], double taus[],
 
   if (QU_CONVENTION == 0) h5io_add_data_str(fid, "/header/evpa_0", "N");
   else h5io_add_data_str(fid, "/header/evpa_0", "W");
+
+  h5io_add_data_str(fid, "/header/version", VERSION_STR);
 
   h5io_add_group(fid, "/header/camera");
   h5io_add_data_int(fid, "/header/camera/nx", NX);

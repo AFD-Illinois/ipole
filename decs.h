@@ -17,6 +17,8 @@
 #include "model.h"
 #include "par.h"
 
+#define VERSION_STR "ipole-stable-1.1"
+
 #define NDIM	4
 
 #define xstr(s) str(s)
