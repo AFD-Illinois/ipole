@@ -9,7 +9,7 @@ GSL_DIR =
 # Can leave this blank if it's included automatically by GCC
 SYSTEM_LIBDIR = /lib64
 
-# Try pointing this to h5pcc on your machine, before hunting down libraries
+# Try pointing this to h5pcc or h5cc on your machine, before hunting down libraries
 CC=h5pcc
 # Example CFLAGS for going fast with GCC
 CFLAGS = -std=gnu99 -O3 -march=native -mtune=native -flto -fopenmp -funroll-loops
@@ -47,7 +47,7 @@ LINK = $(CC)
 LDFLAGS = $(CFLAGS)
 
 HDF5_LIB = -lhdf5_hl -lhdf5
-GSL_LIB = -lgsl -lgslcblas
+GSL_LIB = #-lgsl -lgslcblas
 
 ## LOGIC FOR PATHS ##
 CORE_DIR := $(MAKEFILE_PATH)/src/
@@ -91,6 +91,7 @@ default: build
 build: $(EXE)
 	@echo -e "Completed build with model: $(MODEL)"
 	@echo -e "CFLAGS: $(CFLAGS)"
+	@echo -e "MD5: $(shell md5sum $(EXE))"
 
 debug: CFLAGS += -g -Wall -Werror -Wno-unused-variable -Wno-unused-but-set-variable
 debug: CFLAGS += -DDEBUG=1

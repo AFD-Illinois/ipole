@@ -1,28 +1,27 @@
 
 /**********************************************************/
-
-/*** all you need to make a polarized radiative transfer***/
-/***** used in ipole to evolve complex tensor N *******/
+/*** all you need to make a polarized radiative transfer **/
+/***** used in ipole to evolve complex tensor N ***********/
 /***** along with standard evolution for I scalar *********/
 /**********************************************************/
 /**** written by Monika Moscibrodzka on 09 July 2014 ******/
 /************ @ Eindhoven Airport *************************/
 /************  last update: 9 May 2017   ******************/
-
 /****************and then rewritten by C.Gammie ***********/
-
 /**********************************************************/
 
+#include "model_radiation.h"
+
+#include "model.h"
+#include "radiation.h"
+#include "coordinates.h"
+#include "geometry.h"
 #include "decs.h"
-#include "defs.h"
 
-/* the following definitions are used only locally */
-#define S2     (1.41421356237310)	//sqrt(2)
-#define S3     (1.73205080756888)	//sqrt(3)
+#include <omp.h>
 
-/* declarations of local functions */
-/* thermal plasma emissivity, absorptivity and Faraday conversion and rotation */
-
+// Declarations of local functions
+// Thermal plasma emissivity, absorptivity and Faraday conversion and rotation
 double g(double Xe);
 double h(double Xe);
 double Je(double Xe);
@@ -33,9 +32,9 @@ double I_V(double x);
 double besselk_asym(int n, double x);
 
 
-/*************************SUPPORTING FUNCTIONS******************************/
-
-/*invariant plasma emissivities/abs/rot in tetrad frame */
+/*
+ * invariant plasma emissivities/abs/rot in tetrad frame
+ */
 void jar_calc(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
@@ -63,9 +62,9 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     fprintf(stderr, "Ne = %e\n", Ne);
   }
 
-  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b  */
+  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	// angle between k & b
 
-  if (Ne <= 0.) {  /* avoid 1./0. issues */
+  if (Ne <= 0.) {  // avoid 1./0. issues
 
     *jI = 0.0;
     *jQ = 0.0;
@@ -81,7 +80,7 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *rU = 0.0;
     *rV = 0.0;
 
-  } else if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
+  } else if (theta <= 0. || theta >= M_PI) {	// No emission/absorption along field
 
     *jI = 0.0;
     *jQ = 0.0;
@@ -96,14 +95,14 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *rQ = 0.0;
     *rU = 0.0;
 
-    nu = get_fluid_nu(Kcon, Ucov);	/* freqcgs1;  freq in Hz */
+    nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
     wp2 = 4. * M_PI * Ne * EE * EE / ME;
-    B = get_model_b(X);		/* field in G                */
+    B = get_model_b(X);		// field in G
     omega0 = EE * B / ME / CL;
-    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
+    Thetae = get_model_thetae(X);	// temp in e rest-mass units
     Thetaer = 1. / Thetae;
-    /* Faraday rotativities for thermal plasma */
-    Xe = Thetae * sqrt(S2 * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
+    // Faraday rotativities for thermal plasma
+    Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
     *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
       (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
 
@@ -118,19 +117,19 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
   } else {
 
-    nu = get_fluid_nu(Kcon, Ucov);	/* freqcgs1;  freq in Hz */
+    nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
     nusq = nu * nu;
-    B = get_model_b(X);	/* field in G                */
-    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
+    B = get_model_b(X);	// field in G
+    Thetae = get_model_thetae(X);	// temp in e rest-mass units
     Thetaer = 1. / Thetae;
 
     omega0 = EE * B / ME / CL;
     wp2 = 4. * M_PI * Ne * EE * EE / ME;
 
-    /* Faraday rotativities for thermal plasma */
-    Xe = Thetae * sqrt(S2 * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
+    // Faraday rotativities for thermal plasma
+    Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
 
-    /* Here I use approximate bessel functions to match rhoqv with grtrans */
+    // Approximate bessel functions to match rhoq,v with grtrans
     *rQ = 2. * M_PI * nu / 2. / CL * wp2 * omega0 * omega0 / pow(2 * M_PI * nu, 4) *
       jffunc(Xe) * (besselk_asym(1, Thetaer) / besselk_asym(2, Thetaer) +
           6. * Thetae) * sin(theta) * sin(theta);
@@ -138,23 +137,23 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
       (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
 
-    /*synchrotron emissivity */
+    // Synchrotron emissivity
     nuc = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
     x = nu / nuc;
 
-    *jI = Ne * EE * EE * nu / 2. / S3 / CL / Thetae / Thetae * I_I(x);	// [g/s^2/cm = ergs/s/cm^3]
-    *jQ = Ne * EE * EE * nu / 2. / S3 / CL / Thetae / Thetae * I_Q(x);
+    *jI = Ne * EE * EE * nu / 2. / sqrt(3) / CL / Thetae / Thetae * I_I(x);	// [g/s^2/cm = ergs/s/cm^3]
+    *jQ = Ne * EE * EE * nu / 2. / sqrt(3) / CL / Thetae / Thetae * I_Q(x);
     *jU = 0.0;		// convention; depends on tetrad
-    *jV = 2. * Ne * EE * EE * nu / tan(theta) / 3. / S3 / CL / Thetae / Thetae / Thetae * I_V(x);
+    *jV = 2. * Ne * EE * EE * nu / tan(theta) / 3. / sqrt(3) / CL / Thetae / Thetae / Thetae * I_V(x);
 
-    /* invariant emissivity */
+    // invariant emissivity
     *jI /= nusq;
     *jQ /= nusq;
     *jU /= nusq;
     *jV /= nusq;
 
-    /* invariant synchrotron absorptivity */
-    Bnuinv = Bnu_inv(nu, Thetae);   /* Planck function */
+    // invariant synchrotron absorptivity
+    Bnuinv = Bnu_inv(nu, Thetae);   // Planck function
     *aI = *jI / Bnuinv;
     *aQ = *jQ / Bnuinv;
     *aU = *jU / Bnuinv;
@@ -254,31 +253,13 @@ double besselk_asym(int n, double x)
   exit(1);
 }
 
-/* end of emissivity functions */
-
-#undef S2
-#undef S3
-
-/*int radiating_region(double X[4])
-  {
-  if (X[1] < log(rmax) && X[2]>th_beg/M_PI && X[2]<(1.-th_beg/M_PI) ) {
-  return 1;
-  } else {
-  return 0;
-  }
-  }*/
-
-/* 
-
-   thermal synchrotron emissivity 
-
-   interpolates between Petrosian limit and
-   classical thermal synchrotron limit
-
-   good for Thetae >~ 1
-
+/*
+ * thermal synchrotron emissivity
+ *
+ * Interpolates between Petrosian limit and
+ * classical thermal synchrotron limit
+ * Good for Thetae >~ 1
 */
-
 double jnu_synch(double nu, double Ne, double Thetae, double B, double theta)
 {
   double K2,nuc,nus,x,f,j,sth ;
@@ -297,9 +278,9 @@ double jnu_synch(double nu, double Ne, double Thetae, double B, double theta)
   return(j) ;
 }
 
-/* get the invariant emissivity and opacity at a given position
-   for a given wavevector */
-
+/*
+ * get the invariant emissivity and opacity at a given position for a given wavevector
+ */
 void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
     double *knuinv)
 {
@@ -328,7 +309,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
 
   if (flag) fprintf(stderr, "%g ", sigma);
 
-  if (sigma > SIGMA_CUT) {
+  if (sigma > sigma_cut) {
     *jnuinv = 0.;
     *knuinv = 0.;
     return;
@@ -336,9 +317,9 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
    */
 
   gcov_func(X, gcov);
-  lower(Kcon, gcov, Kcov);
+  flip_index(Kcon, gcov, Kcov);
 
-  //theta = M_PI/2.;//get_bk_angle(X,Kcon,Ucov) ; /* angle between k & b */
+  //theta = M_PI/2.;
   theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
 
   if (theta <= 0. || theta >= M_PI) {	/* no emission along field */

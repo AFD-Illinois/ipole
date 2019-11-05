@@ -6,28 +6,26 @@ radiation-related utilities.
 
 */
 
+#include "radiation.h"
+#include "model_radiation.h"
+
 #include "decs.h"
 
-double Bnu_inv(double nu, double Thetae)
+double Bnu_inv (double nu, double Thetae)
 {
-    double x;
+  double x = HPL * nu / (ME * CL * CL * Thetae);
 
-    x = HPL * nu / (ME * CL * CL * Thetae);
-
-    if (x < 2.e-3)		/* Taylor expand */
-	return ((2. * HPL / (CL * CL)) /
-		(x / 24. * (24. + x * (12. + x * (4. + x)))));
-    else
-	return ((2. * HPL / (CL * CL)) / (exp(x) - 1.));
+  if (x < 2.e-3) /* Taylor expand */
+    return ((2. * HPL / (CL * CL))
+        / (x / 24. * (24. + x * (12. + x * (4. + x)))));
+  else
+    return ((2. * HPL / (CL * CL)) / (exp (x) - 1.));
 }
 
 /* get jnu, and convert to jnu/nu^2 = jnu_invariant */
 double jnu_inv(double nu, double Thetae, double Ne, double B, double theta)
 {
-    double j;
-
-    j = jnu_synch(nu, Ne, Thetae, B, theta);
-
+    double j = jnu_synch(nu, Ne, Thetae, B, theta);
     return (j / (nu * nu));
 }
 

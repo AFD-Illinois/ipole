@@ -10,7 +10,7 @@ ifneq (,$(findstring icc,$(shell $(CC) --version)))
 		GSL_DIR = /opt/apps/intel17/gsl/2.3
 	endif
 
-	CFLAGS = -O3 -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512 -std=c99 -qopenmp -g
+	CFLAGS = -O3 -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512 -std=gnu99 -qopenmp
 	MATH_LIB =
 endif
 
@@ -20,5 +20,5 @@ ifneq (,$(findstring gcc,$(shell $(CC) --version)))
 
 	CC = h5pcc -shlib
 	
-	CFLAGS = -O3 -std=c99 -Wall -fopenmp -g
+	CFLAGS = -O3 -std=gnu99 -Wall -fopenmp
 endif

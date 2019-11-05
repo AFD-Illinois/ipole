@@ -123,7 +123,7 @@ int hdf5_create(const char *fname)
   return 0;
 }
 
-// Open an existing file for reading
+// Open an existing file for *reading only*
 int hdf5_open(const char *fname)
 {
   hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -140,6 +140,42 @@ int hdf5_open(const char *fname)
   H5Eset_auto2(H5E_DEFAULT, NULL, NULL);
 
   if(file_id < 0) FAIL((int) file_id, "hdf5_open", fname);
+  return 0;
+}
+
+// Open an existing file for *appending*
+int hdf5_append(const char *fname)
+{
+  hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
+#if USE_MPI
+  H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, MPI_INFO_NULL);
+#endif
+  file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id);
+  H5Pclose(plist_id);
+
+  // Everyone expects directory to be root after open
+  hdf5_set_directory("/");
+
+  // Quiet HDF5's own errors, so we can control them
+  H5Eset_auto2(H5E_DEFAULT, NULL, NULL);
+
+  if(file_id < 0) FAIL((int) file_id, "hdf5_append", fname);
+  return 0;
+}
+
+// Set this library to use a previously opened file (not recommended)
+int hdf5_set_file(hid_t fid)
+{
+
+  file_id = fid;
+
+  // Everyone expects directory to be root after open
+  hdf5_set_directory("/");
+
+  // Quiet HDF5's own errors, so we can control them
+  H5Eset_auto2(H5E_DEFAULT, NULL, NULL);
+
+  if(file_id < 0) FAIL((int) file_id, "hdf5_set_file", "external file");
   return 0;
 }
 
@@ -174,6 +210,7 @@ int hdf5_make_directory(const char *name)
 // Set the current directory
 void hdf5_set_directory(const char *path)
 {
+  if(DEBUG) printf("Setting dir %s\n", path);
   strncpy(hdf5_cur_dir, path, STRLEN);
 }
 
@@ -278,11 +315,74 @@ int hdf5_write_array(const void *data, const char *name, size_t rank,
 
   if(DEBUG) printf("Adding array %s\n", path);
 
-  // Create the dataset in the file
-  hid_t plist_id = H5Pcreate(H5P_DATASET_CREATE);
-  hid_t dset_id = H5Dcreate(file_id, path, hdf5_type, filespace, H5P_DEFAULT,
-    plist_id, H5P_DEFAULT);
+  // If it's not already there,
+  // create the dataset in the file
+  hid_t plist_id, dset_id;
+  if (!hdf5_exists(path)) {
+    plist_id = H5Pcreate(H5P_DATASET_CREATE);
+    dset_id = H5Dcreate(file_id, path, hdf5_type, filespace, H5P_DEFAULT,
+      plist_id, H5P_DEFAULT);
+    H5Pclose(plist_id);
+  } else {
+    dset_id = H5Dopen(file_id, path, H5P_DEFAULT);
+  }
+
+  // Conduct the transfer
+  plist_id = H5Pcreate(H5P_DATASET_XFER);
+#if USE_MPI
+  H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
+#endif
+  herr_t err = H5Dwrite(dset_id, hdf5_type, memspace, filespace, plist_id, data);
+  if (err < 0) FAIL(err, "hdf5_write_array", path);
+
+  // Close spaces (TODO could keep open for speed writing arrays of same size?)
+  H5Dclose(dset_id);
   H5Pclose(plist_id);
+  H5Sclose(filespace);
+  H5Sclose(memspace);
+
+  return 0;
+}
+
+int hdf5_write_full_array(const void *data, const char *name, size_t rank, hsize_t *dims, hsize_t hdf5_type)
+{
+  hsize_t start[rank];
+  for (int i=0; i<rank; i++) start[i] = 0;
+  return hdf5_write_array(data, name, rank, dims, start, dims, dims, start, hdf5_type);
+}
+
+// Like write_array, but with "chunking" by some dimension.  Allows for zipping resulting file to avoid writing lots of zeros
+int hdf5_write_chunked_array(const void *data, const char *name, size_t rank,
+                      hsize_t *fdims, hsize_t *fstart, hsize_t *fcount, hsize_t *mdims, hsize_t *mstart, hsize_t *chunk_size, hsize_t hdf5_type)
+{
+  // Declare spaces of the right size
+  hid_t filespace = H5Screate_simple(rank, fdims, NULL);
+  H5Sselect_hyperslab(filespace, H5S_SELECT_SET, fstart, NULL, fcount,
+    NULL);
+  hid_t memspace = H5Screate_simple(rank, mdims, NULL);
+  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, mstart, NULL, fcount,
+    NULL);
+
+  // Add our current path to the dataset name
+  char path[STRLEN];
+  strncpy(path, hdf5_cur_dir, STRLEN);
+  strncat(path, name, STRLEN - strlen(path));
+
+  if(DEBUG) printf("Adding array %s\n", path);
+
+  // If it's not already there,
+  // create the dataset in the file
+  hid_t plist_id, dset_id;
+  if (!hdf5_exists(path)) {
+    plist_id = H5Pcreate(H5P_DATASET_CREATE);
+    H5Pset_chunk(plist_id, rank, chunk_size);
+    //H5Pset_deflate(plist_id, 1);
+    dset_id = H5Dcreate(file_id, path, hdf5_type, filespace, H5P_DEFAULT,
+      plist_id, H5P_DEFAULT);
+    H5Pclose(plist_id);
+  } else {
+    dset_id = H5Dopen(file_id, path, H5P_DEFAULT);
+  }
 
   // Conduct the transfer
   plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -391,4 +491,11 @@ int hdf5_read_array(void *data, const char *name, size_t rank,
   H5Sclose(memspace);
 
   return 0;
+}
+
+int hdf5_read_full_array(void *data, const char *name, size_t rank, hsize_t *dims, hsize_t hdf5_type)
+{
+  hsize_t start[rank];
+  for (int i=0; i<rank; i++) start[i] = 0;
+  return hdf5_write_array(data, name, rank, dims, start, dims, dims, start, hdf5_type);
 }

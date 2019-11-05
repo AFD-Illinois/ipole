@@ -35,11 +35,17 @@
 #define MEARTH			(5.976e27			) /* Earth's mass */
 #define REARTH			(6.378e8			) /* Earth's radius */
 
-//#define DSGRA			(8.27e3 * PC			) /* Distance from Earth to Sgr A*  */
-#define DSGRA     (8.127e3 * PC     ) /* Distance from Earth to Sgr A*  */
-#define DM87			(16.9e6 * PC			) /* Distance from Earth to M87  */
-#define DM87_gas  (17.9e6 * PC      ) /* From Walsh+ 2013 */
-#define DABHB			(1.2e3 * PC			) /* Distance from Earth to A0620-00  */
+
+//#define DSGRA_PC     (8.27e3)
+#define DSGRA_PC (8.127e3) /* Distance from Earth to Sgr A*  */
+#define DM87_PC (16.9e6)
+#define DM87_GAS_PC (17.9e6)
+
+//#define DSGRA     (8.27e3 * PC )
+#define DSGRA     (DSGRA_PC * PC) /* Distance from Earth to Sgr A*  */
+#define DM87			(DM87_PC * PC) /* Distance from Earth to M87  */
+#define DM87_gas  (DM87_GAS_PC * PC) /* From Walsh+ 2013 */
+#define DABHB			(1.2e3 * PC) /* Distance from Earth to A0620-00  */
 
 #define TCBR			(2.726				) /* CBR temperature, from COBE */
 
@@ -50,3 +56,5 @@
 #define SOLX			(0.70				) /* H */
 #define SOLY			(0.28				) /* He */
 #define SOLZ			(0.02				) /* Metals */
+
+#define SMALL 1.e-40

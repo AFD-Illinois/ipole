@@ -1,52 +1,43 @@
 #include "decs.h"
-#include "defs.h"
+
+#include "model.h"
+#include "model_geodesics.h"
+#include "model_radiation.h"
+#include "model_tetrads.h"
+
+#include "radiation.h"
+#include "coordinates.h"
+#include "tetrads.h"
+#include "geometry.h"
+#include "geodesics.h"
+#include "image.h"
+#include "io.h"
+#include "ipolarray.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <math.h>
+#include <complex.h>
 #include <omp.h>
-#include "hdf5_utils.h"
 
-#define MAXNSTEP 50000
-
-// QU convention sets whether QU/EVPA is measured as
-//   - 0  "East of North"  or  "observer convention" 
-//   - 1  "North of West"  
-#define QU_CONVENTION 0 
-
-#define imgindex(n,i,j) (((n)*NX+(i))*NY+(j))
-
-struct of_traj {
-  double dl;
-  double X[NDIM];
-  double Kcon[NDIM];
-  double Xhalf[NDIM];
-  double Kconhalf[NDIM];
-} traj[MAXNSTEP];
-#pragma omp threadprivate(traj)
-
-// used for slow light
-struct of_image {
-  int nstep;
-  double intensity;
-  double tau;
-  double tauF;
-  double complex N_coord[NDIM][NDIM];
-};
-
-// global variables
-double thetacam, freqcgs;
-char fnam[STRLEN];
-int quench_output = 0;
-int only_unpolarized = 0;
-
-// can be moved to decs if so desired
-void write_restart(const char *fname, double tA, double tB, double last_img_target,
-    int nopenimgs, int nimg, int nconcurrentimgs, int s2,
-    double *target_times, int *valid_imgs, struct of_image *dimages);
-void read_restart(const char *fname, double *tA, double *tB, double *last_img_target,
-    int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
-    double *target_times, int *valid_imgs, struct of_image *dimages);
-
-double tf = 0.;
+// global variables. TODO scope into main
+static double tf = 0.;
 
 Params params = { 0 };
+
+// Functions defined & used only here.  TODO move. Introduce a camera.c or similar?
+void init_XK (int i, int j, double Xcam[4], double fovx, double fovy,
+              double X[4], double Kcon[4], double rotcam, double xoff,
+              double yoff);
+
+double approximate_solve (double Ii, double ji, double ki, double jf, double kf,
+                   double dl, double *tau);
+
+// Try to keep dynamic image sizes fast
+static int nx, ny;
+static inline int imgindex(int n, int i, int j) {return (n*nx + i)*ny + j;}
 
 int main(int argc, char *argv[]) 
 {
@@ -56,20 +47,16 @@ int main(int argc, char *argv[])
 
   // initialization
   double time = omp_get_wtime();
-  set_levi_civita();
 
   double tA, tB; // for slow light
-  double phicam, rotcam, rcam, Xcam[NDIM];
+  double rcam, thetacam, phicam, rotcam, Xcam[NDIM];
   double xoff, yoff;
-  double freq, Dsource, scale;
+  double freq, scale;
   double DX, DY, fovx, fovy;
 
-  double *taus = malloc(sizeof(*taus) * NX*NY);
-  double *imageS = malloc(sizeof(*imageS) * NX*NY*NIMG);
-  double *image = malloc(sizeof(*image) * NX*NY);
-
-  // "forward declarations"
-  double root_find(double X[NDIM]);
+  // Options not needed outside this monster function
+  int quench_output = 0;
+  int only_unpolarized = 0;
 
 #pragma omp parallel
   if (omp_get_thread_num() == 0) {
@@ -81,6 +68,7 @@ int main(int argc, char *argv[])
   load_par_from_argv(argc, argv, &params);
 
   // figure out if we should run in a custom mode
+  // TODO handle with other parameters
   for (int i=0; i<argc; ++i) {
     if ( strcmp(argv[i], "-quench") == 0 ) quench_output = 1;
     else if ( strcmp(argv[i], "-unpol") == 0 ) only_unpolarized = 1;
@@ -88,28 +76,27 @@ int main(int argc, char *argv[])
 
   // now that we've loaded all parameters, tell our model about
   // them and use init_model to load the first dump
-  parse_input(argc, argv, &params);
   init_model(&tA, &tB);
-  R0 = 0.0;
+
+  // Then allocate now we know the image size
+  nx = params.nx;
+  ny = params.ny;
+  double *taus = malloc(sizeof(*taus) * nx*ny);
+  double *imageS = malloc(sizeof(*imageS) * nx*ny*NIMG);
+  double *image = malloc(sizeof(*image) * nx*ny);
 
   // normalize frequency to electron rest-mass energy
-  freq = freqcgs * HPL / (ME * CL * CL);
+  double freqcgs = params.freqcgs;
+  freq = params.freqcgs * HPL / (ME * CL * CL);
 
-  // set camera location
-  //   rcam       [ GM/c^2 ]
-  //   thetacam   [ degrees ]
-  //   phicam     [ degrees ]
-  rcam = 1000.;
-  phicam = 0.0;
-  rotcam = 0.0;
-  xoff = 0.0;
-  yoff = 0.0;
-  if (params.loaded) {
-    phicam = params.phicam;
-    rotcam = params.rotcam*M_PI/180.;
-    xoff = params.xoff;
-    yoff = params.yoff;
-  }
+  // TODO if spherical
+  // Initialize the camera
+  rcam = params.rcam;
+  thetacam = params.thetacam;
+  phicam = params.phicam;
+  rotcam = params.rotcam*M_PI/180.;
+  xoff = params.xoff;
+  yoff = params.yoff;
   // translate to geodesic coordinates
   double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam/180.*M_PI};
   Xcam[0] = 0.0;
@@ -117,33 +104,38 @@ int main(int argc, char *argv[])
   Xcam[2] = root_find(x);
   Xcam[3] = phicam/180.*M_PI;
   fprintf(stderr, "Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
-  fprintf(stderr,
-      "cam_th_cal=%g [deg] th_beg=%g th_len=%g a=%g R0=%g hslope=%g\n",
-      (th_beg + th_len * Xcam[2]) * 180. / M_PI, th_beg, th_len, a,
-      R0, hslope);
+  fprintf(stderr, "a=%g R0=%g hslope=%g\n", a, R0, hslope);
 
-  // choose source distance here
-  Dsource = DM87;
-  //Dsource = DM87_gas;
-  //Dsource = DSGRA;
+  params.dsource *= PC;
+  double Dsource = params.dsource; // Shorthand
 
-  // set DX/DY using fov_muas to ensure full fov is given uas x uas
-  double fov_muas = 160.;
-  DX = fov_muas * Dsource / L_unit / 2.06265e11;
+  // set DX/DY using fov_dsource if possible, otherwise DX, otherwise old default
+  double fov_to_d = Dsource / L_unit / 2.06265e11;
 
-  // alternatively, set DX, DY here to ensure full fov is M x M
-  // DX = 40.; // fov = 40 GM/c^2 in plane of the hole
+  if (params.fovx_dsource != 0.0) { // FOV was specified
+    // Uncomment to be even more option lenient
+    //if (params.fovy_dsource == 0.0) params.fovy_dsource = params.fovx_dsource;
+  } else if (params.dx != 0.0) {
+    //if (params.dy == 0.0) params.dy = params.dx;
+    params.fovx_dsource = params.dx / fov_to_d;
+    params.fovy_dsource = params.dy / fov_to_d;
+  } else {
+    fprintf(stderr, "No FOV was specified. Using default 160muas!\n");
+    params.fovx_dsource = 160.;
+    params.fovy_dsource = 160.;
+  }
+  DX = params.fovx_dsource * fov_to_d;
+  DY = params.fovy_dsource * fov_to_d;
+  params.dx = DX;
+  params.dy = DY;
 
-  // make image square and set other fov values
-  DY = DX;
+  // Set the *camera* fov values
+  // We don't set these like other parameters, but output them for historical reasons
   fovx = DX / rcam;
   fovy = DY / rcam;
 
-  // Maximum radius of radiation interactions (GM/c^2)
-  //rmax = 50.;
-
-  scale = (DX * L_unit / NX) * (DY * L_unit / NY) / (Dsource * Dsource) / JY;
-  fprintf(stderr,"L_unit = %e DX = %e NX = %i Dsource = %e JY = %e\n", L_unit, DX, NX, Dsource,JY);
+  scale = (DX * L_unit / nx) * (DY * L_unit / ny) / (Dsource * Dsource) / JY;
+  fprintf(stderr,"L_unit = %e DX = %e NX = %i Dsource = %e JY = %e\n", L_unit, DX, nx, Dsource,JY);
   fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
   fprintf(stderr,"Dsource: %g [cm]\n",Dsource);
   fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
@@ -177,12 +169,12 @@ int main(int argc, char *argv[])
     double tgeoi = -1.e100;
     double tgeof = 0.;
 
-    int nsteps[NX][NY];
+    int nsteps[nx][ny];
 
     // first pass through geodesics to find lengths
 #pragma omp parallel for schedule(dynamic,2) collapse(2) reduction(max:tgeoi) reduction(max:maxsteplength) reduction(min:t0) reduction(min:tgeof) shared(nsteps)
-    for (int i=0; i<NX; ++i) {
-      for (int j=0; j<NY; ++j) {
+    for (int i=0; i<nx; ++i) {
+      for (int j=0; j<ny; ++j) {
         if (j==0) fprintf(stderr, "%d ", i);
 
         int nstep = 0;
@@ -195,7 +187,8 @@ int main(int argc, char *argv[])
         double tgeoitmp = 1.;
         double tgeoftmp = 1.;
 
-        while (!stop_backward_integration(X, Kcon, Xcam)) {
+        MULOOP Xhalf[mu] = X[mu];
+        while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
           dl = stepsize(X, Kcon);
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
@@ -225,18 +218,18 @@ int main(int argc, char *argv[])
 
     // now create data structures for geodesics and light rays
     maxsteplength += 2;
-    fprintf(stderr, "geodesic size = %g GB\n", 1. * sizeof(struct of_traj) * NX*NY * maxsteplength / 1024/1024/1024);
-    struct of_traj *dtraj = malloc(sizeof(*dtraj) * NX*NY * maxsteplength);
+    fprintf(stderr, "geodesic size = %g GB\n", 1. * sizeof(struct of_traj) * nx*ny * maxsteplength / 1024/1024/1024);
+    struct of_traj *dtraj = malloc(sizeof(*dtraj) * nx*ny * maxsteplength);
 
     // TODO: if DTd is different, we'll have to calcluate this a different way
     int nconcurrentimgs = 2. + 1. * fabs(t0) / params.img_cadence;
-    fprintf(stderr, "images size = %g GB\n", 1. * sizeof(struct of_image) * NX*NY * nconcurrentimgs / 1024/1024/1024);
-    struct of_image *dimage = malloc(sizeof(*dimage) * NX*NY * nconcurrentimgs);
+    fprintf(stderr, "images size = %g GB\n", 1. * sizeof(struct of_image) * nx*ny * nconcurrentimgs / 1024/1024/1024);
+    struct of_image *dimage = malloc(sizeof(*dimage) * nx*ny * nconcurrentimgs);
 
     // now populate the geodesic data structures
 #pragma omp parallel for schedule(dynamic,2) collapse(2)
-    for (int i=0; i<NX; ++i) {
-      for (int j=0; j<NY; ++j) {
+    for (int i=0; i<nx; ++i) {
+      for (int j=0; j<ny; ++j) {
         if (j==0) fprintf(stderr, "%d ", i);
 
         int nstep = 0;
@@ -245,7 +238,8 @@ int main(int argc, char *argv[])
         init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam, xoff, yoff);
         for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
-        while (!stop_backward_integration(X, Kcon, Xcam)) {
+        MULOOP Xhalf[mu] = X[mu];
+        while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
           dl = stepsize(X, Kcon);
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
@@ -286,7 +280,7 @@ int main(int argc, char *argv[])
       fprintf(stderr, "attempting to load restart file...\n");
       double ttA, ttB;
       read_restart("restart.h5", &ttA, &ttB, &last_img_target, &nopenimgs, &nimg,
-            nconcurrentimgs, nconcurrentimgs*NX*NY,
+            nconcurrentimgs, nconcurrentimgs*nx*ny,
             target_times, valid_images, dimage);
       update_data_until(&tA, &tB, ttA);
     }
@@ -300,8 +294,8 @@ int main(int argc, char *argv[])
         if ( last_img_target + tgeoi < tf ) {
           valid_images[nimg] = 1;
           nopenimgs++;
-          for (int i=0; i<NX; ++i) {
-            for (int j=0; j<NY; ++j) {
+          for (int i=0; i<nx; ++i) {
+            for (int j=0; j<ny; ++j) {
               int pxidx = imgindex(nimg,i,j);
               dimage[pxidx].nstep = nsteps[i][j];
               dimage[pxidx].intensity = 0.;
@@ -321,8 +315,9 @@ int main(int argc, char *argv[])
         int do_output = 1;
 
 #pragma omp parallel for schedule(dynamic,2) collapse(2)
-        for (int i=0; i<NX; ++i) {
-          for (int j=0; j<NY; ++j) {
+        for (int i=0; i<nx; ++i) {
+          for (int j=0; j<ny; ++j) {
+            if (j==0) fprintf(stderr, "%d ", i);
 
             double ji,ki, jf,kf;
             double Xi[NDIM],Xhalf[NDIM],Xf[NDIM];
@@ -393,33 +388,33 @@ int main(int argc, char *argv[])
         if (do_output) {
 
           // image, imageS, taus
-          for (int i=0; i<NX; ++i) {
-            for (int j=0; j<NY; ++j) {
+          for (int i=0; i<nx; ++i) {
+            for (int j=0; j<ny; ++j) {
 
               int pxidx = imgindex(k,i,j);
               int pstepidx = imgindex(dimage[pxidx].nstep,i,j);
 
-              image[i*NY+j] = dimage[pxidx].intensity * pow(freqcgs, 3.);
-              taus[i*NY+j] = dimage[pxidx].tau;
+              image[i*ny+j] = dimage[pxidx].intensity * pow(freqcgs, 3.);
+              taus[i*ny+j] = dimage[pxidx].tau;
 
               if (! only_unpolarized) {
                 double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
                 project_N(dtraj[pstepidx].X, dtraj[pstepidx].Kcon, dimage[pxidx].N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V, rotcam);
-                imageS[(i*NY+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3.);
-                imageS[(i*NY+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3.);
-                imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
-                imageS[(i*NY+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3.);
-                imageS[(i*NY+j)*NIMG+4] = dimage[pxidx].tauF * pow(freqcgs, 3.);
-                if (QU_CONVENTION == 0) {
-                  imageS[(i*NY+j)*NIMG+1] *= -1;
-                  imageS[(i*NY+j)*NIMG+2] *= -1;
+                imageS[(i*ny+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3.);
+                imageS[(i*ny+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3.);
+                imageS[(i*ny+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
+                imageS[(i*ny+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3.);
+                imageS[(i*ny+j)*NIMG+4] = dimage[pxidx].tauF;
+                if (params.qu_conv == 0) {
+                  imageS[(i*ny+j)*NIMG+1] *= -1;
+                  imageS[(i*ny+j)*NIMG+2] *= -1;
                 }
               } else {
-                imageS[(i*NY+j)*NIMG+0] = 0.;
-                imageS[(i*NY+j)*NIMG+1] = 0.;
-                imageS[(i*NY+j)*NIMG+2] = 0.;
-                imageS[(i*NY+j)*NIMG+3] = 0.;
-                imageS[(i*NY+j)*NIMG+4] = 0.;
+                imageS[(i*ny+j)*NIMG+0] = 0.;
+                imageS[(i*ny+j)*NIMG+1] = 0.;
+                imageS[(i*ny+j)*NIMG+2] = 0.;
+                imageS[(i*ny+j)*NIMG+3] = 0.;
+                imageS[(i*ny+j)*NIMG+4] = 0.;
               }
             }
           }
@@ -427,8 +422,7 @@ int main(int argc, char *argv[])
           //fprintf(stderr, "saving image %d at t = %g\n", k, target_times[k]);
           char dfname[256];
           snprintf(dfname, 255, params.outf, target_times[k]);
-          dump(image, imageS, taus, dfname, scale, Dsource, Xcam, DX, DY,
-               fovx, fovy, rcam, thetacam, phicam, rotcam, xoff, yoff);
+          dump(image, imageS, taus, dfname, scale, Xcam, fovx, fovy, &params);
           valid_images[k] = 0;
           nopenimgs--;
         }
@@ -444,35 +438,34 @@ int main(int argc, char *argv[])
         char rfname[256];
         snprintf(rfname, 200, "restarts/restart_%05.1f.h5", tA);
         write_restart(rfname, tA, tB, last_img_target, nopenimgs, nimg, 
-              nconcurrentimgs, nconcurrentimgs*NX*NY,
+              nconcurrentimgs, nconcurrentimgs*nx*ny,
               target_times, valid_images, dimage);
       }
 
     }
 
-  }
+  // FAST LIGHT
+  } else {
 
-  // fast light
-  else {
-
-    int nprogress = 0;
-
-#pragma omp parallel for schedule(dynamic,1) collapse(2) shared(nprogress,image,imageS)
-    for (int i=0; i<NX; ++i) {
-      for (int j=0; j<NY; ++j) {
+#pragma omp parallel for schedule(dynamic,1) collapse(2) shared(image,imageS)
+    for (int i=0; i<nx; ++i) {
+      for (int j=0; j<ny; ++j) {
+        if (j==0) fprintf(stderr, "%d ", i);
 
         double X[NDIM],Xhalf[NDIM],Xi[NDIM],Xf[NDIM],Kcon[NDIM],Kconhalf[NDIM],Kconi[NDIM],Kconf[NDIM];
         double dl, ji,ki, jf,kf;
         double complex N_coord[NDIM][NDIM];
         double Intensity, Stokes_I, Stokes_Q, Stokes_U, Stokes_V, tauF, Tau;
 
+        // Setup geodesic
         init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam, xoff, yoff);
-        for (int k=0; k<NDIM; ++ k) Kcon[k] *= freq;
-
-        /* integrate geodesic backwards */
+        MULOOP Kcon[mu] *= freq;
+        MULOOP Xhalf[mu] = X[mu];
         int nstep = 0;
+        struct of_traj *traj = calloc(MAXNSTEP, sizeof(struct of_traj));
 
-        while (!stop_backward_integration(X, Kcon, Xcam)) {
+        // Integrate backwards
+        while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
           /* This stepsize function can be troublesome inside of R = 2M,
              and should be used cautiously in this region. */
           dl = stepsize(X, Kcon);
@@ -484,14 +477,12 @@ int main(int argc, char *argv[])
 
           traj[nstep].dl = dl * L_unit * HPL / (ME * CL * CL);
 
-          for (int k = 0; k < NDIM; k++)
-            traj[nstep].X[k] = X[k];
-          for (int k = 0; k < NDIM; k++)
-            traj[nstep].Kcon[k] = Kcon[k];
-          for (int k = 0; k < NDIM; k++)
-            traj[nstep].Xhalf[k] = Xhalf[k];
-          for (int k = 0; k < NDIM; k++)
-            traj[nstep].Kconhalf[k] = Kconhalf[k];
+          MULOOP {
+            traj[nstep].X[mu] = X[mu];
+            traj[nstep].Kcon[mu] = Kcon[mu];
+            traj[nstep].Xhalf[mu] = Xhalf[mu];
+            traj[nstep].Kconhalf[mu] = Kconhalf[mu];
+          }
 
           if (nstep > MAXNSTEP - 2) {
             fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j,i);
@@ -500,37 +491,45 @@ int main(int argc, char *argv[])
         }
 
         nstep--; // don't record final step because it violated "stop" condition
-        /* DONE geodesic integration */
+        //fprintf(stderr, "Geodesic i: %d j: %d nsteps: %d\n", i, j, nstep);
 
         // integrate forwards along trajectory, including radiative transfer equation
-        // initialize N, Intensity -- need X, K for this.
-        for (int l=0; l<NDIM; ++l) {
-          Xi[l] = traj[nstep].X[l];
-          Kconi[l] = traj[nstep].Kcon[l];
-        }
-
+        // initialize X, K
+        MULOOP { Xi[mu] = traj[nstep].X[mu];
+                 Kconi[mu] = traj[nstep].Kcon[mu]; }
+        // Initialize emision variables
         init_N(Xi, Kconi, N_coord);
         Intensity = 0.0;
         Tau = 0.;
         tauF = 0.;
-
         get_jkinv(traj[nstep].X, traj[nstep].Kcon, &ji, &ki);
         
-        while (nstep > 1) {
+        // Option to save a variable along the geodesic
+        int nstep_save = nstep+1;
 
+        while (nstep > 1) {
           // initialize X,K
-          for (int l=0; l<NDIM; ++l) {
-            Xi[l]       = traj[nstep].X[l];
-            Kconi[l]    = traj[nstep].Kcon[l];
-            Xhalf[l]    = traj[nstep].Xhalf[l]; 
-            Kconhalf[l] = traj[nstep].Kconhalf[l];
-            Xf[l]       = traj[nstep - 1].X[l];
-            Kconf[l]    = traj[nstep - 1].Kcon[l];
+          MULOOP {
+            Xi[mu]       = traj[nstep].X[mu];
+            Kconi[mu]    = traj[nstep].Kcon[mu];
+            Xhalf[mu]    = traj[nstep].Xhalf[mu];
+            Kconhalf[mu] = traj[nstep].Kconhalf[mu];
+            Xf[mu]       = traj[nstep - 1].X[mu];
+            Kconf[mu]    = traj[nstep - 1].Kcon[mu];
           }
 
           // solve total intensity equation alone
+#if THIN_DISK
+          if (thindisk_region(Xi, Xf)) {
+            get_model_i(Xf, Kconf, &Intensity);
+          }
+#else
           get_jkinv(Xf, Kconf, &jf, &kf);
           Intensity = approximate_solve(Intensity, ji, ki, jf, kf, traj[nstep].dl, &Tau);
+          // swap start and finish
+          ji = jf;
+          ki = kf;
+#endif
 
           // solve polarized transport
           if (! only_unpolarized ) {
@@ -540,44 +539,41 @@ int main(int argc, char *argv[])
             }
           }
 
-          // swap start and finish
-          ji = jf;
-          ki = kf;
-
           nstep--;
         }
 
+        if (params.trace) {
+          int stride = params.trace_stride;
+          if (i % stride == 0 && j % stride == 0) {
+#pragma omp critical
+            dump_var_along(i/stride, j/stride, nstep_save, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
+          }
+        }
+
+        free(traj);
+
         // deposit intensity and Stokes parameter in pixels
-        image[i*NY+j] = Intensity * pow(freqcgs, 3);
-        taus[i*NY+j] = Tau;
+        image[i*ny+j] = Intensity * pow(freqcgs, 3);
+        taus[i*ny+j] = Tau;
         if (! only_unpolarized) {
           project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V, rotcam);
-          imageS[(i*NY+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3);
-          imageS[(i*NY+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3);
-          imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3);
-          imageS[(i*NY+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3);
-          imageS[(i*NY+j)*NIMG+4] = tauF;
-          if (QU_CONVENTION == 0) {
-            imageS[(i*NY+j)*NIMG+1] *= -1;
-            imageS[(i*NY+j)*NIMG+2] *= -1;
+          imageS[(i*ny+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3);
+          imageS[(i*ny+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3);
+          imageS[(i*ny+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3);
+          imageS[(i*ny+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3);
+          imageS[(i*ny+j)*NIMG+4] = tauF;
+          if (params.qu_conv == 0) {
+            imageS[(i*ny+j)*NIMG+1] *= -1;
+            imageS[(i*ny+j)*NIMG+2] *= -1;
           }
-          if (isnan(imageS[(i*NY+j)*NIMG+0])) exit(-1);
+          if (isnan(imageS[(i*ny+j)*NIMG+0])) exit(-1);
         } else {
-          imageS[(i*NY+j)*NIMG+0] = 0.;
-          imageS[(i*NY+j)*NIMG+1] = 0.;
-          imageS[(i*NY+j)*NIMG+2] = 0.;
-          imageS[(i*NY+j)*NIMG+3] = 0.;
-          imageS[(i*NY+j)*NIMG+4] = 0.;
+          imageS[(i*ny+j)*NIMG+0] = 0.;
+          imageS[(i*ny+j)*NIMG+1] = 0.;
+          imageS[(i*ny+j)*NIMG+2] = 0.;
+          imageS[(i*ny+j)*NIMG+3] = 0.;
+          imageS[(i*ny+j)*NIMG+4] = 0.;
         }
-
-        // print progress
-        if ( (nprogress % NY) == 0 ) {
-          fprintf(stderr, "%d ", nprogress/NY);
-        }
-
-#pragma omp atomic
-        nprogress += 1;
-
       }
     }
 
@@ -590,229 +586,39 @@ int main(int argc, char *argv[])
     double Iavg = 0.0;
     int imax = 0;
     int jmax = 0;
-    for (int i = 0; i < NX; i++) {
-      for (int j = 0; j < NY; j++) {
-        Ftot_unpol += image[i*NY+j]*scale;
-        Ftot += imageS[(i*NY+j)*NIMG+0] * scale;
-        Iavg += imageS[(i*NY+j)*NIMG+0];
-        if (imageS[(i*NY+j)*NIMG+0] > Imax) {
+    for (int i = 0; i < nx; i++) {
+      for (int j = 0; j < ny; j++) {
+        Ftot_unpol += image[i*ny+j]*scale;
+        Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
+        Iavg += imageS[(i*ny+j)*NIMG+0];
+        if (imageS[(i*ny+j)*NIMG+0] > Imax) {
           imax = i;
           jmax = j;
-          Imax = imageS[(i*NY+j)*NIMG+0];
+          Imax = imageS[(i*ny+j)*NIMG+0];
         }
       }
     }
 
-    fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax, Iavg/(NX*NY));
+    fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax, Iavg/(nx*ny));
     fprintf(stderr, "freq: %g Ftot: %g (%g unpol) scale=%g\n", freqcgs, Ftot, Ftot_unpol, scale);
     fprintf(stderr, "nuLnu = %g\n", 4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
 
     // don't dump if we've been asked to quench output. useful for batch jobs
     // like when fitting light curve fluxes
     if (!quench_output) {
-      // dump result. if parameters have been loaded, don't also
-      // output image
-      if (params.loaded) {
-        dump(image, imageS, taus, params.outf, scale, Dsource, Xcam, DX, DY, 
-             fovx, fovy, rcam, thetacam, phicam, rotcam, xoff, yoff);
-      } else {
-        dump(image, imageS, taus, "ipole.dat", scale, Dsource, Xcam, DX, DY, 
-             fovx, fovy, rcam, thetacam, phicam, rotcam, xoff, yoff);
-        IMLOOP image[i*NY+j] = log(image[i*NY+j] + 1.e-50);
-        make_ppm(image, freq, "ipole_lfnu.ppm");
+      // dump result. if specified, also output ppm image
+      dump(image, imageS, taus, params.outf, scale, Xcam, fovx, fovy, &params);
+      if (params.add_ppm) {
+        // TODO respect filename from params?
+        make_ppm(image, freq, nx, ny, "ipole_lfnu.ppm");
       }
     }
-
   }
 
   time = omp_get_wtime() - time;
   printf("Total wallclock time: %g s\n\n", time);
 
   return 0;
-}
-
-void read_restart(const char *fname, double *tA, double *tB, double *last_img_target,
-        int *nopenimgs, int *nimg, int nconcurrentimgs, int s2,
-        double *target_times, int *valid_imgs, struct of_image *dimages) {
-
-  hdf5_open(fname);
-
-  hdf5_set_directory("/");
-  hdf5_read_single_val(tA, "/tA", H5T_IEEE_F64LE);
-  hdf5_read_single_val(tB, "/tB", H5T_IEEE_F64LE);
-  hdf5_read_single_val(last_img_target, "/last_img_target", H5T_IEEE_F64LE);
-  hdf5_read_single_val(nimg, "/nimg", H5T_STD_I32LE);
-  hdf5_read_single_val(nopenimgs, "/nopenimgs", H5T_STD_I32LE);
-
-  int *tint = malloc(s2 * sizeof(*tint));
-  double *tdbl = malloc(s2 * sizeof(*tdbl));
-
-  for (int i=0; i<nconcurrentimgs; ++i) {
-    tdbl[i] = target_times[i];
-    tint[i] = valid_imgs[i];
-  }
-
-  hsize_t dims[] = { nconcurrentimgs };
-  hsize_t start[] = { 0 };
-
-  hdf5_read_array(target_times, "/target_times", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-  hdf5_read_array(valid_imgs, "/valid_images", 1, dims, start, dims, dims, start, H5T_STD_I32LE);
-
-  dims[0] = s2;  
-  
-  hdf5_read_array(tint, "/dimg/nstep", 1, dims, start, dims, dims, start, H5T_STD_I32LE);
-  for (int i=0; i<s2; ++i) dimages[i].nstep = tint[i];
-
-  hdf5_read_array(tdbl, "/dimg/intensity", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-  for (int i=0; i<s2; ++i) dimages[i].intensity = tdbl[i];
-
-  hdf5_read_array(tdbl, "/dimg/tau", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-  for (int i=0; i<s2; ++i) dimages[i].tau = tdbl[i];
-
-  hdf5_read_array(tdbl, "/dimg/tauF", 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-  for (int i=0; i<s2; ++i) dimages[i].tauF = tdbl[i];
-
-  for (int mu=0; mu<4; ++mu) {
-    for (int nu=0; nu<4; ++nu) {
-      char tgt[20];
-      snprintf(tgt, 18, "/dimg/Nr%d%d", mu, nu);
-      hdf5_read_array(tdbl, tgt, 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-      for (int i=0; i<s2; ++i) dimages[i].N_coord[mu][nu] = tdbl[i];
-      snprintf(tgt, 18, "/dimg/Ni%d%d", mu, nu);
-      hdf5_read_array(tdbl, tgt, 1, dims, start, dims, dims, start, H5T_IEEE_F64LE);
-      for (int i=0; i<s2; ++i) dimages[i].N_coord[mu][nu] += tdbl[i] * _Complex_I;
-    }
-  }
-
-  free(tint);
-  free(tdbl);
-
-  hdf5_close();
-
-}
-
-void write_restart(const char *fname, double tA, double tB, double last_img_target,
-        int nopenimgs, int nimg, int nconcurrentimgs, int s2, 
-        double *target_times, int *valid_imgs, struct of_image *dimages) {
-
-  hid_t fid = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-  if (fid < 0) {
-    fprintf(stderr, "! unable to create hdf5 restart file.\n");
-    exit(-4);
-  }
-
-  h5io_add_attribute_str(fid, "/", "githash", xstr(VERSION));
-  h5io_add_data_dbl(fid, "/tA", tA);
-  h5io_add_data_dbl(fid, "/tB", tB);
-  h5io_add_data_dbl(fid, "/last_img_target", last_img_target);
-  h5io_add_data_int(fid, "/nimg", nimg);
-  h5io_add_data_int(fid, "/nopenimgs", nopenimgs);
-  h5io_add_data_dbl_1d(fid, "/target_times", nconcurrentimgs, target_times);
-  h5io_add_data_int_1d(fid, "/valid_images", nconcurrentimgs, valid_imgs);
-  h5io_add_group(fid, "/dimg");
-
-  // save dimg struct
-  int *tint = malloc(s2 * sizeof(*tint));
-  double *tdbl = malloc(s2 * sizeof(*tdbl));
-
-  for (int i=0; i<s2; ++i) tint[i] = dimages[i].nstep;
-  h5io_add_data_int_1d(fid, "/dimg/nstep", s2, tint);
-  
-  for (int i=0; i<s2; ++i) tdbl[i] = dimages[i].intensity;
-  h5io_add_data_dbl_1d(fid, "/dimg/intensity", s2, tdbl);
-    
-  for (int i=0; i<s2; ++i) tdbl[i] = dimages[i].tau;
-  h5io_add_data_dbl_1d(fid, "/dimg/tau", s2, tdbl);
-
-  for (int i=0; i<s2; ++i) tdbl[i] = dimages[i].tauF;
-  h5io_add_data_dbl_1d(fid, "/dimg/tauF", s2, tdbl);
-
-  for (int mu=0; mu<4; ++mu) {
-    for (int nu=0; nu<4; ++nu) {
-      char tgt[20];
-      snprintf(tgt, 18, "/dimg/Nr%d%d", mu, nu);
-      for (int i=0; i<s2; ++i) tdbl[i] = creal(dimages[i].N_coord[mu][nu]);
-      h5io_add_data_dbl_1d(fid, tgt, s2, tdbl); 
-      snprintf(tgt, 18, "/dimg/Ni%d%d", mu, nu);
-      for (int i=0; i<s2; ++i) tdbl[i] = cimag(dimages[i].N_coord[mu][nu]);
-      h5io_add_data_dbl_1d(fid, tgt, s2, tdbl); 
-    }
-  }
-
-  free(tint);
-  free(tdbl);
-  
-  H5Fclose(fid);
-}
-
-
-void dump(double image[], double imageS[], double taus[],
-    const char *fname, double scale, double Dsource, double cam[NDIM], double DX, 
-    double DY, double fovx, double fovy, double rcam, double thetacam, double phicam,
-    double rotcam, double xoff, double yoff)
-{
-  hid_t fid = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-  if (fid < 0) {
-    fprintf(stderr, "! unable to open/create hdf5 output file.\n");
-    exit(-3);
-  }
-
-  h5io_add_attribute_str(fid, "/", "githash", xstr(VERSION));
-
-  h5io_add_group(fid, "/header");
-  h5io_add_data_dbl(fid, "/header/freqcgs", freqcgs);
-  h5io_add_data_dbl(fid, "/header/scale", scale);
-  h5io_add_data_dbl(fid, "/header/dsource", Dsource);
-
-  if (QU_CONVENTION == 0) h5io_add_data_str(fid, "/header/evpa_0", "N");
-  else h5io_add_data_str(fid, "/header/evpa_0", "W");
-
-  h5io_add_group(fid, "/header/camera");
-  h5io_add_data_int(fid, "/header/camera/nx", NX);
-  h5io_add_data_int(fid, "/header/camera/ny", NY);
-  h5io_add_data_dbl(fid, "/header/camera/dx", DX);
-  h5io_add_data_dbl(fid, "/header/camera/dy", DY);
-  h5io_add_data_dbl(fid, "/header/camera/fovx", fovx);
-  h5io_add_data_dbl(fid, "/header/camera/fovy", fovy);
-  h5io_add_data_dbl(fid, "/header/camera/rcam", rcam);
-  h5io_add_data_dbl(fid, "/header/camera/thetacam", thetacam);
-  h5io_add_data_dbl(fid, "/header/camera/phicam", phicam);
-  h5io_add_data_dbl(fid, "/header/camera/rotcam", rotcam);
-  h5io_add_data_dbl(fid, "/header/camera/xoff", xoff);
-  h5io_add_data_dbl(fid, "/header/camera/yoff", yoff);
-  h5io_add_data_dbl_1d(fid, "/header/camera/x", NDIM, cam);
-
-  h5io_add_group(fid, "/header/units");
-  h5io_add_data_dbl(fid, "/header/units/L_unit", L_unit);
-  h5io_add_data_dbl(fid, "/header/units/M_unit", M_unit);
-  h5io_add_data_dbl(fid, "/header/units/T_unit", T_unit);
-  h5io_add_data_dbl(fid, "/header/units/Thetae_unit", Te_unit);
-
-  // processing
-  double Ftot_unpol=0., Ftot=0.;
-  for (int i=0; i<NX; ++i) {
-    for (int j=0; j<NY; ++j) {
-      Ftot_unpol += image[i*NY+j] * scale;
-      Ftot += imageS[(i*NY+j)*NIMG+0] * scale;
-    }
-  }
-
-  // output stuff
-  h5io_add_data_dbl(fid, "/Ftot", Ftot);
-  h5io_add_data_dbl(fid, "/Ftot_unpol", Ftot_unpol);
-  h5io_add_data_dbl(fid, "/nuLnu", 4. * M_PI * Ftot * Dsource * Dsource * JY * freqcgs);
-  h5io_add_data_dbl(fid, "/nuLnu_unpol", 4. * M_PI * Ftot_unpol * Dsource * Dsource * JY * freqcgs);
-
-  h5io_add_data_dbl_2ds(fid, "/unpol", NX, NY, image);
-  h5io_add_data_dbl_2ds(fid, "/tau", NX, NY, taus);
-  h5io_add_data_dbl_3ds(fid, "/pol", NX, NY, 5, imageS);
-
-  // allow model to output
-  output_hdf5(fid);
-
-  // housekeeping
-  H5Fclose(fid);
 }
 
 /* construct orthonormal tetrad.
@@ -832,11 +638,19 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
 
   make_camera_tetrad(Xcam, Econ, Ecov);
 
-  /* construct *outgoing* wavevectors */
-  double dxoff = (xoff+i-0.01)/(double)NX - 0.5;
-  double dyoff = (yoff+j)/(double)NY - 0.5;
+  // Construct outgoing wavevectors
+  // xoff: allow arbitrary offset for e.g. ML training imgs
+  // +0.5: project geodesics from px centers
+  // -0.01: Prevent nasty artifact at 0 spin/phicam
+  double dxoff = (xoff+i+0.5-0.01)/nx - 0.5;
+  double dyoff = (yoff+j+0.5)/ny - 0.5;
   Kcon_tetrad[0] = 0.;
+#if THIN_DISK
+  // TODO correct this more generally and take as parameter
+  Kcon_tetrad[1] = (dxoff*cos(rotcam) - dyoff*sin(rotcam)) * fovx  - (0.659986/40*fovx);
+#else
   Kcon_tetrad[1] = (dxoff*cos(rotcam) - dyoff*sin(rotcam)) * fovx;
+#endif
   Kcon_tetrad[2] = (dxoff*sin(rotcam) + dyoff*cos(rotcam)) * fovy;
   Kcon_tetrad[3] = 1.;
 
@@ -848,22 +662,6 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
 
   /* set position */
   for (int mu = 0; mu < NDIM; mu++) X[mu] = Xcam[mu];
-
-}
-
-/* normalize null vector in a tetrad frame */
-void null_normalize(double Kcon[NDIM], double fnorm)
-{
-  double inorm;
-
-  inorm =
-    sqrt(Kcon[1] * Kcon[1] + Kcon[2] * Kcon[2] + Kcon[3] * Kcon[3]);
-
-  Kcon[0] = fnorm;
-  Kcon[1] *= fnorm / inorm;
-  Kcon[2] *= fnorm / inorm;
-  Kcon[3] *= fnorm / inorm;
-
 }
 
 /* must be a stable, approximate solution to radiative transfer
