@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
                 imageS[(i*NY+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3.);
                 imageS[(i*NY+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
                 imageS[(i*NY+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3.);
-                imageS[(i*NY+j)*NIMG+4] = dimage[pxidx].tauF * pow(freqcgs, 3.);
+                imageS[(i*NY+j)*NIMG+4] = dimage[pxidx].tauF;
                 if (QU_CONVENTION == 0) {
                   imageS[(i*NY+j)*NIMG+1] *= -1;
                   imageS[(i*NY+j)*NIMG+2] *= -1;
