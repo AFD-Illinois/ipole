@@ -65,7 +65,8 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
 
   params->trace = 0;
   params->trace_stride = 1;
-  params->trace_var = 0;
+  params->trace_i = 0;
+  params->trace_j = 0;
   // This is what the par infra does.
   // I'm not sure there's still any advantage to "const" if we do this,
   // but hey, no warnings
@@ -144,7 +145,8 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   // Save out variables along paths
   set_by_word_val(word, value, "trace", &(params->trace), TYPE_INT);
   set_by_word_val(word, value, "trace_stride", &(params->trace_stride), TYPE_INT);
-  set_by_word_val(word, value, "trace_var", &(params->trace_var), TYPE_INT);
+  set_by_word_val(word, value, "trace_i", &(params->trace_i), TYPE_INT);
+  set_by_word_val(word, value, "trace_j", &(params->trace_j), TYPE_INT);
   set_by_word_val(word, value, "trace_outf", (void *)(params->trace_outf), TYPE_STR);
 
   // Let models add/parse their own parameters we don't understand

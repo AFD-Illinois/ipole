@@ -34,10 +34,10 @@ typedef struct params_t {
   double img_cadence;
   double restart_int;
 
-  // Save out variables along
+  // Save out variables along a geodesic
   int trace;
   int trace_stride;
-  int trace_var;
+  int trace_i, trace_j;
   const char trace_outf[STRLEN];
 } Params;
 

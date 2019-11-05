@@ -544,9 +544,16 @@ int main(int argc, char *argv[])
 
         if (params.trace) {
           int stride = params.trace_stride;
-          if (i % stride == 0 && j % stride == 0) {
+          if (params.trace_i < 0 || params.trace_j < 0) { // If no single point is specified
+            if (i % stride == 0 && j % stride == 0) { // Save every stride pixels
 #pragma omp critical
-            dump_var_along(i/stride, j/stride, nstep_save, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
+              dump_var_along(i/stride, j/stride, nstep_save, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
+            }
+          } else {
+            if (i == params.trace_i && j == params.trace_j) { // Save just the one
+#pragma omp critical
+              dump_var_along(0, 0, nstep_save, traj, 1, 1, scale, Xcam, fovx, fovy, &params);
+            }
           }
         }
 

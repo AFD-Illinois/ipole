@@ -229,7 +229,6 @@ void dump(double image[], double imageS[], double taus[],
 /*
  * Given a path, dump a variable computed along that path into a file.
  * Note this is most definitely *not* thread-safe
- * TODO make this take the var as an option?  Like a case statement?
  */
 void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny,
                     double scale, double cam[NDIM], double fovx, double fovy, Params *params)
@@ -273,7 +272,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hsize_t fdims_s[] = { nx, ny, MAXNSTEP };
   hsize_t chunk_s[] =  { 1, 1, 200 };
   hsize_t fstart_s[] = { i, j, 0 };
-  hsize_t fcount_s[] = { 0, 1, nstep };
+  hsize_t fcount_s[] = { 1, 1, nstep };
   hsize_t mdims_s[] =  { 1, 1, nstep };
   hsize_t mstart_s[] = { 0, 0, 0 };
 
@@ -301,7 +300,6 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   free(X);
   free(K);
 
-  // Include the model-specific stuff but none of the ipole header
 
   hdf5_close();
 }
