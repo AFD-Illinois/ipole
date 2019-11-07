@@ -65,8 +65,8 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
 
   params->trace = 0;
   params->trace_stride = 1;
-  params->trace_i = 0;
-  params->trace_j = 0;
+  params->trace_i = -1;
+  params->trace_j = -1;
   // This is what the par infra does.
   // I'm not sure there's still any advantage to "const" if we do this,
   // but hey, no warnings
