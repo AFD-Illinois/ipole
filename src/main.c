@@ -475,6 +475,18 @@ int main(int argc, char *argv[])
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
+          /* Geodesics in ipole are integrated using
+           * dx^\mu/d\lambda = k^\mu
+           * The positions x^mu are in simulation units, since different
+           * coordinates sometimes have different units (e.g. x^r, x^\theta)
+
+           * The convention we have adopted is that:
+           * E = -u^\mu k_\mu,
+           * which is always photon energy measured by an observer with four-velocity u^\mu,
+           * is in units of *electron rest-mass energy*.
+           * This implies that dl is *not* in cgs units, but in weird hybrid units.
+           * This line sets dl to be in cgs units.
+           */
           traj[nstep].dl = dl * L_unit * HPL / (ME * CL * CL);
 
           MULOOP {
