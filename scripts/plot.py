@@ -9,6 +9,10 @@ $ ffmpeg -framerate 8 -i dump%*.png -s:v 1280x720 -c:v libx264 -profile:v high -
 
 """
 
+print("This is plot.py.")
+print("plot.py is decprecated as of 11 Nov 2019.")
+print("please use plot_pol.py instead")
+
 import sys
 import h5py
 import numpy as np
