@@ -42,6 +42,8 @@ static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
 static double MBH_solar = 6.2e9;
 static double MBH; // Set from previous
+static double mdot_dump;
+static double Ladv_dump;
 
 // MAYBES
 //static double t0;
@@ -657,6 +659,9 @@ void output_hdf5()
   hdf5_set_directory("/");
   hdf5_write_blob(fluid_header, "/fluid_header");
 
+  hdf5_write_single_val(&mdot_dump, "mdot", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&Ladv_dump, "Ladv", H5T_IEEE_F64LE);
+
   hdf5_set_directory("/header/");
 #if SLOW_LIGHT
   hdf5_write_single_val(&(data[1]->t), "t", H5T_IEEE_F64LE);
@@ -890,6 +895,9 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   dMact /= 21. ;
   Ladv *= dx[3]*dx[2] ;
   Ladv /= 21. ;
+
+  mdot_dump = -dMact*M_unit/T_unit/Mdotedd;
+  Ladv_dump =  Ladv;
 
   if (verbose) {
     fprintf(stderr,"dMact: %g [code]\n",dMact) ;
