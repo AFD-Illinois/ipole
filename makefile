@@ -47,7 +47,7 @@ LINK = $(CC)
 LDFLAGS = $(CFLAGS)
 
 HDF5_LIB = -lhdf5_hl -lhdf5
-GSL_LIB = #-lgsl -lgslcblas
+GSL_LIB = -lgsl -lgslcblas
 
 ## LOGIC FOR PATHS ##
 CORE_DIR := $(MAKEFILE_PATH)/src/
