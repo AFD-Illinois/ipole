@@ -519,6 +519,10 @@ void init_iharm_grid(char *fnam, int dumpidx)
   } else {
     RADIATION = 0;
   }
+  if ( hdf5_exists("has_derefine_poles") ) {
+    printf("Dump includes flag 'has_derefine_poles' and is therefore non-standard and not well-defined");
+    exit(-3);
+  }
 
   char metric[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
