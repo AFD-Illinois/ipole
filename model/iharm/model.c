@@ -42,6 +42,9 @@ static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
 static double MBH_solar = 6.2e9;
 static double MBH; // Set from previous
+static double Mdot_dump;
+static double MdotEdd_dump;
+static double Ladv_dump;
 
 // MAYBES
 //static double t0;
@@ -657,6 +660,10 @@ void output_hdf5()
   hdf5_set_directory("/");
   hdf5_write_blob(fluid_header, "/fluid_header");
 
+  hdf5_write_single_val(&Mdot_dump, "Mdot", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&MdotEdd_dump, "MdotEdd", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&Ladv_dump, "Ladv", H5T_IEEE_F64LE);
+
   hdf5_set_directory("/header/");
 #if SLOW_LIGHT
   hdf5_write_single_val(&(data[1]->t), "t", H5T_IEEE_F64LE);
@@ -891,14 +898,18 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   Ladv *= dx[3]*dx[2] ;
   Ladv /= 21. ;
 
+  Mdot_dump = -dMact*M_unit/T_unit;
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
   if (verbose) {
-    fprintf(stderr,"dMact: %g [code]\n",dMact) ;
-    fprintf(stderr,"Ladv: %g [code]\n",Ladv) ;
-    fprintf(stderr,"Mdot: %g [g/s] \n",-dMact*M_unit/T_unit) ;
-    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",-dMact*M_unit/T_unit/(MSUN / YEAR)) ;
-    fprintf(stderr,"Mdot: %g [Mdotedd]\n",-dMact*M_unit/T_unit/Mdotedd) ;
-    fprintf(stderr,"Mdotedd: %g [g/s]\n",Mdotedd) ;
-    fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Mdotedd/(MSUN/YEAR)) ;
+    fprintf(stderr,"dMact: %g [code]\n",dMact);
+    fprintf(stderr,"Ladv: %g [code]\n",Ladv_dump);
+    fprintf(stderr,"Mdot: %g [g/s] \n",Mdot_dump);
+    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",Mdot_dump/(MSUN / YEAR));
+    fprintf(stderr,"Mdot: %g [Mdotedd]\n",Mdot_dump/MdotEdd_dump);
+    fprintf(stderr,"Mdotedd: %g [g/s]\n",MdotEdd_dump);
+    fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",MdotEdd_dump/(MSUN/YEAR));
   }
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
