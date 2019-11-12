@@ -106,16 +106,18 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
 
     // Switch between three different fits for rho_V
-    if (Thetae > 3.0) {
+    if (Thetae > 4.0) {
       // High temperature: use approximations to bessel
       *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
         (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
-    } else if (0.2 < Thetae && Thetae <= 3.0) {
+    } else if (0.2 < Thetae && Thetae <= 4.0) {
       // Mid temperature: use real bessel functions (TODO fit?)
       *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
         (gsl_sf_bessel_Kn(0, Thetaer) - Je(Xe)) / gsl_sf_bessel_Kn(2, Thetaer) * cos(theta);
     } else if (Thetae <= 0.2) {
       // Use the constant low-temperature limit
+      // WARNING: Note that for about 0.01 < Thetae < 0.2, this is not a great approximation
+      // But it is a fair sight better than the others here
       *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) * cos(theta);
     }
 
