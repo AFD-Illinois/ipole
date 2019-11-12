@@ -9,13 +9,24 @@ be in your ```PATH```. Then just build by running
 ```bash
 $ make
 ```
+with or without any of the usual ```make``` options, e.g. ```-j```, ```-f```.
+
+
+Alternatively, if you would like to avoid compiling parallel HDF5, ensure that
+```h5cc``` is in your path, and run
+
+```bash
+$ make CC=h5cc
+````
+
 A particular fluid model or data format can be specified with
 ```MODEL=model_name```. For all fluid data produced from Illinois codes after
-September 2018, the default ```iharm``` model should be used.
+September 2018, the ```iharm``` model should be used -- this is the default if
+no model is specified.
 
 The optional argument ```NOTES=``` can be any string containing no spaces.
 This string will be "baked-in" to the executable and printed out whenever the
-program is run. 
+program is run.
 
 # Running
 
