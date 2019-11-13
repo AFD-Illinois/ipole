@@ -42,6 +42,9 @@ static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
 static double MBH_solar = 6.2e9;
 static double MBH; // Set from previous
+static double Mdot_dump;
+static double MdotEdd_dump;
+static double Ladv_dump;
 
 // MAYBES
 //static double t0;
@@ -51,7 +54,7 @@ static double MBH; // Set from previous
 //    1 : use dump file model (kawazura?)
 //    2 : use mixed TP_OVER_TE (beta model)
 static int RADIATION, ELECTRONS;
-static double gam, game, gamp;
+static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
 
 // Ignore radiation interactions within one degree of polar axis
@@ -509,12 +512,20 @@ void init_iharm_grid(char *fnam, int dumpidx)
 
   hdf5_set_directory("/header/");
 
-  if ( hdf5_exists("has_electrons") )
+  if ( hdf5_exists("has_electrons") ) {
     hdf5_read_single_val(&ELECTRONS, "has_electrons", H5T_STD_I32LE);
-  if ( hdf5_exists("has_radiation") ) 
+  } else {
+    ELECTRONS = 0;
+  }
+  if ( hdf5_exists("has_radiation") ) {
     hdf5_read_single_val(&RADIATION, "has_radiation", H5T_STD_I32LE);
-  if ( hdf5_exists("has_derefine_poles") )
-    hdf5_read_single_val(&METRIC_FMKS, "has_derefine_poles", H5T_STD_I32LE);
+  } else {
+    RADIATION = 0;
+  }
+  if ( hdf5_exists("has_derefine_poles") ) {
+    printf("Dump includes flag 'has_derefine_poles' and is therefore non-standard and not well-defined");
+    exit(-3);
+  }
 
   char metric[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
@@ -522,6 +533,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
 
   METRIC_FMKS = 0;
   METRIC_MKS3 = 0;
+  METRIC_eKS = 0;
 
   if ( strncmp(metric, "MMKS", 19) == 0 ) {
     METRIC_FMKS = 1;
@@ -540,8 +552,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
     fprintf(stderr, "custom electron model loaded from dump file...\n");
     hdf5_read_single_val(&game, "gam_e", H5T_IEEE_F64LE);
     hdf5_read_single_val(&gamp, "gam_p", H5T_IEEE_F64LE);
-    Thetae_unit = MP/ME;
-  }
+  } // Else use default values set above
   Te_unit = Thetae_unit;
 
   // we can override which electron model to use here. print results if we're
@@ -553,6 +564,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
       exit(-3);
     }
     ELECTRONS = 1;
+    Thetae_unit = MP/ME;
   } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
     ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
     fprintf(stderr, "using fixed tp_over_te ratio = %g\n", tp_over_te);
@@ -563,6 +575,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
   } else if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
     ELECTRONS = 2;
     fprintf(stderr, "using mixed tp_over_te with trat_small = %g and trat_large = %g\n", trat_small, trat_large);
+    // Thetae_unit set per-zone below
   } else {
     fprintf(stderr, "! please change electron model in model/iharm.c\n");
     exit(-3);
@@ -646,6 +659,10 @@ void output_hdf5()
 {
   hdf5_set_directory("/");
   hdf5_write_blob(fluid_header, "/fluid_header");
+
+  hdf5_write_single_val(&Mdot_dump, "Mdot", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&MdotEdd_dump, "MdotEdd", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&Ladv_dump, "Ladv", H5T_IEEE_F64LE);
 
   hdf5_set_directory("/header/");
 #if SLOW_LIGHT
@@ -881,14 +898,18 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   Ladv *= dx[3]*dx[2] ;
   Ladv /= 21. ;
 
+  Mdot_dump = -dMact*M_unit/T_unit;
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
   if (verbose) {
-    fprintf(stderr,"dMact: %g [code]\n",dMact) ;
-    fprintf(stderr,"Ladv: %g [code]\n",Ladv) ;
-    fprintf(stderr,"Mdot: %g [g/s] \n",-dMact*M_unit/T_unit) ;
-    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",-dMact*M_unit/T_unit/(MSUN / YEAR)) ;
-    fprintf(stderr,"Mdot: %g [Mdotedd]\n",-dMact*M_unit/T_unit/Mdotedd) ;
-    fprintf(stderr,"Mdotedd: %g [g/s]\n",Mdotedd) ;
-    fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",Mdotedd/(MSUN/YEAR)) ;
+    fprintf(stderr,"dMact: %g [code]\n",dMact);
+    fprintf(stderr,"Ladv: %g [code]\n",Ladv_dump);
+    fprintf(stderr,"Mdot: %g [g/s] \n",Mdot_dump);
+    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",Mdot_dump/(MSUN / YEAR));
+    fprintf(stderr,"Mdot: %g [Mdotedd]\n",Mdot_dump/MdotEdd_dump);
+    fprintf(stderr,"Mdotedd: %g [g/s]\n",MdotEdd_dump);
+    fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",MdotEdd_dump/(MSUN/YEAR));
   }
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
