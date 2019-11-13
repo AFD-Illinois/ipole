@@ -83,8 +83,10 @@ yoff 0
 
 # Whether to save GRMHD variables along some paths
 trace 0
-# Trace every N pixels in each direction
-trace_stride 4
-# Otherwise, trace a single pixel i,j
-#trace_i 40
-#trace_j 40
+# Pixel to trace i,j (rightward from left, upward from bottom)
+trace_i 40
+trace_j 40
+# Or trace every N pixels in each direction
+# trace_stride 4
+# Trace file name
+trace_outf trace.h5
