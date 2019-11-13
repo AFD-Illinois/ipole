@@ -680,6 +680,7 @@ void output_hdf5()
     hdf5_write_single_val(&trat_large, "rhigh", H5T_IEEE_F64LE);
   }
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
+  hdf5_set_directory("/");
 }
 
 void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)

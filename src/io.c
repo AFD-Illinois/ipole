@@ -6,10 +6,14 @@
  */
 
 #include "decs.h"
+#include "coordinates.h"
+#include "geometry.h"
+#include "radiation.h"
+#include "par.h"
 #include "hdf5_utils.h"
+
 #include "model.h"
 #include "model_radiation.h"
-#include "par.h"
 
 #include <unistd.h>
 #include <string.h>
@@ -243,16 +247,27 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   int nprims = 8;
   double *prims = calloc(nprims*nstep, sizeof(double));
+
   double *b = calloc(nstep, sizeof(double));
   double *ne = calloc(nstep, sizeof(double));
   double *thetae = calloc(nstep, sizeof(double));
+  double *nu = calloc(nstep, sizeof(double));
+  double *mu = calloc(nstep, sizeof(double));
 
+  double *dl = calloc(nstep, sizeof(double));
   double *X = calloc(NDIM*nstep, sizeof(double));
-  double *K = calloc(NDIM*nstep, sizeof(double));
-  double *Ucon = calloc(NDIM*nstep, sizeof(double));
-  double *Ucov = calloc(NDIM*nstep, sizeof(double));
-  double *Bcon = calloc(NDIM*nstep, sizeof(double));
-  double *Bcov = calloc(NDIM*nstep, sizeof(double));
+  // Vectors aren't really needed.  Put back in behind flag if it comes up
+//  double *Kcon = calloc(NDIM*nstep, sizeof(double));
+//  double *Kcov = calloc(NDIM*nstep, sizeof(double));
+
+  double *r = calloc(nstep, sizeof(double));
+  double *th = calloc(nstep, sizeof(double));
+  double *phi = calloc(nstep, sizeof(double));
+
+//  double *Ucon = calloc(NDIM*nstep, sizeof(double));
+//  double *Ucov = calloc(NDIM*nstep, sizeof(double));
+//  double *Bcon = calloc(NDIM*nstep, sizeof(double));
+//  double *Bcov = calloc(NDIM*nstep, sizeof(double));
 
   double *j_inv = calloc(NDIM*nstep, sizeof(double));
   double *alpha_inv = calloc(NDIM*nstep, sizeof(double));
@@ -260,7 +275,8 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   for (int i=0; i<nstep; i++) {
     get_model_primitives(traj[i].X, &(prims[i*nprims]));
-    get_model_fourv(traj[i].X, &(Ucon[i*NDIM]), &(Ucov[i*NDIM]), &(Bcon[i*NDIM]), &(Bcov[i*NDIM]));
+    double Ucont[NDIM], Ucovt[NDIM], Bcont[NDIM], Bcovt[NDIM];
+    get_model_fourv(traj[i].X, Ucont, Ucovt, Bcont, Bcovt);
     jar_calc(traj[i].X, traj[i].Kcon, &(j_inv[i*NDIM]), &(j_inv[i*NDIM+1]), &(j_inv[i*NDIM+2]), &(j_inv[i*NDIM+3]),
              &(alpha_inv[i*NDIM]), &(alpha_inv[i*NDIM+1]), &(alpha_inv[i*NDIM+2]), &(alpha_inv[i*NDIM+3]),
              &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]));
@@ -268,11 +284,20 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     b[i] = get_model_b(traj[i].X);
     ne[i] = get_model_ne(traj[i].X);
     thetae[i] = get_model_thetae(traj[i].X);
+    nu[i] = get_fluid_nu(traj[i].Kcon, Ucont);
+    mu[i] = get_bk_angle(traj[i].X, traj[i].Kcon, Ucovt, Bcont, Bcovt);
 
+    dl[i] = traj[i].dl;
     MULOOP {
       X[i*NDIM+mu] = traj[i].X[mu];
-      K[i*NDIM+mu] = traj[i].Kcon[mu];
+//      Kcon[i*NDIM+mu] = traj[i].Kcon[mu];
     }
+//    double Gcov[NDIM][NDIM];
+//    gcov_func(traj[i].X, Gcov);
+//    lower(traj[i].Kcon, Gcov, &(Kcov[i*NDIM]));
+
+    bl_coord(traj[i].X, &(r[i]), &(th[i]));
+    phi[i] = traj[i].X[3];
   }
 
   hdf5_set_directory("/");
@@ -298,6 +323,13 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_chunked_array(b, "b", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(ne, "ne", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(thetae, "thetae", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(nu, "nu", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(mu, "b_k_angle", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+
+  hdf5_write_chunked_array(dl, "dl", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(r, "r", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(th, "th", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(phi, "phi", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
 
   // VECTORS: Anything with N values per geodesic step
   hsize_t fdims_v[] = { nx, ny, MAXNSTEP, 4 };
@@ -308,12 +340,13 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hsize_t mstart_v[] = { 0, 0, 0, 0 };
 
   hdf5_write_chunked_array(X, "X", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(K, "K", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(Kcon, "Kcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(Kcov, "Kcov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-  hdf5_write_chunked_array(Ucon, "Ucon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(Ucov, "Ucov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(Bcon, "Bcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(Bcov, "Bcov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(Ucon, "Ucon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(Ucov, "Ucov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(Bcon, "Bcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(Bcov, "Bcov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
   hdf5_write_chunked_array(j_inv, "j_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(alpha_inv, "alpha_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
@@ -323,9 +356,13 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_chunked_array(prims, "prims", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
   free(b); free(ne); free(thetae);
+  free(nu); free(mu);
 
-  free(X); free(K);
-  free(Ucon); free(Ucov); free(Bcon); free(Bcov);
+  free(X);
+  //free(Kcon); free(Kcov);
+  free(r); free(th); free(phi);
+
+  //free(Ucon); free(Ucov); free(Bcon); free(Bcov);
   free(j_inv); free(alpha_inv); free(rho_inv);
 
   free(prims);
