@@ -275,6 +275,8 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     }
   }
 
+  hdf5_set_directory("/");
+
   // PICTURES: Anything with one value for every pixel
   hsize_t fdims_p[] = { nx, ny };
   hsize_t fstart_p[] = { i, j };
