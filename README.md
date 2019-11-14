@@ -17,7 +17,7 @@ Alternatively, if you would like to avoid compiling parallel HDF5, ensure that
 
 ```bash
 $ make CC=h5cc
-````
+```
 
 A particular fluid model or data format can be specified with
 ```MODEL=model_name```. For all fluid data produced from Illinois codes after
@@ -71,3 +71,30 @@ is useful for (e.g.) fitting an Munit.
 ```-quench```: Don't write any files to disk.
 
 These options do not affect the rest of the arguments.
+
+### Tracing
+
+As of November, ipole can output a file containing everything it used to compute
+a particular pixel.  This includes the coordinate locations of each step along
+the geodesic, as well as several scalars at each point (see format doc for
+specifics)
+
+To activate tracing for a pixel (i,j), measured from the bottom left with i
+rightward along the x axis and j upward along y, run ipole with
+
+```bash
+$ ./ipole -par parameters.par --trace=1 --trace_i=i --trace_j=j
+```
+
+an alternative option ```trace_stride``` is available to trace every N pixels
+across the entire image.
+
+# Output
+
+The ipole output format for images is documented
+[here](https://github.com/AFD-Illinois/docs/wiki/Image-Format).
+Converters are available to translate output into FITS images, or into the old
+7-column text format (i,j,F,I,Q,U,V).
+
+The ipole output format for traces is documented
+[here](https://github.com/AFD-Illinois/docs/wiki/Trace-File-Output-Format)
