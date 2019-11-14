@@ -547,6 +547,7 @@ int main(int argc, char *argv[])
           if (! only_unpolarized ) {
             evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
             if (isnan(creal(N_coord[0][0]))) {
+              printf("NaN in N00!\n");
               exit(-3);
             }
           }
@@ -664,12 +665,7 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
   double dxoff = (xoff+i+0.5-0.01)/nx - 0.5;
   double dyoff = (yoff+j+0.5)/ny - 0.5;
   Kcon_tetrad[0] = 0.;
-#if THIN_DISK
-  // TODO correct this more generally and take as parameter
-  Kcon_tetrad[1] = (dxoff*cos(rotcam) - dyoff*sin(rotcam)) * fovx  - (0.659986/40*fovx);
-#else
   Kcon_tetrad[1] = (dxoff*cos(rotcam) - dyoff*sin(rotcam)) * fovx;
-#endif
   Kcon_tetrad[2] = (dxoff*sin(rotcam) + dyoff*cos(rotcam)) * fovy;
   Kcon_tetrad[3] = 1.;
 
@@ -680,7 +676,7 @@ void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy,
   tetrad_to_coordinate(Econ, Kcon_tetrad, Kcon);
 
   /* set position */
-  for (int mu = 0; mu < NDIM; mu++) X[mu] = Xcam[mu];
+  MULOOP X[mu] = Xcam[mu];
 }
 
 /* must be a stable, approximate solution to radiative transfer
