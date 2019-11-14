@@ -284,7 +284,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     b[i] = get_model_b(traj[i].X);
     ne[i] = get_model_ne(traj[i].X);
     thetae[i] = get_model_thetae(traj[i].X);
-    nu[i] = get_fluid_nu(traj[i].Kcon, Ucont);
+    nu[i] = get_fluid_nu(traj[i].Kcon, Ucovt);
     mu[i] = get_bk_angle(traj[i].X, traj[i].Kcon, Ucovt, Bcont, Bcovt);
 
     dl[i] = traj[i].dl;
