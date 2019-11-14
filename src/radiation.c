@@ -36,17 +36,16 @@ double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM])
 
     /* this is the energy in electron rest-mass units */
     nu = -(Kcon[0] * Ucov[0] + Kcon[1] * Ucov[1] +
-	   Kcon[2] * Ucov[2] + Kcon[3] * Ucov[3]) 
-	   * ME * CL * CL / HPL;
+           Kcon[2] * Ucov[2] + Kcon[3] * Ucov[3])
+           * ME * CL * CL / HPL;
 
     if (nu < 0.) nu = 1.;
 
     if (isnan(nu)) {
-	fprintf(stderr, "isnan get_fluid_nu, K: %g %g %g %g\n", 
-		Kcon[0], Kcon[1], Kcon[2], Kcon[3]);
-	fprintf(stderr, "isnan get_fluid_nu, U: %g %g %g %g\n", 
-		Ucov[0], Ucov[1], Ucov[2], Ucov[3]);
-	exit(1);
+      fprintf(stderr, "isnan get_fluid_nu, K: %g %g %g %g\n",
+              Kcon[0], Kcon[1], Kcon[2], Kcon[3]);
+      fprintf(stderr, "isnan get_fluid_nu, U: %g %g %g %g\n",
+              Ucov[0], Ucov[1], Ucov[2], Ucov[3]);
     }
 
     return (nu);
