@@ -9,10 +9,12 @@ be in your ```PATH```. Then just build by running
 ```bash
 $ make
 ```
-with or without any of the usual ```make``` options, e.g. ```-j```, ```-f```.
+with or without any of the usual ```make``` options, e.g. ```-j```.  You can 
+make ```ipole``` into any destination directory by going there, and then 
+specifying the location of the makefile with ```-f```.  Note, though, that
+```ipole``` does not ever support directories which contain spaces.
 
-
-Alternatively, if you would like to avoid compiling parallel HDF5, ensure that
+Alternatively, if you are building your own serial version of HDF5, ensure that
 ```h5cc``` is in your path, and run
 
 ```bash
@@ -74,10 +76,11 @@ These options do not affect the rest of the arguments.
 
 ### Tracing
 
-As of November, ipole can output a file containing everything it used to compute
+This version of ipole can output a file containing everything it used to compute
 a particular pixel.  This includes the coordinate locations of each step along
-the geodesic, as well as several scalars at each point (see format doc for
-specifics)
+the geodesic, as well as several scalars at each point (see the
+[format doc](https://github.com/AFD-Illinois/docs/wiki/Trace-File-Output-Format)
+for specifics).
 
 To activate tracing for a pixel (i,j), measured from the bottom left with i
 rightward along the x axis and j upward along y, run ipole with
