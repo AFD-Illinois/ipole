@@ -152,7 +152,6 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   double Gcov[NDIM][NDIM], Gcon[NDIM][NDIM];
   gcov_func(X, Gcov);
   gcon_func(Gcov, Gcon);
-
   double Ucam[NDIM], Kcon[NDIM], trial[NDIM];
 
 #ifdef CAMERA_CENTER_ZAMO
@@ -204,7 +203,7 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   trial[1] = 0.;
   trial[2] = 1.;
   trial[3] = 0.;
-
+  
   make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
 
 #endif
