@@ -126,7 +126,7 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     Thetae = get_model_thetae(X);	// temp in e rest-mass units
 
 
-    dexter_j_fit(Ne, nu, Thetae, B, theta, jI, jQ, jU, jV);
+    symphony_j_fit(Ne, nu, Thetae, B, theta, jI, jQ, jU, jV);
     dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
 
     // invariant emissivity
@@ -164,8 +164,8 @@ void symphony_j_fit(double Ne, double nu, double Thetae, double B, double theta,
   *jI = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_I, Thetae,
                 0, 0, 0, 0, 0, 0); // Power law P, gamma min, gamma max, gamma cut, kappa, kappa width
   *jQ = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_Q, Thetae, 0, 0, 0, 0, 0, 0);
-  *jI = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_U, Thetae, 0, 0, 0, 0, 0, 0);
-  *jI = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_V, Thetae, 0, 0, 0, 0, 0, 0);
+  *jU = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_U, Thetae, 0, 0, 0, 0, 0, 0);
+  *jV = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_V, Thetae, 0, 0, 0, 0, 0, 0);
 }
 
 /*
