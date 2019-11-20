@@ -18,10 +18,21 @@
 #include "geometry.h"
 #include "decs.h"
 
+// Symphony
+#include "fits.h"
+#include "params.h"
+
 #include <omp.h>
 #include <gsl/gsl_sf_bessel.h>
 
-// Declarations of local functions
+// Declarations of local functions: emissivity fits
+void symphony_j_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *jI, double *jQ, double *jU, double *jV);
+void dexter_j_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *jI, double *jQ, double *jU, double *jV);
+void dexter_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *rQ, double *rU, double *rV);
+
 // Thermal plasma emissivity, absorptivity and Faraday conversion and rotation
 double g(double Xe);
 double h(double Xe);
@@ -42,10 +53,8 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     double *rQ, double *rU, double *rV)
 {
   double nu, Thetae, Ne, B, theta, nusq;
-  double x, Xe, omega0, nuc;
   double Bnuinv;
   double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-  double Thetaer, wp2;
 
   Ne = get_model_ne(X);
   get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
@@ -93,42 +102,21 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *aU = 0.0;
     *aV = 0.0;
 
+    nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
+    B = get_model_b(X);		// field in G
+    Thetae = get_model_thetae(X);	// temp in e rest-mass units
+
+    // Only take rV
+    dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
     *rQ = 0.0;
     *rU = 0.0;
 
-    nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
-    wp2 = 4. * M_PI * Ne * EE * EE / ME;
-    B = get_model_b(X);		// field in G
-    omega0 = EE * B / ME / CL;
-    Thetae = get_model_thetae(X);	// temp in e rest-mass units
-    Thetaer = 1. / Thetae;
-    // Faraday rotativities for thermal plasma
-    Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
-
-    // Switch between three different fits for rho_V
-    if (Thetae > 4.0) {
-      // High temperature: use approximations to bessel
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
-        (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
-    } else if (0.2 < Thetae && Thetae <= 4.0) {
-      // Mid temperature: use real bessel functions (TODO fit?)
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
-        (gsl_sf_bessel_Kn(0, Thetaer) - Je(Xe)) / gsl_sf_bessel_Kn(2, Thetaer) * cos(theta);
-    } else if (Thetae <= 0.2) {
-      // Use the constant low-temperature limit
-      // WARNING: Note that for about 0.01 < Thetae < 0.2, this is not a great approximation
-      // But it is a fair sight better than the others here
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) * cos(theta);
-    }
-
-    /* invariant rotativities */
+    // invariant rotativities
     *rV *= nu;
 
     if (isnan(*rV)  || *rV > 1.e100 || *rV < -1.e100) {
-      printf("NAN RV theta! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
+      fprintf(stderr, "NAN RV! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
     }
-
-    return;
 
   } else {
 
@@ -136,41 +124,10 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     nusq = nu * nu;
     B = get_model_b(X);	// field in G
     Thetae = get_model_thetae(X);	// temp in e rest-mass units
-    Thetaer = 1. / Thetae;
 
-    omega0 = EE * B / ME / CL;
-    wp2 = 4. * M_PI * Ne * EE * EE / ME;
 
-    // Faraday rotativities for thermal plasma
-    Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
-
-    // Approximate bessel functions to match rhoq,v with grtrans
-    *rQ = 2. * M_PI * nu / 2. / CL * wp2 * omega0 * omega0 / pow(2 * M_PI * nu, 4) *
-      jffunc(Xe) * (besselk_asym(1, Thetaer) / besselk_asym(2, Thetaer) +
-          6. * Thetae) * sin(theta) * sin(theta);
-    *rU = 0.0;
-    // Switch between three different fits for rho_V
-    if (Thetae > 3.0) {
-      // High temperature: use approximations to bessel
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
-        (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
-    } else if (0.2 < Thetae && Thetae <= 3.0) {
-      // Mid temperature: use real bessel functions (TODO fit?)
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
-        (gsl_sf_bessel_Kn(0, Thetaer) - Je(Xe)) / gsl_sf_bessel_Kn(2, Thetaer) * cos(theta);
-    } else if (Thetae <= 0.2) {
-      // Use the constant low-temperature limit
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) * cos(theta);
-    }
-
-    // Synchrotron emissivity
-    nuc = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
-    x = nu / nuc;
-
-    *jI = Ne * EE * EE * nu / 2. / sqrt(3) / CL / Thetae / Thetae * I_I(x);	// [g/s^2/cm = ergs/s/cm^3]
-    *jQ = Ne * EE * EE * nu / 2. / sqrt(3) / CL / Thetae / Thetae * I_Q(x);
-    *jU = 0.0;		// convention; depends on tetrad
-    *jV = 2. * Ne * EE * EE * nu / tan(theta) / 3. / sqrt(3) / CL / Thetae / Thetae / Thetae * I_V(x);
+    dexter_j_fit(Ne, nu, Thetae, B, theta, jI, jQ, jU, jV);
+    dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
 
     // invariant emissivity
     *jI /= nusq;
@@ -192,22 +149,75 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
     // something bad has happened. report the details.
     if (isnan(*rV) || *rV > 1.e100 || *rV < -1.e100) {
-      int i,j,k;
-      double del[4];
-      void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
-      Xtoijk(X, &i,&j,&k, del);
-      fprintf(stderr, "NAN RV! rV = %e nu = %e Ne = %e Thetae = %e x = %e B = %e\n", *rV, nu, Ne, Thetae, x, B);
-      P4VEC("X", X);
-      P4VEC("Kcon", Kcon);
-      P4VEC("Ucov", Ucov);
+      fprintf(stderr, "NAN RV! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
     }
-
   }
-
 }
 
-/*emissivity functions and functions used for Faraday conversion and rotation*/
-/*from J. Dexter PhD thesis (checked with Leung harmony program, and Huang & Shcherbakov 2011*/
+// Directly call Symphony fits
+void symphony_j_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *jI, double *jQ, double *jU, double *jV)
+{
+  struct parameters paramsM;
+  setConstParams(&paramsM);
+
+  *jI = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_I, Thetae,
+                0, 0, 0, 0, 0, 0); // Power law P, gamma min, gamma max, gamma cut, kappa, kappa width
+  *jQ = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_Q, Thetae, 0, 0, 0, 0, 0, 0);
+  *jI = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_U, Thetae, 0, 0, 0, 0, 0, 0);
+  *jI = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_V, Thetae, 0, 0, 0, 0, 0, 0);
+}
+
+/*
+ * emissivity functions and functions used for Faraday conversion and rotation
+ * from J. Dexter PhD thesis (checked with Leung harmony program, and Huang & Shcherbakov 2011
+ * Also see Dexter 2016 Appendix A1
+ */
+void dexter_j_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *jI, double *jQ, double *jU, double *jV)
+{
+  // Synchrotron emissivity
+  //
+  double nus = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
+  double x = nu / nus;
+
+  *jI = Ne * EE * EE * nu / 2. / sqrt(3) / CL / Thetae / Thetae * I_I(x); // [g/s^2/cm = ergs/s/cm^3]
+  *jQ = Ne * EE * EE * nu / 2. / sqrt(3) / CL / Thetae / Thetae * I_Q(x);
+  *jU = 0.0;    // convention; depends on tetrad
+  *jV = 2. * Ne * EE * EE * nu / tan(theta) / 3. / sqrt(3) / CL / Thetae / Thetae / Thetae * I_V(x);
+}
+
+void dexter_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *rQ, double *rU, double *rV)
+{
+  double Thetaer = 1. / Thetae;
+
+  double omega0 = EE * B / ME / CL;
+  double wp2 = 4. * M_PI * Ne * EE * EE / ME;
+
+  // Faraday rotativities for thermal plasma
+  double Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
+
+  // Approximate bessel functions to match rhoq,v with grtrans
+  *rQ = 2. * M_PI * nu / 2. / CL * wp2 * omega0 * omega0 / pow(2 * M_PI * nu, 4) *
+    jffunc(Xe) * (besselk_asym(1, Thetaer) / besselk_asym(2, Thetaer) +
+        6. * Thetae) * sin(theta) * sin(theta);
+  *rU = 0.0;
+  // Switch between three different fits for rho_V
+  if (Thetae > 3.0) {
+    // High temperature: use approximations to bessel
+    *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
+      (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
+  } else if (0.2 < Thetae && Thetae <= 3.0) {
+    // Mid temperature: use real bessel functions (TODO fit?)
+    *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
+      (gsl_sf_bessel_Kn(0, Thetaer) - Je(Xe)) / gsl_sf_bessel_Kn(2, Thetaer) * cos(theta);
+  } else if (Thetae <= 0.2) {
+    // Use the constant low-temperature limit
+    *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) * cos(theta);
+  }
+}
+
 double g(double Xe)
 {
   return 1. - 0.11 * log(1 + 0.035 * Xe);
@@ -227,13 +237,13 @@ double Je(double Xe)
 
 double jffunc(double Xe)
 {
-  double extraterm;
-  extraterm =
+  double extraterm =
     (0.011 * exp(-Xe / 47.2) -
      pow(2., -1. / 3.) / pow(3.,
        23. / 6.) * M_PI * 1e4 * pow(Xe + 1e-16,
          -8. / 3.)) *
     (0.5 + 0.5 * tanh((log(Xe) - log(120.)) / 0.1));
+
   return 2.011 * exp(-pow(Xe, 1.035) / 4.7) -
     cos(Xe * 0.5) * exp(-pow(Xe, 1.2) / 2.73) -
     0.011 * exp(-Xe / 47.2) + extraterm;
@@ -263,6 +273,7 @@ double I_V(double x)
     exp(-1.8899 * pow(x, 1. / 3.));
 }
 
+// TODO slice up this, rather than the applications of it above
 double besselk_asym(int n, double x)
 {
 
@@ -279,30 +290,7 @@ double besselk_asym(int n, double x)
   exit(1);
 }
 
-/*
- * thermal synchrotron emissivity
- *
- * Interpolates between Petrosian limit and
- * classical thermal synchrotron limit
- * Good for Thetae >~ 1
-*/
-double jnu_synch(double nu, double Ne, double Thetae, double B, double theta)
-{
-  double K2,nuc,nus,x,f,j,sth ;
-
-  //K2 = gsl_sf_bessel_Kn(2,1./Thetae) ;
-  K2 = 2.*Thetae*Thetae ;
-
-  nuc = EE*B/(2.*M_PI*ME*CL) ;
-  sth = sin(theta) ;
-  nus = (2./9.)*nuc*Thetae*Thetae*sth ;
-  if(nu > 1.e12*nus) return(0.) ;
-  x = nu/nus ;
-  f = pow( pow(x,1./2.) + pow(2.,11./12.)*pow(x,1./6.), 2 ) ;
-  j = (sqrt(2.)*M_PI*EE*EE*Ne*nus/(3.*CL*K2)) * f * exp(-pow(x,1./3.)) ;
-
-  return(j) ;
-}
+// UNPOLARIZED VERSIONS
 
 /*
  * get the invariant emissivity and opacity at a given position for a given wavevector
@@ -329,23 +317,9 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
   /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
   get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
 
-  /*
-  // threshold on sigma per interpolation point
-  double sigma = B*B/Ne * RHO_unit / (MP+ME) / B_unit / B_unit;
-
-  if (flag) fprintf(stderr, "%g ", sigma);
-
-  if (sigma > sigma_cut) {
-    *jnuinv = 0.;
-    *knuinv = 0.;
-    return;
-  }
-   */
-
   gcov_func(X, gcov);
   flip_index(Kcon, gcov, Kcov);
 
-  //theta = M_PI/2.;
   theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
 
   if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
@@ -365,9 +339,6 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
   else
     *knuinv = *jnuinv / Bnuinv;
 
-  // optically thin
-  //*knuinv = 0.;
-
   if (isnan(*jnuinv) || isnan(*knuinv)) {
     fprintf(stderr, "\nisnan get_jkinv\n");
     fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
@@ -385,5 +356,31 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
   }
 
   return;
+}
+
+/*
+ * thermal synchrotron emissivity
+ *
+ * Interpolates between Petrosian limit and
+ * classical thermal synchrotron limit
+ * Good for Thetae >~ 1
+ * See Leung+ 2011, restated Pandya+ 2016
+ */
+double jnu_synch(double nu, double Ne, double Thetae, double B, double theta)
+{
+  double K2,nuc,nus,x,f,j,sth ;
+
+  //K2 = gsl_sf_bessel_Kn(2,1./Thetae) ;
+  K2 = 2.*Thetae*Thetae ;
+
+  nuc = EE*B/(2.*M_PI*ME*CL) ;
+  sth = sin(theta) ;
+  nus = (2./9.)*nuc*Thetae*Thetae*sth ;
+  if(nu > 1.e12*nus) return(0.) ;
+  x = nu/nus ;
+  f = pow( pow(x,1./2.) + pow(2.,11./12.)*pow(x,1./6.), 2 ) ;
+  j = (sqrt(2.)*M_PI*EE*EE*Ne*nus/(3.*CL*K2)) * f * exp(-pow(x,1./3.)) ;
+
+  return(j) ;
 }
 
