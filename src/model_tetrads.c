@@ -4,6 +4,8 @@
 
  */
 
+#include "model_tetrads.h"
+
 #include "decs.h"
 #include "coordinates.h"
 #include "geometry.h"
@@ -183,7 +185,7 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   trial[2] = 1.;
   trial[3] = 0.;
 
-  make_plasa_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
+  make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
 
 #else
   // old centering method
@@ -203,7 +205,7 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   trial[1] = 0.;
   trial[2] = 1.;
   trial[3] = 0.;
-  
+
   make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
 
 #endif
