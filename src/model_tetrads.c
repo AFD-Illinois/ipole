@@ -136,9 +136,9 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
  * Make orthonormal basis for camera frame.
  *
  * e^0 along Ucam
- * e^1 outward (!) along radius vector
+ * e^3 outward (!) along radius vector
  * e^2 toward north pole of coordinate system ("y" in the image plane)
- * e^3 in the remaining direction ("x" in the image plane)
+ * e^1 in the remaining direction ("x" in the image plane)
  *
  * This combination measures the final Stokes parameters correctly (IEEE/IAS).
  * These values are then translated if a different convention is to be output.
@@ -153,20 +153,61 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   gcov_func(X, Gcov);
   gcon_func(Gcov, Gcon);
 
-  // Unmoving camera w.r.t. coordinates i.e. dx_i/dtau = 0.
-  // Could use normal observer for standard images much closer to EH
-  double Ucov[NDIM] = {1, 0, 0, 0};
+  double Ucam[NDIM], Kcon[NDIM], trial[NDIM];
 
-  // This puts a photon with zero angular momentum in the center of the field of view
-  // Note we construct the *covariant* version directly as angular momentum is k_phi
-  double Kcov[NDIM] = {-1, 1, 0, 0};
+#ifdef CAMERA_CENTER_ZAMO
+  // center the camera according to impact parameter, i.e., make it
+  // so that Kcontetrad = ( 1, 0, 0, 1 ) corresponds to an outgoing
+  // wavevector with zero angular momentum / zero impact parameter.
 
-  // Take "north" to be in X2 direction
-  double tcov[NDIM] = {0, 0, 1, 0};
+  // use normal observer velocity. this forces (Gcov.Econ[0])[3] = 0.
+  trial[0] = -1.;
+  trial[1] = 0.;
+  trial[2] = 0.;
+  trial[3] = 0.;
+  flip_index(trial, Gcon, Ucam);
 
-  // Make a tetrad from the *covariant* vectors
-  // This inverts the usual calling convention of make_plasma_tetrad, but the orthogonalization
-  // procedure is exactly the same for covariant vectors/Gcon as for contravariant vectors/Gcov
-  make_plasma_tetrad(Ucov, Kcov, tcov, Gcon, Ecov, Econ);
+  // set Kcon (becomes Econ[3][mu]) outward directed with central 
+  // pixel k_phi = 0. this ensures that a photon with zero impact 
+  // parameter will be in the center of the field of view.
+  trial[0] = 1.;
+  trial[1] = 1.;
+  trial[2] = 0.;
+  trial[3] = 0.;
+  flip_index(trial, Gcon, Kcon);
+
+  // set the y camera direction to be parallel to the projected
+  // spin axis of the black hole (on the image plane defined to
+  // be normal to the Kcon vector above).
+  trial[0] = 0.;
+  trial[1] = 0.;
+  trial[2] = 1.;
+  trial[3] = 0.;
+
+  make_plasa_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
+
+#else
+  // old centering method
+
+  Ucam[0] = 1.;
+  Ucam[1] = 0.;
+  Ucam[2] = 0.;
+  Ucam[3] = 0.;
+
+  trial[0] = 1.;
+  trial[1] = 1.;
+  trial[2] = 0.;
+  trial[3] = 0.;
+  flip_index(trial, Gcon, Kcon);
+
+  trial[0] = 0.;
+  trial[1] = 0.;
+  trial[2] = 1.;
+  trial[3] = 0.;
+
+  make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
+
+#endif
+
 }
 
