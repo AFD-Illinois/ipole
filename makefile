@@ -51,15 +51,16 @@ GSL_LIB = -lgsl -lgslcblas
 
 ## LOGIC FOR PATHS ##
 CORE_DIR := $(MAKEFILE_PATH)/src/
+EMIS_DIR := $(MAKEFILE_PATH)/src/symphony/
 MODEL_DIR := $(MAKEFILE_PATH)/model/$(MODEL)/
-VPATH = $(CORE_DIR):$(MODEL_DIR)
+VPATH = $(CORE_DIR):$(EMIS_DIR):$(MODEL_DIR)
 
 #ARC_DIR := $(MAKEFILE_PATH)/model/$(MODEL)/build_archive/
 # TODO this is I think gmake-specific
 ARC_DIR := $(CURDIR)/build_archive/
 
-SRC := $(wildcard $(CORE_DIR)/*.c) $(wildcard $(MODEL_DIR)/*.c)
-HEAD := $(wildcard $(CORE_DIR)/*.h) $(wildcard $(MODEL_DIR)/*.h)
+SRC := $(wildcard $(CORE_DIR)/*.c) $(wildcard $(EMIS_DIR)/*.c) $(wildcard $(MODEL_DIR)/*.c)
+HEAD := $(wildcard $(CORE_DIR)/*.h) $(wildcard $(EMIS_DIR)/*.h) $(wildcard $(MODEL_DIR)/*.h)
 
 HEAD_ARC := $(addprefix $(ARC_DIR)/, $(notdir $(HEAD)))
 OBJ := $(addprefix $(ARC_DIR)/, $(notdir $(SRC:%.c=%.o)))
