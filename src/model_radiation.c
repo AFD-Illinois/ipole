@@ -26,9 +26,7 @@
 #include <gsl/gsl_sf_bessel.h>
 
 // Declarations of local functions: emissivity fits
-void symphony_j_fit(double Ne, double nu, double Thetae, double B, double theta,
-                    double *jI, double *jQ, double *jU, double *jV);
-void dexter_j_fit(double Ne, double nu, double Thetae, double B, double theta,
+void dexter_j_fit_thermal(double Ne, double nu, double Thetae, double B, double theta,
                     double *jI, double *jQ, double *jU, double *jV);
 void dexter_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
                     double *rQ, double *rU, double *rV);
@@ -43,17 +41,39 @@ double I_Q(double x);
 double I_V(double x);
 double besselk_asym(int n, double x);
 
+// TODO a parameters check in here
+static int dist = 1;
 
 /*
- * invariant plasma emissivities/abs/rot in tetrad frame
+ * Get the invariant plasma emissivities, absorptivities, rotativities in tetrad frame
+ * This is a wrapper to the fitting functions in this file and in the emissivity/ dir
+ *
+ * The dist argument controls fitting functions/distribution:
+ * 1. Thermal (Pandya+ 2016)
+ * 2. Kappa (Pandya+ 2016)
+ * 3. Power-law (Pandya+ 2016)
+ * 4. Thermal (Dexter 2016)
+ *
+ * To be implemented?
+ * 5. Power-law (Dexter 2016)
+ * 6. Thermal (Revised based on Pandya+ 2016 to better match Leung 2011)
+ *
+ * Rotativities are always from Dexter 2016
  */
 void jar_calc(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV)
 {
-  double nu, Thetae, Ne, B, theta, nusq;
-  double Bnuinv;
+  // Common parameters
+  double nu, Ne, B, theta, nusq;
+  // Parameters for fits.  Initialized since all are used for Symphony calls
+  double Thetae = 0;
+  double powerlaw_p = 0, gamma_min = 0, gamma_max = 0, gamma_cut = 0;
+  double kappa = 0, kappa_width = 0;
+  // Symphony params struct
+  struct parameters paramsM; int fit;
+
   double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
 
   Ne = get_model_ne(X);
@@ -123,11 +143,32 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
     nusq = nu * nu;
     B = get_model_b(X);	// field in G
-    Thetae = get_model_thetae(X);	// temp in e rest-mass units
 
+    // EMISSIVITIES
+    if (dist == 4) {
+      // Fits from Dexter.  Used directly
+      Thetae = get_model_thetae(X);
+      dexter_j_fit_thermal(Ne, nu, Thetae, B, theta, jI, jQ, jU, jV);
+    } else {
+      // Symphony setup -- translate dist param into
+      setConstParams(&paramsM);
 
-    symphony_j_fit(Ne, nu, Thetae, B, theta, jI, jQ, jU, jV);
-    dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
+      if (dist == 1) {
+        fit = paramsM.MAXWELL_JUETTNER;
+        Thetae = get_model_thetae(X);
+      } else if (dist == 2) {
+        fit = paramsM.KAPPA_DIST;
+        // TODO get_model_kappa
+      } else if (dist == 2) {
+        fit = paramsM.POWER_LAW;
+        // TODO get_model_gamma etc
+      }
+
+      *jI = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *jQ = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *jU = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *jV = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+    }
 
     // invariant emissivity
     *jI /= nusq;
@@ -135,12 +176,24 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *jU /= nusq;
     *jV /= nusq;
 
-    // invariant synchrotron absorptivity
-    Bnuinv = Bnu_inv(nu, Thetae);   // Planck function
-    *aI = *jI / Bnuinv;
-    *aQ = *jQ / Bnuinv;
-    *aU = *jU / Bnuinv;
-    *aV = *jV / Bnuinv;
+    // ABSORPTIVITIES
+    if (dist == 1 || dist == 4) {
+      // Get absorptivities via Kirchoff's law
+      double Bnuinv = Bnu_inv(nu, Thetae);   // Planck function
+      *aI = *jI / Bnuinv;
+      *aQ = *jQ / Bnuinv;
+      *aU = *jU / Bnuinv;
+      *aV = *jV / Bnuinv;
+    } else {
+      *aI = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *aQ = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *aU = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *aV = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+    }
+
+    // ROTATIVITIES
+    dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
+    // TODO NEEDS POWER LAW.  FIX SYMPHONY LOW-T AND USE
 
     // invariant rotativities
     *rQ *= nu;
@@ -154,26 +207,12 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
   }
 }
 
-// Directly call Symphony fits
-void symphony_j_fit(double Ne, double nu, double Thetae, double B, double theta,
-                    double *jI, double *jQ, double *jU, double *jV)
-{
-  struct parameters paramsM;
-  setConstParams(&paramsM);
-
-  *jI = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_I, Thetae,
-                0, 0, 0, 0, 0, 0); // Power law P, gamma min, gamma max, gamma cut, kappa, kappa width
-  *jQ = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_Q, Thetae, 0, 0, 0, 0, 0, 0);
-  *jU = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_U, Thetae, 0, 0, 0, 0, 0, 0);
-  *jV = j_nu_fit(nu, B, Ne, theta, paramsM.MAXWELL_JUETTNER, paramsM.STOKES_V, Thetae, 0, 0, 0, 0, 0, 0);
-}
-
 /*
  * emissivity functions and functions used for Faraday conversion and rotation
  * from J. Dexter PhD thesis (checked with Leung harmony program, and Huang & Shcherbakov 2011
  * Also see Dexter 2016 Appendix A1
  */
-void dexter_j_fit(double Ne, double nu, double Thetae, double B, double theta,
+void dexter_j_fit_thermal(double Ne, double nu, double Thetae, double B, double theta,
                     double *jI, double *jQ, double *jU, double *jV)
 {
   // Synchrotron emissivity
@@ -273,7 +312,6 @@ double I_V(double x)
     exp(-1.8899 * pow(x, 1. / 3.));
 }
 
-// TODO slice up this, rather than the applications of it above
 double besselk_asym(int n, double x)
 {
 

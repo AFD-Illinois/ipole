@@ -1,5 +1,8 @@
 #include "fits.h"
 
+#include <stdlib.h>
+#include <stdio.h>
+
 /*Wrappers for the fitting formulae*/
 
 /*j_nu_fit: wrapper for the emissivity fitting formulae.  Takes in the

@@ -1,7 +1,7 @@
 #ifndef SYMPHONY_FITS_H_
 #define SYMPHONY_FITS_H_
 
-#include "symphony.h"
+#include "params.h"
 
 /* Maxwell-Juettner emissivity fits */
 double maxwell_juettner_I(struct parameters * params);
