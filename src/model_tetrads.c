@@ -4,10 +4,14 @@
 
  */
 
+#include "model_tetrads.h"
+
 #include "decs.h"
 #include "coordinates.h"
 #include "geometry.h"
 #include "tetrads.h"
+
+#include "debug_tools.h"
 
 /** tetrad making routines **/
 
@@ -101,7 +105,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
     Xtoijk(X, &i, &j, &k, del);
     fprintf(stderr, "X[]: %g %g %g %g  (%d %d %d)\n", X[0], X[1], X[2], X[3], i,
             j, k);
-    //exit(-2);
+    exit(-2);
   }
 
   /* we expect dot = 1. for right-handed system.
@@ -131,45 +135,71 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
 }
 
 /*
- make orthonormal basis for camera frame.
-
- e^0 along Ucam
- e^1 outward (!) along radius vector
- e^2 toward north pole of coordinate system
- ("y" for the image plane)
- e^3 in the remaining direction
- ("x" for the image plane)
-
- this needs to be arranged this way so that
- final Stokes parameters are measured correctly.
-
- essentially an interface to make_plasma_tetrad
+ * Make orthonormal basis for camera frame.
+ *
+ * e^0 along Ucam
+ * e^3 outward (!) along radius vector
+ * e^2 toward north pole of coordinate system ("y" in the image plane)
+ * e^1 in the remaining direction ("x" in the image plane)
+ *
+ * This combination measures the final Stokes parameters correctly (IEEE/IAS).
+ * These values are then translated if a different convention is to be output.
+ *
+ * Points the camera so that the angular momentum k_phi at FOV center is 0
  */
 
 void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
                         double Ecov[NDIM][NDIM])
 {
   double Gcov[NDIM][NDIM], Gcon[NDIM][NDIM];
-  double Ucam[NDIM];
-  double Kcov[NDIM], Kcon[NDIM]; //, Kcon_ks[NDIM];
-  double trial[NDIM];
+  gcov_func(X, Gcov);
+  gcon_func(Gcov, Gcon);
+  double Ucam[NDIM], Kcon[NDIM], trial[NDIM];
 
-  /* could use normal observer here; at present, camera has dx^i/dtau = 0 */
+#ifdef CAMERA_CENTER_ZAMO
+  // center the camera according to impact parameter, i.e., make it
+  // so that Kcontetrad = ( 1, 0, 0, 1 ) corresponds to an outgoing
+  // wavevector with zero angular momentum / zero impact parameter.
+
+  // use normal observer velocity. this forces (Gcov.Econ[0])[3] = 0.
+  trial[0] = -1.;
+  trial[1] = 0.;
+  trial[2] = 0.;
+  trial[3] = 0.;
+  flip_index(trial, Gcon, Ucam);
+
+  // set Kcon (becomes Econ[3][mu]) outward directed with central 
+  // pixel k_phi = 0. this ensures that a photon with zero impact 
+  // parameter will be in the center of the field of view.
+  trial[0] = 1.;
+  trial[1] = 1.;
+  trial[2] = 0.;
+  trial[3] = 0.;
+  flip_index(trial, Gcon, Kcon);
+
+  // set the y camera direction to be parallel to the projected
+  // spin axis of the black hole (on the image plane defined to
+  // be normal to the Kcon vector above).
+  trial[0] = 0.;
+  trial[1] = 0.;
+  trial[2] = 1.;
+  trial[3] = 0.;
+
+  make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
+
+#else
+  // old centering method
+
   Ucam[0] = 1.;
   Ucam[1] = 0.;
   Ucam[2] = 0.;
   Ucam[3] = 0.;
 
-  /* this puts a photon with zero angular momentum in the center of
-   the field of view */
-  Kcov[0] = 1.;
-  Kcov[1] = 1.;
-  Kcov[2] = 0.;
-  Kcov[3] = 0.;
-  gcov_func(X, Gcov);
-  gcon_func(Gcov, Gcon);
-  flip_index(Kcov, Gcon, Kcon);
-  //bl_to_ks(X, Kcon, Kcon_ks);
+  trial[0] = 1.;
+  trial[1] = 1.;
+  trial[2] = 0.;
+  trial[3] = 0.;
+  flip_index(trial, Gcon, Kcon);
 
   trial[0] = 0.;
   trial[1] = 0.;
@@ -177,6 +207,8 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   trial[3] = 0.;
 
   make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
-  //make_plasma_tetrad(Ucam, Kcon_ks, trial, Gcov, Econ, Ecov);
+
+#endif
+
 }
 
