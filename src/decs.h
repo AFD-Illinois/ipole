@@ -1,12 +1,13 @@
 #ifndef DECS_H
 #define DECS_H
 
-//
 #include "constants.h"
 #include <math.h>
 #include <complex.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+#define VERSION_STRING "ipole-beta-1.2"
 
 #define NDIM	4
 

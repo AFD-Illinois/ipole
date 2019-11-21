@@ -42,7 +42,7 @@ static inline int imgindex(int n, int i, int j) {return (n*nx + i)*ny + j;}
 int main(int argc, char *argv[]) 
 {
   // motd
-  fprintf(stderr, "ipole. githash: %s\n", xstr(VERSION));
+  fprintf(stderr, "%s. githash: %s\n", VERSION_STRING, xstr(VERSION));
   fprintf(stderr, "notes: %s\n\n", xstr(NOTES));
 
   // initialization
@@ -68,11 +68,13 @@ int main(int argc, char *argv[])
   load_par_from_argv(argc, argv, &params);
 
   // figure out if we should run in a custom mode
-  // TODO handle with other parameters
+  // TODO handle with other parameters instead of merging
   for (int i=0; i<argc; ++i) {
     if ( strcmp(argv[i], "-quench") == 0 ) quench_output = 1;
     else if ( strcmp(argv[i], "-unpol") == 0 ) only_unpolarized = 1;
   }
+  if (params.quench_output) quench_output = 1;
+  if (params.only_unpolarized) only_unpolarized = 1;
 
   // now that we've loaded all parameters, tell our model about
   // them and use init_model to load the first dump

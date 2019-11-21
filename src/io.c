@@ -136,11 +136,13 @@ void write_restart(const char *fname, double tA, double tB, double last_img_targ
 void write_header(double scale, double cam[NDIM],
     double fovx, double fovy, Params *params)
 {
-  hid_t dtype_version = hdf5_make_str_type(strlen(xstr(VERSION)));
+  hid_t dtype_version = hdf5_make_str_type(20);
   hdf5_add_attr(xstr(VERSION), "githash", "/", dtype_version);
 
   hdf5_make_directory("header");
   hdf5_set_directory("/header/");
+  hdf5_write_single_val(VERSION_STRING, "version", dtype_version);
+  hdf5_write_single_val(xstr(VERSION), "githash", dtype_version);
   // Make locals for things we'll use later
   double freqcgs = params->freqcgs;
   double dsource = params->dsource;
