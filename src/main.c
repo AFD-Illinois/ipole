@@ -606,6 +606,9 @@ int main(int argc, char *argv[])
     double Ftot_unpol = 0.;
     double Imax = 0.0;
     double Iavg = 0.0;
+    double Qtot = 0.;
+    double Utot = 0.; 
+    double Vtot = 0.;
     int imax = 0;
     int jmax = 0;
     for (int i = 0; i < nx; i++) {
@@ -613,6 +616,9 @@ int main(int argc, char *argv[])
         Ftot_unpol += image[i*ny+j]*scale;
         Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
         Iavg += imageS[(i*ny+j)*NIMG+0];
+        Qtot += imageS[(i*ny+j)*NIMG+1] * scale;
+        Utot += imageS[(i*ny+j)*NIMG+2] * scale;
+        Vtot += imageS[(i*ny+j)*NIMG+3] * scale;
         if (imageS[(i*ny+j)*NIMG+0] > Imax) {
           imax = i;
           jmax = j;
@@ -621,9 +627,16 @@ int main(int argc, char *argv[])
       }
     }
 
+    // output normal flux quantities
     fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax, Iavg/(nx*ny));
-    fprintf(stderr, "freq: %g Ftot: %g (%g unpol) scale=%g\n", freqcgs, Ftot, Ftot_unpol, scale);
-    fprintf(stderr, "nuLnu = %g\n", 4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
+    fprintf(stderr, "freq: %g Ftot: %g Jy (%g Jy unpol xfer) scale=%g\n", freqcgs, Ftot, Ftot_unpol, scale);
+    fprintf(stderr, "nuLnu = %g erg/s\n", 4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
+
+    // output polarized transport information
+    double LPfrac = 100.*sqrt(Qtot*Qtot+Utot*Utot)/Ftot;
+    double CPfrac = 100.*Vtot/Ftot;
+    fprintf(stderr, "I,Q,U,V [Jy]: %g %g %g %g\n", Ftot, Qtot, Utot, Vtot);
+    fprintf(stderr, "LP,CP [%%]: %g %g\n", LPfrac, CPfrac);
 
     // don't dump if we've been asked to quench output. useful for batch jobs
     // like when fitting light curve fluxes
