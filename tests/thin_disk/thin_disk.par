@@ -1,0 +1,31 @@
+# Camera location for thin-disk comparison
+# Note rcam is farther than ipole's usual
+rcam 1.e4
+thetacam 75
+phicam 0
+
+# Camera FOV in r_g
+dx 40
+dy 40
+
+# Image size
+nx 80
+ny 80
+
+# Distance to source in pc
+dsource 0.05
+
+# Frequency corresponding to 1 eV photons
+freqcgs 2.417989e17
+
+# MBH in solar masses
+MBH 10
+
+# Accretion rate as fraction of Eddington
+# (assuming 10% efficiency)
+Mdot 0.01
+
+# BH dimensionless spin
+a 0.99
+
+outfile image.h5

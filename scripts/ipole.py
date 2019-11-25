@@ -12,14 +12,22 @@
 
 import subprocess
 
-def run(args, exe="./ipole", quench=False, verbose=0, unpol=False):
+def run(args, exe="./ipole", quench=False, unpol=False, parfile=None, verbose=0):
   """Runs ipole with config as specified by args."""
-  if quench: args.append("-quench")
-  if unpol: args.append("-unpol")
-  args = [ exe, *args ]
-  if verbose>0: print(" ".join(args))
-  proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+  cmd = [exe]
+  if parfile is not None:
+    cmd += ["-par",parfile]
+
+  cmd += ["--{}={}".format(key,args[key]) for key in args]
+
+  if quench: cmd += ["-quench"]
+  if unpol: cmd += ["-unpol"]
+
+  if verbose>0: print(" ".join(cmd))
+  proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   output = [ z for y in [ str(x)[2:-1].split("\\n") for x in proc.communicate() ] for z in y ]
+
   results = {}
   for line in output:
     if verbose>1: print(line)
@@ -27,6 +35,7 @@ def run(args, exe="./ipole", quench=False, verbose=0, unpol=False):
       proc = line.replace('(','').replace(')','').split()
       results['Ftot_pol'] = float(proc[3])
       results['Ftot_unpol'] = float(proc[4])
+
   return results
 
 def run_legacy(thetacam, freqcgs, Mbh, Munit, fname, Rlow=None, Rhigh=None, exe="./ipole", counterjet=0, 
