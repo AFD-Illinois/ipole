@@ -180,13 +180,7 @@ void write_header(double scale, double cam[NDIM],
   hsize_t vec_dim[1] = {NDIM};
   hdf5_write_full_array(cam, "x", 1, vec_dim, H5T_IEEE_F64LE);
 
-  hdf5_set_directory("/header/");
-  hdf5_make_directory("units");
-  hdf5_set_directory("/header/units/");
-  hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
+  //fprintf(stderr, "Wrote header\n");
 
   // allow model to output its parameters
   output_hdf5();
