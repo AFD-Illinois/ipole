@@ -561,15 +561,25 @@ int main(int argc, char *argv[])
           int ig = i/4, jg = j/4, nyg = ny/4;
           double j_grandparent = grandparent_image[ig*nyg+jg];
           // Anchor parent quads on grandparent pixels i.e. even 4th pixels of current image
-          int ip = (i/4)*2, jp = (j/4)*2, nyp=ny/2;
+          //int ip = (i/4)*2, jp = (j/4)*2, nyp=ny/2;
+          // Anchor parent quads continuously if only looking for differences
+          int ip = i/2, jp = j/2, nyp = ny/2;
           double j_parent = (parent_image[(ip)*nyp+(jp)] + parent_image[(ip+1)*nyp+(jp)]
                             + parent_image[(ip)*nyp+(jp+1)] + parent_image[(ip+1)*nyp+(jp+1)])/4;
+          double dev_parent = 0;
+          if (fabs(parent_image[(ip)*nyp+(jp)] - j_parent) > dev_parent) dev_parent = fabs(parent_image[(ip)*nyp+(jp)] - j_parent);
+          if (fabs(parent_image[(ip+1)*nyp+(jp)] - j_parent) > dev_parent) dev_parent = fabs(parent_image[(ip+1)*nyp+(jp)] - j_parent);
+          if (fabs(parent_image[(ip)*nyp+(jp+1)] - j_parent) > dev_parent) dev_parent = fabs(parent_image[(ip)*nyp+(jp+1)] - j_parent);
+          if (fabs(parent_image[(ip+1)*nyp+(jp+1)] - j_parent) > dev_parent) dev_parent = fabs(parent_image[(ip+1)*nyp+(jp+1)] - j_parent);
+
+          //fprintf(stderr, "Grandparent px: %g, Parent av: %g dev: %g, prop %g\n", j_grandparent, j_parent, dev_parent, dev_parent/j_parent);
 
           // 2 refinement criteria, must meet both to bother refining
           // 1. Difference grandparent -> parent refinement must be > refine_rel
           // 2. Parent flux is less than the average value * refine_cut
-          if (fabs(j_grandparent - j_parent) / j_parent > params.refine_rel &&
-              fabs(j_parent) > avg_val * params.refine_cut) {
+          // fabs(j_grandparent - j_parent) / j_parent > params.refine_rel
+          if (dev_parent / j_parent > params.refine_rel &&
+              fabs(j_parent) / avg_val > params.refine_cut) {
             get_pixel(i, j, nx, ny, Xcam, params,
                       fovx, fovy, freq, only_unpolarized, scale,
                       &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
