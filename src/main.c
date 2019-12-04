@@ -584,15 +584,31 @@ int main(int argc, char *argv[])
                       fovx, fovy, freq, only_unpolarized, scale,
                       &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
           } else {
-            // TODO like, bilinear at least
-            Intensity = parent_image[(i/2)*(ny/2)+j/2];
-            //fprintf(stderr, "Skipping Pixel %d %d, assigning %g\n", i, j, Intensity);
-            Tau = parent_taus[(i/2)*(ny/2)+j/2];
-            Is = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0];
-            Qs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1];
-            Us = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2];
-            Vs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3];
-            tauF = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4];
+            int dx = 0, dy = 0;
+            if (i%2 == 0) {
+              if (i/2 > 0) dx = -1;
+            } else {
+              if (i/2 < nx/2-1) dx = 1;
+            }
+            if (j%2 == 0) {
+              if (j/2 > 0) dy = -1;
+            } else {
+              if (j/2 < ny/2-1) dy = 1;
+            }
+            Intensity = 0.5625*parent_image[(i/2)*(ny/2)+j/2] + 0.1875*parent_image[(i/2+dx)*(ny/2)+j/2]+
+                        0.1875*parent_image[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_image[(i/2+dx)*(ny/2)+j/2+dy];
+            Tau = 0.5625*parent_taus[(i/2)*(ny/2)+j/2] + 0.1875*parent_taus[(i/2+dx)*(ny/2)+j/2]+
+                  0.1875*parent_taus[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_taus[(i/2+dx)*(ny/2)+j/2+dy];
+            Is = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+0]+
+                 0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+0] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+0];
+            Qs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+1]+
+                 0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+1] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+1];
+            Us = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+2]+
+                 0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+2] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+2];
+            Vs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+3]+
+                 0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+3] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+3];
+            tauF = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+4]+
+                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+4] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+4];
           }
 
           if (refined_level == refine_level - 1) {
