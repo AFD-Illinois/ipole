@@ -3,7 +3,7 @@ Polarized covariant radiative transfer in C.
 
 # Building
 
-The only prerequisite is HDF5, specifically the executable ```h5pcc``` should 
+The only prerequisite is HDF5, specifically the executable ```h5cc``` should 
 be in your ```PATH```. Then just build by running
 
 ```bash
@@ -12,13 +12,13 @@ $ make
 with or without any of the usual ```make``` options, e.g. ```-j```.  You can 
 make ```ipole``` into any destination directory by going there, and then 
 specifying the location of the makefile with ```-f```.  Note, though, that
-```ipole``` does not ever support directories which contain spaces.
+```ipole``` does not support building in directories which contain spaces.
 
-Alternatively, if you are building your own serial version of HDF5, ensure that
-```h5cc``` is in your path, and run
+Alternatively, if you are building your own parallel version of HDF5, ensure that
+```h5pcc``` is in your path, and run
 
 ```bash
-$ make CC=h5cc
+$ make CC=h5pcc
 ```
 
 A particular fluid model or data format can be specified with
