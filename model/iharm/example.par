@@ -52,7 +52,7 @@ dump tests/test-resources/sample_dump_SANE_a+0.94_0900.h5
 MBH 6.2e9
 
 # M_unit, the scale factor for the GRMHD file
-M_unit 1.e25
+M_unit 3.e27
 
 # Electron model parameters: Tp/Te for fixed models,
 # or Rlow, Rhigh.  e- model is read from each dump,
