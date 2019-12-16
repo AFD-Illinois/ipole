@@ -136,11 +136,13 @@ void write_restart(const char *fname, double tA, double tB, double last_img_targ
 void write_header(double scale, double cam[NDIM],
     double fovx, double fovy, Params *params)
 {
-  hid_t dtype_version = hdf5_make_str_type(strlen(xstr(VERSION)));
+  hid_t dtype_version = hdf5_make_str_type(20);
   hdf5_add_attr(xstr(VERSION), "githash", "/", dtype_version);
 
   hdf5_make_directory("header");
   hdf5_set_directory("/header/");
+  hdf5_write_single_val(VERSION_STRING, "version", dtype_version);
+  hdf5_write_single_val(xstr(VERSION), "githash", dtype_version);
   // Make locals for things we'll use later
   double freqcgs = params->freqcgs;
   double dsource = params->dsource;
@@ -178,13 +180,7 @@ void write_header(double scale, double cam[NDIM],
   hsize_t vec_dim[1] = {NDIM};
   hdf5_write_full_array(cam, "x", 1, vec_dim, H5T_IEEE_F64LE);
 
-  hdf5_set_directory("/header/");
-  hdf5_make_directory("units");
-  hdf5_set_directory("/header/units/");
-  hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
+  //fprintf(stderr, "Wrote header\n");
 
   // allow model to output its parameters
   output_hdf5();

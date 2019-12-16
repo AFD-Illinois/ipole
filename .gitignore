@@ -7,6 +7,7 @@ ipole
 
 # Output
 out*.txt
+plot*.txt
 
 # Data
 *.p

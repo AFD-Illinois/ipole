@@ -13,6 +13,11 @@ double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double R0, Rin, Rout, Rh;
 
+/*
+ * Despite the name, this returns r, th coordinates for a KS or BL
+ * coordinate system (since they're equal), from a set of "modified"
+ * native coordinates X
+ */
 void bl_coord(double X[NDIM], double *r, double *th)
 {
   *r = exp(X[1]);
@@ -81,38 +86,28 @@ void ks_to_bl(double X[NDIM], double ucon_ks[NDIM], double ucon_bl[NDIM])
     ucon_bl[mu] += rev_trans[mu][nu] * ucon_ks[nu];
 }
 
+/*
+ * returns g_{munu} at location specified by X
+ */
 void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
 {
-  // returns g_{munu} at location specified by X
-
-  MUNULOOP
-    gcov[mu][nu] = 0.;
-
   double r, th;
-
-  // despite the name, get equivalent values for
-  // r, th for kerr coordinate system
   bl_coord(X, &r, &th);
 
   // compute ks metric
-  gcov_ks(r, th, gcov);
+  double Gcov_ks[NDIM][NDIM];
+  gcov_ks(r, th, Gcov_ks);
 
   // convert from ks metric to mks/mmks
   double dxdX[NDIM][NDIM];
   set_dxdX(X, dxdX);
 
-  double gcov_ks[NDIM][NDIM];
   MUNULOOP
   {
-    gcov_ks[mu][nu] = gcov[mu][nu];
-    gcov[mu][nu] = 0.;
-  }
-
-  MUNULOOP
-  {
+    gcov[mu][nu] = 0;
     for (int lam = 0; lam < NDIM; ++lam) {
       for (int kap = 0; kap < NDIM; ++kap) {
-        gcov[mu][nu] += gcov_ks[lam][kap] * dxdX[lam][mu] * dxdX[kap][nu];
+        gcov[mu][nu] += Gcov_ks[lam][kap] * dxdX[lam][mu] * dxdX[kap][nu];
       }
     }
   }
@@ -127,7 +122,8 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
   double s2 = sth * sth;
   double rho2 = r * r + a * a * cth * cth;
 
-  // compute ks metric for ks coordinates (cyclic in t,phi)
+  MUNULOOP gcov[mu][nu] = 0.;
+  // Compute KS metric from KS coordinates (cyclic in t,phi)
   gcov[0][0] = -1. + 2. * r / rho2;
   gcov[0][1] = 2. * r / rho2;
   gcov[0][3] = -2. * a * r * s2 / rho2;
@@ -145,9 +141,6 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
 
 inline void gcov_bl(double r, double th, double gcov[NDIM][NDIM])
 {
-  MUNULOOP
-    gcov[mu][nu] = 0.;
-
   double sth, cth, s2, a2, r2, DD, mu;
   sth = fabs(sin(th));
   s2 = sth * sth;
@@ -157,6 +150,8 @@ inline void gcov_bl(double r, double th, double gcov[NDIM][NDIM])
   DD = 1. - 2. / r + a2 / r2;
   mu = 1. + a2 * cth * cth / r2;
 
+  MUNULOOP gcov[mu][nu] = 0.;
+  // Compute BL metric from BL coordinates
   gcov[0][0] = -(1. - 2. / (r * mu));
   gcov[0][3] = -2. * a * s2 / (r * mu);
   gcov[3][0] = gcov[0][3];
@@ -250,9 +245,7 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
     dxdX[1][1] = exp(X[1]);
     dxdX[2][2] = M_PI - (hslope - 1.) * M_PI * cos(2. * M_PI * X[2]);
     dxdX[3][3] = 1.;
-
   }
-
 }
 
 void set_dXdx(double X[NDIM], double dXdx[NDIM][NDIM]) {
@@ -277,7 +270,20 @@ void vec_from_ks(double X[NDIM], double v_ks[NDIM], double v_nat[NDIM]) {
   MUNULOOP v_nat[mu] += dXdx[mu][nu] * v_ks[nu];
 }
 
-// Root-find the camera location in native coordinates
+/*
+ * Translate the input camera angles into a canonical Xcam in native coordinates
+ */
+void native_coord(double r, double th, double phi, double X[NDIM]) {
+  double x[NDIM] = {0., r, th/180.*M_PI, phi/180.*M_PI};
+  X[0] = 0.0;
+  X[1] = log(r);
+  X[2] = root_find(x);
+  X[3] = phi/180.*M_PI;
+}
+
+/*
+ * Root-find the camera theta in native coordinates
+ */
 double root_find(double X[NDIM])
 {
   double th = X[2];

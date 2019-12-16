@@ -12,6 +12,13 @@
 
 #include <complex.h>
 
+// Top-level functions for solving emission
+void integrate_emission(struct of_traj *traj, int nstep, int only_unpolarized,
+                    double *Intensity, double *Tau, double *tauF,
+                    double complex N_coord[NDIM][NDIM]);
+double approximate_solve (double Ii, double ji, double ki, double jf, double kf,
+                   double dl, double *tau);
+
 void init_N(double Xi[NDIM],double Kconi[NDIM],double complex Ncon[NDIM][NDIM]);
 void evolve_N(double Xi[NDIM],double Kconi[NDIM],
     double Xf[NDIM],double Kconf[NDIM],
