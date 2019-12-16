@@ -39,6 +39,9 @@ struct parameters
   int    polarization; 
   int    mode;             /*Emissivity or Absorptivity*/
   double gamma_cutoff;
+  /* Options for fits */
+  int approximate;         /*Use approximate Bessel functions for speed*/
+  int dexter_fit;
 
   /*Thermal distribution parameters*/
   double theta_e;

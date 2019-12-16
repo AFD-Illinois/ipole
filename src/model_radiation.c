@@ -41,8 +41,22 @@ double I_Q(double x);
 double I_V(double x);
 double besselk_asym(int n, double x);
 
-// TODO a parameters check in here
-static int dist = 1;
+/* Get coeffs from a specific distribution */
+void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
+    double *jI, double *jQ, double *jU, double *jV,
+    double *aI, double *aQ, double *aU, double *aV,
+    double *rQ, double *rU, double *rV);
+
+/*
+ * Wrapper to call different distributions at different places in the simulation domain
+ */
+void jar_calc(double X[NDIM], double Kcon[NDIM],
+    double *jI, double *jQ, double *jU, double *jV,
+    double *aI, double *aQ, double *aU, double *aV,
+    double *rQ, double *rU, double *rV)
+{
+  jar_calc_dist(1, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+}
 
 /*
  * Get the invariant plasma emissivities, absorptivities, rotativities in tetrad frame
@@ -60,7 +74,7 @@ static int dist = 1;
  *
  * Rotativities are always from Dexter 2016
  */
-void jar_calc(double X[NDIM], double Kcon[NDIM],
+void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV)
@@ -94,7 +108,10 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
   theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	// angle between k & b
 
+  // For later jet/disk
+  // && (dist == 1 || dist == 4)
   if (Ne <= 0.) {  // avoid 1./0. issues
+    //fprintf(stderr, "ZERO EMISSION ZERO Ne");
 
     *jI = 0.0;
     *jQ = 0.0;
@@ -111,6 +128,7 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *rV = 0.0;
 
   } else if (theta <= 0. || theta >= M_PI) {	// No emission/absorption along field
+    fprintf(stderr, "ZERO EMISSION ALONG FIELD!");
 
     *jI = 0.0;
     *jQ = 0.0;
@@ -127,11 +145,25 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     Thetae = get_model_thetae(X);	// temp in e rest-mass units
 
     // Only take rV
-    dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-    *rQ = 0.0;
-    *rU = 0.0;
+    if (dist == 1 || dist == 4) {
+      dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
+      *rQ = 0.0;
+      *rU = 0.0;
+    } else {
+      setConstParams(&paramsM);
+      if (dist == 2) {
+        fit = paramsM.KAPPA_DIST;
+        // TODO get_model_kappa
+      } else if (dist == 3) {
+        fit = paramsM.POWER_LAW;
+        // NOTE WE REPLACE Ne!!
+        get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &gamma_min, &gamma_max, &gamma_cut);
+      }
 
-    // invariant rotativities
+      *rV = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+    }
+
+    // make rhoV invariant
     *rV *= nu;
 
     if (isnan(*rV)  || *rV > 1.e100 || *rV < -1.e100) {
@@ -140,7 +172,7 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
   } else {
 
-    nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
+    nu = get_fluid_nu(Kcon, Ucov);	// freqcgs in Hz
     nusq = nu * nu;
     B = get_model_b(X);	// field in G
 
@@ -159,9 +191,10 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
       } else if (dist == 2) {
         fit = paramsM.KAPPA_DIST;
         // TODO get_model_kappa
-      } else if (dist == 2) {
+      } else if (dist == 3) {
         fit = paramsM.POWER_LAW;
-        // TODO get_model_gamma etc
+        // NOTE WE REPLACE Ne!!
+        get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &gamma_min, &gamma_max, &gamma_cut);
       }
 
       *jI = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
@@ -192,8 +225,13 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     }
 
     // ROTATIVITIES
-    dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-    // TODO NEEDS POWER LAW.  FIX SYMPHONY LOW-T AND USE
+    if (dist == 4) {
+      dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
+    } else {
+      *rQ = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *rU = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *rV = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+    }
 
     // invariant rotativities
     *rQ *= nu;

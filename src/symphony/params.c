@@ -3,7 +3,7 @@
 
 /*setConstParams: sets values of constant parameters used throughout
  *                the calculation, such as pi or the charge of an 
- *                electron (in CGS units).  Also sets valeus of 
+ *                electron (in CGS units).  Also sets values of
  *                the keys for the distribution, emissivity/
  *                absorptivity, and Stokes parameter.
  *
@@ -37,6 +37,9 @@ void setConstParams(struct parameters *params)
   /* Key for approach to compute coefficients */
   params->SYMPHONY_METHOD  = 20;
   params->SUSCEPT_METHOD   = 21;
+  /*Default options for fits*/
+  params->approximate = 1;
+  params->dexter_fit = 0;
 
   params->epsilon0  = 1./(4. * params->pi); //permittivity of free space, CGS units
   params->epsilon   = -1.;            //sign of electron charge

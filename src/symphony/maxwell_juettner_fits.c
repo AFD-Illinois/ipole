@@ -222,21 +222,37 @@ double maxwell_juettner_rho_V(struct parameters * params)
                   / (params->mass_electron*params->speed_light);
 
   double wp2 = 4. * params->pi * params->electron_density 
-	       * pow(params->electron_charge, 2.) / params->mass_electron;
+                  * pow(params->electron_charge, 2.) / params->mass_electron;
 
   /* argument for function g(X) (called shgmfunc) below */
   double x = params->theta_e * sqrt(sqrt(2.) * sin(params->observer_angle)
                  * (1.e3*omega0 / (2. * params->pi * params->nu)));
 
-  /* this is the definition of the modified factor g(X) from Dexter (2016) */
-  double shgmfunc = 0.43793091 * log(1. + 0.00185777 * pow(x, 1.50316886));
+  /* Approximate the Bessel functions if allowed */
+  double k2=0, k0=0;
+  if (params->approximate && params->theta_e > 5) {
+    k0 = -log(1 / (2. * params->theta_e)) - 0.5772;
+    k2 = 2. * params->theta_e * params->theta_e;
+  } else {
+    k0 = gsl_sf_bessel_Kn(0, 1./params->theta_e);
+    k2 = gsl_sf_bessel_Kn(2, 1./params->theta_e);
+  }
 
-  double eps12 = wp2 * omega0 / pow((2. * params->pi * params->nu), 3.) 
-                 * (gsl_sf_bessel_Kn(0, 1./params->theta_e) - shgmfunc)
-                 / gsl_sf_bessel_Kn(2, 1./params->theta_e)
-                 * cos(params->observer_angle);
-    
-  double rhov = 2. * params->pi * params->nu / params->speed_light * eps12;
+  /* There are several fits of rho_V phrased as functions of x */
+  // TODO add straight Bessel-approx -> constant extrapolation?
+  double fit_factor = 0;
+  if (params->dexter_fit) {
+    // Jason Dexter (2016) fits using the modified difference factor g(X)
+    double shgmfunc = 0.43793091 * log(1. + 0.00185777 * pow(x, 1.50316886));
+    fit_factor = (k0 - shgmfunc) / k2;
+  } else {
+    // Shcherbakov fits.  Good to the smallest Thetae at high freq but questionable for low frequencies
+    double shgmfunc = 1 - 0.11*log(1 + 0.035*x);
+    fit_factor = k0 / k2 * shgmfunc;
+  }
 
-  return rhov;
+  double eps12 = wp2 * omega0 / pow((2. * params->pi * params->nu), 3.)
+                     * fit_factor * cos(params->observer_angle);
+
+  return 2. * params->pi * params->nu / params->speed_light * eps12;
 }

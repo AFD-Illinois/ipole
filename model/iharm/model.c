@@ -35,9 +35,17 @@ double sigma_cut = 1.0;
 
 // MODEL PARAMETERS: PRIVATE
 static char fnam[STRLEN] = "dump.h5";
+
 static double tp_over_te = 3.;
 static double trat_small = 1.;
 static double trat_large = 40.;
+
+static double powerlaw_gamma_min = 1e2;
+static double powerlaw_gamma_max = 1e5;
+static double powerlaw_gamma_cut = 1e10;
+static double powerlaw_eta = 0.02;
+static double powerlaw_p = 3.25;
+
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
 static double MBH_solar = 6.2e9;
@@ -101,6 +109,12 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "tp_over_te", &tp_over_te, TYPE_DBL);
   set_by_word_val(word, value, "trat_small", &trat_small, TYPE_DBL);
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
+
+  set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_eta", &trat_large, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_p", &trat_large, TYPE_DBL);
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
@@ -972,5 +986,19 @@ int radiating_region(double X[NDIM])
   } else {
     return 0;
   }
+}
+
+void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
+                             double *gamma_min, double *gamma_max, double *gamma_cut)
+{
+  *gamma_min = powerlaw_gamma_min;
+  *gamma_max = powerlaw_gamma_max;
+  *gamma_cut = powerlaw_gamma_cut;
+  *p = powerlaw_p;
+
+  double b = get_model_b(X);
+  double u_nth = powerlaw_eta*b*b/2;
+  // Number density of nonthermals
+  *n = u_nth * (*p - 2)/(*p - 1) * 1/(ME * CL*CL * *gamma_min);
 }
 
