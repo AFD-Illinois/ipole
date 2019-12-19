@@ -45,7 +45,8 @@ $ make CC=h5pcc
 A particular fluid model or data format can be specified with
 ```MODEL=model_name```. For all fluid data produced from Illinois codes after
 September 2018, the ```iharm``` model should be used -- this is the default if
-no model is specified.
+no model is specified.  After building a model, be sure to run
+```make clean``` before building a different one.
 
 The optional argument ```NOTES=``` can be any string containing no spaces.
 This string will be "baked-in" to the executable and printed out whenever the
