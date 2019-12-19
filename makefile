@@ -123,7 +123,7 @@ vtune: build
 
 clean:
 	@$(ECHO) "Cleaning build files..."
-	@rm -f $(EXE) $(OBJ)
+	@rm -rf $(EXE) $(OBJ) $(ARC_DIR)
 
 $(EXE): $(ARC_DIR)/$(EXE)
 	@cp $(ARC_DIR)/$(EXE) .
