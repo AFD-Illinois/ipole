@@ -59,6 +59,7 @@ double-dash syntax,
 
 ```bash
 $ ./ipole -par default.par --key1=value1 --key2=value2
+$ ./ipole --freqcgs=230.e9 --MBH=6.2e9 --M_unit=1.e25 --thetacam=17 --dump=/path/to/dump.h5 --outfile=image.h5
 ```
 
 In all cases, ```ipole``` reads parameters (and parameter files) in the order 
