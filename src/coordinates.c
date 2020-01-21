@@ -318,5 +318,5 @@ double root_find(double X[NDIM])
       break;
   }
 
-  return Xa[2];
+  return Xc[2];
 }
