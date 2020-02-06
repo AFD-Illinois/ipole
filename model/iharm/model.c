@@ -32,6 +32,7 @@ int counterjet = 0;
 double rmax_geo = 100.;
 double rmin_geo = 1.;
 double sigma_cut = 1.0;
+double beta_crit = 1.0;
 
 // MODEL PARAMETERS: PRIVATE
 static char fnam[STRLEN] = "dump.h5";
@@ -101,6 +102,8 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "tp_over_te", &tp_over_te, TYPE_DBL);
   set_by_word_val(word, value, "trat_small", &trat_small, TYPE_DBL);
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
+  set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
+  set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
@@ -453,7 +456,7 @@ void init_physical_quantities(int n)
           data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
         } else if (ELECTRONS == 2) {
           double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-          double betasq = beta*beta;
+          double betasq = beta*beta / beta_crit/beta_crit;
           double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
           //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
           // see, e.g., Eq. 8 of the EHT GRRT formula list
@@ -574,12 +577,14 @@ void init_iharm_grid(char *fnam, int dumpidx)
     Thetae_unit = 2./3. * MP/ME / (2. + tp_over_te);
   } else if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
     ELECTRONS = 2;
-    fprintf(stderr, "using mixed tp_over_te with trat_small = %g and trat_large = %g\n", trat_small, trat_large);
+    fprintf(stderr, "using mixed tp_over_te with trat_small = %g, trat_large = %g, and beta_crit = %g\n", 
+      trat_small, trat_large, beta_crit);
     // Thetae_unit set per-zone below
   } else {
     fprintf(stderr, "! please change electron model in model/iharm.c\n");
     exit(-3);
   }
+  fprintf(stderr, "sigma_cut = %g\n", sigma_cut);
 
   // by this point, we're sure that Thetae_unit is what we want so we can set
   // Te_unit which is what ultimately get written to the dump files
@@ -671,6 +676,7 @@ void output_hdf5()
   hdf5_write_single_val(&(data[0]->t), "t", H5T_IEEE_F64LE);
 #endif
 
+  hdf5_write_single_val(&sigma_cut, "sigma_cut", H5T_IEEE_F64LE);
   hdf5_make_directory("electrons");
   hdf5_set_directory("/header/electrons/");
   if (ELECTRONS == 0) {
@@ -678,6 +684,7 @@ void output_hdf5()
   } else if (ELECTRONS == 2) {
     hdf5_write_single_val(&trat_small, "rlow", H5T_IEEE_F64LE);
     hdf5_write_single_val(&trat_large, "rhigh", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&beta_crit, "beta_crit", H5T_IEEE_F64LE);
   }
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
   hdf5_set_directory("/");
