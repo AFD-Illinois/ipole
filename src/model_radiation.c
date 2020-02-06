@@ -81,55 +81,6 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *rU = 0.0;
     *rV = 0.0;
 
-  } else if (theta <= 0. || theta >= M_PI) {	// No emission/absorption along field
-
-    *jI = 0.0;
-    *jQ = 0.0;
-    *jU = 0.0;
-    *jV = 0.0;
-
-    *aI = 0.0;
-    *aQ = 0.0;
-    *aU = 0.0;
-    *aV = 0.0;
-
-    *rQ = 0.0;
-    *rU = 0.0;
-
-    nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
-    wp2 = 4. * M_PI * Ne * EE * EE / ME;
-    B = get_model_b(X);		// field in G
-    omega0 = EE * B / ME / CL;
-    Thetae = get_model_thetae(X);	// temp in e rest-mass units
-    Thetaer = 1. / Thetae;
-    // Faraday rotativities for thermal plasma
-    Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
-
-    // Switch between three different fits for rho_V
-    if (Thetae > 4.0) {
-      // High temperature: use approximations to bessel
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
-        (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
-    } else if (0.2 < Thetae && Thetae <= 4.0) {
-      // Mid temperature: use real bessel functions (TODO fit?)
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
-        (gsl_sf_bessel_Kn(0, Thetaer) - Je(Xe)) / gsl_sf_bessel_Kn(2, Thetaer) * cos(theta);
-    } else if (Thetae <= 0.2) {
-      // Use the constant low-temperature limit
-      // WARNING: Note that for about 0.01 < Thetae < 0.2, this is not a great approximation
-      // But it is a fair sight better than the others here
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) * cos(theta);
-    }
-
-    /* invariant rotativities */
-    *rV *= nu;
-
-    if (isnan(*rV)  || *rV > 1.e100 || *rV < -1.e100) {
-      printf("NAN RV theta! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
-    }
-
-    return;
-
   } else {
 
     nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
@@ -149,19 +100,11 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
       jffunc(Xe) * (besselk_asym(1, Thetaer) / besselk_asym(2, Thetaer) +
           6. * Thetae) * sin(theta) * sin(theta);
     *rU = 0.0;
-    // Switch between three different fits for rho_V
-    if (Thetae > 3.0) {
-      // High temperature: use approximations to bessel
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
-        (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
-    } else if (0.2 < Thetae && Thetae <= 3.0) {
-      // Mid temperature: use real bessel functions (TODO fit?)
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
-        (gsl_sf_bessel_Kn(0, Thetaer) - Je(Xe)) / gsl_sf_bessel_Kn(2, Thetaer) * cos(theta);
-    } else if (Thetae <= 0.2) {
-      // Use the constant low-temperature limit
-      *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) * cos(theta);
-    }
+
+    // Shcherbakov fits for rV.  Possibly questionable at very low frequency
+    *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
+      gsl_sf_bessel_Kn(0, Thetaer) / (gsl_sf_bessel_Kn(2, Thetaer)+SMALL) * g(Xe) * cos(theta);
+
 
     // Synchrotron emissivity
     nuc = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
@@ -212,6 +155,7 @@ double g(double Xe)
 {
   return 1. - 0.11 * log(1 + 0.035 * Xe);
 }
+
 
 double h(double Xe)
 {
