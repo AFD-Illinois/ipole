@@ -424,7 +424,7 @@ int main(int argc, char *argv[])
           //fprintf(stderr, "saving image %d at t = %g\n", k, target_times[k]);
           char dfname[256];
           snprintf(dfname, 255, params.outf, target_times[k]);
-          dump(image, imageS, taus, dfname, scale, Xcam, fovx, fovy, &params);
+          dump(image, imageS, taus, dfname, scale, Xcam, fovx, fovy, &params, only_unpolarized);
           valid_images[k] = 0;
           nopenimgs--;
         }
@@ -642,7 +642,7 @@ int main(int argc, char *argv[])
     // like when fitting light curve fluxes
     if (!quench_output) {
       // dump result. if specified, also output ppm image
-      dump(image, imageS, taus, params.outf, scale, Xcam, fovx, fovy, &params);
+      dump(image, imageS, taus, params.outf, scale, Xcam, fovx, fovy, &params, only_unpolarized);
       if (params.add_ppm) {
         // TODO respect filename from params?
         make_ppm(image, freq, nx, ny, "ipole_lfnu.ppm");

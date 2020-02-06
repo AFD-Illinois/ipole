@@ -194,7 +194,7 @@ void write_header(double scale, double cam[NDIM],
 
 void dump(double image[], double imageS[], double taus[],
     const char *fname, double scale, double cam[NDIM],
-    double fovx, double fovy, Params *params)
+    double fovx, double fovy, Params *params, int nopol)
 {
   hdf5_create(fname);
 
@@ -216,8 +216,8 @@ void dump(double image[], double imageS[], double taus[],
 
   hdf5_set_directory("/");
   // output stuff
-  hdf5_write_single_val(&Ftot, "Ftot", H5T_IEEE_F64LE);
   hdf5_write_single_val(&Ftot_unpol, "Ftot_unpol", H5T_IEEE_F64LE);
+  if (!nopol) hdf5_write_single_val(&Ftot, "Ftot", H5T_IEEE_F64LE);
   double nuLnu = 4. * M_PI * Ftot * dsource * dsource * JY * freqcgs;
   hdf5_write_single_val(&nuLnu, "nuLnu", H5T_IEEE_F64LE);
   nuLnu = 4. * M_PI * Ftot_unpol * dsource * dsource * JY * freqcgs;
@@ -227,7 +227,7 @@ void dump(double image[], double imageS[], double taus[],
   hsize_t pol_dim[3] = {nx, ny, NIMG};
   hdf5_write_full_array(image, "unpol", 2, unpol_dim, H5T_IEEE_F64LE);
   hdf5_write_full_array(taus, "tau", 2, unpol_dim, H5T_IEEE_F64LE);
-  hdf5_write_full_array(imageS, "pol", 3, pol_dim, H5T_IEEE_F64LE);
+  if (!nopol) hdf5_write_full_array(imageS, "pol", 3, pol_dim, H5T_IEEE_F64LE);
 
   // housekeeping
   hdf5_close();
