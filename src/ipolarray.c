@@ -8,6 +8,8 @@
 /****************and then rewritten by C.Gammie ***********/
 /**********************************************************/
 
+#include "ipolarray.h"
+
 #include "decs.h"
 #include "coordinates.h"
 #include "geometry.h"
@@ -17,7 +19,7 @@
 #include "debug_tools.h"
 #include <complex.h>
 
-/* tensor tools*/
+/* tensor tools */
 void complex_lower(double complex N[NDIM][NDIM], double gcov[NDIM][NDIM],
     int low1, int low2, double complex Nl[NDIM][NDIM]);
 void stokes_to_tensor(double fI, double fQ, double fU, double fV,
@@ -31,9 +33,67 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
     double Econ[NDIM][NDIM],
     double complex T_coord[NDIM][NDIM]);
 
+
+
+/************************PRIMARY FUNCTION*******************************/
+void integrate_emission(struct of_traj *traj, int nstep, int only_unpolarized,
+                    double *Intensity, double *Tau, double *tauF,
+                    double complex N_coord[NDIM][NDIM]) {
+  double Xi[NDIM], Xhalf[NDIM], Xf[NDIM];
+  double Kconi[NDIM], Kconhalf[NDIM], Kconf[NDIM];
+
+  // Initialize location
+  MULOOP {
+    Xi[mu] = traj[nstep].X[mu];
+    Kconi[mu] = traj[nstep].Kcon[mu];
+  }
+  // Initialize emission
+  init_N(Xi, Kconi, N_coord);
+  *Intensity = 0.;
+  *Tau = 0.;
+  *tauF = 0.;
+  double ji, ki;
+  get_jkinv(Xi, Kconi, &ji, &ki);
+
+  // integrate forwards along trajectory, including radiative transfer equation
+  // initialize X, K
+  while (nstep > 1) {
+    // initialize X,K
+    MULOOP {
+      Xi[mu]       = traj[nstep].X[mu];
+      Kconi[mu]    = traj[nstep].Kcon[mu];
+      Xhalf[mu]    = traj[nstep].Xhalf[mu];
+      Kconhalf[mu] = traj[nstep].Kconhalf[mu];
+      Xf[mu]       = traj[nstep - 1].X[mu];
+      Kconf[mu]    = traj[nstep - 1].Kcon[mu];
+    }
+
+    // solve total intensity equation alone
+    double jf, kf;
+    get_jkinv(Xf, Kconf, &jf, &kf);
+    *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, traj[nstep].dl, Tau);
+    // swap start and finish
+    ji = jf;
+    ki = kf;
+
+    // solve polarized transport
+    if (!only_unpolarized) {
+      evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, tauF);
+      if (isnan(creal(N_coord[0][0]))) {
+        printf("NaN in N00!\n");
+        exit(-3);
+      }
+    }
+
+    nstep--;
+  }
+}
+
 /***************************MAIN FUNCTIONS******************************/
-/* initialize tensor N in the coordinate frame at the beginning of the *
- geodesics integration = it is zero */
+/*
+ * initialize tensor N in the coordinate frame at the beginning of the
+ * geodesics integration = it is zero
+ */
 void init_N(double X[NDIM], double Kcon[NDIM],
     double complex N_coord[NDIM][NDIM])
 {
@@ -42,9 +102,7 @@ void init_N(double X[NDIM], double Kcon[NDIM],
 }
 
 /*
-
- parallel transport N over dl
-
+ * parallel transport N over dl
  */
 void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
@@ -74,11 +132,12 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
   return;
 }
 
-/* updates N for one step on geodesics, using the previous step N*/
-/* here we compute new right-hand side of the equation */
-/* and somehow rotate this along the geodesics knowing */
-/* first point and last point X and K*/
-
+/*
+ * Updates N for one step on geodesics, using the previous step N
+ * here we compute new right-hand side of the equation
+ * and somehow rotate this along the geodesics knowing
+ * first point and last point X and K
+ */
 void evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double Xhalf[NDIM], double Kconhalf[NDIM],
     double Xf[NDIM], double Kconf[NDIM],
@@ -315,7 +374,45 @@ void project_N(double X[NDIM], double Kcon[NDIM],
 
 }
 
-/***************************END MAIN FUNCTIONS******************************/
+/*
+ * must be a stable, approximate solution to radiative transfer
+ * that runs between points w/ initial intensity I, emissivity
+ * ji, opacity ki, and ends with emissivity jf, opacity kf.
+ *
+ * return final intensity
+ */
+double approximate_solve(double Ii, double ji, double ki, double jf,
+    double kf, double dl, double *tau)
+{
+#if THIN_DISK
+  if (thindisk_region(Xi, Xf)) {
+    double Intensity;
+    get_model_i(Xf, Kconf, &Intensity);
+    return Intensity;
+  } else {
+    return 0.
+  }
+#else
+  double efac, If, javg, kavg, dtau;
+
+  javg = (ji + jf) / 2.;
+  kavg = (ki + kf) / 2.;
+
+  dtau = dl * kavg;
+  *tau += dtau;
+
+  if (dtau < 1.e-3) {
+    If = Ii + (javg - Ii * kavg) * dl * (1. -
+        (dtau / 2.) * (1. -
+          dtau / 3.));
+  } else {
+    efac = exp(-dtau);
+    If = Ii * efac + (javg / kavg) * (1. - efac);
+  }
+
+  return If;
+#endif
+}
 
 /*************************SUPPORTING FUNCTIONS******************************/
 

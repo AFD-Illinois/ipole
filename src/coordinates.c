@@ -270,7 +270,20 @@ void vec_from_ks(double X[NDIM], double v_ks[NDIM], double v_nat[NDIM]) {
   MUNULOOP v_nat[mu] += dXdx[mu][nu] * v_ks[nu];
 }
 
-// Root-find the camera location in native coordinates
+/*
+ * Translate the input camera angles into a canonical Xcam in native coordinates
+ */
+void native_coord(double r, double th, double phi, double X[NDIM]) {
+  double x[NDIM] = {0., r, th/180.*M_PI, phi/180.*M_PI};
+  X[0] = 0.0;
+  X[1] = log(r);
+  X[2] = root_find(x);
+  X[3] = phi/180.*M_PI;
+}
+
+/*
+ * Root-find the camera theta in native coordinates
+ */
 double root_find(double X[NDIM])
 {
   double th = X[2];

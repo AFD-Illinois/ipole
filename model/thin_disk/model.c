@@ -371,3 +371,5 @@ void get_model_bcov(double X[NDIM], double Bcov[NDIM]) {return;}
 void get_model_bcon(double X[NDIM], double Bcon[NDIM]) {return;}
 void get_model_ucov(double X[NDIM], double Ucov[NDIM]) {return;}
 void get_model_ucon(double X[NDIM], double Ucon[NDIM]) {return;}
+void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
+          double *gamma_min, double *gamma_max, double *gamma_cut) {return;}

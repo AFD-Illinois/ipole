@@ -27,6 +27,11 @@ typedef struct params_t {
   const char dump[STRLEN];
   const char outf[STRLEN];
 
+  // Adaptive tracing
+  int nx_min, ny_min;   // dimensions of highest
+  double refine_rel, refine_cut;
+
+
   // ML parameters
   double xoff, yoff;    // in pixels
 

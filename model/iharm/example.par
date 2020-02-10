@@ -52,7 +52,7 @@ dump tests/test-resources/sample_dump_SANE_a+0.94_0900.h5
 MBH 6.2e9
 
 # M_unit, the scale factor for the GRMHD file
-M_unit 3.e27
+M_unit 3.25e26
 
 # Electron model parameters: Tp/Te for fixed models,
 # or Rlow, Rhigh.  e- model is read from each dump,
@@ -82,11 +82,11 @@ yoff 0
 # PATH-TRACE PARAMETERS
 
 # Whether to save GRMHD variables along some paths
-trace 0
+trace 1
 # Pixel to trace i,j (rightward from left, upward from bottom)
-trace_i 40
-trace_j 40
+#trace_i 40
+#trace_j 40
 # Or trace every N pixels in each direction
-# trace_stride 4
+trace_stride 1
 # Trace file name
 trace_outf trace.h5
