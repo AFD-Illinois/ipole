@@ -1,10 +1,31 @@
 # ipole
 Polarized covariant radiative transfer in C.
 
+# Prerequisites
+
+The only prerequisites are the GNU Scientific Library (GSL), and HDF5. Specifically,
+the executable ```h5cc``` should be in your ```PATH```.
+
+On Illinois BH cluster, this means loading the modules
+```bash
+$ module load gnu hdf5
+```
+
+On Linux machines, these can be installed to the system with
+```bash
+$ sudo things
+```
+
+The native macOS version of ```clang``` does not support OpenMP parallelization.  So,
+on macOS with ```brew```, install
+```bash
+$ brew install llvm gsl hdf5
+```
+these should all be binary packages, no compiling should be required.
+
 # Building
 
-The only prerequisite is HDF5, specifically the executable ```h5cc``` should 
-be in your ```PATH```. Then just build by running
+Then just build by running
 
 ```bash
 $ make
@@ -24,7 +45,8 @@ $ make CC=h5pcc
 A particular fluid model or data format can be specified with
 ```MODEL=model_name```. For all fluid data produced from Illinois codes after
 September 2018, the ```iharm``` model should be used -- this is the default if
-no model is specified.
+no model is specified.  After building a model, be sure to run
+```make clean``` before building a different one.
 
 The optional argument ```NOTES=``` can be any string containing no spaces.
 This string will be "baked-in" to the executable and printed out whenever the
@@ -59,6 +81,7 @@ double-dash syntax,
 
 ```bash
 $ ./ipole -par default.par --key1=value1 --key2=value2
+$ ./ipole --freqcgs=230.e9 --MBH=6.2e9 --M_unit=1.e25 --thetacam=17 --dump=/path/to/dump.h5 --outfile=image.h5
 ```
 
 In all cases, ```ipole``` reads parameters (and parameter files) in the order 

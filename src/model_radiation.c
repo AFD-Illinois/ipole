@@ -169,7 +169,6 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     if (isnan(*rV)  || *rV > 1.e100 || *rV < -1.e100) {
       fprintf(stderr, "NAN RV! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
     }
-
   } else {
 
     nu = get_fluid_nu(Kcon, Ucov);	// freqcgs in Hz
@@ -299,6 +298,7 @@ double g(double Xe)
 {
   return 1. - 0.11 * log(1 + 0.035 * Xe);
 }
+
 
 double h(double Xe)
 {

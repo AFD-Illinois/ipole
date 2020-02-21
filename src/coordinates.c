@@ -287,7 +287,7 @@ void native_coord(double r, double th, double phi, double X[NDIM]) {
 double root_find(double X[NDIM])
 {
   double th = X[2];
-  double thb, thc;
+  double tha, thb, thc;
 
   double Xa[NDIM], Xb[NDIM], Xc[NDIM];
   Xa[1] = log(X[1]);
@@ -298,18 +298,25 @@ double root_find(double X[NDIM])
   Xc[3] = Xa[3];
 
   if (X[2] < M_PI / 2.) {
-    Xa[2] = 0. - SMALL;
+    Xa[2] = 0.;
     Xb[2] = 0.5 + SMALL;
   } else {
     Xa[2] = 0.5 - SMALL;
-    Xb[2] = 1. + SMALL;
+    Xb[2] = 1.;
   }
 
-  //tha = theta_func(Xa);
+  double tol = 1.e-9;
+  tha = theta_func(Xa);
   thb = theta_func(Xb);
 
-  /* bisect for a bit */
-  double tol = 1.e-9;
+  // check limits first
+  if (fabs(tha-th) < tol) {
+    return Xa[2];
+  } else if (fabs(thb-th) < tol) {
+    return Xb[2];
+  }
+
+  // bisect for a bit
   for (int i = 0; i < 1000; i++) {
     Xc[2] = 0.5 * (Xa[2] + Xb[2]);
     thc = theta_func(Xc);
@@ -318,13 +325,11 @@ double root_find(double X[NDIM])
       Xa[2] = Xc[2];
     else
       Xb[2] = Xc[2];
-
+    
     double err = theta_func(Xc) - th;
     if (fabs(err) < tol)
       break;
   }
 
-  //fprintf(stderr, "Root find: %f\n", Xa[2]);
-
-  return (Xa[2]);
+  return Xc[2];
 }
