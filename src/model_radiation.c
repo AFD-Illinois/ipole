@@ -81,6 +81,43 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *rU = 0.0;
     *rV = 0.0;
 
+  } else if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
+
+    *jI = 0.0;
+    *jQ = 0.0;
+    *jU = 0.0;
+    *jV = 0.0;
+
+    *aI = 0.0;
+    *aQ = 0.0;
+    *aU = 0.0;
+    *aV = 0.0;
+
+    *rQ = 0.0;
+    *rU = 0.0;
+
+    nu = get_fluid_nu(Kcon, Ucov);	/* freqcgs1;  freq in Hz */
+    wp2 = 4. * M_PI * Ne * EE * EE / ME;
+    B = get_model_b(X);		/* field in G                */
+    omega0 = EE * B / ME / CL;
+    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
+    Thetaer = 1. / Thetae;
+    /* Faraday rotativities for thermal plasma */
+    Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
+ 
+    // Shcherbakov fits for rV.  Possibly questionable at very low frequency
+    *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
+      gsl_sf_bessel_Kn(0, Thetaer) / (gsl_sf_bessel_Kn(2, Thetaer)+SMALL) * g(Xe) * cos(theta);
+
+    /* invariant rotativities */
+    *rV *= nu;
+
+    if (isnan(*rV)  || *rV > 1.e100 || *rV < -1.e100) {
+      printf("NAN RV theta! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
+    }
+
+    return;
+
   } else {
 
     nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
