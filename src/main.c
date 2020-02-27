@@ -103,10 +103,9 @@ int main(int argc, char *argv[])
   double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam/180.*M_PI};
   Xcam[0] = 0.0;
   Xcam[1] = log(rcam);
-  Xcam[2] = root_find(x);
-  Xcam[3] = phicam/180.*M_PI;
+  Xcam[2] = root_find(x, startx[2], stopx[2]);
+  Xcam[3] = phicam/180.*M_PI; // This will need to be changed for future coordinates
   fprintf(stderr, "Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
-  fprintf(stderr, "a=%g R0=%g hslope=%g\n", a, R0, hslope);
 
   params.dsource *= PC;
   double Dsource = params.dsource; // Shorthand
@@ -137,13 +136,13 @@ int main(int argc, char *argv[])
   fovy = DY / rcam;
 
   scale = (DX * L_unit / nx) * (DY * L_unit / ny) / (Dsource * Dsource) / JY;
-  fprintf(stderr,"L_unit = %e DX = %e NX = %i Dsource = %e JY = %e\n", L_unit, DX, nx, Dsource,JY);
   fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
   fprintf(stderr,"Dsource: %g [cm]\n",Dsource);
   fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
   fprintf(stderr,"FOVx, FOVy: %g %g [GM/c^2]\n",DX,DY);
   fprintf(stderr,"FOVx, FOVy: %g %g [rad]\n",DX*L_unit/Dsource,DY*L_unit/Dsource);
   fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
+  fprintf(stderr,"NX = %i NY = %i\n", nx, ny);
 
   // slow light
   if (SLOW_LIGHT) {
@@ -191,7 +190,7 @@ int main(int argc, char *argv[])
 
         MULOOP Xhalf[mu] = X[mu];
         while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
-          dl = stepsize(X, Kcon);
+          dl = stepsize(X, Kcon, stopx[2]);
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
@@ -242,7 +241,7 @@ int main(int argc, char *argv[])
 
         MULOOP Xhalf[mu] = X[mu];
         while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
-          dl = stepsize(X, Kcon);
+          dl = stepsize(X, Kcon, stopx[2]);
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
@@ -470,7 +469,7 @@ int main(int argc, char *argv[])
         while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
           /* This stepsize function can be troublesome inside of R = 2M,
              and should be used cautiously in this region. */
-          dl = stepsize(X, Kcon);
+          dl = stepsize(X, Kcon, stopx[2]);
 
           /* move photon one step backwards, the procecure updates X
              and Kcon full step and returns also values in the middle */
