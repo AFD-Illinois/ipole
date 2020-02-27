@@ -1,0 +1,18 @@
+# ipole parameter file for Polarized GRRT comparison
+
+dump ../test-resources/sample_dump_SANE_a+0.94_MKS_0900.h5
+
+rcam 1.e4
+thetacam 163
+phicam 0
+
+fovx_dsource 160
+fovy_dsource 160
+
+freqcgs 230.e9
+trat_small 3
+trat_large 3
+
+MBH 6.2e9
+M_unit 1.672e26
+outfile image.h5
