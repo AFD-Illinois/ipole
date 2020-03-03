@@ -227,7 +227,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       old_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
     } else { //if (dist == 4) {
       shcherbakov_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-    } //else { // FIX SYMPHONY ROTATION COEFFS
+    } //else { // TODO FIX SYMPHONY ROTATION COEFFS
     //   *rQ = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     //   *rU = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     //   *rV = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);

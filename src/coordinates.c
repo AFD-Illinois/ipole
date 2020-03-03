@@ -294,7 +294,7 @@ void vec_from_ks(double X[NDIM], double v_ks[NDIM], double v_nat[NDIM]) {
  * Translate the input camera angles into a canonical Xcam in native coordinates
  */
 void native_coord(double r, double th, double phi, double X[NDIM]) {
-  if (METRIC_MINKOWSKI) {
+  if (metric == METRIC_MINKOWSKI) {
     X[0] = 1; X[1] = r; X[2] = th/180*M_PI; X[3] = phi/180*M_PI;
   } else {
     double x[NDIM] = {0., r, th/180.*M_PI, phi/180.*M_PI};

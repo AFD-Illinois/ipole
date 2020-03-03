@@ -64,11 +64,15 @@ void init_model(double *tA, double *tB)
   use_eKS_internal = 1;
   metric = 0; // Doesn't matter due to above
   hslope = 1.0;
+  // Needed for camera rootfinding
+  // TODO standard geometry init that handles this...
+  startx[2] = 0.;
+  stopx[2] = 1;
 
   // We already set stuff from parameters, so set_units here
   set_units();
 
-  printf("Running thin disk:\nMBH: %f\nMdot: %f\na: %f\n", MBH, Mdot, a);
+  printf("Running thin disk:\nMBH: %g\nMdot: %g\na: %g\n\n", MBH, Mdot, a);
 }
 
 void set_units()

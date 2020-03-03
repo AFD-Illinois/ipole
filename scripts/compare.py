@@ -6,6 +6,11 @@ import numpy as np
 import h5py
 import sys
 
+# Suppress runtime math warnings -- images have some zeros and that's okay
+import warnings
+if not sys.warnoptions:
+    warnings.simplefilter("ignore")
+
 def blur(im, fwhm=20):
     # 20uas FWHM Gaussian blur. Assume 1px/uas
     return gaussian_filter(im, sigma=(fwhm / (2 * np.sqrt(2 * np.log(2)))))
