@@ -3,10 +3,22 @@
 
 #include "decs.h"
 
-extern int METRIC_eKS;
-extern int METRIC_MKS, METRIC_FMKS, METRIC_MKS3;
-extern double a, hslope;
-extern double poly_norm, poly_xt, poly_alpha, mks_smooth; // mmks
+// Poor man's enum of coordinate systems
+// Modified Kerr-Schild coordinates.  Gammie '03.
+#define METRIC_MKS 0
+// New-style BHAC MKS.  Just like MKS but with X2 in [0,pi] and hslope->(1-hslope)
+#define METRIC_BHACMKS 1
+// "Funky" MKS coordinates as defined on IL wiki, see
+// https://github.com/AFD-Illinois/docs/wiki/Coordinates
+#define METRIC_FMKS 2
+// MKS3 coordinates from koral-light
+#define METRIC_MKS3 3
+
+// Coordinate parameters.  See 
+extern int use_eKS_internal;
+extern int metric;
+extern double a, hslope; // mks
+extern double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 extern double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 extern double startx[NDIM], stopx[NDIM], dx[NDIM];
 extern double R0, Rin, Rout, Rh;

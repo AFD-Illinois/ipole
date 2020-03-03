@@ -21,6 +21,22 @@ MATH_LIB = -lm
 # Name of the executable
 EXE = ipole
 
+# Executables which apparently aren't standard
+MD5=md5sum
+ECHO=echo -e
+
+# Overrides of the above for macOS
+ifneq (,$(findstring Darwin,$(shell uname)))
+	export HDF5_CC = /usr/local/opt/llvm/bin/clang
+	export HDF5_CLINKER = /usr/local/opt/llvm/bin/clang
+
+	GSL_DIR=/usr/local
+	SYSTEM_LIBDIR=
+
+	MD5=md5
+	ECHO=echo
+endif
+
 # Override these defaults if we know the machine we're working with
 # Once you know what compiles, add it as a machine def here
 MAKEFILE_PATH := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
@@ -90,9 +106,9 @@ endif
 default: build
 
 build: $(EXE)
-	@echo -e "Completed build with model: $(MODEL)"
-	@echo -e "CFLAGS: $(CFLAGS)"
-	@echo -e "MD5: $(shell md5sum $(EXE))"
+	@$(ECHO) "Completed build with model: $(MODEL)"
+	@$(ECHO) "CFLAGS: $(CFLAGS)"
+	@$(ECHO) "MD5: $(shell $(MD5) $(EXE))"
 
 debug: CFLAGS += -g -Wall -Werror -Wno-unused-variable -Wno-unused-but-set-variable
 debug: CFLAGS += -DDEBUG=1
@@ -107,19 +123,19 @@ vtune: build
 
 
 clean:
-	@echo "Cleaning build files..."
-	@rm -f $(EXE) $(OBJ)
+	@$(ECHO) "Cleaning build files..."
+	@rm -rf $(EXE) $(OBJ) $(ARC_DIR)
 
 $(EXE): $(ARC_DIR)/$(EXE)
 	@cp $(ARC_DIR)/$(EXE) .
 
 $(ARC_DIR)/$(EXE): $(OBJ)
-	@echo -e "\tLinking $(EXE)"
+	@$(ECHO) "\tLinking $(EXE)"
 	@$(LINK) $(LDFLAGS) $(OBJ) $(LIBDIR) $(LIB) -o $(ARC_DIR)/$(EXE)
 	@rm $(OBJ) # This ensures full recompile
 
 $(ARC_DIR)/%.o: $(ARC_DIR)/%.c $(HEAD_ARC)
-	@echo -e "\tCompiling $(notdir $<)"
+	@$(ECHO) "\tCompiling $(notdir $<)"
 	@$(CC) $(CFLAGS) $(INC) -DVERSION=$(GIT_VERSION) -DNOTES=$(NOTES) -DMODEL=$(MODEL) -c $< -o $@
 
 $(ARC_DIR)/%: % | $(ARC_DIR)

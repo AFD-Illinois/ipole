@@ -127,8 +127,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     *rU = 0.0;
     *rV = 0.0;
 
-  } else if (theta <= 0. || theta >= M_PI) {	// No emission/absorption along field
-    fprintf(stderr, "ZERO EMISSION ALONG FIELD!");
+  } else if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
 
     *jI = 0.0;
     *jQ = 0.0;
@@ -144,26 +143,16 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     B = get_model_b(X);		// field in G
     Thetae = get_model_thetae(X);	// temp in e rest-mass units
 
-    // Only take rV
-    if (dist == 1 || dist == 4) {
+    // ROTATIVITIES: make sure they're done like below but only take rV
+    if (dist == 4) {
       dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-      *rQ = 0.0;
-      *rU = 0.0;
     } else {
-      setConstParams(&paramsM);
-      if (dist == 2) {
-        fit = paramsM.KAPPA_DIST;
-        // TODO get_model_kappa
-      } else if (dist == 3) {
-        fit = paramsM.POWER_LAW;
-        // NOTE WE REPLACE Ne!!
-        get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &gamma_min, &gamma_max, &gamma_cut);
-      }
-
       *rV = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     }
 
-    // make rhoV invariant
+    // invariant rotativities
+    *rQ = 0;
+    *rU = 0;
     *rV *= nu;
 
     if (isnan(*rV)  || *rV > 1.e100 || *rV < -1.e100) {
@@ -299,6 +288,7 @@ double g(double Xe)
 {
   return 1. - 0.11 * log(1 + 0.035 * Xe);
 }
+
 
 double h(double Xe)
 {

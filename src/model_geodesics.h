@@ -18,6 +18,6 @@ void init_XK(int i, int j, int nx, int ny, double Xcam[NDIM],
 
 // Internal utilities still used for slow light
 int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[NDIM]);
-double stepsize(double X[NDIM], double K[NDIM]);
+double stepsize(double X[NDIM], double K[NDIM], double stopx2);
 
 #endif /* SRC_MODEL_GEODESICS_H_ */

@@ -102,7 +102,6 @@ int main(int argc, char *argv[])
   // translate to geodesic coordinates
   native_coord(params.rcam, params.thetacam, params.phicam, Xcam);  // TODO cartesian version
   fprintf(stderr, "Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
-  fprintf(stderr, "a=%g R0=%g hslope=%g\n", a, R0, hslope);
 
   params.dsource *= PC;
   double Dsource = params.dsource; // Shorthand
@@ -133,7 +132,6 @@ int main(int argc, char *argv[])
   fovy = DY / params.rcam;
 
   scale = (DX * L_unit / nx) * (DY * L_unit / ny) / (Dsource * Dsource) / JY;
-  fprintf(stderr,"L_unit = %e DX = %e NX = %i Dsource = %e JY = %e\n", L_unit, DX, nx, Dsource,JY);
   fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
   fprintf(stderr,"Dsource: %g [cm]\n",Dsource);
   fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
