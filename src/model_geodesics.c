@@ -17,12 +17,14 @@
 #include "model.h"
 #include "coordinates.h"
 
-/*
+#include "debug_tools.h"
+
+/**
  * Trace a single geodesic
- * Takes a starting location and frequency in *units of electron mass frequency*,
+ * Takes a starting location and wavevector in *units of electron mass frequency*,
  * as well as a (long enough!) array of trajectory location structs of_traj
  */
-int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj) {
+int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj, double eps, int step_max) {
 
   double Xhalf[NDIM], Kconhalf[NDIM];
 
@@ -45,7 +47,13 @@ int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj) {
 
     /* This stepsize function can be troublesome inside of R = 2M,
        and should be used cautiously in this region. */
-    double dl = stepsize(X, Kcon);
+    double dl = stepsize(X, Kcon, eps);
+
+    // To print each point:
+    // print_vector("X", X);
+    // print_vector("Kcon", Kcon);
+    // fprintf(stderr, "dl: %f\n", dl);
+    // getchar();
 
     /* Geodesics in ipole are integrated using
      * dx^\mu/d\lambda = k^\mu
@@ -62,15 +70,19 @@ int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj) {
      * Set the *next* step's size, so that when integrating back it is
      * the *last* step's size
      */
+#if INTEGRATOR_TEST
+    traj[nstep+1].dl = dl;
+#else
     traj[nstep+1].dl = dl * L_unit * HPL / (ME * CL * CL);
+#endif
 
     /* move photon one step backwards, the procecure updates X
        and Kcon full step and returns also values in the middle */
     push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
     nstep++;
 
-    if (nstep > MAXNSTEP - 2) {
-      fprintf(stderr, "MAXNSTEP exceeded!\n");
+    if (nstep > step_max - 2) {
+      fprintf(stderr, "maxnstep exceeded!\n");
       break;
     }
   }
@@ -101,9 +113,8 @@ void init_XK(int i, int j, int nx, int ny, double Xcam[NDIM],
   // Construct outgoing wavevectors
   // xoff: allow arbitrary offset for e.g. ML training imgs
   // +0.5: project geodesics from px centers
-  // -0.01: Prevent nasty artefact at 0 spin/phicam
   // xoff/yoff are separated to keep consistent behavior between refinement levels
-  double dxoff = (i+0.5-0.01)/nx - 0.5 + params.xoff/params.nx;
+  double dxoff = (i+0.5)/nx - 0.5 + params.xoff/params.nx;
   double dyoff = (j+0.5)/ny - 0.5 + params.yoff/params.ny;
   Kcon_tetrad[0] = 0.;
   Kcon_tetrad[1] = (dxoff*cos(params.rotcam) - dyoff*sin(params.rotcam)) * fovx;
@@ -154,32 +165,12 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   return (0);
 }
 
-double stepsize(double X[NDIM], double Kcon[NDIM], double stopx2)
+double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {
-  double eps = 0.01; // TODO take as parameter w/MAXNSTEP?
-
-  double dl, dlx1, dlx2, dlx3;
-  double idlx1,idlx2,idlx3 ;
-
-  dlx1 = eps / (fabs(Kcon[1]) + SMALL*SMALL) ;
-  //dlx2 = EPS * GSL_MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
-<<<<<<< HEAD
-  dlx2 = eps * MIN(X[2], stopx[2] - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
-=======
-  dlx2 = eps * MIN(X[2], stopx2 - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
->>>>>>> feature/bhac-mks
-  dlx3 = eps / (fabs(Kcon[3]) + SMALL*SMALL) ;
-
-  idlx1 = 1./(fabs(dlx1) + SMALL*SMALL) ;
-  idlx2 = 1./(fabs(dlx2) + SMALL*SMALL) ;
-  idlx3 = 1./(fabs(dlx3) + SMALL*SMALL) ;
-
-  dl = 1. / (idlx1 + idlx2 + idlx3) ;
-
-  //dl = MIN(MIN(1./dlx1, 1./idlx2), 1./dlx3);
-  //printf("idlx = %e %e %e\n", 1./idlx1, 1./idlx2, 1./idlx3);
-
-  //dl = MIN(dl, 0.5*DTd/Kcon[0]);
+  double dlx1 = eps / (fabs(Kcon[1]) + SMALL);
+  double dlx2 = eps * fmin(fabs(X[2]), fabs(stopx[2] - X[2])) / (fabs(Kcon[2]) + SMALL);
+  double dlx3 = eps / (fabs(Kcon[3]) + SMALL);
+  double dl = fmin(fmin(dlx1, dlx2), dlx3);
 
   return dl;
 }

@@ -26,6 +26,9 @@ MBH 10
 Mdot 0.01
 
 # BH dimensionless spin
-a 0.99
+a 0.9
+
+xoff -0.5
+yoff -0.5
 
 outfile image.h5

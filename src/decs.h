@@ -7,30 +7,25 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+// Strings and string tools
 #define VERSION_STRING "ipole-beta-1.2"
-
-#define NDIM	4
-
 #define xstr(s) str(s)
 #define str(s) #s
-
 #define STRLEN (2048)
 
+// Dimensions
+#define NDIM	4
 #define NIMG (5) // Stokes parameters plus faraday depth
 
+// "functions"
 #define sign(x) (((x) < 0) ? -1 : ((x) > 0))
-#define delta(x, y) ( ((x) == (y)) ? 1 : 0 )
+#define delta(x, y) ((x) == (y))
 
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
 #define MULOOP for(int mu=0;mu<NDIM;mu++)
 #define MUNULOOP for(int mu=0;mu<NDIM;mu++) for(int nu=0;nu<NDIM;nu++)
-
-// TODO phase out for print_vector from debug_tools?
-#define P4VEC(S,X) fprintf(stderr, "%s: %g %g %g %g\n", S, X[0], X[1], X[2], X[3]);
-
-#define MAXNSTEP 10000
 
 struct of_traj {
   double dl;

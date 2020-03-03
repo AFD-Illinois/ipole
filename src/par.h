@@ -19,10 +19,17 @@ typedef struct params_t {
   double dsource;       // in pc
   double freqcgs;       // ... in cgs
 
+  // Geodesic accuracy
+  double eps;
+  int maxnstep;
+
   int add_ppm;          // Whether to additionally make a ppm image of I
   int qu_conv;          // Convention for Stokes Q,U.  0 (default) -> East of North (observer).  1 -> North of West
   int quench_output;    // Quench output, i.e. "quench" argument
   int only_unpolarized; // Unpolarized transport only
+
+  // Which e- energy distributions/emissivities to use
+  int emission_type;
 
   const char dump[STRLEN];
   const char outf[STRLEN];

@@ -6,8 +6,8 @@
 $ python ipole_plot.py path/to/images/*h5
 
 $ ffmpeg -framerate 8 -i dump%*.png -s:v 1280x720 -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p out.mp4
-
 """
+
 import matplotlib
 matplotlib.use("agg")
 import matplotlib.pyplot as plt

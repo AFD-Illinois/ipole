@@ -13,6 +13,8 @@
 #define METRIC_FMKS 2
 // MKS3 coordinates from koral-light
 #define METRIC_MKS3 3
+// Spherical coordinates in Minkowski space
+#define METRIC_MINKOWSKI 4
 
 // Coordinate parameters.  See 
 extern int use_eKS_internal;
@@ -27,6 +29,7 @@ void bl_coord(double *X, double *r, double *th);
 void bl_to_ks(double X[NDIM], double ucon_bl[NDIM], double ucon_ks[NDIM]);
 void ks_to_bl(double X[NDIM], double ucon_ks[NDIM], double ucon_bl[NDIM]);
 void gcov_func(double *X, double gcov[][NDIM]);
+// TODO privatize these, why are they needed in models?
 void gcov_ks(double r, double th, double gcov[NDIM][NDIM]);
 void gcov_bl(double r, double th, double gcov[NDIM][NDIM]);
 

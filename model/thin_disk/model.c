@@ -371,3 +371,8 @@ void get_model_ucov(double X[NDIM], double Ucov[NDIM]) {return;}
 void get_model_ucon(double X[NDIM], double Ucon[NDIM]) {return;}
 void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
           double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
+// In case we want to mess with emissivities directly
+void get_model_jar(double X[NDIM], double Kcon[NDIM],
+    double *jI, double *jQ, double *jU, double *jV,
+    double *aI, double *aQ, double *aU, double *aV,
+    double *rQ, double *rU, double *rV) {return;}

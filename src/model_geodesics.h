@@ -11,13 +11,13 @@
 #include "decs.h"
 #include "par.h"
 
-int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj);
+int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj, double eps, int step_max);
 void init_XK(int i, int j, int nx, int ny, double Xcam[NDIM],
              Params params, double fovx, double fovy,
              double X[NDIM], double Kcon[NDIM]);
 
 // Internal utilities still used for slow light
 int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[NDIM]);
-double stepsize(double X[NDIM], double K[NDIM], double stopx2);
+double stepsize(double X[NDIM], double K[NDIM], double eps);
 
 #endif /* SRC_MODEL_GEODESICS_H_ */

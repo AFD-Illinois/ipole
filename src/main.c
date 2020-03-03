@@ -100,15 +100,7 @@ int main(int argc, char *argv[])
   params.rotcam *= M_PI/180.;
 
   // translate to geodesic coordinates
-<<<<<<< HEAD
   native_coord(params.rcam, params.thetacam, params.phicam, Xcam);  // TODO cartesian version
-=======
-  double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam/180.*M_PI};
-  Xcam[0] = 0.0;
-  Xcam[1] = log(rcam);
-  Xcam[2] = root_find(x, startx[2], stopx[2]);
-  Xcam[3] = phicam/180.*M_PI; // This will need to be changed for future coordinates
->>>>>>> feature/bhac-mks
   fprintf(stderr, "Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
 
   params.dsource *= PC;
@@ -146,7 +138,6 @@ int main(int argc, char *argv[])
   fprintf(stderr,"FOVx, FOVy: %g %g [GM/c^2]\n",DX,DY);
   fprintf(stderr,"FOVx, FOVy: %g %g [rad]\n",DX*L_unit/Dsource,DY*L_unit/Dsource);
   fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
-<<<<<<< HEAD
   fprintf(stderr,"Resolution: %dx%d, refined up to %dx%d (%d levels)\n",
           params.nx_min, params.ny_min, params.nx, params.ny, refine_level);
   if (refine_level > 1) {
@@ -157,9 +148,6 @@ int main(int argc, char *argv[])
   double *taus = calloc(nx*ny, sizeof(*taus));
   double *imageS = calloc(nx*ny*NIMG, sizeof(*imageS));
   double *image = calloc(nx*ny, sizeof(*image));
-=======
-  fprintf(stderr,"NX = %i NY = %i\n", nx, ny);
->>>>>>> feature/bhac-mks
 
   // slow light
   if (SLOW_LIGHT) {
@@ -209,16 +197,20 @@ int main(int argc, char *argv[])
         MULOOP Xhalf[mu] = X[mu];
 <<<<<<< HEAD
         while (!stop_backward_integration(X, Xhalf, Kcon)) {
+<<<<<<< Updated upstream
           dl = stepsize(X, Kcon);
 =======
         while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
           dl = stepsize(X, Kcon, stopx[2]);
 >>>>>>> feature/bhac-mks
+=======
+          dl = stepsize(X, Kcon, params.eps);
+>>>>>>> Stashed changes
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
-          if (nstep > MAXNSTEP - 2) {
-            fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j,i);
+          if (nstep > params.maxnstep - 2) {
+            fprintf(stderr, "maxnstep exceeded on j=%d i=%d\n", j,i);
             break;
           }
 
@@ -263,13 +255,8 @@ int main(int argc, char *argv[])
         for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
         MULOOP Xhalf[mu] = X[mu];
-<<<<<<< HEAD
         while (!stop_backward_integration(X, Xhalf, Kcon)) {
-          dl = stepsize(X, Kcon);
-=======
-        while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
-          dl = stepsize(X, Kcon, stopx[2]);
->>>>>>> feature/bhac-mks
+          dl = stepsize(X, Kcon, params.eps);
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
@@ -283,8 +270,8 @@ int main(int argc, char *argv[])
             dtraj[stepidx].Kconhalf[k] = Kconhalf[k];
           }
 
-          if (nstep > MAXNSTEP - 2) {
-            fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j,i);
+          if (nstep > params.maxnstep - 2) {
+            fprintf(stderr, "maxnstep exceeded on j=%d i=%d\n", j,i);
             break;
           }
         }
@@ -398,7 +385,7 @@ int main(int argc, char *argv[])
               
               // polarized transport
               if (! only_unpolarized) {
-                evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF));
+                evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF), &params);
                 if (isnan(creal(dimage[pxidx].N_coord[0][0]))) {
                   exit(-2);
                 }
@@ -516,18 +503,10 @@ int main(int argc, char *argv[])
     }
     double avg_val = 0;
 
-<<<<<<< HEAD
 #pragma omp parallel for schedule(dynamic,1) collapse(2) reduction(+:avg_val)
     for (int i=0; i < nx; ++i) {
       for (int j=0; j < ny; ++j) {
         if (j==0) fprintf(stderr, "%d ", i);
-=======
-        // Integrate backwards
-        while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
-          /* This stepsize function can be troublesome inside of R = 2M,
-             and should be used cautiously in this region. */
-          dl = stepsize(X, Kcon, stopx[2]);
->>>>>>> feature/bhac-mks
 
         double Intensity = 0;
         double Is = 0, Qs = 0, Us = 0, Vs = 0;
@@ -685,6 +664,7 @@ int main(int argc, char *argv[])
   return 0;
 }
 
+// TODO Move these?
 void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
                double fovx, double fovy, double freq, int only_unpolarized, double scale,
                double *Intensity, double *Is, double *Qs, double *Us, double *Vs,
@@ -695,12 +675,14 @@ void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
 
   // Integrate backward to find geodesic trajectory
   init_XK(i,j, nx, ny, Xcam, params, fovx,fovy, X, Kcon);
-  struct of_traj *traj = calloc(MAXNSTEP, sizeof(struct of_traj));
+  struct of_traj *traj = calloc(params.maxnstep, sizeof(struct of_traj));
+#if !INTEGRATOR_TEST
   MULOOP Kcon[mu] *= freq;
-  int nstep = trace_geodesic(X, Kcon, traj);
+#endif
+  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep);
 
   // Integrate emission forward along trajectory
-  integrate_emission(traj, nstep, only_unpolarized, Intensity, Tau, tauF, N_coord);
+  integrate_emission(traj, nstep, only_unpolarized, Intensity, Tau, tauF, N_coord, &params);
 
   // Record values along the geodesic if requested
   // Figure out how to do this with adaptive...

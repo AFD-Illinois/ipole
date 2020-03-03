@@ -16,6 +16,8 @@
 #include "radiation.h"
 #include "coordinates.h"
 #include "geometry.h"
+#include "debug_tools.h"
+#include "par.h"
 #include "decs.h"
 
 // Symphony
@@ -25,10 +27,23 @@
 #include <omp.h>
 #include <gsl/gsl_sf_bessel.h>
 
-// Declarations of local functions: emissivity fits
+// TODO enum?
+#define E_THERMAL        1
+#define E_KAPPA          2
+#define E_POWERLAW       3
+#define E_DEXTER_THERMAL 4
+#define E_CUSTOM       10
+#define ROT_OLD        11
+#define ROT_PIECEWISE  12
+
+// Declarations of local fitting functions, for Dexter fits and old rotativities
 void dexter_j_fit_thermal(double Ne, double nu, double Thetae, double B, double theta,
                     double *jI, double *jQ, double *jU, double *jV);
-void dexter_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
+void shcherbakov_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *rQ, double *rU, double *rV);
+void piecewise_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *rQ, double *rU, double *rV);
+void old_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
                     double *rQ, double *rU, double *rV);
 
 // Thermal plasma emissivity, absorptivity and Faraday conversion and rotation
@@ -47,18 +62,23 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV);
 
-/*
+/**
  * Wrapper to call different distributions at different places in the simulation domain
+ * See jar_calc_dist for distributions
  */
 void jar_calc(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
-    double *rQ, double *rU, double *rV)
+    double *rQ, double *rU, double *rV, Params *params)
 {
-  jar_calc_dist(1, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+#if INTEGRATOR_TEST
+  jar_calc_dist(E_CUSTOM, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+#else
+  jar_calc_dist(params->emission_type, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+#endif
 }
 
-/*
+/**
  * Get the invariant plasma emissivities, absorptivities, rotativities in tetrad frame
  * This is a wrapper to the fitting functions in this file and in the emissivity/ dir
  *
@@ -67,12 +87,17 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
  * 2. Kappa (Pandya+ 2016)
  * 3. Power-law (Pandya+ 2016)
  * 4. Thermal (Dexter 2016)
+ * Rotativity rhoQ always from Dexter 2016, rhoV from Shcherbakov 2008
  *
  * To be implemented?
  * 5. Power-law (Dexter 2016)
  * 6. Thermal (Revised based on Pandya+ 2016 to better match Leung 2011)
- *
- * Rotativities are always from Dexter 2016
+ * 
+ * Testing distributions:
+ * 10. Pass through model-determined values. Currently used for constant-coefficient testing.
+ * 11. Emulate original ipole, with Dexter 2016 emissivities and rotativities based on Bessel fits
+ * 12. Emulate the old ipole temporary fix, with Dexter 2016 emissivities and rotativities patched into the constant limit
+ * 
  */
 void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
@@ -90,6 +115,12 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 
   double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
 
+  // Ignore everything if this isn't our job
+  if (dist == E_CUSTOM) {
+    get_model_jar(X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+    return;
+  }
+
   Ne = get_model_ne(X);
   get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
 
@@ -99,8 +130,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     double del[4];
     Xtoijk(X, &i,&j,&k, del);
     fprintf(stderr, "UCOV[0] (%d,%d,%d) is nan! thread = %i\n", i,j,k, omp_get_thread_num());
-    P4VEC("Ucon", Ucon);
-    P4VEC("Ucov", Ucov);
+    print_vector("Ucon", Ucon);
+    print_vector("Ucov", Ucov);
     fprintf(stderr, "X[] = %e %e %e %e\n", X[0],X[1],X[2],X[3]);
     fprintf(stderr, "K[] = %e %e %e %e\n", Kcon[0],Kcon[1],Kcon[2],Kcon[3]);
     fprintf(stderr, "Ne = %e\n", Ne);
@@ -108,6 +139,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 
   theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	// angle between k & b
 
+<<<<<<< Updated upstream
   // For later jet/disk
   // && (dist == 1 || dist == 4)
   if (Ne <= 0.) {  // avoid 1./0. issues
@@ -129,6 +161,13 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 
   } else if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
 
+=======
+  // EMISSIVITIES
+  // Avoid issues when we know there shouldn't be emission, but the coefficients might NaN
+  // 1. Ne <= 0 is used to cut off emission in funnel
+  // 2. theta == 0 sometimes actually happens, go figure
+  if (Ne <= 0. || theta <= 0 || theta >= M_PI) {
+>>>>>>> Stashed changes
     *jI = 0.0;
     *jQ = 0.0;
     *jU = 0.0;
@@ -139,6 +178,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     *aU = 0.0;
     *aV = 0.0;
 
+<<<<<<< Updated upstream
     nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
     B = get_model_b(X);		// field in G
     Thetae = get_model_thetae(X);	// temp in e rest-mass units
@@ -159,6 +199,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       fprintf(stderr, "NAN RV! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
     }
 
+=======
+>>>>>>> Stashed changes
   } else {
 
     nu = get_fluid_nu(Kcon, Ucov);	// freqcgs in Hz
@@ -166,29 +208,34 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     B = get_model_b(X);	// field in G
 
     // EMISSIVITIES
-    if (dist == 4) {
-      // Fits from Dexter.  Used directly
+    if (dist == E_DEXTER_THERMAL || dist > 10) { // If explicitly using Dexter or emulating old behavior
+      // Use fits from Dexter
       Thetae = get_model_thetae(X);
       dexter_j_fit_thermal(Ne, nu, Thetae, B, theta, jI, jQ, jU, jV);
     } else {
-      // Symphony setup -- translate dist param into
+      // Symphony setup -- translate dist param into a Symphony call
       setConstParams(&paramsM);
 
-      if (dist == 1) {
-        fit = paramsM.MAXWELL_JUETTNER;
-        Thetae = get_model_thetae(X);
-      } else if (dist == 2) {
-        fit = paramsM.KAPPA_DIST;
-        // TODO get_model_kappa
-      } else if (dist == 3) {
-        fit = paramsM.POWER_LAW;
-        // NOTE WE REPLACE Ne!!
-        get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &gamma_min, &gamma_max, &gamma_cut);
+      switch (dist) {
+        case E_THERMAL:
+          fit = paramsM.MAXWELL_JUETTNER;
+          Thetae = get_model_thetae(X);
+          break;
+        case E_KAPPA:
+          fit = paramsM.KAPPA_DIST;
+          // TODO get_model_kappa
+          break;
+        case E_POWERLAW:
+          fit = paramsM.POWER_LAW;
+          // NOTE WE REPLACE Ne!!
+          get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &gamma_min, &gamma_max, &gamma_cut);
+          break;
       }
 
+      // Symphony uses an... interesting coordinate system. Correct it.
       *jI = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
-      *jQ = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
-      *jU = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *jQ = -j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *jU = -j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
       *jV = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     }
 
@@ -199,7 +246,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     *jV /= nusq;
 
     // ABSORPTIVITIES
-    if (dist == 1 || dist == 4) {
+    if (dist == E_THERMAL || dist == E_DEXTER_THERMAL || dist > 10) { // Thermal distributions
       // Get absorptivities via Kirchoff's law
       double Bnuinv = Bnu_inv(nu, Thetae);   // Planck function
       *aI = *jI / Bnuinv;
@@ -208,29 +255,43 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       *aV = *jV / Bnuinv;
     } else {
       *aI = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
-      *aQ = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
-      *aU = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *aQ = -alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+      *aU = -alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
       *aV = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     }
+  }
 
-    // ROTATIVITIES
-    if (dist == 4) {
-      dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-    } else {
-      *rQ = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
-      *rU = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
-      *rV = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
-    }
+  // ROTATIVITIES
+  // Avoid Ne issue again.
+  if (Ne <= 0.) {
+    *rQ = 0;
+    *rU = 0;
+    *rV = 0;
+  } else {
+    if (dist == ROT_PIECEWISE) {
+      piecewise_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
+    } else if (dist == ROT_OLD) {
+      old_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
+    } else { //if (dist == 4) {
+      shcherbakov_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
+    } //else { // FIX SYMPHONY ROTATION COEFFS
+    //   *rQ = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+    //   *rU = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+    //   *rV = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+    // }
 
     // invariant rotativities
     *rQ *= nu;
     *rU *= nu;
     *rV *= nu;
+  }
 
-    // something bad has happened. report the details.
-    if (isnan(*rV) || *rV > 1.e100 || *rV < -1.e100) {
-      fprintf(stderr, "NAN RV! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
-    }
+  // Spot check for NaN coefficients
+  if (isnan(*rV) || *rV > 1.e100 || *rV < -1.e100) {
+    fprintf(stderr, "\nNAN RV! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
+  }
+  if (isnan(*jV) || *jV > 1.e100 || *jV < -1.e100) {
+    fprintf(stderr, "\nNAN jV! jV = %e nu = %e Ne = %e Thetae = %e B = %e theta = %e\n", *jV, nu, Ne, Thetae, B, theta);
   }
 }
 
@@ -243,7 +304,7 @@ void dexter_j_fit_thermal(double Ne, double nu, double Thetae, double B, double 
                     double *jI, double *jQ, double *jU, double *jV)
 {
   // Synchrotron emissivity
-  //
+
   double nus = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
   double x = nu / nus;
 
@@ -253,7 +314,30 @@ void dexter_j_fit_thermal(double Ne, double nu, double Thetae, double B, double 
   *jV = 2. * Ne * EE * EE * nu / tan(theta) / 3. / sqrt(3) / CL / Thetae / Thetae / Thetae * I_V(x);
 }
 
-void dexter_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
+void shcherbakov_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *rQ, double *rU, double *rV)
+{
+  double Thetaer = 1. / Thetae;
+
+  double omega0 = EE * B / ME / CL;
+  double wp2 = 4. * M_PI * Ne * EE * EE / ME;
+
+  // Faraday rotativities for thermal plasma
+  double Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
+
+  // These are the Dexter (2016) fit actually
+  *rQ = 2. * M_PI * nu / 2. / CL * wp2 * omega0 * omega0 / pow(2 * M_PI * nu, 4) *
+        jffunc(Xe) * (gsl_sf_bessel_Kn(1, Thetaer) / gsl_sf_bessel_Kn(2, Thetaer) +
+                      6. * Thetae) * sin(theta) * sin(theta);
+  *rU = 0.0;
+
+  // Shcherbakov fit for rV.  Possibly questionable at very low frequency
+  // Note the real bessel functions. Slow?
+  *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
+        gsl_sf_bessel_Kn(0, Thetaer) / (gsl_sf_bessel_Kn(2, Thetaer)+SMALL) * g(Xe) * cos(theta);
+}
+
+void piecewise_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
                     double *rQ, double *rU, double *rV)
 {
   double Thetaer = 1. / Thetae;
@@ -282,6 +366,27 @@ void dexter_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
     // Use the constant low-temperature limit
     *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) * cos(theta);
   }
+}
+
+void old_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *rQ, double *rU, double *rV)
+{
+  double Thetaer = 1. / Thetae;
+
+  double omega0 = EE * B / ME / CL;
+  double wp2 = 4. * M_PI * Ne * EE * EE / ME;
+
+  // Faraday rotativities for thermal plasma
+  double Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
+
+  // Approximate bessel functions to match rhoq,v with grtrans
+  *rQ = 2. * M_PI * nu / 2. / CL * wp2 * omega0 * omega0 / pow(2 * M_PI * nu, 4) *
+    jffunc(Xe) * (besselk_asym(1, Thetaer) / besselk_asym(2, Thetaer) +
+        6. * Thetae) * sin(theta) * sin(theta);
+  *rU = 0.0;
+  // Use approximations to Bessel fns for all space. Dangerous at low temp!
+  *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
+      (besselk_asym(0, Thetaer) - Je(Xe)) / besselk_asym(2, Thetaer) * cos(theta);
 }
 
 double g(double Xe)

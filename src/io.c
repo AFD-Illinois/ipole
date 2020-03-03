@@ -275,7 +275,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     get_model_fourv(traj[i].X, Ucont, Ucovt, Bcont, Bcovt);
     jar_calc(traj[i].X, traj[i].Kcon, &(j_inv[i*NDIM]), &(j_inv[i*NDIM+1]), &(j_inv[i*NDIM+2]), &(j_inv[i*NDIM+3]),
              &(alpha_inv[i*NDIM]), &(alpha_inv[i*NDIM+1]), &(alpha_inv[i*NDIM+2]), &(alpha_inv[i*NDIM+3]),
-             &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]));
+             &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]), params);
 
     b[i] = get_model_b(traj[i].X);
     ne[i] = get_model_ne(traj[i].X);
@@ -309,7 +309,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_array(&nstep, "nstep", 2, fdims_p, fstart_p, fcount_p, mdims_p, mstart_p, H5T_STD_I32LE);
 
   // SCALARS: Anything with one value for every geodesic step
-  hsize_t fdims_s[] = { nx, ny, MAXNSTEP };
+  hsize_t fdims_s[] = { nx, ny, params->maxnstep };
   hsize_t chunk_s[] =  { 1, 1, 200 };
   hsize_t fstart_s[] = { i, j, 0 };
   hsize_t fcount_s[] = { 1, 1, nstep };
@@ -328,7 +328,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_chunked_array(phi, "phi", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
 
   // VECTORS: Anything with N values per geodesic step
-  hsize_t fdims_v[] = { nx, ny, MAXNSTEP, 4 };
+  hsize_t fdims_v[] = { nx, ny, params->maxnstep, 4 };
   hsize_t chunk_v[] =  { 1, 1, 200, 4 };
   hsize_t fstart_v[] = { i, j, 0, 0 };
   hsize_t fcount_v[] = { 1, 1, nstep, 4 };

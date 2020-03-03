@@ -11,7 +11,7 @@
 #include "decs.h"
 
 // define CAMERA_CENTER_ZAMO to use force the middle camera pixel to have k_phi = 0
-#define CAMERA_CENTER_ZAMO
+//#define CAMERA_CENTER_ZAMO
 
 void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
                     double Ecov[NDIM][NDIM]);

@@ -17,10 +17,18 @@ double R0, Rin, Rout, Rh;
  * Despite the name, this returns r, th coordinates for a KS or BL
  * coordinate system (since they're equal), from a set of "modified"
  * native coordinates X
+ * If METRIC_MINKOWSKI is set, returns spherical coordinates instead
  */
 void bl_coord(double X[NDIM], double *r, double *th)
 {
-  *r = exp(X[1]);  // Note: Overridden by one case below
+
+  if (metric == METRIC_MINKOWSKI) {
+      *r = X[1];
+      *th = X[2];
+      return;
+  }
+
+  *r = exp(X[1]); // Note: Overridden by one case below
 
   if (use_eKS_internal) {
     *th = M_PI * X[2];
@@ -103,6 +111,15 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
   double r, th;
   bl_coord(X, &r, &th);
 
+  if (metric == METRIC_MINKOWSKI) {
+      MUNULOOP gcov[mu][nu] = 0;
+      gcov[0][0] = -1;
+      gcov[1][1] = 1;
+      gcov[2][2] = r*r;
+      gcov[3][3] = r*r*sin(th)*sin(th);
+      return;
+  }
+
   // compute ks metric
   double Gcov_ks[NDIM][NDIM];
   gcov_ks(r, th, Gcov_ks);
@@ -177,9 +194,9 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
   MUNULOOP
     dxdX[mu][nu] = delta(mu, nu);
 
-  dxdX[1][1] = exp(X[1]);
+  dxdX[1][1] = exp(X[1]); // Overridden by one case below
 
-  if (use_eKS_internal) { //  && metric == 0 // TODO eKS switch
+  if (use_eKS_internal) {
     dxdX[2][2] = M_PI;
   } else {
     switch (metric) {
@@ -244,6 +261,9 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
                                     * (1 - 2 * X[2]) + X[2])),
                 2)) / 2.;
         break;
+      case METRIC_MINKOWSKI:
+        // Blank transform
+        dxdX[1][1] = 1.;
     }
   }
 }
@@ -274,11 +294,15 @@ void vec_from_ks(double X[NDIM], double v_ks[NDIM], double v_nat[NDIM]) {
  * Translate the input camera angles into a canonical Xcam in native coordinates
  */
 void native_coord(double r, double th, double phi, double X[NDIM]) {
-  double x[NDIM] = {0., r, th/180.*M_PI, phi/180.*M_PI};
-  X[0] = 0.0;
-  X[1] = log(r);
-  X[2] = root_find(x);
-  X[3] = phi/180.*M_PI;
+  if (METRIC_MINKOWSKI) {
+    X[0] = 1; X[1] = r; X[2] = th/180*M_PI; X[3] = phi/180*M_PI;
+  } else {
+    double x[NDIM] = {0., r, th/180.*M_PI, phi/180.*M_PI};
+    X[0] = 0.0;
+    X[1] = log(r);
+    X[2] = root_find(x);
+    X[3] = phi/180.*M_PI;
+  }
 }
 
 /*

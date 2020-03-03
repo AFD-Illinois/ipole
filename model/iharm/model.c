@@ -995,3 +995,8 @@ void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
   *n = u_nth * (*p - 2)/(*p - 1) * 1/(ME * CL*CL * *gamma_min);
 }
 
+// In case we want to mess with emissivities directly
+void get_model_jar(double X[NDIM], double Kcon[NDIM],
+    double *jI, double *jQ, double *jU, double *jV,
+    double *aI, double *aQ, double *aU, double *aV,
+    double *rQ, double *rU, double *rV) {return;}
