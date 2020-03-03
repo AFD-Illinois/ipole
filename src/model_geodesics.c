@@ -154,7 +154,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   return (0);
 }
 
-double stepsize(double X[NDIM], double Kcon[NDIM])
+double stepsize(double X[NDIM], double Kcon[NDIM], double stopx2)
 {
   double eps = 0.01; // TODO take as parameter w/MAXNSTEP?
 
@@ -163,7 +163,11 @@ double stepsize(double X[NDIM], double Kcon[NDIM])
 
   dlx1 = eps / (fabs(Kcon[1]) + SMALL*SMALL) ;
   //dlx2 = EPS * GSL_MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
+<<<<<<< HEAD
   dlx2 = eps * MIN(X[2], stopx[2] - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
+=======
+  dlx2 = eps * MIN(X[2], stopx2 - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
+>>>>>>> feature/bhac-mks
   dlx3 = eps / (fabs(Kcon[3]) + SMALL*SMALL) ;
 
   idlx1 = 1./(fabs(dlx1) + SMALL*SMALL) ;

@@ -1,0 +1,25 @@
+# Constant emissivities
+jI 0.0
+jQ 0.1
+jU 0.1
+jV 0.1
+
+aI 0.0
+aQ 0.0
+aU 0.0
+aV 0.0
+
+rQ 10.0
+rU 0.0
+rV -4.0
+
+# Camera location doesn't really matter
+rcam 10
+thetacam 90
+phicam 180
+
+# Image size
+nx 1
+ny 1
+
+outfile image.h5
