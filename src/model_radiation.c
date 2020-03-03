@@ -139,35 +139,11 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 
   theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	// angle between k & b
 
-<<<<<<< Updated upstream
-  // For later jet/disk
-  // && (dist == 1 || dist == 4)
-  if (Ne <= 0.) {  // avoid 1./0. issues
-    //fprintf(stderr, "ZERO EMISSION ZERO Ne");
-
-    *jI = 0.0;
-    *jQ = 0.0;
-    *jU = 0.0;
-    *jV = 0.0;
-
-    *aI = 0.0;
-    *aQ = 0.0;
-    *aU = 0.0;
-    *aV = 0.0;
-
-    *rQ = 0.0;
-    *rU = 0.0;
-    *rV = 0.0;
-
-  } else if (theta <= 0. || theta >= M_PI) {	/* no emission/absorption along field  */
-
-=======
   // EMISSIVITIES
   // Avoid issues when we know there shouldn't be emission, but the coefficients might NaN
   // 1. Ne <= 0 is used to cut off emission in funnel
   // 2. theta == 0 sometimes actually happens, go figure
   if (Ne <= 0. || theta <= 0 || theta >= M_PI) {
->>>>>>> Stashed changes
     *jI = 0.0;
     *jQ = 0.0;
     *jU = 0.0;
@@ -178,29 +154,6 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     *aU = 0.0;
     *aV = 0.0;
 
-<<<<<<< Updated upstream
-    nu = get_fluid_nu(Kcon, Ucov);	// freqcgs1;  freq in Hz
-    B = get_model_b(X);		// field in G
-    Thetae = get_model_thetae(X);	// temp in e rest-mass units
-
-    // ROTATIVITIES: make sure they're done like below but only take rV
-    if (dist == 4) {
-      dexter_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-    } else {
-      *rV = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
-    }
-
-    // invariant rotativities
-    *rQ = 0;
-    *rU = 0;
-    *rV *= nu;
-
-    if (isnan(*rV)  || *rV > 1.e100 || *rV < -1.e100) {
-      fprintf(stderr, "NAN RV! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
-    }
-
-=======
->>>>>>> Stashed changes
   } else {
 
     nu = get_fluid_nu(Kcon, Ucov);	// freqcgs in Hz

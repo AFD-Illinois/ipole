@@ -195,17 +195,8 @@ int main(int argc, char *argv[])
         double tgeoftmp = 1.;
 
         MULOOP Xhalf[mu] = X[mu];
-<<<<<<< HEAD
         while (!stop_backward_integration(X, Xhalf, Kcon)) {
-<<<<<<< Updated upstream
-          dl = stepsize(X, Kcon);
-=======
-        while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
-          dl = stepsize(X, Kcon, stopx[2]);
->>>>>>> feature/bhac-mks
-=======
           dl = stepsize(X, Kcon, params.eps);
->>>>>>> Stashed changes
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
