@@ -5,10 +5,10 @@
 #include "decs.h"
 #include "geometry.h"
 
-int METRIC_eKS;
-int METRIC_MKS, METRIC_FMKS, METRIC_MKS3;
-double a, hslope;
-double poly_norm, poly_xt, poly_alpha, mks_smooth; // mmks
+int use_eKS_internal;
+int metric;
+double a, hslope; // mks
+double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double R0, Rin, Rout, Rh;
@@ -20,31 +20,40 @@ double R0, Rin, Rout, Rh;
  */
 void bl_coord(double X[NDIM], double *r, double *th)
 {
-  *r = exp(X[1]);
+  *r = exp(X[1]);  // Note: Overridden by one case below
 
-  if (METRIC_eKS) {
-    *r = exp(X[1]);
+  if (use_eKS_internal) {
     *th = M_PI * X[2];
-  } else if (METRIC_MKS3) {
-    *r = exp(X[1]) + mks3R0;
-    *th = (M_PI
-        * (1.
-            + 1. / tan((mks3H0 * M_PI) / 2.)
-                * tan(
-                    mks3H0 * M_PI
-                        * (-0.5
-                            + (mks3MY1
-                                + (pow(2., mks3MP0) * (-mks3MY1 + mks3MY2))
-                                    / pow(exp(X[1]) + mks3R0, mks3MP0))
-                                * (1. - 2. * X[2]) + X[2])))) / 2.;
-  } else if (METRIC_FMKS) {
-    double thG = M_PI * X[2] + ((1. - hslope) / 2.) * sin(2. * M_PI * X[2]);
-    double y = 2 * X[2] - 1.;
-    double thJ = poly_norm * y
-        * (1. + pow(y / poly_xt, poly_alpha) / (poly_alpha + 1.)) + 0.5 * M_PI;
-    *th = thG + exp(mks_smooth * (startx[1] - X[1])) * (thJ - thG);
   } else {
-    *th = M_PI * X[2] + ((1. - hslope) / 2.) * sin(2. * M_PI * X[2]);
+    double y, thG, thJ;
+    switch (metric) {
+      case METRIC_MKS:
+        *th = M_PI * X[2] + ((1. - hslope) / 2.) * sin(2. * M_PI * X[2]);
+        break;
+      case METRIC_BHACMKS:
+        *th = X[2] + (hslope / 2.) * sin(2. * X[2]);
+        break;
+      case METRIC_FMKS:
+        thG = M_PI * X[2] + ((1. - hslope) / 2.) * sin(2. * M_PI * X[2]);
+        y = 2 * X[2] - 1.;
+        thJ = poly_norm * y
+            * (1. + pow(y / poly_xt, poly_alpha) / (poly_alpha + 1.)) + 0.5 * M_PI;
+        *th = thG + exp(mks_smooth * (startx[1] - X[1])) * (thJ - thG);
+        break;
+      case METRIC_MKS3:
+        *r = exp(X[1]) + mks3R0;
+        *th = (M_PI
+            * (1.
+                + 1. / tan((mks3H0 * M_PI) / 2.)
+                    * tan(
+                        mks3H0 * M_PI
+                            * (-0.5
+                                + (mks3MY1
+                                    + (pow(2., mks3MP0) * (-mks3MY1 + mks3MY2))
+                                        / pow(exp(X[1]) + mks3R0, mks3MP0))
+                                    * (1. - 2. * X[2]) + X[2])))) / 2.;
+        break;
+    }
   }
 }
 
@@ -166,85 +175,76 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
   // Jacobian with respect to KS basis where X is given in
   // non-KS basis
   MUNULOOP
-    dxdX[mu][nu] = 0.;
+    dxdX[mu][nu] = delta(mu, nu);
 
-  if (METRIC_eKS) { //  && metric == 0 // TODO eKS switch
-    dxdX[0][0] = 1.;
-    dxdX[1][1] = exp(X[1]);
+  dxdX[1][1] = exp(X[1]);
+
+  if (use_eKS_internal) { //  && metric == 0 // TODO eKS switch
     dxdX[2][2] = M_PI;
-    dxdX[3][3] = 1.;
-
-  } else if (METRIC_MKS3) {
-
-    // mks3 ..
-    dxdX[0][0] = 1.;
-    dxdX[1][1] = exp(X[1]);
-    dxdX[2][1] = -(pow(2., -1. + mks3MP0) * exp(X[1]) * mks3H0 * mks3MP0
-        * (mks3MY1 - mks3MY2) * pow(M_PI, 2)
-        * pow(exp(X[1]) + mks3R0, -1 - mks3MP0) * (-1 + 2 * X[2]) * 1.
-        / tan((mks3H0 * M_PI) / 2.)
-        * pow(
-            1.
-                / cos(
-                    mks3H0 * M_PI
-                        * (-0.5
-                            + (mks3MY1
-                                + (pow(2, mks3MP0) * (-mks3MY1 + mks3MY2))
-                                    / pow(exp(X[1]) + mks3R0, mks3MP0))
-                                * (1 - 2 * X[2]) + X[2])),
-            2));
-    dxdX[2][2] = (mks3H0 * pow(M_PI, 2)
-        * (1
-            - 2
-                * (mks3MY1
-                    + (pow(2, mks3MP0) * (-mks3MY1 + mks3MY2))
-                        / pow(exp(X[1]) + mks3R0, mks3MP0))) * 1.
-        / tan((mks3H0 * M_PI) / 2.)
-        * pow(
-            1.
-                / cos(
-                    mks3H0 * M_PI
-                        * (-0.5
-                            + (mks3MY1
-                                + (pow(2, mks3MP0) * (-mks3MY1 + mks3MY2))
-                                    / pow(exp(X[1]) + mks3R0, mks3MP0))
-                                * (1 - 2 * X[2]) + X[2])),
-            2)) / 2.;
-    dxdX[3][3] = 1.;
-
-  } else if (METRIC_FMKS) {
-
-    // fmks
-    dxdX[0][0] = 1.;
-    dxdX[1][1] = exp(X[1]);
-    dxdX[2][1] = -exp(mks_smooth * (startx[1] - X[1])) * mks_smooth
-        * (
-        M_PI / 2. -
-        M_PI * X[2]
-            + poly_norm * (2. * X[2] - 1.)
-                * (1
-                    + (pow((-1. + 2 * X[2]) / poly_xt, poly_alpha))
-                        / (1 + poly_alpha))
-            - 1. / 2. * (1. - hslope) * sin(2. * M_PI * X[2]));
-    dxdX[2][2] = M_PI + (1. - hslope) * M_PI * cos(2. * M_PI * X[2])
-        + exp(mks_smooth * (startx[1] - X[1]))
-            * (-M_PI
-                + 2. * poly_norm
-                    * (1.
-                        + pow((2. * X[2] - 1.) / poly_xt, poly_alpha)
-                            / (poly_alpha + 1.))
-                + (2. * poly_alpha * poly_norm * (2. * X[2] - 1.)
-                    * pow((2. * X[2] - 1.) / poly_xt, poly_alpha - 1.))
-                    / ((1. + poly_alpha) * poly_xt)
-                - (1. - hslope) * M_PI * cos(2. * M_PI * X[2]));
-    dxdX[3][3] = 1.;
-
   } else {
-    // mks
-    dxdX[0][0] = 1.;
-    dxdX[1][1] = exp(X[1]);
-    dxdX[2][2] = M_PI - (hslope - 1.) * M_PI * cos(2. * M_PI * X[2]);
-    dxdX[3][3] = 1.;
+    switch (metric) {
+      case METRIC_MKS:
+        dxdX[2][2] = M_PI + (1 - hslope) * M_PI * cos(2. * M_PI * X[2]);
+        break;
+      case METRIC_BHACMKS:
+        dxdX[2][2] = 1 + hslope * cos(2. * X[2]);
+        break;
+      case METRIC_FMKS:
+        dxdX[2][1] = -exp(mks_smooth * (startx[1] - X[1])) * mks_smooth
+            * (
+            M_PI / 2. -
+            M_PI * X[2]
+                + poly_norm * (2. * X[2] - 1.)
+                    * (1
+                        + (pow((-1. + 2 * X[2]) / poly_xt, poly_alpha))
+                            / (1 + poly_alpha))
+                - 1. / 2. * (1. - hslope) * sin(2. * M_PI * X[2]));
+        dxdX[2][2] = M_PI + (1. - hslope) * M_PI * cos(2. * M_PI * X[2])
+            + exp(mks_smooth * (startx[1] - X[1]))
+                * (-M_PI
+                    + 2. * poly_norm
+                        * (1.
+                            + pow((2. * X[2] - 1.) / poly_xt, poly_alpha)
+                                / (poly_alpha + 1.))
+                    + (2. * poly_alpha * poly_norm * (2. * X[2] - 1.)
+                        * pow((2. * X[2] - 1.) / poly_xt, poly_alpha - 1.))
+                        / ((1. + poly_alpha) * poly_xt)
+                    - (1. - hslope) * M_PI * cos(2. * M_PI * X[2]));
+        break;
+      case METRIC_MKS3:
+        dxdX[2][1] = -(pow(2., -1. + mks3MP0) * exp(X[1]) * mks3H0 * mks3MP0
+            * (mks3MY1 - mks3MY2) * pow(M_PI, 2)
+            * pow(exp(X[1]) + mks3R0, -1 - mks3MP0) * (-1 + 2 * X[2]) * 1.
+            / tan((mks3H0 * M_PI) / 2.)
+            * pow(
+                1.
+                    / cos(
+                        mks3H0 * M_PI
+                            * (-0.5
+                                + (mks3MY1
+                                    + (pow(2, mks3MP0) * (-mks3MY1 + mks3MY2))
+                                        / pow(exp(X[1]) + mks3R0, mks3MP0))
+                                    * (1 - 2 * X[2]) + X[2])),
+                2));
+        dxdX[2][2] = (mks3H0 * pow(M_PI, 2)
+            * (1
+                - 2
+                    * (mks3MY1
+                        + (pow(2, mks3MP0) * (-mks3MY1 + mks3MY2))
+                            / pow(exp(X[1]) + mks3R0, mks3MP0))) * 1.
+            / tan((mks3H0 * M_PI) / 2.)
+            * pow(
+                1.
+                    / cos(
+                        mks3H0 * M_PI
+                            * (-0.5
+                                + (mks3MY1
+                                    + (pow(2, mks3MP0) * (-mks3MY1 + mks3MY2))
+                                        / pow(exp(X[1]) + mks3R0, mks3MP0))
+                                    * (1 - 2 * X[2]) + X[2])),
+                2)) / 2.;
+        break;
+    }
   }
 }
 
@@ -270,8 +270,8 @@ void vec_from_ks(double X[NDIM], double v_ks[NDIM], double v_nat[NDIM]) {
   MUNULOOP v_nat[mu] += dXdx[mu][nu] * v_ks[nu];
 }
 
-// Root-find the camera location in native coordinates
-double root_find(double X[NDIM])
+// Root-find the camera x2 location in native coordinates
+double root_find(double X[NDIM], double startx2, double stopx2)
 {
   double th = X[2];
   double tha, thb, thc;
@@ -285,11 +285,11 @@ double root_find(double X[NDIM])
   Xc[3] = Xa[3];
 
   if (X[2] < M_PI / 2.) {
-    Xa[2] = 0.;
-    Xb[2] = 0.5 + SMALL;
+    Xa[2] = startx2;
+    Xb[2] = (stopx2 - startx2)/2 + SMALL;
   } else {
-    Xa[2] = 0.5 - SMALL;
-    Xb[2] = 1.;
+    Xa[2] = (stopx2 - startx2)/2 - SMALL;
+    Xb[2] = stopx2;
   }
 
   double tol = 1.e-9;

@@ -78,8 +78,8 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
 
   // less restrictive condition on geometry for eKS coordinates which are
   // used when the exotic is expected.
-  if ((fabs(fabs(dot) - 1.) > 1.e-10 && METRIC_eKS == 0)
-      || (fabs(fabs(dot) - 1.) > 1.e-7 && METRIC_eKS == 1)) {
+  if ((fabs(fabs(dot) - 1.) > 1.e-10 && use_eKS_internal == 0)
+      || (fabs(fabs(dot) - 1.) > 1.e-7 && use_eKS_internal == 1)) {
     fprintf(stderr, "that's odd: %g\n", fabs(dot) - 1.);
     fprintf(stderr, "Ucon[] = %e %e %e %e\n", Ucon[0], Ucon[1], Ucon[2],
             Ucon[3]);

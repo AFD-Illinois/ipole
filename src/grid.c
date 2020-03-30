@@ -10,55 +10,6 @@ int N1, N2, N3;
         Interpolation routines
  ********************************************************************/
 
-/* return fluid four-vector in simulation units */
-void interp_fourv(double X[NDIM], double ****fourv, double Fourv[NDIM]){
-  double del[NDIM],b1,b2,b3,d1,d2,d3,d4;
-  int i, j, k, ip1, jp1, kp1;
-
-  /* find the current zone location and offsets del[0], del[1] */
-  Xtoijk(X, &i, &j, &k, del);
-
-  // since we read from data, adjust i,j,k for ghost zones
-  i += 1;
-  j += 1;
-  k += 1;
-
-  ip1 = i + 1;
-  jp1 = j + 1;
-  kp1 = k + 1;
-
-  b1 = 1.-del[1];
-  b2 = 1.-del[2];
-  b3 = 1.-del[3];
-
-  d1 = b1*b2;
-  d3 = del[1] * b2;
-  d2 = del[2] * b1;
-  d4 = del[1] * del[2];
-
-
-  /* Interpolate along x1,x2 first */
-  Fourv[0] = d1*fourv[i][j][k][0] + d2*fourv[i][jp1][k][0] + d3*fourv[ip1][j][k][0] + d4*fourv[ip1][jp1][k][0];
-  Fourv[1] = d1*fourv[i][j][k][1] + d2*fourv[i][jp1][k][1] + d3*fourv[ip1][j][k][1] + d4*fourv[ip1][jp1][k][1];
-  Fourv[2] = d1*fourv[i][j][k][2] + d2*fourv[i][jp1][k][2] + d3*fourv[ip1][j][k][2] + d4*fourv[ip1][jp1][k][2];
-  Fourv[3] = d1*fourv[i][j][k][3] + d2*fourv[i][jp1][k][3] + d3*fourv[ip1][j][k][3] + d4*fourv[ip1][jp1][k][3];
-
-  /* Now interpolate above in x3 */
-  Fourv[0] = b3*Fourv[0] + del[3]*(d1*fourv[i][j][kp1][0] + d2*fourv[i][jp1][kp1][0] + d3*fourv[ip1][j][kp1][0] + d4*fourv[ip1][jp1][kp1][0]);
-  Fourv[1] = b3*Fourv[1] + del[3]*(d1*fourv[i][j][kp1][1] + d2*fourv[i][jp1][kp1][1] + d3*fourv[ip1][j][kp1][1] + d4*fourv[ip1][jp1][kp1][1]);
-  Fourv[2] = b3*Fourv[2] + del[3]*(d1*fourv[i][j][kp1][2] + d2*fourv[i][jp1][kp1][2] + d3*fourv[ip1][j][kp1][2] + d4*fourv[ip1][jp1][kp1][2]);
-  Fourv[3] = b3*Fourv[3] + del[3]*(d1*fourv[i][j][kp1][3] + d2*fourv[i][jp1][kp1][3] + d3*fourv[ip1][j][kp1][3] + d4*fourv[ip1][jp1][kp1][3]);
-  //new
-
-  //no interpolation of vectors at all
-
-  //Fourv[0]=fourv[i][j][k][0];
-  //Fourv[1]=fourv[i][j][k][1];
-  //Fourv[2]=fourv[i][j][k][2];
-  //Fourv[3]=fourv[i][j][k][3];
-
-}
-
 /* return scalar in cgs units */
 double interp_scalar(double X[NDIM], double ***var)
 {
@@ -108,9 +59,9 @@ void ijktoX(int i, int j, int k, double X[NDIM])
 
   // now transform to geodesic coordinates if necessary by first
   // converting to KS and then to destination coordinates (eKS).
-  if (METRIC_eKS) {
+  if (use_eKS_internal) {
       double xKS[4] = { 0 };
-    if (METRIC_MKS3) {
+    if (metric == METRIC_MKS3) {
       double x0 = X[0];
       double x1 = X[1];
       double x2 = X[2];
@@ -127,9 +78,11 @@ void ijktoX(int i, int j, int k, double X[NDIM])
       xKS[3] = x3;
     }
 
+    double r, th;
+    bl_coord(X, &r, &th);
     X[0] = xKS[0];
-    X[1] = log(xKS[1]);
-    X[2] = xKS[2] / M_PI;
+    X[1] = r;
+    X[2] = th;
     X[3] = xKS[3];
   }
 }
@@ -161,10 +114,12 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
   double phi;
   double XG[4];
 
-  if (METRIC_eKS) {
+  if (use_eKS_internal) {
     // the geodesics are evolved in eKS so invert through KS -> zone coordinates
-    double Xks[4] = { X[0], exp(X[1]), M_PI*X[2], X[3] };
-    if (METRIC_MKS3) {
+    double r, th;
+    bl_coord(X, &r, &th);
+    double Xks[4] = { X[0], r, th, X[3] };
+    if (metric == METRIC_MKS3) {
       double H0 = mks3H0, MY1 = mks3MY1, MY2 = mks3MY2, MP0 = mks3MP0;
       double KSx1 = Xks[1], KSx2 = Xks[2];
       XG[0] = Xks[0];
@@ -218,11 +173,13 @@ int X_in_domain(double X[NDIM]) {
   // checks different sets of coordinates depending on
   // specified grid coordinates
 
-  if (METRIC_eKS) {
+  if (use_eKS_internal) {
     double XG[4] = { 0 };
-    double Xks[4] = { X[0], exp(X[1]), M_PI*X[2], X[3] };
+    double r, th;
+    bl_coord(X, &r, &th);
+    double Xks[4] = { X[0], r, th, X[3] };
 
-    if (METRIC_MKS3) {
+    if (metric == METRIC_MKS3) {
       // if METRIC_MKS3, ignore theta boundaries
       double H0 = mks3H0, MY1 = mks3MY1, MY2 = mks3MY2, MP0 = mks3MP0;
       double KSx1 = Xks[1], KSx2 = Xks[2];

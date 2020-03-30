@@ -8,7 +8,8 @@ $ python ipole_plot.py path/to/images/*h5
 $ ffmpeg -framerate 8 -i dump%*.png -s:v 1280x720 -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p out.mp4
 
 """
-
+import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import h5py
@@ -27,13 +28,13 @@ EVPA_CONV = "EofN"  # can be set fo "EofN" or "NofW"
 ## no need to touch anything below this line
 
 def colorbar(mappable):
-    """ the way matplotlib colorbar should have been implemented """
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    ax = mappable.axes
-    fig = ax.figure
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.05)
-    return fig.colorbar(mappable, cax=cax)
+  """ the way matplotlib colorbar should have been implemented """
+  from mpl_toolkits.axes_grid1 import make_axes_locatable
+  ax = mappable.axes
+  fig = ax.figure
+  divider = make_axes_locatable(ax)
+  cax = divider.append_axes("right", size="5%", pad=0.05)
+  return fig.colorbar(mappable, cax=cax)
 
 if __name__ == "__main__":
 
