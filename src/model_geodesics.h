@@ -20,4 +20,5 @@ void init_XK(int i, int j, int nx, int ny, double Xcam[NDIM],
 int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[NDIM]);
 double stepsize(double X[NDIM], double K[NDIM]);
 
+
 #endif /* SRC_MODEL_GEODESICS_H_ */

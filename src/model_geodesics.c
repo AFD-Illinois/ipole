@@ -10,7 +10,7 @@
 #include "model_geodesics.h"
 
 #include "geodesics.h"
-#include "model_tetrads.h"
+#include "coordinates.h"
 #include "geometry.h"
 #include "tetrads.h"
 #include "decs.h"
@@ -163,7 +163,7 @@ double stepsize(double X[NDIM], double Kcon[NDIM])
 
   dlx1 = eps / (fabs(Kcon[1]) + SMALL*SMALL) ;
   //dlx2 = EPS * GSL_MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
-  dlx2 = eps * MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
+  dlx2 = eps * MIN(X[2], stopx[2] - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
   dlx3 = eps / (fabs(Kcon[3]) + SMALL*SMALL) ;
 
   idlx1 = 1./(fabs(dlx1) + SMALL*SMALL) ;
