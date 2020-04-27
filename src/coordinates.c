@@ -179,7 +179,7 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
 
   dxdX[1][1] = exp(X[1]);
 
-  if (use_eKS_internal) { //  && metric == 0 // TODO eKS switch
+  if (use_eKS_internal) {
     dxdX[2][2] = M_PI;
   } else {
     switch (metric) {
@@ -325,7 +325,7 @@ double root_find(double X[NDIM])
       Xa[2] = Xc[2];
     else
       Xb[2] = Xc[2];
-    
+
     double err = theta_func(Xc) - th;
     if (fabs(err) < tol)
       break;
