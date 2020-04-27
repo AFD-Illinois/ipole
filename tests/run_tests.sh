@@ -1,11 +1,18 @@
 #!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
 
 # Run all the ipole tests
 # Tests have the form test_name/test_name.par
 # Different compilation options are usually not necessary,
 # except thin_disk, special-cased here
 
-# TODO download the reference files if necessary?
+# TODO could update test dumps with rsync here
+# TODO option for linear propagation test soon
+
+if [[ $(hostname) == "bh"* ]]; then
+  module load gnu hdf5
+fi
 
 for folder in */
 do
