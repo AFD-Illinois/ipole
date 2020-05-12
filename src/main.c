@@ -505,8 +505,7 @@ int main(int argc, char *argv[])
       }
     }
     avg_val /= nx*ny;
-    fprintf(stderr, "\nMade initial image.\n");
-    fprintf(stderr, "Image average flux in Jy/muas^2: %f\n", avg_val * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD));
+    //fprintf(stderr, "\nBase image average flux in Jy/muas^2: %g\n", avg_val * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD));
 
     // REFINE based on previous image
     double *parent_image = image_min;
