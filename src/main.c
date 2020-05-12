@@ -141,8 +141,8 @@ int main(int argc, char *argv[])
   fprintf(stderr,"Resolution: %dx%d, refined up to %dx%d (%d levels)\n",
           params.nx_min, params.ny_min, params.nx, params.ny, refine_level);
   if (refine_level > 1) {
-    fprintf(stderr,"Refinement only when > %f relative error and pixel brightness > %f of average\n",
-            params.refine_rel, params.refine_cut);
+    fprintf(stderr,"Refinement only when > %f relative error or %f absolute error, and pixel brightness > %f of average\n",
+            params.refine_rel, params.refine_abs, params.refine_cut);
   }
 
   double *taus = calloc(nx*ny, sizeof(*taus));
@@ -453,33 +453,8 @@ int main(int argc, char *argv[])
 
   // FAST LIGHT
   } else {
-
-    // HALF-SIZE image for convergence comparison
-    double *image_half;
-    if (refine_level > 1) {
-      nx = params.nx_min/2;
-      ny = params.ny_min/2;
-      image_half = calloc(nx*ny, sizeof(*image_half));
-
-#pragma omp parallel for schedule(dynamic,1) collapse(2) shared(image,imageS)
-      for (int i=0; i < nx; ++i) {
-        for (int j=0; j < ny; ++j) {
-          if (j==0) fprintf(stderr, "%d ", i);
-          double Intensity = 0;
-          double Is = 0, Qs = 0, Us = 0, Vs = 0;
-          double Tau = 0, tauF = 0;
-
-          get_pixel(i, j, nx, ny, Xcam, params,
-                    fovx, fovy, freq, 1, scale,
-                    &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
-
-          image_half[i*ny+j] = Intensity;
-        }
-      }
-    }
-
-    // NORMAL IMAGE at n_min
-    // TODO this is extraneous allocation in dynamic runs
+    // BASE IMAGE at n_min
+    // TODO extraneous allocation?
     nx = params.nx_min;
     ny = params.ny_min;
     double *taus_min, *imageS_min, *image_min;
@@ -529,9 +504,7 @@ int main(int argc, char *argv[])
     // NOTE: Only filled if using adaptive refinement
     avg_val /= nx*ny;
 
-    // REFINE based on previous two images
-    double *grandparent_image = image_half;
-
+    // REFINE based on previous image
     double *parent_image = image_min;
     double *parent_taus = taus_min;
     double *parent_imageS = imageS_min;
@@ -556,32 +529,32 @@ int main(int argc, char *argv[])
           double Is = 0, Qs = 0, Us = 0, Vs = 0;
           double Tau = 0, tauF = 0;
 
-          int ig = i/4, jg = j/4, nyg = ny/4;
-          double j_grandparent = grandparent_image[ig*nyg+jg];
-          // Anchor parent quads on grandparent pixels i.e. even 4th pixels of current image
-          //int ip = (i/4)*2, jp = (j/4)*2, nyp=ny/2;
-          // Anchor parent quads continuously if only looking for differences
-          int ip = i/2, jp = j/2, nyp = ny/2;
-          double j_parent = (parent_image[(ip)*nyp+(jp)] + parent_image[(ip+1)*nyp+(jp)]
-                            + parent_image[(ip)*nyp+(jp+1)] + parent_image[(ip+1)*nyp+(jp+1)])/4;
-          double dev_parent = 0;
-          if (fabs(parent_image[(ip)*nyp+(jp)] - j_parent) > dev_parent) dev_parent = fabs(parent_image[(ip)*nyp+(jp)] - j_parent);
-          if (fabs(parent_image[(ip+1)*nyp+(jp)] - j_parent) > dev_parent) dev_parent = fabs(parent_image[(ip+1)*nyp+(jp)] - j_parent);
-          if (fabs(parent_image[(ip)*nyp+(jp+1)] - j_parent) > dev_parent) dev_parent = fabs(parent_image[(ip)*nyp+(jp+1)] - j_parent);
-          if (fabs(parent_image[(ip+1)*nyp+(jp+1)] - j_parent) > dev_parent) dev_parent = fabs(parent_image[(ip+1)*nyp+(jp+1)] - j_parent);
+          // Find the 4 parent pixels around my corner
+          // Set any pixels that would be outside the image to 0
+          int ip = (i+1)/2-1, jp = (j+1)/2-1, nxp = nx/2, nyp = ny/2;
+          double I1 = (ip > 0 && jp > 0) ? parent_image[(ip)*nyp+(jp)] : 0;
+          double I2 = (ip < nxp && jp > 0) ? parent_image[(ip+1)*nyp+(jp)] : 0;
+          double I3 = (ip > 0 && jp < nyp) ? parent_image[(ip)*nyp+(jp+1)] : 0;
+          double I4 = (ip < nxp && jp < nyp) ? parent_image[(ip+1)*nyp+(jp+1)] : 0;
 
-          //fprintf(stderr, "Grandparent px: %g, Parent av: %g dev: %g, prop %g\n", j_grandparent, j_parent, dev_parent, dev_parent/j_parent);
+          double I_parent = (I1 + I2 + I3 + I4)/4;
+          //fprintf(stderr, "Parent av: %g\n", I_parent);
 
-          // 2 refinement criteria, must meet both to bother refining
-          // 1. Difference grandparent -> parent refinement must be > refine_rel
-          // 2. Parent flux is less than the average value * refine_cut
-          // fabs(j_grandparent - j_parent) / j_parent > params.refine_rel
-          if (dev_parent / j_parent > params.refine_rel &&
-              fabs(j_parent) / avg_val > params.refine_cut) {
+          // Refinement criterion thanks to Zack Gelles: absolute & relative error of
+          // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel
+          double err_abs = (I2 + I3) / 2 - I1;
+          double err_rel = (I2 + I3) / (2 * I1) - 1.;
+
+          // If the interpolation would cause too great an err_abs or err_rel,
+          // trace the full geodesic.
+          if ((err_abs > params.refine_abs ||
+               err_rel > params.refine_rel) &&
+              fabs(I_parent) / avg_val > params.refine_cut) {
             get_pixel(i, j, nx, ny, Xcam, params,
                       fovx, fovy, freq, only_unpolarized, scale,
                       &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
           } else {
+            // Otherwise just interpolate
             int dx = 0, dy = 0;
             if (i%2 == 0) {
               if (i/2 > 0) dx = -1;
@@ -593,20 +566,30 @@ int main(int argc, char *argv[])
             } else {
               if (j/2 < ny/2-1) dy = 1;
             }
-            Intensity = 0.5625*parent_image[(i/2)*(ny/2)+j/2] + 0.1875*parent_image[(i/2+dx)*(ny/2)+j/2]+
-                        0.1875*parent_image[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_image[(i/2+dx)*(ny/2)+j/2+dy];
-            Tau = 0.5625*parent_taus[(i/2)*(ny/2)+j/2] + 0.1875*parent_taus[(i/2+dx)*(ny/2)+j/2]+
-                  0.1875*parent_taus[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_taus[(i/2+dx)*(ny/2)+j/2+dy];
-            Is = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+0]+
-                 0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+0] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+0];
-            Qs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+1]+
-                 0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+1] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+1];
-            Us = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+2]+
-                 0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+2] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+2];
-            Vs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+3]+
-                 0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+3] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+3];
-            tauF = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+4]+
-                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+4] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+4];
+            if (params.nearest_neighbor) {
+                Intensity = parent_image[(i/2)*(ny/2)+j/2];
+                Tau = parent_taus[(i/2)*(ny/2)+j/2];
+                Is = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0];
+                Qs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1];
+                Us = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2];
+                Vs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3];
+                tauF = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4];
+            } else { // Linear
+              Intensity = 0.5625*parent_image[(i/2)*(ny/2)+j/2] + 0.1875*parent_image[(i/2+dx)*(ny/2)+j/2]+
+                            0.1875*parent_image[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_image[(i/2+dx)*(ny/2)+j/2+dy];
+              Tau = 0.5625*parent_taus[(i/2)*(ny/2)+j/2] + 0.1875*parent_taus[(i/2+dx)*(ny/2)+j/2]+
+                    0.1875*parent_taus[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_taus[(i/2+dx)*(ny/2)+j/2+dy];
+              Is = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+0]+
+                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+0] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+0];
+              Qs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+1]+
+                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+1] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+1];
+              Us = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+2]+
+                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+2] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+2];
+              Vs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+3]+
+                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+3] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+3];
+              tauF = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+4]+
+                     0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+4] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+4];
+            }
           }
 
           if (refined_level == refine_level - 1) {
@@ -626,9 +609,7 @@ int main(int argc, char *argv[])
 
       if (refined_level < refine_level - 1) {
         // CLEAN UP YO TOYS
-        free(grandparent_image); free(parent_taus); free(parent_imageS);
-        grandparent_image = parent_image;
-
+        free(parent_taus); free(parent_imageS);
         parent_image = image_temp;
         parent_taus = taus_temp;
         parent_imageS = imageS_temp;
@@ -672,25 +653,34 @@ void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
   // Integrate emission forward along trajectory
   integrate_emission(traj, nstep, only_unpolarized, Intensity, Tau, tauF, N_coord);
 
+  if (!only_unpolarized) {
+    project_N(traj[1].X, traj[1].Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);
+  }
+
+  // Print some pixel values
+//   if( i == 0 && j == 0)
+//   {
+//     fprintf(stderr, "Pixel [%d %d]:\n", i, j);
+//     fprintf(stderr, "Number steps: %d\n", nstep);
+//     fprintf(stderr, "Intensity: %g\n", *Intensity);
+//     fprintf(stderr, "Stokes: [%g %g %g %g]\n", *Is, *Qs, *Us, *Vs);
+//   }
+
   // Record values along the geodesic if requested
-  // Figure out how to do this with adaptive...
+  // TODO this is most likely not compatible with adaptive mode
   if (params.trace) {
     int stride = params.trace_stride;
     if (params.trace_i < 0 || params.trace_j < 0) { // If no single point is specified
       if (i % stride == 0 && j % stride == 0) { // Save every stride pixels
 #pragma omp critical
-        dump_var_along(i/stride, j/stride, nstep, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
+        dump_var_along(i/stride, j/stride, nstep+1, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
       }
     } else {
       if (i == params.trace_i && j == params.trace_j) { // Save just the one
 #pragma omp critical
-        dump_var_along(0, 0, nstep, traj, 1, 1, scale, Xcam, fovx, fovy, &params);
+        dump_var_along(0, 0, nstep+1, traj, 1, 1, scale, Xcam, fovx, fovy, &params);
       }
     }
-  }
-
-  if (!only_unpolarized) {
-    project_N(traj[0].X, traj[0].Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);
   }
 
   free(traj);
