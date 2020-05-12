@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
   double Dsource = params.dsource; // Shorthand
 
   // set DX/DY using fov_dsource if possible, otherwise DX, otherwise old default
-  double fov_to_d = Dsource / L_unit / 2.06265e11;
+  double fov_to_d = Dsource / L_unit / MUAS_PER_RAD;
 
   if (params.fovx_dsource != 0.0) { // FOV was specified
     // Uncomment to be even more option lenient
@@ -137,12 +137,12 @@ int main(int argc, char *argv[])
   fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
   fprintf(stderr,"FOVx, FOVy: %g %g [GM/c^2]\n",DX,DY);
   fprintf(stderr,"FOVx, FOVy: %g %g [rad]\n",DX*L_unit/Dsource,DY*L_unit/Dsource);
-  fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
+  fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * MUAS_PER_RAD ,DY*L_unit/Dsource * MUAS_PER_RAD);
   fprintf(stderr,"Resolution: %dx%d, refined up to %dx%d (%d levels)\n",
           params.nx_min, params.ny_min, params.nx, params.ny, refine_level);
   if (refine_level > 1) {
-    fprintf(stderr,"Refinement only when > %f relative error or %f absolute error, and pixel brightness > %f of average\n",
-            params.refine_rel, params.refine_abs, params.refine_cut);
+    fprintf(stderr,"Refinement when > %g%% relative error or %g Jy/muas^2 absolute error, for pixel brightness > %f%% of average\n",
+            params.refine_rel*100, params.refine_abs, params.refine_cut*100);
   }
 
   double *taus = calloc(nx*ny, sizeof(*taus));
@@ -454,14 +454,16 @@ int main(int argc, char *argv[])
   // FAST LIGHT
   } else {
     // BASE IMAGE at n_min
-    // TODO extraneous allocation?
+    // Allocate it, or use the existing allocation for just 1 level
     nx = params.nx_min;
     ny = params.ny_min;
     double *taus_min, *imageS_min, *image_min;
+    int *interp_flag;
     if (refine_level > 1) {
       taus_min = calloc(nx*ny, sizeof(*taus_min));
       imageS_min = calloc(nx*ny*NIMG, sizeof(*imageS_min));
       image_min = calloc(nx*ny, sizeof(*image_min));
+      interp_flag = calloc(nx*ny, sizeof(*image_min));
     } else {
       taus_min = taus;
       imageS_min = imageS;
@@ -481,11 +483,14 @@ int main(int argc, char *argv[])
         get_pixel(i, j, nx, ny, Xcam, params,
                   fovx, fovy, freq, only_unpolarized, scale,
                   &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
+        
+        avg_val += Intensity;
 
         if (refine_level == 1) {
           // At one refinement just save the pixel
           save_pixel(image, imageS, taus, i, j, nx, ny, 0,
                      Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
+          // No need for an interpolation flag here
         } else {
           // Otherwise keep the Stokes params for next refinement
           image_min[i*ny+j] = Intensity;
@@ -495,21 +500,22 @@ int main(int argc, char *argv[])
           imageS_min[(i*ny+j)*NIMG+2] = Us;
           imageS_min[(i*ny+j)*NIMG+3] = Vs;
           imageS_min[(i*ny+j)*NIMG+4] = tauF;
-
-          avg_val += Intensity;
+          interp_flag[i*ny+j] = 0;
         }
       }
     }
-
-    // NOTE: Only filled if using adaptive refinement
     avg_val /= nx*ny;
+    fprintf(stderr, "\nMade initial image.\n");
+    fprintf(stderr, "Image average flux in Jy/muas^2: %f\n", avg_val * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD));
 
     // REFINE based on previous image
     double *parent_image = image_min;
     double *parent_taus = taus_min;
     double *parent_imageS = imageS_min;
+    int *parent_interp_flag = interp_flag;
 
     double *image_temp, *taus_temp, *imageS_temp;
+    int *interp_flag_temp;
     for (int refined_level = 1; refined_level < refine_level; refined_level++) {
       nx *= 2;
       ny *= 2;
@@ -519,6 +525,8 @@ int main(int argc, char *argv[])
         imageS_temp = calloc(nx*ny*NIMG, sizeof(*imageS_temp));
         image_temp = calloc(nx*ny, sizeof(*image_temp));
       }
+      // We need interp flag for the last 
+      interp_flag_temp = calloc(nx*ny, sizeof(*interp_flag_temp));
 
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
       for (int i=0; i < nx; ++i) {
@@ -531,52 +539,64 @@ int main(int argc, char *argv[])
 
           // Find the 4 parent pixels around my corner
           // Set any pixels that would be outside the image to 0
+          // NOTE these are the invariant intensities, not CGS
           int ip = (i+1)/2-1, jp = (j+1)/2-1, nxp = nx/2, nyp = ny/2;
           double I1 = (ip > 0 && jp > 0) ? parent_image[(ip)*nyp+(jp)] : 0;
           double I2 = (ip < nxp && jp > 0) ? parent_image[(ip+1)*nyp+(jp)] : 0;
           double I3 = (ip > 0 && jp < nyp) ? parent_image[(ip)*nyp+(jp+1)] : 0;
           double I4 = (ip < nxp && jp < nyp) ? parent_image[(ip+1)*nyp+(jp+1)] : 0;
+          // NOTE interpolation flag from parent is accessible here:
+          //int iflag1 = (ip > 0 && jp > 0) ? parent_interp_flag[(ip)*nyp+(jp)] : 0;
+          // 0: pixel was ray-traced
+          // 1: pixel was interpolated
 
           double I_parent = (I1 + I2 + I3 + I4)/4;
           //fprintf(stderr, "Parent av: %g\n", I_parent);
 
           // Refinement criterion thanks to Zack Gelles: absolute & relative error of
           // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel
-          double err_abs = (I2 + I3) / 2 - I1;
+          // Make sure absolute error is in Jy/muas^2
+          double err_abs = ((I2 + I3) / 2 - I1) * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD);
           double err_rel = (I2 + I3) / (2 * I1) - 1.;
 
           // If the interpolation would cause too great an err_abs or err_rel,
           // trace the full geodesic.
-          if ((err_abs > params.refine_abs ||
-               err_rel > params.refine_rel) &&
-              fabs(I_parent) / avg_val > params.refine_cut) {
+          if ((fabs(err_abs) > params.refine_abs ||
+               fabs(err_rel) > params.refine_rel) &&
+              fabs(I_parent) / avg_val >= params.refine_cut) {
             get_pixel(i, j, nx, ny, Xcam, params,
                       fovx, fovy, freq, only_unpolarized, scale,
                       &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
+
+            interp_flag_temp[i*ny+j] = 0;
+
           } else {
             // Otherwise just interpolate
-            int dx = 0, dy = 0;
-            if (i%2 == 0) {
-              if (i/2 > 0) dx = -1;
-            } else {
-              if (i/2 < nx/2-1) dx = 1;
-            }
-            if (j%2 == 0) {
-              if (j/2 > 0) dy = -1;
-            } else {
-              if (j/2 < ny/2-1) dy = 1;
-            }
+            interp_flag_temp[i*ny+j] = 1;
+
             if (params.nearest_neighbor) {
-                Intensity = parent_image[(i/2)*(ny/2)+j/2];
-                Tau = parent_taus[(i/2)*(ny/2)+j/2];
-                Is = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0];
-                Qs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1];
-                Us = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2];
-                Vs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3];
-                tauF = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4];
+              Intensity = parent_image[(i/2)*(ny/2)+j/2];
+              Tau = parent_taus[(i/2)*(ny/2)+j/2];
+              Is = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0];
+              Qs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1];
+              Us = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2];
+              Vs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3];
+              tauF = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4];
             } else { // Linear
+              int dx = 0, dy = 0;
+              if (i%2 == 0) {
+                if (i/2 > 0) dx = -1;
+              } else {
+                if (i/2 < nx/2-1) dx = 1;
+              }
+              if (j%2 == 0) {
+                if (j/2 > 0) dy = -1;
+              } else {
+                if (j/2 < ny/2-1) dy = 1;
+              }
+
               Intensity = 0.5625*parent_image[(i/2)*(ny/2)+j/2] + 0.1875*parent_image[(i/2+dx)*(ny/2)+j/2]+
-                            0.1875*parent_image[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_image[(i/2+dx)*(ny/2)+j/2+dy];
+                          0.1875*parent_image[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_image[(i/2+dx)*(ny/2)+j/2+dy];
               Tau = 0.5625*parent_taus[(i/2)*(ny/2)+j/2] + 0.1875*parent_taus[(i/2+dx)*(ny/2)+j/2]+
                     0.1875*parent_taus[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_taus[(i/2+dx)*(ny/2)+j/2+dy];
               Is = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+0]+
@@ -607,12 +627,26 @@ int main(int argc, char *argv[])
         }
       }
 
+      // Print how many pixels were interpolated
+      int total_interpolated = 0;
+#pragma omp parallel for collapse(2) reduction(+:total_interpolated)
+      for (int i=0; i<nx; i++)
+        for (int j=0; j<ny; j++)
+          total_interpolated += interp_flag_temp[i*ny+j];
+    
+      fprintf(stderr, "\n%d of %d (%f%%) of pixels at %dx%d were interpolated\n\n",
+              total_interpolated, nx * ny, ((double) total_interpolated) / (nx * ny) * 100, nx, ny);
+
+      free(parent_taus); free(parent_image);
+      free(parent_imageS); free(parent_interp_flag);
       if (refined_level < refine_level - 1) {
-        // CLEAN UP YO TOYS
-        free(parent_taus); free(parent_imageS);
         parent_image = image_temp;
         parent_taus = taus_temp;
         parent_imageS = imageS_temp;
+        parent_interp_flag = interp_flag_temp;
+      } else {
+        // Clean up just the interpolation flag
+        free(interp_flag_temp);
       }
     }
 

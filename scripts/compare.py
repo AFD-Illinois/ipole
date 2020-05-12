@@ -81,7 +81,7 @@ if __name__ == "__main__":
     print("Diff EVPA [deg]: {:g}".format(evpatot2 - evpatot1))
 
     # Return code for automated testing.  Adjust stringency to taste
-    if rdiffI > 0.01 or rdiffQ > 0.01 or rdiffU > 0.01 or rdiffV > 0.01:
+    if mseI > 0.01 or mseQ > 0.01 or mseU > 0.01 or mseV > 0.01:
         exit(1)
     else:
         exit(0)
