@@ -61,10 +61,8 @@ void init_model(double *tA, double *tB)
 
   // Set all the geometry globals we need
   // TODO do this in geometry?  Deal with model/geom interface...
-  METRIC_eKS = 1;
-  METRIC_MKS = 0;
-  METRIC_FMKS = 0;
-  METRIC_MKS3 = 0;
+  use_eKS_internal = 1;
+  metric = 0; // Doesn't matter due to above
   hslope = 1.0;
 
   // We already set stuff from parameters, so set_units here

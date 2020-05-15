@@ -62,6 +62,7 @@ static double Ladv_dump;
 //    0 : constant TP_OVER_TE
 //    1 : use dump file model (kawazura?)
 //    2 : use mixed TP_OVER_TE (beta model)
+// TODO the way this is selected is horrid.  Make it a parameter.
 static int RADIATION, ELECTRONS;
 static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
@@ -224,15 +225,14 @@ void init_model(double *tA, double *tB)
   data[2] = &dataC;
 
   // set up grid for fluid data
-  fprintf(stderr, "reading data header...\n");
+  fprintf(stderr, "Reading data header...\n");
   init_iharm_grid(fnam, dumpmin);
-  fprintf(stderr, "success\n");
 
   // set all dimensional quantities from loaded parameters
   set_units();
 
   // read fluid data
-  fprintf(stderr, "reading data...\n");
+  fprintf(stderr, "Reading data...\n");
   load_iharm_data(0, fnam, dumpidx, 1);
   dumpidx += dumpskip;
   #if SLOW_LIGHT
@@ -242,7 +242,6 @@ void init_model(double *tA, double *tB)
   #else // FAST LIGHT
   data[2]->t =10000.;
   #endif // SLOW_LIGHT
-  fprintf(stderr, "success\n");
 
   // horizon radius
   Rh = 1 + sqrt(1. - a * a);
@@ -544,20 +543,26 @@ void init_iharm_grid(char *fnam, int dumpidx)
     exit(-3);
   }
 
-  char metric[20];
+  char metric_name[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
-  hdf5_read_single_val(&metric, "metric", HDF5_STR_TYPE);
+  hdf5_read_single_val(&metric_name, "metric", HDF5_STR_TYPE);
 
-  METRIC_FMKS = 0;
-  METRIC_MKS3 = 0;
-  METRIC_eKS = 0;
+  metric = 0;
+  use_eKS_internal = 0;
 
-  if ( strncmp(metric, "MMKS", 19) == 0 ) {
-    METRIC_FMKS = 1;
-  } else if ( strncmp(metric, "MKS3", 19) == 0 ) {
-    METRIC_eKS = 1;
-    METRIC_MKS3 = 1;
-    fprintf(stderr, "using eKS metric with exotic \"MKS3\" zones...\n");
+  if ( strncmp(metric_name, "MKS", 19) == 0) {
+    metric = METRIC_MKS;
+  } else if ( strncmp(metric_name, "BHAC_MKS", 19) == 0) {
+    metric = METRIC_BHACMKS;
+  } else if ( strncmp(metric_name, "MMKS", 19) == 0 || strncmp(metric_name, "FMKS", 19) == 0) {
+    // TODO Handle MMKS vs FMKS signifiers in dumps somehow...
+    metric = METRIC_FMKS;
+  } else if ( strncmp(metric_name, "MKS3", 19) == 0 ) {
+    use_eKS_internal = 1;
+    metric = METRIC_MKS3;
+  } else {
+    fprintf(stderr, "File is in unknown metric %s.  Cannot continue.\n", metric_name);
+    exit(-1);
   }
 
   hdf5_read_single_val(&N1, "n1", H5T_STD_I32LE);
@@ -577,25 +582,25 @@ void init_iharm_grid(char *fnam, int dumpidx)
   // use of extra variables (instead of just UU and RHO) for thetae
   if (!USE_FIXED_TPTE && !USE_MIXED_TPTE) {
     if (ELECTRONS != 1) {
-      fprintf(stderr, "! no electron temperature model specified in model/iharm.c\n");
+      fprintf(stderr, "! no electron temperature model specified! Cannot continue\n");
       exit(-3);
     }
     ELECTRONS = 1;
     Thetae_unit = MP/ME;
   } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
     ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
-    fprintf(stderr, "using fixed tp_over_te ratio = %g\n", tp_over_te);
+    fprintf(stderr, "Using fixed tp_over_te ratio = %g\n", tp_over_te);
     //Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
     // see, e.g., Eq. 8 of the EHT GRRT formula list. 
     // this formula assumes game = 4./3 and gamp = 5./3
     Thetae_unit = 2./3. * MP/ME / (2. + tp_over_te);
   } else if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
     ELECTRONS = 2;
-    fprintf(stderr, "using mixed tp_over_te with trat_small = %g, trat_large = %g, and beta_crit = %g\n", 
+    fprintf(stderr, "Using mixed tp_over_te with trat_small = %g, trat_large = %g, and beta_crit = %g\n", 
       trat_small, trat_large, beta_crit);
     // Thetae_unit set per-zone below
   } else {
-    fprintf(stderr, "! please change electron model in model/iharm.c\n");
+    fprintf(stderr, "Unknown electron model %d! Cannot continue.\n", ELECTRONS);
     exit(-3);
   }
   fprintf(stderr, "sigma_cut = %g\n", sigma_cut);
@@ -624,10 +629,27 @@ void init_iharm_grid(char *fnam, int dumpidx)
   hdf5_read_single_val(&dx[2], "dx2", H5T_IEEE_F64LE);
   hdf5_read_single_val(&dx[3], "dx3", H5T_IEEE_F64LE);
 
-  hdf5_set_directory("/header/geom/mks/");
-  if ( METRIC_FMKS ) hdf5_set_directory("/header/geom/mmks/");
-  if ( METRIC_MKS3 ) {
-    hdf5_set_directory("/header/geom/mks3/");
+  switch (metric) {
+    case METRIC_MKS:
+      hdf5_set_directory("/header/geom/mks/");
+      fprintf(stderr, "Using Modified Kerr-Schild coordinates MKS\n");
+      break;
+    case METRIC_BHACMKS:
+      hdf5_set_directory("/header/geom/bhac_mks/");
+      fprintf(stderr, "Using BHAC-style Modified Kerr-Schild coordinates BHAC_MKS\n");
+      break;
+    case METRIC_FMKS:
+      hdf5_set_directory("/header/geom/mmks/"); // For compat. TODO autodetect 'fmks' here?
+      fprintf(stderr, "Using Funky Modified Kerr-Schild coordinates FMKS\n");
+      break;
+    case METRIC_MKS3:
+      hdf5_set_directory("/header/geom/mks3/");
+      fprintf(stderr, "Using logarithmic KS coordinates internally\n");
+      fprintf(stderr, "Converting from KORAL-style Modified Kerr-Schild coordinates MKS3\n");
+      break;
+  }
+  
+  if ( metric == METRIC_MKS3 ) {
     hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
     hdf5_read_single_val(&mks3R0, "R0", H5T_IEEE_F64LE);
     hdf5_read_single_val(&mks3H0, "H0", H5T_IEEE_F64LE);
@@ -635,7 +657,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
     hdf5_read_single_val(&mks3MY2, "MY2", H5T_IEEE_F64LE);
     hdf5_read_single_val(&mks3MP0, "MP0", H5T_IEEE_F64LE);
     Rout = 100.; 
-  } else {
+  } else { // Some brand of MKS.  All have the same parameters
     hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
     hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
     if (hdf5_exists("Rin")) {
@@ -645,13 +667,14 @@ void init_iharm_grid(char *fnam, int dumpidx)
       hdf5_read_single_val(&Rin, "r_in", H5T_IEEE_F64LE);
       hdf5_read_single_val(&Rout, "r_out", H5T_IEEE_F64LE);
     }
+    fprintf(stderr, "MKS parameters a: %f hslope: %f Rin: %f Rout: %f\n", a, hslope, Rin, Rout);
 
-    if (METRIC_FMKS) {
-      fprintf(stderr, "custom refinement at poles loaded...\n");
+    if (metric == METRIC_FMKS) {
       hdf5_read_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
       hdf5_read_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
       hdf5_read_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
       poly_norm = 0.5*M_PI*1./(1. + 1./(poly_alpha + 1.)*1./pow(poly_xt, poly_alpha));
+      fprintf(stderr, "MKS parameters poly_xt: %f poly_alpha: %f mks_smooth: %f poly_norm: %f\n", poly_xt, poly_alpha, mks_smooth, poly_norm);
     }
   }
 
@@ -667,8 +690,8 @@ void init_iharm_grid(char *fnam, int dumpidx)
   stopx[2] = startx[2]+N2*dx[2];
   stopx[3] = startx[3]+N3*dx[3];
 
-  fprintf(stderr, "start: %g %g %g \n", startx[1], startx[2], startx[3]);
-  fprintf(stderr, "stop: %g %g %g \n", stopx[1], stopx[2], stopx[3]);
+  fprintf(stderr, "Native coordinate start: %g %g %g stop: %g %g %g\n",
+                  startx[1], startx[2], startx[3], stopx[1], stopx[2], stopx[3]);
 
   init_storage();
   hdf5_close();
@@ -725,7 +748,6 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
 
-  if (verbose) fprintf(stderr, "LOADING DATA\n");
   nloaded++;
 
   if ( hdf5_open(fname) < 0 ) {
@@ -935,7 +957,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   MdotEdd_dump = Mdotedd;
   Ladv_dump =  Ladv;
 
-  if (verbose) {
+  if (verbose == 2) {
     fprintf(stderr,"dMact: %g [code]\n",dMact);
     fprintf(stderr,"Ladv: %g [code]\n",Ladv_dump);
     fprintf(stderr,"Mdot: %g [g/s] \n",Mdot_dump);
@@ -943,56 +965,20 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
     fprintf(stderr,"Mdot: %g [Mdotedd]\n",Mdot_dump/MdotEdd_dump);
     fprintf(stderr,"Mdotedd: %g [g/s]\n",MdotEdd_dump);
     fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",MdotEdd_dump/(MSUN/YEAR));
+  } else if (verbose == 1) {
+    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",Mdot_dump/(MSUN / YEAR));
+    fprintf(stderr,"Mdot: %g [Mdotedd]\n",Mdot_dump/MdotEdd_dump);
   }
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
   init_physical_quantities(n);
-
-  // optionally calculate average beta weighted by jnu
-  if (0 == 1) {
-    #define NBETABINS 64.
-    double betabins[64] = { 0 };
-    #define BETAMIN (0.001)
-    #define BETAMAX (200.)
-    double dlBeta = (log(BETAMAX)-log(BETAMIN))/NBETABINS;
-    double BETA0 = log(BETAMIN);
-    double betajnugdet = 0.;
-    double jnugdet = 0.;
-    for (int i=1; i<N1+1; ++i) {
-      for (int j=1; j<N2+1; ++j) {
-        for (int k=1; k<N3+1; ++k) {
-          int zi = i-1; 
-          int zj = j-1;
-          int zk = k-1;
-          double bsq = 0.;
-          for (int l=0; l<4; ++l) bsq += data[n]->bcon[i][j][k][l]*data[n]->bcov[i][j][k][l];
-          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-          double Ne = data[n]->ne[i][j][k];
-          double Thetae = data[n]->thetae[i][j][k];
-          double B = data[n]->b[i][j][k];
-          double jnu = jnu_synch(2.3e+11, Ne, Thetae, B, M_PI/3.);
-          double gdetzone = gdet_zone(zi,zj,zk);
-          betajnugdet += beta * jnu * gdetzone;
-          jnugdet += jnu * gdetzone;
-          int betai = (int) ( (log(beta) - BETA0) / dlBeta + 2.5 ) - 2;
-          betabins[betai] += jnu * gdetzone;
-        }
-      }
-    }
-    for (int i=0; i<NBETABINS; ++i) {
-      fprintf(stderr, "%d %g %g\n", i, exp(BETA0 + (i+0.5)*dlBeta), betabins[i]);
-    }
-    fprintf(stderr, "<beta> = %g\n", betajnugdet / jnugdet);
-  }
 }
 
 int radiating_region(double X[NDIM])
 {
-  if (X[1] > log(rmin_geo) && X[1] < log(rmax_geo) && X[2] > th_beg/M_PI && X[2] < (1.-th_beg/M_PI) ) {
-    return 1;
-  } else {
-    return 0;
-  }
+  double r, th;
+  bl_coord(X, &r, &th);
+  return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg));
 }
 
 void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,

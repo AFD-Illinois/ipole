@@ -108,10 +108,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 
   theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	// angle between k & b
 
-  // For later jet/disk
-  // && (dist == 1 || dist == 4)
+
   if (Ne <= 0.) {  // avoid 1./0. issues
-    //fprintf(stderr, "ZERO EMISSION ZERO Ne");
 
     *jI = 0.0;
     *jQ = 0.0;
@@ -127,8 +125,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     *rU = 0.0;
     *rV = 0.0;
 
-  } else if (theta <= 0. || theta >= M_PI) {	// No emission/absorption along field
-    fprintf(stderr, "ZERO EMISSION ALONG FIELD!");
+  } else if (theta <= 0. || theta >= M_PI) { // No emission/absorption along B field
 
     *jI = 0.0;
     *jQ = 0.0;

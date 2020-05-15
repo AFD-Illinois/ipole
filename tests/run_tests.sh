@@ -12,10 +12,10 @@ do
   folder=${folder: : -1}
   if [[ "$folder" != "test-resources" ]]; then
     cd $folder
-    if [[ $folder == *"sample_dump"* ]]; then
-      make -f ../../makefile -j8 MODEL=iharm
-    else
+    if [[ $folder == *"thin_disk"* ]]; then
       make -f ../../makefile -j8 MODEL=thin_disk
+    else
+      make -f ../../makefile -j8 MODEL=iharm
     fi
     ./ipole -par $folder.par &> out_$folder.txt
     ../verify.sh

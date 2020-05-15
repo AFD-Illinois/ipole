@@ -161,9 +161,9 @@ double stepsize(double X[NDIM], double Kcon[NDIM])
   double dl, dlx1, dlx2, dlx3;
   double idlx1,idlx2,idlx3 ;
 
+  // TODO use exclusively minima here?
   dlx1 = eps / (fabs(Kcon[1]) + SMALL*SMALL) ;
-  //dlx2 = EPS * GSL_MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
-  dlx2 = eps * MIN(X[2], 1. - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
+  dlx2 = eps * MIN(X[2], stopx[2] - X[2]) / (fabs(Kcon[2]) + SMALL*SMALL) ;
   dlx3 = eps / (fabs(Kcon[3]) + SMALL*SMALL) ;
 
   idlx1 = 1./(fabs(dlx1) + SMALL*SMALL) ;
