@@ -710,7 +710,18 @@ void output_hdf5()
     hdf5_write_single_val(&beta_crit, "beta_crit", H5T_IEEE_F64LE);
   }
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
+
+  hdf5_set_directory("/header/");
+  hdf5_make_directory("units");
+  hdf5_set_directory("/header/units/");
+  hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
+
   hdf5_set_directory("/");
+
+  //fprintf(stderr, "Wrote model header\n");
 }
 
 void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)

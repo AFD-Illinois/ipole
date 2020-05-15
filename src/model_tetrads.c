@@ -23,9 +23,7 @@
  * l: index attached to coordinate basis
  * index up
  * Ecov switches both indices
- */
-
-/* 
+ *
  * make orthonormal basis for plasma frame.
  * e^0 along U
  * e^2 along b

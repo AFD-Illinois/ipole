@@ -36,6 +36,8 @@ void set_dXdx(double X[NDIM], double dXdx[NDIM][NDIM]);
 void vec_to_ks(double X[NDIM], double v_nat[NDIM], double v_ks[NDIM]);
 void vec_from_ks(double X[NDIM], double v_ks[NDIM], double v_nat[NDIM]);
 
-double root_find(double X[NDIM], double startx2, double stopx2);
+// Translation to native coords
+void native_coord(double r, double th, double phi, double X[NDIM]);
+double root_find(double X[NDIM]);
 
 #endif // COORDINATES_H

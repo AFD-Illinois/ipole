@@ -22,22 +22,23 @@
 #include <complex.h>
 #include <omp.h>
 
+// Some useful blocks of code to re-use
+void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
+               double fovx, double fovy, double freq, int only_unpolarized, double scale,
+               double *Intensity, double *Is, double *Qs, double *Us, double *Vs,
+               double *Tau, double *tauF);
+void save_pixel(double *image, double *imageS, double *taus, int i, int j, int nx, int ny, int only_unpol,
+                double Intensity, double Is, double Qs, double Us, double Vs,
+                double freqcgs, double Tau, double tauF);
+void print_image_stats(double *image, double *imageS, int nx, int ny, Params params, double scale);
+
 // global variables. TODO scope into main
 static double tf = 0.;
 
 Params params = { 0 };
 
-// Functions defined & used only here.  TODO move. Introduce a camera.c or similar?
-void init_XK (int i, int j, double Xcam[4], double fovx, double fovy,
-              double X[4], double Kcon[4], double rotcam, double xoff,
-              double yoff);
-
-double approximate_solve (double Ii, double ji, double ki, double jf, double kf,
-                   double dl, double *tau);
-
 // Try to keep dynamic image sizes fast
-static int nx, ny;
-static inline int imgindex(int n, int i, int j) {return (n*nx + i)*ny + j;}
+static inline int imgindex(int n, int i, int j, int nx, int ny) {return (n*nx + i)*ny + j;}
 
 int main(int argc, char *argv[]) 
 {
@@ -49,8 +50,7 @@ int main(int argc, char *argv[])
   double time = omp_get_wtime();
 
   double tA, tB; // for slow light
-  double rcam, thetacam, phicam, rotcam, Xcam[NDIM];
-  double xoff, yoff;
+  double Xcam[NDIM];
   double freq, scale;
   double DX, DY, fovx, fovy;
 
@@ -80,38 +80,34 @@ int main(int argc, char *argv[])
   // them and use init_model to load the first dump
   init_model(&tA, &tB);
 
-  // Then allocate now we know the image size
-  nx = params.nx;
-  ny = params.ny;
-  double *taus = malloc(sizeof(*taus) * nx*ny);
-  double *imageS = malloc(sizeof(*imageS) * nx*ny*NIMG);
-  double *image = malloc(sizeof(*image) * nx*ny);
+  // Adaptive resolution option
+  // nx, ny are the resolution at maximum refinement level
+  // nx_min, ny_min are at coarsest level
+  // TODO check for obvious BS here
+  int nx = params.nx;
+  int ny = params.ny;
+  if (params.nx_min < 0) {
+    params.nx_min = params.nx;
+    params.ny_min = params.ny;
+  }
+  int refine_level = log2(params.nx/params.nx_min)+1;
 
   // normalize frequency to electron rest-mass energy
   double freqcgs = params.freqcgs;
   freq = params.freqcgs * HPL / (ME * CL * CL);
 
-  // TODO if spherical
   // Initialize the camera
-  rcam = params.rcam;
-  thetacam = params.thetacam;
-  phicam = params.phicam;
-  rotcam = params.rotcam*M_PI/180.;
-  xoff = params.xoff;
-  yoff = params.yoff;
+  params.rotcam *= M_PI/180.;
+
   // translate to geodesic coordinates
-  double x[NDIM] = {0., rcam, thetacam/180.*M_PI, phicam/180.*M_PI};
-  Xcam[0] = 0.0;
-  Xcam[1] = log(rcam);
-  Xcam[2] = root_find(x, startx[2], stopx[2]);
-  Xcam[3] = phicam/180.*M_PI; // This will need to be changed for future coordinates
+  native_coord(params.rcam, params.thetacam, params.phicam, Xcam);  // TODO cartesian parameters
   fprintf(stderr, "Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
 
   params.dsource *= PC;
   double Dsource = params.dsource; // Shorthand
 
   // set DX/DY using fov_dsource if possible, otherwise DX, otherwise old default
-  double fov_to_d = Dsource / L_unit / 2.06265e11;
+  double fov_to_d = Dsource / L_unit / MUAS_PER_RAD;
 
   if (params.fovx_dsource != 0.0) { // FOV was specified
     // Uncomment to be even more option lenient
@@ -132,8 +128,8 @@ int main(int argc, char *argv[])
 
   // Set the *camera* fov values
   // We don't set these like other parameters, but output them for historical reasons
-  fovx = DX / rcam;
-  fovy = DY / rcam;
+  fovx = DX / params.rcam;
+  fovy = DY / params.rcam;
 
   scale = (DX * L_unit / nx) * (DY * L_unit / ny) / (Dsource * Dsource) / JY;
   fprintf(stderr,"intensity [cgs] to flux per pixel [Jy] conversion: %g\n",scale);
@@ -141,8 +137,17 @@ int main(int argc, char *argv[])
   fprintf(stderr,"Dsource: %g [kpc]\n",Dsource/(1.e3*PC));
   fprintf(stderr,"FOVx, FOVy: %g %g [GM/c^2]\n",DX,DY);
   fprintf(stderr,"FOVx, FOVy: %g %g [rad]\n",DX*L_unit/Dsource,DY*L_unit/Dsource);
-  fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * 2.06265e11 ,DY*L_unit/Dsource * 2.06265e11);
-  fprintf(stderr,"NX = %i NY = %i\n", nx, ny);
+  fprintf(stderr,"FOVx, FOVy: %g %g [muas]\n",DX*L_unit/Dsource * MUAS_PER_RAD ,DY*L_unit/Dsource * MUAS_PER_RAD);
+  fprintf(stderr,"Resolution: %dx%d, refined up to %dx%d (%d levels)\n",
+          params.nx_min, params.ny_min, params.nx, params.ny, refine_level);
+  if (refine_level > 1) {
+    fprintf(stderr,"Refinement when > %g%% relative error or %g Jy/muas^2 absolute error, for pixel brightness > %f%% of average\n",
+            params.refine_rel*100, params.refine_abs, params.refine_cut*100);
+  }
+
+  double *taus = calloc(nx*ny, sizeof(*taus));
+  double *imageS = calloc(nx*ny*NIMG, sizeof(*imageS));
+  double *image = calloc(nx*ny, sizeof(*image));
 
   // slow light
   if (SLOW_LIGHT) {
@@ -170,6 +175,7 @@ int main(int argc, char *argv[])
     double tgeoi = -1.e100;
     double tgeof = 0.;
 
+    // TODO disallows large slow-light images
     int nsteps[nx][ny];
 
     // first pass through geodesics to find lengths
@@ -181,7 +187,7 @@ int main(int argc, char *argv[])
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam, xoff, yoff);
+        init_XK(i,j, nx, ny, Xcam, params, fovx,fovy, X, Kcon);
 
         for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
@@ -189,8 +195,8 @@ int main(int argc, char *argv[])
         double tgeoftmp = 1.;
 
         MULOOP Xhalf[mu] = X[mu];
-        while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
-          dl = stepsize(X, Kcon, stopx[2]);
+        while (!stop_backward_integration(X, Xhalf, Kcon)) {
+          dl = stepsize(X, Kcon);
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
@@ -203,7 +209,7 @@ int main(int argc, char *argv[])
           if (tgeoftmp > 0. && X[1] > log(100.) && Kcon[1] < 0.) tgeoftmp = X[0]; // Kcon is for forward integration
         }
 
-        nsteps[i][j] = nstep--;
+        nsteps[i][j] = --nstep;
 
         if (nstep > maxsteplength) maxsteplength = nstep;
         if (X[0] < t0) t0 = X[0];
@@ -236,16 +242,16 @@ int main(int argc, char *argv[])
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam, xoff, yoff);
+        init_XK(i,j, nx, ny, Xcam, params, fovx,fovy, X, Kcon);
         for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
         MULOOP Xhalf[mu] = X[mu];
-        while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
-          dl = stepsize(X, Kcon, stopx[2]);
+        while (!stop_backward_integration(X, Xhalf, Kcon)) {
+          dl = stepsize(X, Kcon);
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
-          int stepidx = imgindex(nstep,i,j);
+          int stepidx = imgindex(nstep,i,j,nx,ny);
 
           dtraj[stepidx].dl = dl * L_unit * HPL / (ME * CL * CL);
           for (int k=0; k<NDIM; ++k) {
@@ -297,7 +303,7 @@ int main(int argc, char *argv[])
           nopenimgs++;
           for (int i=0; i<nx; ++i) {
             for (int j=0; j<ny; ++j) {
-              int pxidx = imgindex(nimg,i,j);
+              int pxidx = imgindex(nimg,i,j,nx,ny);
               dimage[pxidx].nstep = nsteps[i][j];
               dimage[pxidx].intensity = 0.;
               dimage[pxidx].tau = 0.;
@@ -324,12 +330,12 @@ int main(int argc, char *argv[])
             double Xi[NDIM],Xhalf[NDIM],Xf[NDIM];
             double Kconi[NDIM],Kconhalf[NDIM],Kconf[NDIM];
 
-            int pxidx = imgindex(k,i,j);
+            int pxidx = imgindex(k,i,j,nx,ny);
 
             while (dimage[pxidx].nstep > 1) {
 
-              int stepidx = imgindex(dimage[pxidx].nstep,i,j);
-              int pstepidx = imgindex(dimage[pxidx].nstep-1,i,j);
+              int stepidx = imgindex(dimage[pxidx].nstep,i,j,nx,ny);
+              int pstepidx = imgindex(dimage[pxidx].nstep-1,i,j,nx,ny);
 
               for (int l=0; l<NDIM; ++l) {
                 Xi[l]       = dtraj[stepidx].X[l];
@@ -392,15 +398,15 @@ int main(int argc, char *argv[])
           for (int i=0; i<nx; ++i) {
             for (int j=0; j<ny; ++j) {
 
-              int pxidx = imgindex(k,i,j);
-              int pstepidx = imgindex(dimage[pxidx].nstep,i,j);
+              int pxidx = imgindex(k,i,j,nx,ny);
+              int pstepidx = imgindex(dimage[pxidx].nstep,i,j,nx,ny);
 
               image[i*ny+j] = dimage[pxidx].intensity * pow(freqcgs, 3.);
               taus[i*ny+j] = dimage[pxidx].tau;
 
               if (! only_unpolarized) {
                 double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
-                project_N(dtraj[pstepidx].X, dtraj[pstepidx].Kcon, dimage[pxidx].N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V, rotcam);
+                project_N(dtraj[pstepidx].X, dtraj[pstepidx].Kcon, dimage[pxidx].N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V, params.rotcam);
                 imageS[(i*ny+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3.);
                 imageS[(i*ny+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3.);
                 imageS[(i*ny+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
@@ -447,195 +453,203 @@ int main(int argc, char *argv[])
 
   // FAST LIGHT
   } else {
+    // BASE IMAGE at n_min
+    // Allocate it, or use the existing allocation for just 1 level
+    nx = params.nx_min;
+    ny = params.ny_min;
+    double *taus_min, *imageS_min, *image_min;
+    int *interp_flag;
+    if (refine_level > 1) {
+      taus_min = calloc(nx*ny, sizeof(*taus_min));
+      imageS_min = calloc(nx*ny*NIMG, sizeof(*imageS_min));
+      image_min = calloc(nx*ny, sizeof(*image_min));
+      interp_flag = calloc(nx*ny, sizeof(*image_min));
+    } else {
+      taus_min = taus;
+      imageS_min = imageS;
+      image_min = image;
+    }
+    double avg_val = 0;
 
-#pragma omp parallel for schedule(dynamic,1) collapse(2) shared(image,imageS)
-    for (int i=0; i<nx; ++i) {
-      for (int j=0; j<ny; ++j) {
+#pragma omp parallel for schedule(dynamic,1) collapse(2) reduction(+:avg_val)
+    for (int i=0; i < nx; ++i) {
+      for (int j=0; j < ny; ++j) {
         if (j==0) fprintf(stderr, "%d ", i);
 
-        double X[NDIM],Xhalf[NDIM],Xi[NDIM],Xf[NDIM],Kcon[NDIM],Kconhalf[NDIM],Kconi[NDIM],Kconf[NDIM];
-        double dl, ji,ki, jf,kf;
-        double complex N_coord[NDIM][NDIM];
-        double Intensity, Stokes_I, Stokes_Q, Stokes_U, Stokes_V, tauF, Tau;
+        double Intensity = 0;
+        double Is = 0, Qs = 0, Us = 0, Vs = 0;
+        double Tau = 0, tauF = 0;
 
-        // Setup geodesic
-        init_XK(i,j, Xcam, fovx,fovy, X, Kcon, rotcam, xoff, yoff);
-        MULOOP Kcon[mu] *= freq;
-        MULOOP Xhalf[mu] = X[mu];
-        int nstep = 0;
-        struct of_traj *traj = calloc(MAXNSTEP, sizeof(struct of_traj));
-
-        // Integrate backwards
-        while (!stop_backward_integration(X, Xhalf, Kcon, Xcam)) {
-          /* This stepsize function can be troublesome inside of R = 2M,
-             and should be used cautiously in this region. */
-          dl = stepsize(X, Kcon, stopx[2]);
-
-          /* move photon one step backwards, the procecure updates X
-             and Kcon full step and returns also values in the middle */
-          push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
-          nstep++;
-
-          /* Geodesics in ipole are integrated using
-           * dx^\mu/d\lambda = k^\mu
-           * The positions x^mu are in simulation units, since different
-           * coordinates sometimes have different units (e.g. x^r, x^\theta)
-
-           * The convention we have adopted is that:
-           * E = -u^\mu k_\mu,
-           * which is always photon energy measured by an observer with four-velocity u^\mu,
-           * is in units of *electron rest-mass energy*.
-           * This implies that dl is *not* in cgs units, but in weird hybrid units.
-           * This line sets dl to be in cgs units.
-           */
-          traj[nstep].dl = dl * L_unit * HPL / (ME * CL * CL);
-
-          MULOOP {
-            traj[nstep].X[mu] = X[mu];
-            traj[nstep].Kcon[mu] = Kcon[mu];
-            traj[nstep].Xhalf[mu] = Xhalf[mu];
-            traj[nstep].Kconhalf[mu] = Kconhalf[mu];
-          }
-
-          if (nstep > MAXNSTEP - 2) {
-            fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j,i);
-            break;
-          }
-        }
-
-        nstep--; // don't record final step because it violated "stop" condition
-        //fprintf(stderr, "Geodesic i: %d j: %d nsteps: %d\n", i, j, nstep);
-
-        // integrate forwards along trajectory, including radiative transfer equation
-        // initialize X, K
-        MULOOP { Xi[mu] = traj[nstep].X[mu];
-                 Kconi[mu] = traj[nstep].Kcon[mu]; }
-        // Initialize emision variables
-        init_N(Xi, Kconi, N_coord);
-        Intensity = 0.0;
-        Tau = 0.;
-        tauF = 0.;
-        get_jkinv(traj[nstep].X, traj[nstep].Kcon, &ji, &ki);
+        get_pixel(i, j, nx, ny, Xcam, params,
+                  fovx, fovy, freq, only_unpolarized, scale,
+                  &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
         
-        // Option to save a variable along the geodesic
-        int nstep_save = nstep+1;
+        avg_val += Intensity;
 
-        while (nstep > 1) {
-          // initialize X,K
-          MULOOP {
-            Xi[mu]       = traj[nstep].X[mu];
-            Kconi[mu]    = traj[nstep].Kcon[mu];
-            Xhalf[mu]    = traj[nstep].Xhalf[mu];
-            Kconhalf[mu] = traj[nstep].Kconhalf[mu];
-            Xf[mu]       = traj[nstep - 1].X[mu];
-            Kconf[mu]    = traj[nstep - 1].Kcon[mu];
-          }
-
-          // solve total intensity equation alone
-#if THIN_DISK
-          if (thindisk_region(Xi, Xf)) {
-            get_model_i(Xf, Kconf, &Intensity);
-          }
-#else
-          get_jkinv(Xf, Kconf, &jf, &kf);
-          Intensity = approximate_solve(Intensity, ji, ki, jf, kf, traj[nstep].dl, &Tau);
-          // swap start and finish
-          ji = jf;
-          ki = kf;
-#endif
-
-          // solve polarized transport
-          if (! only_unpolarized ) {
-            evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, &tauF);
-            if (isnan(creal(N_coord[0][0]))) {
-              printf("NaN in N00!\n");
-              exit(-3);
-            }
-          }
-
-          nstep--;
-        }
-
-        if (params.trace) {
-          int stride = params.trace_stride;
-          if (params.trace_i < 0 || params.trace_j < 0) { // If no single point is specified
-            if (i % stride == 0 && j % stride == 0) { // Save every stride pixels
-#pragma omp critical
-              dump_var_along(i/stride, j/stride, nstep_save, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
-            }
-          } else {
-            if (i == params.trace_i && j == params.trace_j) { // Save just the one
-#pragma omp critical
-              dump_var_along(0, 0, nstep_save, traj, 1, 1, scale, Xcam, fovx, fovy, &params);
-            }
-          }
-        }
-
-        free(traj);
-
-        // deposit intensity and Stokes parameter in pixels
-        image[i*ny+j] = Intensity * pow(freqcgs, 3);
-        taus[i*ny+j] = Tau;
-        if (! only_unpolarized) {
-          project_N(Xf, Kconf, N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V, rotcam);
-          imageS[(i*ny+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3);
-          imageS[(i*ny+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3);
-          imageS[(i*ny+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3);
-          imageS[(i*ny+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3);
-          imageS[(i*ny+j)*NIMG+4] = tauF;
-          if (params.qu_conv == 0) {
-            imageS[(i*ny+j)*NIMG+1] *= -1;
-            imageS[(i*ny+j)*NIMG+2] *= -1;
-          }
-          if (isnan(imageS[(i*ny+j)*NIMG+0])) exit(-1);
+        if (refine_level == 1) {
+          // At one refinement just save the pixel
+          save_pixel(image, imageS, taus, i, j, nx, ny, 0,
+                     Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
+          // No need for an interpolation flag here
         } else {
-          imageS[(i*ny+j)*NIMG+0] = 0.;
-          imageS[(i*ny+j)*NIMG+1] = 0.;
-          imageS[(i*ny+j)*NIMG+2] = 0.;
-          imageS[(i*ny+j)*NIMG+3] = 0.;
-          imageS[(i*ny+j)*NIMG+4] = 0.;
+          // Otherwise keep the Stokes params for next refinement
+          image_min[i*ny+j] = Intensity;
+          taus_min[i*ny+j] = Tau;
+          imageS_min[(i*ny+j)*NIMG+0] = Is;
+          imageS_min[(i*ny+j)*NIMG+1] = Qs;
+          imageS_min[(i*ny+j)*NIMG+2] = Us;
+          imageS_min[(i*ny+j)*NIMG+3] = Vs;
+          imageS_min[(i*ny+j)*NIMG+4] = tauF;
+          interp_flag[i*ny+j] = 0;
         }
       }
     }
+    avg_val /= nx*ny;
+    //fprintf(stderr, "\nBase image average flux in Jy/muas^2: %g\n", avg_val * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD));
 
-    // finish up
-    fprintf(stderr, "\nscale = %e\n", scale);
+    // REFINE based on previous image
+    double *parent_image = image_min;
+    double *parent_taus = taus_min;
+    double *parent_imageS = imageS_min;
+    int *parent_interp_flag = interp_flag;
 
-    double Ftot = 0.;
-    double Ftot_unpol = 0.;
-    double Imax = 0.0;
-    double Iavg = 0.0;
-    double Qtot = 0.;
-    double Utot = 0.; 
-    double Vtot = 0.;
-    int imax = 0;
-    int jmax = 0;
-    for (int i = 0; i < nx; i++) {
-      for (int j = 0; j < ny; j++) {
-        Ftot_unpol += image[i*ny+j]*scale;
-        Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
-        Iavg += imageS[(i*ny+j)*NIMG+0];
-        Qtot += imageS[(i*ny+j)*NIMG+1] * scale;
-        Utot += imageS[(i*ny+j)*NIMG+2] * scale;
-        Vtot += imageS[(i*ny+j)*NIMG+3] * scale;
-        if (imageS[(i*ny+j)*NIMG+0] > Imax) {
-          imax = i;
-          jmax = j;
-          Imax = imageS[(i*ny+j)*NIMG+0];
+    double *image_temp, *taus_temp, *imageS_temp;
+    int *interp_flag_temp;
+    for (int refined_level = 1; refined_level < refine_level; refined_level++) {
+      nx *= 2;
+      ny *= 2;
+
+      if (refined_level < refine_level - 1) {
+        taus_temp = calloc(nx*ny, sizeof(*taus_temp));
+        imageS_temp = calloc(nx*ny*NIMG, sizeof(*imageS_temp));
+        image_temp = calloc(nx*ny, sizeof(*image_temp));
+      }
+      // We need interp flag for the last 
+      interp_flag_temp = calloc(nx*ny, sizeof(*interp_flag_temp));
+
+#pragma omp parallel for schedule(dynamic,1) collapse(2)
+      for (int i=0; i < nx; ++i) {
+        for (int j=0; j < ny; ++j) {
+          if (j==0) fprintf(stderr, "%d ", i);
+
+          double Intensity = 0;
+          double Is = 0, Qs = 0, Us = 0, Vs = 0;
+          double Tau = 0, tauF = 0;
+
+          // Find the 4 parent pixels around my corner
+          // Set any pixels that would be outside the image to 0
+          // NOTE these are the invariant intensities, not CGS
+          int ip = (i+1)/2-1, jp = (j+1)/2-1, nxp = nx/2, nyp = ny/2;
+          double I1 = (ip > 0 && jp > 0) ? parent_image[(ip)*nyp+(jp)] : 0;
+          double I2 = (ip < nxp && jp > 0) ? parent_image[(ip+1)*nyp+(jp)] : 0;
+          double I3 = (ip > 0 && jp < nyp) ? parent_image[(ip)*nyp+(jp+1)] : 0;
+          double I4 = (ip < nxp && jp < nyp) ? parent_image[(ip+1)*nyp+(jp+1)] : 0;
+          // NOTE interpolation flag from parent is accessible here:
+          //int iflag1 = (ip > 0 && jp > 0) ? parent_interp_flag[(ip)*nyp+(jp)] : 0;
+          // 0: pixel was ray-traced
+          // 1: pixel was interpolated
+
+          double I_parent = (I1 + I2 + I3 + I4)/4;
+          //fprintf(stderr, "Parent av: %g\n", I_parent);
+
+          // Refinement criterion thanks to Zack Gelles: absolute & relative error of
+          // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel
+          // Make sure absolute error is in Jy/muas^2
+          double err_abs = ((I2 + I3) / 2 - I1) * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD);
+          double err_rel = (I2 + I3) / (2 * I1) - 1.;
+
+          // If the interpolation would cause too great an err_abs or err_rel,
+          // trace the full geodesic.
+          if ((fabs(err_abs) > params.refine_abs ||
+               fabs(err_rel) > params.refine_rel) &&
+              fabs(I_parent) / avg_val >= params.refine_cut) {
+            get_pixel(i, j, nx, ny, Xcam, params,
+                      fovx, fovy, freq, only_unpolarized, scale,
+                      &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
+
+            interp_flag_temp[i*ny+j] = 0;
+
+          } else {
+            // Otherwise just interpolate
+            interp_flag_temp[i*ny+j] = 1;
+
+            if (params.nearest_neighbor) {
+              Intensity = parent_image[(i/2)*(ny/2)+j/2];
+              Tau = parent_taus[(i/2)*(ny/2)+j/2];
+              Is = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0];
+              Qs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1];
+              Us = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2];
+              Vs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3];
+              tauF = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4];
+            } else { // Linear
+              int dx = 0, dy = 0;
+              if (i%2 == 0) {
+                if (i/2 > 0) dx = -1;
+              } else {
+                if (i/2 < nx/2-1) dx = 1;
+              }
+              if (j%2 == 0) {
+                if (j/2 > 0) dy = -1;
+              } else {
+                if (j/2 < ny/2-1) dy = 1;
+              }
+
+              Intensity = 0.5625*parent_image[(i/2)*(ny/2)+j/2] + 0.1875*parent_image[(i/2+dx)*(ny/2)+j/2]+
+                          0.1875*parent_image[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_image[(i/2+dx)*(ny/2)+j/2+dy];
+              Tau = 0.5625*parent_taus[(i/2)*(ny/2)+j/2] + 0.1875*parent_taus[(i/2+dx)*(ny/2)+j/2]+
+                    0.1875*parent_taus[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_taus[(i/2+dx)*(ny/2)+j/2+dy];
+              Is = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+0]+
+                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+0] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+0];
+              Qs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+1]+
+                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+1] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+1];
+              Us = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+2]+
+                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+2] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+2];
+              Vs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+3]+
+                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+3] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+3];
+              tauF = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+4]+
+                     0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+4] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+4];
+            }
+          }
+
+          if (refined_level == refine_level - 1) {
+            save_pixel(image, imageS, taus, i, j, nx, ny, 0,
+                       Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
+          } else {
+            image_temp[i*ny+j] = Intensity;
+            taus_temp[i*ny+j] = Tau;
+            imageS_temp[(i*ny+j)*NIMG+0] = Is;
+            imageS_temp[(i*ny+j)*NIMG+1] = Qs;
+            imageS_temp[(i*ny+j)*NIMG+2] = Us;
+            imageS_temp[(i*ny+j)*NIMG+3] = Vs;
+            imageS_temp[(i*ny+j)*NIMG+4] = tauF;
+          }
         }
+      }
+
+      // Print how many pixels were interpolated
+      int total_interpolated = 0;
+#pragma omp parallel for collapse(2) reduction(+:total_interpolated)
+      for (int i=0; i<nx; i++)
+        for (int j=0; j<ny; j++)
+          total_interpolated += interp_flag_temp[i*ny+j];
+    
+      fprintf(stderr, "\n%d of %d (%f%%) of pixels at %dx%d were interpolated\n\n",
+              total_interpolated, nx * ny, ((double) total_interpolated) / (nx * ny) * 100, nx, ny);
+
+      free(parent_taus); free(parent_image);
+      free(parent_imageS); free(parent_interp_flag);
+      if (refined_level < refine_level - 1) {
+        parent_image = image_temp;
+        parent_taus = taus_temp;
+        parent_imageS = imageS_temp;
+        parent_interp_flag = interp_flag_temp;
+      } else {
+        // Clean up just the interpolation flag
+        free(interp_flag_temp);
       }
     }
 
-    // output normal flux quantities
-    fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax, Iavg/(nx*ny));
-    fprintf(stderr, "freq: %g Ftot: %g Jy (%g Jy unpol xfer) scale=%g\n", freqcgs, Ftot, Ftot_unpol, scale);
-    fprintf(stderr, "nuLnu = %g erg/s\n", 4.*M_PI*Ftot * Dsource * Dsource * JY * freqcgs);
-
-    // output polarized transport information
-    double LPfrac = 100.*sqrt(Qtot*Qtot+Utot*Utot)/Ftot;
-    double CPfrac = 100.*Vtot/Ftot;
-    fprintf(stderr, "I,Q,U,V [Jy]: %g %g %g %g\n", Ftot, Qtot, Utot, Vtot);
-    fprintf(stderr, "LP,CP [%%]: %g %g\n", LPfrac, CPfrac);
+    print_image_stats(image, imageS, nx, ny, params, scale);
 
     // don't dump if we've been asked to quench output. useful for batch jobs
     // like when fitting light curve fluxes
@@ -647,7 +661,7 @@ int main(int argc, char *argv[])
         make_ppm(image, freq, nx, ny, "ipole_lfnu.ppm");
       }
     }
-  }
+  } // SLOW_LIGHT
 
   time = omp_get_wtime() - time;
   printf("Total wallclock time: %g s\n\n", time);
@@ -655,70 +669,120 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-/* construct orthonormal tetrad.
- *   e^0 along Ucam
- *   e^3 outward (!) along radius vector
- *   e^2 toward north pole of coordinate system
- *   ("y" for the image plane)
- *   e^1 in the remaining direction
- *   ("x" for the image plane)
- */
-void init_XK(int i, int j, double Xcam[NDIM], double fovx, double fovy, 
-    double X[NDIM], double Kcon[NDIM], double rotcam, double xoff, double yoff)
+void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
+               double fovx, double fovy, double freq, int only_unpolarized, double scale,
+               double *Intensity, double *Is, double *Qs, double *Us, double *Vs,
+               double *Tau, double *tauF)
 {
-  double Econ[NDIM][NDIM];
-  double Ecov[NDIM][NDIM];
-  double Kcon_tetrad[NDIM];
+  double X[NDIM], Kcon[NDIM];
+  double complex N_coord[NDIM][NDIM];
 
-  make_camera_tetrad(Xcam, Econ, Ecov);
+  // Integrate backward to find geodesic trajectory
+  init_XK(i,j, nx, ny, Xcam, params, fovx,fovy, X, Kcon);
+  struct of_traj *traj = calloc(MAXNSTEP, sizeof(struct of_traj));
+  MULOOP Kcon[mu] *= freq;
+  int nstep = trace_geodesic(X, Kcon, traj);
 
-  // Construct outgoing wavevectors
-  // xoff: allow arbitrary offset for e.g. ML training imgs
-  // +0.5: project geodesics from px centers
-  // -0.01: Prevent nasty artifact at 0 spin/phicam
-  double dxoff = (xoff+i+0.5-0.01)/nx - 0.5;
-  double dyoff = (yoff+j+0.5)/ny - 0.5;
-  Kcon_tetrad[0] = 0.;
-  Kcon_tetrad[1] = (dxoff*cos(rotcam) - dyoff*sin(rotcam)) * fovx;
-  Kcon_tetrad[2] = (dxoff*sin(rotcam) + dyoff*cos(rotcam)) * fovy;
-  Kcon_tetrad[3] = 1.;
+  // Integrate emission forward along trajectory
+  integrate_emission(traj, nstep, only_unpolarized, Intensity, Tau, tauF, N_coord);
 
-  /* normalize */
-  null_normalize(Kcon_tetrad, 1.);
-
-  /* translate into coordinate frame */
-  tetrad_to_coordinate(Econ, Kcon_tetrad, Kcon);
-
-  /* set position */
-  MULOOP X[mu] = Xcam[mu];
-}
-
-/* must be a stable, approximate solution to radiative transfer
- * that runs between points w/ initial intensity I, emissivity
- * ji, opacity ki, and ends with emissivity jf, opacity kf.
- *
- * return final intensity
- */
-double approximate_solve(double Ii, double ji, double ki, double jf,
-    double kf, double dl, double *tau)
-{
-  double efac, If, javg, kavg, dtau;
-
-  javg = (ji + jf) / 2.;
-  kavg = (ki + kf) / 2.;
-
-  dtau = dl * kavg;
-  *tau += dtau;
-
-  if (dtau < 1.e-3) {
-    If = Ii + (javg - Ii * kavg) * dl * (1. -
-        (dtau / 2.) * (1. -
-          dtau / 3.));
-  } else {
-    efac = exp(-dtau);
-    If = Ii * efac + (javg / kavg) * (1. - efac);
+  if (!only_unpolarized) {
+    project_N(traj[1].X, traj[1].Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);
   }
 
-  return If;
+  // Print some pixel values
+//   if( i == 0 && j == 0)
+//   {
+//     fprintf(stderr, "Pixel [%d %d]:\n", i, j);
+//     fprintf(stderr, "Number steps: %d\n", nstep);
+//     fprintf(stderr, "Intensity: %g\n", *Intensity);
+//     fprintf(stderr, "Stokes: [%g %g %g %g]\n", *Is, *Qs, *Us, *Vs);
+//   }
+
+  // Record values along the geodesic if requested
+  // TODO this is most likely not compatible with adaptive mode
+  if (params.trace) {
+    int stride = params.trace_stride;
+    if (params.trace_i < 0 || params.trace_j < 0) { // If no single point is specified
+      if (i % stride == 0 && j % stride == 0) { // Save every stride pixels
+#pragma omp critical
+        dump_var_along(i/stride, j/stride, nstep+1, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
+      }
+    } else {
+      if (i == params.trace_i && j == params.trace_j) { // Save just the one
+#pragma omp critical
+        dump_var_along(0, 0, nstep+1, traj, 1, 1, scale, Xcam, fovx, fovy, &params);
+      }
+    }
+  }
+
+  free(traj);
 }
 
+void save_pixel(double *image, double *imageS, double *taus, int i, int j, int nx, int ny, int only_intensity,
+                double Intensity, double Is, double Qs, double Us, double Vs,
+                double freqcgs, double Tau, double tauF)
+{
+  // deposit the intensity and Stokes parameter in pixel
+  image[i*ny+j] = Intensity * pow(freqcgs, 3);
+
+  if (!only_intensity) {
+    taus[i*ny+j] = Tau;
+
+    imageS[(i*ny+j)*NIMG+0] = Is * pow(freqcgs, 3);
+    if (params.qu_conv == 0) {
+      imageS[(i*ny+j)*NIMG+1] = -Qs * pow(freqcgs, 3);
+      imageS[(i*ny+j)*NIMG+2] = -Us * pow(freqcgs, 3);
+    } else {
+      imageS[(i*ny+j)*NIMG+1] = Qs * pow(freqcgs, 3);
+      imageS[(i*ny+j)*NIMG+2] = Us * pow(freqcgs, 3);
+    }
+    imageS[(i*ny+j)*NIMG+3] = Vs * pow(freqcgs, 3);
+    imageS[(i*ny+j)*NIMG+4] = tauF;
+
+    if (isnan(imageS[(i*ny+j)*NIMG+0])) {
+      fprintf(stderr, "NaN in image! Exiting.\n");
+      exit(-1);
+    }
+  }
+}
+
+void print_image_stats(double *image, double *imageS, int nx, int ny, Params params, double scale)
+{
+  double Ftot = 0.;
+  double Ftot_unpol = 0.;
+  double Imax = 0.0;
+  double Iavg = 0.0;
+  double Qtot = 0.;
+  double Utot = 0.;
+  double Vtot = 0.;
+  int imax = 0;
+  int jmax = 0;
+  for (int i = 0; i < nx; i++) {
+    for (int j = 0; j < ny; j++) {
+      Ftot_unpol += image[i*ny+j]*scale;
+      Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
+      Iavg += imageS[(i*ny+j)*NIMG+0];
+      Qtot += imageS[(i*ny+j)*NIMG+1] * scale;
+      Utot += imageS[(i*ny+j)*NIMG+2] * scale;
+      Vtot += imageS[(i*ny+j)*NIMG+3] * scale;
+      if (imageS[(i*ny+j)*NIMG+0] > Imax) {
+        imax = i;
+        jmax = j;
+        Imax = imageS[(i*ny+j)*NIMG+0];
+      }
+    }
+  }
+
+  // output normal flux quantities
+  fprintf(stderr, "\nscale = %e\n", scale);
+  fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax, Iavg/(params.nx*params.ny));
+  fprintf(stderr, "freq: %g Ftot: %g Jy (%g Jy unpol xfer) scale=%g\n", params.freqcgs, Ftot, Ftot_unpol, scale);
+  fprintf(stderr, "nuLnu = %g erg/s\n", 4.*M_PI*Ftot * params.dsource * params.dsource * JY * params.freqcgs);
+
+  // output polarized transport information
+  double LPfrac = 100.*sqrt(Qtot*Qtot+Utot*Utot)/Ftot;
+  double CPfrac = 100.*Vtot/Ftot;
+  fprintf(stderr, "I,Q,U,V [Jy]: %g %g %g %g\n", Ftot, Qtot, Utot, Vtot);
+  fprintf(stderr, "LP,CP [%%]: %g %g\n", LPfrac, CPfrac);
+}

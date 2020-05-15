@@ -27,6 +27,13 @@ typedef struct params_t {
   const char dump[STRLEN];
   const char outf[STRLEN];
 
+  // Adaptive tracing
+  int nx_min, ny_min;   // dimensions of lowest resolution image
+  double refine_abs, refine_rel; // Refinement tolerances
+  double refine_cut;    // minimum intensity at which to bother refining
+  int nearest_neighbor; // use nearest-neighbor instead of matching-order interpolation
+
+
   // ML parameters
   double xoff, yoff;    // in pixels
 

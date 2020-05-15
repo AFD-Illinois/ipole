@@ -60,6 +60,15 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
 
   params->restart_int = -1.;
 
+  params->nx_min = -1;
+  params->ny_min = -1;
+  // Decent guesses for e.g. Zack Gelles's sample image.
+  params->refine_rel = 1.e-1;
+  params->refine_abs = 1.e-5;
+  // Disable these unless requested
+  params->refine_cut = 0.0;
+  params->nearest_neighbor = 0;
+
   params->xoff = 0.0;
   params->yoff = 0.0;
 
@@ -132,6 +141,12 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
 
   set_by_word_val(word, value, "nx", &(params->nx), TYPE_INT);
   set_by_word_val(word, value, "ny", &(params->ny), TYPE_INT);
+  set_by_word_val(word, value, "nx_min", &(params->nx_min), TYPE_INT);
+  set_by_word_val(word, value, "ny_min", &(params->ny_min), TYPE_INT);
+  set_by_word_val(word, value, "refine_abs", &(params->refine_abs), TYPE_DBL);
+  set_by_word_val(word, value, "refine_rel", &(params->refine_rel), TYPE_DBL);
+  set_by_word_val(word, value, "refine_cut", &(params->refine_cut), TYPE_DBL);
+  set_by_word_val(word, value, "use_nearest_neighbor", &(params->nearest_neighbor), TYPE_INT);
 
   set_by_word_val(word, value, "xoff", &(params->xoff), TYPE_DBL);
   set_by_word_val(word, value, "yoff", &(params->yoff), TYPE_DBL);
