@@ -68,6 +68,13 @@ void integrate_emission(struct of_traj *traj, int nstep, int only_unpolarized,
       Kconf[mu]    = traj[nstep - 1].Kcon[mu];
     }
 
+#if THIN_DISK
+  if (thindisk_region(Xi, Xf)) {
+    get_model_i(Xf, Kconf, Intensity);
+  } else {
+    *Intensity = 0.;
+  }
+#else
     // solve total intensity equation alone
     double jf, kf;
     get_jkinv(Xf, Kconf, &jf, &kf);
@@ -75,6 +82,7 @@ void integrate_emission(struct of_traj *traj, int nstep, int only_unpolarized,
     // swap start and finish
     ji = jf;
     ki = kf;
+#endif
 
     // solve polarized transport
     if (!only_unpolarized) {
@@ -384,15 +392,6 @@ void project_N(double X[NDIM], double Kcon[NDIM],
 double approximate_solve(double Ii, double ji, double ki, double jf,
     double kf, double dl, double *tau)
 {
-#if THIN_DISK
-  if (thindisk_region(Xi, Xf)) {
-    double Intensity;
-    get_model_i(Xf, Kconf, &Intensity);
-    return Intensity;
-  } else {
-    return 0.
-  }
-#else
   double efac, If, javg, kavg, dtau;
 
   javg = (ji + jf) / 2.;
@@ -411,7 +410,6 @@ double approximate_solve(double Ii, double ji, double ki, double jf,
   }
 
   return If;
-#endif
 }
 
 /*************************SUPPORTING FUNCTIONS******************************/

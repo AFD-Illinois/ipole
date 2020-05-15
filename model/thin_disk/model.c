@@ -88,7 +88,7 @@ void set_units()
   B_unit = CL * sqrt(4. * M_PI * RHO_unit);
 
   // Set all the geometry
-  // TODO move this to coordinates.c
+  // TODO function like initialize_coordinates, that makes sure these are all set.
   R0 = 0.;
   Rh = 1 + sqrt(1. - a * a);
   double z1 = 1. + pow(1. - a * a, 1. / 3.) * (pow(1. + a, 1. / 3.) + pow(1. - a, 1. / 3.));
@@ -97,6 +97,14 @@ void set_units()
   Rin = Rh;
   Rout = 100.0;
   rmax_geo = MIN(1000., Rout);
+  startx[0] = 0.0;
+  startx[1] = log(Rin);
+  startx[2] = 0.0;
+  startx[3] = 0.0;
+  stopx[0] = 0.0;
+  stopx[1] = log(Rout);
+  stopx[2] = 1.0;
+  stopx[3] = 2*M_PI;
 
   // Some precomputation.  TODO should this be Mdot?
   T0 = pow(3.0 / 8.0 / M_PI * GNEWT * MBH * M_unit / pow(L_unit, 3) / SIG, 1. / 4.);

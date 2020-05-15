@@ -9,32 +9,59 @@
 
 #include "model_geodesics.h"
 
-#include "geodesics.h"
-#include "model_tetrads.h"
-#include "geometry.h"
-#include "tetrads.h"
-#include "decs.h"
-#include "model.h"
 #include "coordinates.h"
+#include "decs.h"
+#include "geodesics.h"
+#include "geometry.h"
+#include "model.h"
+#include "model_tetrads.h"
+#include "tetrads.h"
 
 /*
  * Trace a single geodesic
  * Takes a starting location and frequency in *units of electron mass frequency*,
- * as well as a (long enough!) array of trajectory location structs of_traj
+ * as well as an array of trajectory location structs of_traj, size MAXNSTEP
+ * 
+ * TODO this routine definitely doesn't initialize traj[0].
+ * 
+ * Note convention changes for integrating backwards:
+ * * Xhalf & Kconhalf trail X & Kcon in this function, and thereafter lead them
+ * * In this function, dl is the length of the step *to* point N;
+ *   afterward it is *from* point N onward
  */
 int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj) {
 
   double Xhalf[NDIM], Kconhalf[NDIM];
 
   // Setup geodesic
-  MULOOP {
-    Xhalf[mu] = X[mu];
-    Kconhalf[mu] = Kcon[mu];
-  }
+  MULOOP Xhalf[mu] = X[mu];
   int nstep = 0;
 
   // Integrate backwards
   while (!stop_backward_integration(X, Xhalf, Kcon)) {
+    /* This stepsize function can be troublesome inside of R = 2M,
+       and should be used cautiously in this region. */
+    double dl = stepsize(X, Kcon);
+
+    /* move photon one step backwards, the procecure updates X
+       and Kcon full step and returns also values in the middle */
+    push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
+    nstep++;
+
+    /* Geodesics in ipole are integrated using
+     * dx^\mu/d\lambda = k^\mu
+     * The positions x^mu are in simulation units, since different
+     * coordinates sometimes have different units (e.g. x^r, x^\theta)
+     *
+     * The convention we have adopted is that:
+     * E = -u^\mu k_\mu,
+     * which is always photon energy measured by an observer with four-velocity u^\mu,
+     * is in units of *electron rest-mass energy*.
+     * This implies that dl is *not* in cgs units, but in weird hybrid units.
+     * This line sets dl to be in cgs units.
+     */
+    traj[nstep].dl = dl * L_unit * HPL / (ME * CL * CL);
+
     // Set the current position and wavevector
     MULOOP {
       traj[nstep].X[mu] = X[mu];
@@ -43,42 +70,13 @@ int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj) {
       traj[nstep].Kconhalf[mu] = Kconhalf[mu];
     }
 
-    /* This stepsize function can be troublesome inside of R = 2M,
-       and should be used cautiously in this region. */
-    double dl = stepsize(X, Kcon);
-
-    /* Geodesics in ipole are integrated using
-     * dx^\mu/d\lambda = k^\mu
-     * The positions x^mu are in simulation units, since different
-     * coordinates sometimes have different units (e.g. x^r, x^\theta)
-
-     * The convention we have adopted is that:
-     * E = -u^\mu k_\mu,
-     * which is always photon energy measured by an observer with four-velocity u^\mu,
-     * is in units of *electron rest-mass energy*.
-     * This implies that dl is *not* in cgs units, but in weird hybrid units.
-     * This line sets dl to be in cgs units.
-     *
-     * Set the *next* step's size, so that when integrating back it is
-     * the *last* step's size
-     */
-    traj[nstep+1].dl = dl * L_unit * HPL / (ME * CL * CL);
-
-    /* move photon one step backwards, the procecure updates X
-       and Kcon full step and returns also values in the middle */
-    push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
-    nstep++;
-
     if (nstep > MAXNSTEP - 2) {
       fprintf(stderr, "MAXNSTEP exceeded!\n");
       break;
     }
   }
 
-  // Don't record final step because it violated "stop" condition
-  nstep--;
-
-  //fprintf(stderr, "Geodesic nsteps: %d\n", nstep);
+  nstep--; // don't record final step because it violated "stop" condition
 
   return nstep;
 }
