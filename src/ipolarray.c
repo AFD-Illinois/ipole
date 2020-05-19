@@ -36,64 +36,47 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
 
 
 /************************PRIMARY FUNCTION*******************************/
-void integrate_emission(struct of_traj *traj, int nstep, int only_unpolarized,
+void integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
-                    double complex N_coord[NDIM][NDIM]) {
-  double Xi[NDIM], Xhalf[NDIM], Xf[NDIM];
-  double Kconi[NDIM], Kconhalf[NDIM], Kconf[NDIM];
-
-  // Initialize location
-  MULOOP {
-    Xi[mu] = traj[nstep].X[mu];
-    Kconi[mu] = traj[nstep].Kcon[mu];
-  }
-  // Initialize emission
-  init_N(Xi, Kconi, N_coord);
+                    double complex N_coord[NDIM][NDIM], Params *params) {
+  // Initialize polarized emission at the end of the trajectory
+  init_N(traj[nsteps].X, traj[nsteps].Kcon, N_coord);
+  *tauF = 0.;
+  // Unpolarized
   *Intensity = 0.;
   *Tau = 0.;
-  *tauF = 0.;
   double ji, ki;
-  get_jkinv(Xi, Kconi, &ji, &ki);
+  get_jkinv(traj[nsteps].X, traj[nsteps].Kcon, &ji, &ki);
 
-  // integrate forwards along trajectory, including radiative transfer equation
-  // initialize X, K
-  while (nstep > 1) {
-    // initialize X,K
-    MULOOP {
-      Xi[mu]       = traj[nstep].X[mu];
-      Kconi[mu]    = traj[nstep].Kcon[mu];
-      Xhalf[mu]    = traj[nstep].Xhalf[mu];
-      Kconhalf[mu] = traj[nstep].Kconhalf[mu];
-      Xf[mu]       = traj[nstep - 1].X[mu];
-      Kconf[mu]    = traj[nstep - 1].Kcon[mu];
-    }
-
+  // Integrate the transfer equation (& parallel transport) forwards along trajectory
+  for (int nstep=nsteps; nstep > 1; --nstep) {
+    // Solve unpolarized transport
 #if THIN_DISK
-  if (thindisk_region(Xi, Xf)) {
-    get_model_i(Xf, Kconf, Intensity);
-  } else {
-    *Intensity = 0.;
+  if (thindisk_region(traj[nstep].X, traj[nstep-1].X)) {
+    get_model_i(traj[nstep].X, traj[nstep].Kcon, Intensity);
   }
 #else
-    // solve total intensity equation alone
     double jf, kf;
-    get_jkinv(Xf, Kconf, &jf, &kf);
+    get_jkinv(traj[nstep-1].X, traj[nstep-1].Kcon, &jf, &kf);
     *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, traj[nstep].dl, Tau);
-    // swap start and finish
+    // prep next step
     ji = jf;
     ki = kf;
 #endif
 
-    // solve polarized transport
-    if (!only_unpolarized) {
-      evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, traj[nstep].dl, N_coord, tauF);
+    // Solve polarized transport
+    if (!params->only_unpolarized) {
+      evolve_N(traj[nstep].X, traj[nstep].Kcon,
+               traj[nstep].Xhalf, traj[nstep].Kconhalf,
+               traj[nstep-1].X, traj[nstep-1].Kcon,
+               traj[nstep].dl, N_coord, tauF, params);
+#if DEBUG
       if (isnan(creal(N_coord[0][0]))) {
         printf("NaN in N00!\n");
         exit(-3);
       }
+#endif
     }
-
-    nstep--;
   }
 }
 
@@ -116,8 +99,13 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
     complex double Ni[NDIM][NDIM],
     complex double Nm[NDIM][NDIM],
-    complex double Nf[NDIM][NDIM], double dl)
+    complex double Nf[NDIM][NDIM], double dlam)
 {
+#if INTEGRATOR_TEST
+  double dl = dlam;
+#else
+  double dl = dlam / (L_unit * HPL / (ME * CL * CL));
+#endif
 
   /* find the connection */
   double lconn[NDIM][NDIM][NDIM];
@@ -135,7 +123,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
   for (l = 0; l < 4; l++)
   Nf[i][j] += -(lconn[i][k][l] * Nm[k][j] * Km[l] +
       lconn[j][k][l] * Nm[i][k] * Km[l]
-  ) * dl / (L_unit * HPL / (ME * CL * CL));
+  ) * dl;
 
   return;
 }
@@ -149,7 +137,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 void evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double Xhalf[NDIM], double Kconhalf[NDIM],
     double Xf[NDIM], double Kconf[NDIM],
-    double dlam, double complex N_coord[NDIM][NDIM], double *tauF)
+    double dlam, double complex N_coord[NDIM][NDIM], double *tauF, Params *params)
 {
   double gcov[NDIM][NDIM];
   double Ucon[NDIM],Bcon[NDIM];
@@ -162,7 +150,7 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double aI, aQ, aU, aV;
   double rV, rU, rQ;
   double rho2, rho, rdS;
-  double SI, SQ, SU, SV;
+  double SI = 0, SQ = 0, SU = 0, SV = 0;
   double SI0, SQ0, SU0, SV0;
   double SI1, SQ1, SU1, SV1;
   double SI2, SQ2, SU2, SV2;
@@ -177,17 +165,17 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
     // get fluid parameters at Xf
     get_model_fourv(Xf, Ucon, Ucov, Bcon, Bcov);
 
-    /* evaluate transport coefficients */
+    // evaluate transport coefficients
     gcov_func(Xf, gcov);
     jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
-        &aI, &aQ, &aU, &aV, &rQ, &rU, &rV);
+        &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
 
-    if (counterjet == 1) { // Emission from X[2] > 0.5 only
-      if (Xf[2] < 0.5) {
+    if (counterjet == 1) { // Emission from X[2] > midplane only
+      if (Xf[2] < (stopx[2] - startx[2]) / 2) {
         jI = jQ = jU = jV = 0.;
       }
-    } else if (counterjet == 2) { // Emission from X[2] < 0.5 only
-      if (Xf[2] > 0.5) {
+    } else if (counterjet == 2) { // Emission from X[2] < midplane only
+      if (Xf[2] > (stopx[2] - startx[2]) / 2) {
         jI = jQ = jU = jV = 0.;
       }
     }
@@ -237,12 +225,6 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double aP = sqrt(aP2);
     double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
     double adj = aQ * jQ + aU * jU + aV * jV;
-
-    *tauF += dlam*fabs(rV);
-    if (*tauF > 1.e100 || *tauF < -1.e100 || isnan(*tauF)) {
-      printf("tauF = %e dlam = %e rV = %e\n", *tauF, dlam, rV);
-      exit(-1);
-    }
 
     if (aP > SMALL) { /* full analytic solution has trouble if polarized absorptivity is small */
       double expaIx = exp(-aI * x);
@@ -313,15 +295,32 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
     }
     /* done second rotation half-step */
 
+    *tauF += dlam*fabs(rV); //*sqrt(SQ*SQ + SU*SU);
+
+#if DEBUG
+    if (*tauF > 1.e100 || *tauF < -1.e100 || isnan(*tauF)) {
+      printf("tauF = %e dlam = %e rV = %e\n", *tauF, dlam, rV);
+      exit(-1);
+    }
+#endif
+
     /* re-pack the Stokes parameters into N */
     stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
     complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
-    /*if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) {
-     printf("N_tet = %e N_coord = %e Econ = %e\n", creal(N_tetrad[0][0]),
-     creal(N_coord[0][0]), Econ[0][0]);
-     MUNULOOP printf("Econ[%i][%i] = %e Ntet = %e\n", mu,nu,Econ[mu][nu],
-     creal(N_tetrad[mu][nu]));
-     }*/
+
+#if DEBUG
+    if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) {
+      printf("\nNaN in N00!\n");
+      print_vector("Xi", Xi);
+      print_vector("Xf", Xf);
+      print_vector("Kconi", Kconi);
+      print_vector("Kconf", Kconf);
+      printf("Stokes initial: [%e %e %e %e]\n", SI0, SQ0, SU0, SV0);
+      printf("Stokes final: [%e %e %e %e] dlam: %e\n", SI, SQ, SU, SV, dlam);
+      printf("Coefficients: j: [%e %e %e %e] a: [%e %e %e %e] rho: [%e %e %e]\n", jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+      MUNULOOP printf("Econ[%i][%i] = %e Ncoord = %e Ntet = %e\n", mu, nu, Econ[mu][nu], creal(N_coord[mu][nu]), creal(N_tetrad[mu][nu]));
+    }
+#endif
 
   }
 
@@ -352,6 +351,13 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
   //check_N(N[NDIM][NDIM], Kcon[NDIM], gcov[NDIM][NDIM]);
 #endif
 
+  // Record Stokes parameters iff we're doing an integrator test
+#if INTEGRATOR_TEST
+  static double lam = 0;
+  lam += dlam;
+  record_stokes_parameters(SI, SQ, SU, SV, lam);
+#endif
+
   /* SOURCE STEP DONE */
 
 }
@@ -377,9 +383,6 @@ void project_N(double X[NDIM], double Kcon[NDIM],
   rotcam *= -2.;
   *Stokes_Q = Q*cos(rotcam) - U*sin(rotcam);
   *Stokes_U = Q*sin(rotcam) + U*cos(rotcam);
-
-  return;
-
 }
 
 /*

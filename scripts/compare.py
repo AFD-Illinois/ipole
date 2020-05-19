@@ -6,6 +6,11 @@ import numpy as np
 import h5py
 import sys
 
+# Suppress runtime math warnings -- images have some zeros and that's okay
+import warnings
+if not sys.warnoptions:
+    warnings.simplefilter("ignore")
+
 def blur(im, fwhm=20):
     # 20uas FWHM Gaussian blur. Assume 1px/uas
     return gaussian_filter(im, sigma=(fwhm / (2 * np.sqrt(2 * np.log(2)))))
@@ -81,7 +86,7 @@ if __name__ == "__main__":
     print("Diff EVPA [deg]: {:g}".format(evpatot2 - evpatot1))
 
     # Return code for automated testing.  Adjust stringency to taste
-    if mseI > 0.01 or mseQ > 0.01 or mseU > 0.01 or mseV > 0.01:
+    if mseI > 0.005 or mseQ > 0.01 or mseU > 0.01 or mseV > 0.01:
         exit(1)
     else:
         exit(0)

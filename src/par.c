@@ -49,12 +49,17 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->quench_output = 0;
   params->only_unpolarized = 0;
 
+  params->emission_type = 4;
+
   params->rcam = 1000.;
   params->thetacam = 90.;
   params->phicam = 0.;
   params->rotcam = 0.;
   params->nx = 160;
   params->ny = 160;
+
+  params->eps = 0.01;
+  params->maxnstep = 10000;
 
   params->dsource = DM87_PC; // or DSGRA_PC
 
@@ -76,7 +81,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->trace_stride = 1;
   params->trace_i = -1;
   params->trace_j = -1;
-  // This is what the par infra does.
+
   // I'm not sure there's still any advantage to "const" if we do this,
   // but hey, no warnings
   sscanf("trace.h5", "%s", (char *) (void *) params->trace_outf);
@@ -121,6 +126,7 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "qu_conv", &(params->qu_conv), TYPE_INT);
   set_by_word_val(word, value, "quench_output", &(params->quench_output), TYPE_INT);
   set_by_word_val(word, value, "only_unpolarized", &(params->only_unpolarized), TYPE_INT);
+  set_by_word_val(word, value, "emission_type", &(params->emission_type), TYPE_INT);
 
   set_by_word_val(word, value, "rcam", &(params->rcam), TYPE_DBL);
   set_by_word_val(word, value, "thetacam", &(params->thetacam), TYPE_DBL);
@@ -147,6 +153,9 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "refine_rel", &(params->refine_rel), TYPE_DBL);
   set_by_word_val(word, value, "refine_cut", &(params->refine_cut), TYPE_DBL);
   set_by_word_val(word, value, "use_nearest_neighbor", &(params->nearest_neighbor), TYPE_INT);
+
+  set_by_word_val(word, value, "eps", &(params->eps), TYPE_DBL);
+  set_by_word_val(word, value, "maxnstep", &(params->maxnstep), TYPE_INT);
 
   set_by_word_val(word, value, "xoff", &(params->xoff), TYPE_DBL);
   set_by_word_val(word, value, "yoff", &(params->yoff), TYPE_DBL);

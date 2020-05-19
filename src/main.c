@@ -7,6 +7,7 @@
 
 #include "radiation.h"
 #include "coordinates.h"
+#include "debug_tools.h"
 #include "tetrads.h"
 #include "geometry.h"
 #include "geodesics.h"
@@ -196,12 +197,12 @@ int main(int argc, char *argv[])
 
         MULOOP Xhalf[mu] = X[mu];
         while (!stop_backward_integration(X, Xhalf, Kcon)) {
-          dl = stepsize(X, Kcon);
+          dl = stepsize(X, Kcon, params.eps);
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
-          if (nstep > MAXNSTEP - 2) {
-            fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j,i);
+          if (nstep > params.maxnstep - 2) {
+            fprintf(stderr, "maxnstep exceeded on j=%d i=%d\n", j,i);
             break;
           }
 
@@ -247,7 +248,7 @@ int main(int argc, char *argv[])
 
         MULOOP Xhalf[mu] = X[mu];
         while (!stop_backward_integration(X, Xhalf, Kcon)) {
-          dl = stepsize(X, Kcon);
+          dl = stepsize(X, Kcon, params.eps);
           push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
           nstep++;
 
@@ -261,8 +262,8 @@ int main(int argc, char *argv[])
             dtraj[stepidx].Kconhalf[k] = Kconhalf[k];
           }
 
-          if (nstep > MAXNSTEP - 2) {
-            fprintf(stderr, "MAXNSTEP exceeded on j=%d i=%d\n", j,i);
+          if (nstep > params.maxnstep - 2) {
+            fprintf(stderr, "maxnstep exceeded on j=%d i=%d\n", j,i);
             break;
           }
         }
@@ -376,7 +377,7 @@ int main(int argc, char *argv[])
               
               // polarized transport
               if (! only_unpolarized) {
-                evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF));
+                evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF), &params);
                 if (isnan(creal(dimage[pxidx].N_coord[0][0]))) {
                   exit(-2);
                 }
@@ -505,7 +506,11 @@ int main(int argc, char *argv[])
       }
     }
     avg_val /= nx*ny;
-    //fprintf(stderr, "\nBase image average flux in Jy/muas^2: %g\n", avg_val * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD));
+#if DEBUG
+    fprintf(stderr, "\nBase image average flux in Jy/muas^2: %g\n", avg_val * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD));
+#else
+    fprintf(stderr, "\n\n");
+#endif
 
     // REFINE based on previous image
     double *parent_image = image_min;
@@ -669,6 +674,7 @@ int main(int argc, char *argv[])
   return 0;
 }
 
+// TODO Move these?
 void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
                double fovx, double fovy, double freq, int only_unpolarized, double scale,
                double *Intensity, double *Is, double *Qs, double *Us, double *Vs,
@@ -679,25 +685,18 @@ void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
 
   // Integrate backward to find geodesic trajectory
   init_XK(i,j, nx, ny, Xcam, params, fovx,fovy, X, Kcon);
-  struct of_traj *traj = calloc(MAXNSTEP, sizeof(struct of_traj));
+  struct of_traj *traj = calloc(params.maxnstep, sizeof(struct of_traj));
+#if !INTEGRATOR_TEST
   MULOOP Kcon[mu] *= freq;
-  int nstep = trace_geodesic(X, Kcon, traj);
+#endif
+  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep);
 
   // Integrate emission forward along trajectory
-  integrate_emission(traj, nstep, only_unpolarized, Intensity, Tau, tauF, N_coord);
+  integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params);
 
   if (!only_unpolarized) {
     project_N(traj[1].X, traj[1].Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);
   }
-
-  // Print some pixel values
-//   if( i == 0 && j == 0)
-//   {
-//     fprintf(stderr, "Pixel [%d %d]:\n", i, j);
-//     fprintf(stderr, "Number steps: %d\n", nstep);
-//     fprintf(stderr, "Intensity: %g\n", *Intensity);
-//     fprintf(stderr, "Stokes: [%g %g %g %g]\n", *Is, *Qs, *Us, *Vs);
-//   }
 
   // Record values along the geodesic if requested
   // TODO this is most likely not compatible with adaptive mode
@@ -706,12 +705,14 @@ void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
     if (params.trace_i < 0 || params.trace_j < 0) { // If no single point is specified
       if (i % stride == 0 && j % stride == 0) { // Save every stride pixels
 #pragma omp critical
-        dump_var_along(i/stride, j/stride, nstep+1, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
+        dump_var_along(i/stride, j/stride, nstep, traj, nx/stride, ny/stride, scale, Xcam, fovx, fovy, &params);
       }
     } else {
       if (i == params.trace_i && j == params.trace_j) { // Save just the one
 #pragma omp critical
-        dump_var_along(0, 0, nstep+1, traj, 1, 1, scale, Xcam, fovx, fovy, &params);
+        {
+          dump_var_along(0, 0, nstep, traj, 1, 1, scale, Xcam, fovx, fovy, &params);
+        }
       }
     }
   }
