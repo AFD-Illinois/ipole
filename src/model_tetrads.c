@@ -103,7 +103,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
     Xtoijk(X, &i, &j, &k, del);
     fprintf(stderr, "X[]: %g %g %g %g  (%d %d %d)\n", X[0], X[1], X[2], X[3], i,
             j, k);
-    exit(-2);
+    //exit(-2);
   }
 
   /* we expect dot = 1. for right-handed system.
