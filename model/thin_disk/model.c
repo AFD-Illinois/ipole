@@ -182,36 +182,25 @@ void get_model_fourv_K(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM],
                        double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM])
 {
   double r, th, T, omega;
-  double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
-  double bl_gcov[NDIM][NDIM];
+  double gcov[NDIM][NDIM];
 
   // Get native metric
   gcov_func(X, gcov);
-  gcon_func(gcov, gcon);
 
   // Then get some stuff in BL for Ucon
   bl_coord(X, &r, &th);
-  gcov_bl(r, th, bl_gcov);
 
   thindisk_vals(r, &T, &omega);
 
   // normal observer velocity for Ucon/Ucov
-  double Ucon_bl[NDIM], Ucon_ks[NDIM];
-  Ucon_bl[0] =
+  Ucon[0] =
       sqrt(-1. / (gcov[0][0] + 2. * gcov[0][3] * omega
                   + gcov[3][3] * omega * omega));
-  Ucon_bl[1] = 0.;
-  Ucon_bl[2] = 0.;
-  Ucon_bl[3] = omega * Ucon_bl[0];
-
-  // Convert U to KS then to eKS, and flip
-  bl_to_ks(X, Ucon_bl, Ucon_ks);
-  vec_from_ks(X, Ucon_ks, Ucon);
-  // Dummy
-  MULOOP Ucon[mu] = Ucon_bl[mu];
+  Ucon[1] = 0.;
+  Ucon[2] = 0.;
+  Ucon[3] = omega * Ucon[0];
 
   flip_index(Ucon, gcov, Ucov);
-  //check_u(Ucon, Ucov); // For paranoia. Needs debug_tools.h
 
   // B is handled in native coordinates here
   calc_polvec(X, Kcon, a, Bcon);
@@ -377,10 +366,6 @@ double get_model_ne(double X[NDIM]) {return 0;}
 void get_model_primitives(double X[NDIM], double *p) {return;}
 void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
                      double Bcon[NDIM], double Bcov[NDIM]) {return;}
-void get_model_bcov(double X[NDIM], double Bcov[NDIM]) {return;}
-void get_model_bcon(double X[NDIM], double Bcon[NDIM]) {return;}
-void get_model_ucov(double X[NDIM], double Ucov[NDIM]) {return;}
-void get_model_ucon(double X[NDIM], double Ucon[NDIM]) {return;}
 void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
           double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
 // In case we want to mess with emissivities directly

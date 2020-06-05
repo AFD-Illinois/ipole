@@ -184,9 +184,4 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
 double get_model_thetae(double X[NDIM]) {return 0;}
 double get_model_b(double X[NDIM]) {return 1;}
 double get_model_ne(double X[NDIM]) {return 1;} // Otherwise we trigger the "empty space" emissivity
-// These are never used.  Maybe in trace stuff someday
-void get_model_bcov(double X[NDIM], double Bcov[NDIM]) {Bcov[0] = 0; Bcov[1] = 1; Bcov[2] = X[1]; Bcov[3] = 0;}
-void get_model_bcon(double X[NDIM], double Bcon[NDIM]) {Bcon[0] = 0; Bcon[1] = 1; Bcon[2] = 1; Bcon[3] = 0;}
-void get_model_ucov(double X[NDIM], double Ucov[NDIM]) {Ucov[0] = 1; Ucov[1] = 0; Ucov[2] = 0; Ucov[3] = 0;}
-void get_model_ucon(double X[NDIM], double Ucon[NDIM]) {Ucon[0] = -1; Ucon[1] = 0; Ucon[2] = 0; Ucon[3] = 0;}
 void get_model_primitives(double X[NDIM], double *p) {return;}

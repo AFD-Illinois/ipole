@@ -1,0 +1,39 @@
+# Analytic model options
+
+# Model to use: see model.c
+model 5
+
+# Must ask the model for emissivities
+emission_type 10
+
+# Camera location
+# Note rcam is farther than ipole's usual
+rcam 1.e3
+thetacam 60
+phicam 0
+
+# Camera FOV in r_g
+dx 30
+dy 30
+
+# Image size
+nx 80
+ny 80
+
+# Distance to source in pc
+dsource 7.78e3
+
+# Frequency corresponding to 1 eV photons
+freqcgs 230.e9
+
+# MBH in solar masses
+MBH 4.e6
+
+# Accretion rate as fraction of Eddington
+# (assuming 10% efficiency)
+Mdot 0.01
+
+# BH dimensionless spin
+a 0.9
+
+outfile image.h5
