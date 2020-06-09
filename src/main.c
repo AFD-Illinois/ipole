@@ -34,7 +34,14 @@ void save_pixel(double *image, double *imageS, double *taus, int i, int j, int n
                 double Intensity, double Is, double Qs, double Us, double Vs,
                 double freqcgs, double Tau, double tauF);
 void print_image_stats(double *image, double *imageS, int nx, int ny, Params params, double scale);
-void save_pixelTransfer(double *image, double *imageS, double *taus, int iold, int jold, int inew, int jnew, int nx, int ny, int only_intensity); //nearest neighbor saving
+void save_pixelTransfer(double *image, double *imageS, double *taus,
+                        int iold, int jold, int inew, int jnew, int nx, int ny, int only_intensity); //nearest neighbor saving
+void lininterp4(double *image, double *imageS, double *taus, int i1, int j1,
+                int i2,int j2, int i3, int j3, int i4, int j4, int inew, int jnew,
+                int nx, int ny, int only_intensity); //linear interpolation for floater case 
+void lininterp2(double *image, double *imageS, double *taus, int i1, int j1,
+                int i2,int j2,int inew, int jnew, int nx, int ny, int only_intensity); //linear interpolation for same row or column case
+
 
 // global variables. TODO scope into main
 static double tf = 0.;
@@ -575,6 +582,9 @@ int main(int argc, char *argv[])
                   }
                   else {
                       //linear
+                      lininterp2(image, imageS, taus, i, j-newspacingy,
+                                 i, j+newspacingy, i, j, nx, ny, 0);
+                      
                   }
               }
            }
@@ -606,6 +616,8 @@ int main(int argc, char *argv[])
                   }
                   else {
                       //linear
+                      lininterp2(image, imageS, taus, i-newspacingx, j,
+                                 i+newspacingx, j, i, j, nx, ny, 0);
                   }
               }
           }
@@ -646,68 +658,19 @@ int main(int argc, char *argv[])
                   interp_flag[i*ny+j] = 1;
                   if (params.nearest_neighbor){
                       //nearest interpolation
-                      save_pixelTransfer(image, imageS, taus, i-newspacingx, j-newspacingy, i, j, nx, ny, 0); //fills in with the nearest neighbor (choosing one side)
+                      save_pixelTransfer(image, imageS, taus, i-newspacingx, j-newspacingy, i, j, nx, ny, 0);
+                      //fills in with the nearest neighbor (choosing one side)
                   }
                   else {
                       // linear
+                      lininterp4(image, imageS, taus, i-newspacingx, j-newspacingy,
+                                 i+newspacingx,j-newspacingy,i-newspacingx,j+newspacingy,
+                                 i+newspacingx, j+newspacingy, i, j, nx, ny, 0);
                   }
 
               }
            }
 
-          /* } */
-        /* else { */
-        /*      Otherwise just interpolate */
-        /*     interp_flag_temp[i*ny+j] = 1; */
-
-        /*     if (params.nearest_neighbor) { */
-        /*       Intensity = parent_image[(i/2)*(ny/2)+j/2]; */
-        /*       Tau = parent_taus[(i/2)*(ny/2)+j/2]; */
-        /*       Is = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0]; */
-        /*       Qs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1]; */
-        /*       Us = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2]; */
-        /*       Vs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3]; */
-        /*       tauF = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4]; */
-        /*     } else { // Linear */
-        /*       int dx = 0, dy = 0; */
-        /*       if (i%2 == 0) { */
-        /*         if (i/2 > 0) dx = -1; */
-        /*       } else { */
-        /*         if (i/2 < nx/2-1) dx = 1; */
-        /*       } */
-        /*       if (j%2 == 0) { */
-        /*         if (j/2 > 0) dy = -1; */
-        /*       } else { */
-        /*         if (j/2 < ny/2-1) dy = 1; */
-        /*       } */
-
-        /*       Intensity = 0.5625*parent_image[(i/2)*(ny/2)+j/2] + 0.1875*parent_image[(i/2+dx)*(ny/2)+j/2]+ */
-        /*                   0.1875*parent_image[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_image[(i/2+dx)*(ny/2)+j/2+dy]; */
-        /*       Tau = 0.5625*parent_taus[(i/2)*(ny/2)+j/2] + 0.1875*parent_taus[(i/2+dx)*(ny/2)+j/2]+ */
-        /*             0.1875*parent_taus[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_taus[(i/2+dx)*(ny/2)+j/2+dy]; */
-        /*       Is = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+0]+ */
-        /*            0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+0] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+0]; */
-        /*       Qs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+1]+ */
-        /*            0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+1] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+1]; */
-        /*       Us = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+2]+ */
-        /*            0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+2] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+2]; */
-        /*       Vs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+3]+ */
-        /*            0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+3] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+3]; */
-        /*       tauF = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+4]+ */
-        /*              0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+4] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+4]; */
-        /*     } */
-        /* } */
-
-
-        /* else { */
-        /*     image_temp[i*ny+j] = Intensity; */
-        /*     taus_temp[i*ny+j] = Tau; */
-        /*     imageS_temp[(i*ny+j)*NIMG+0] = Is; */
-        /*     imageS_temp[(i*ny+j)*NIMG+1] = Qs; */
-        /*     imageS_temp[(i*ny+j)*NIMG+2] = Us; */
-        /*     imageS_temp[(i*ny+j)*NIMG+3] = Vs; */
-        /*     imageS_temp[(i*ny+j)*NIMG+4] = tauF; */
-        /* } */
         }
       }
 
@@ -721,17 +684,6 @@ int main(int argc, char *argv[])
       fprintf(stderr, "\n%d of %d (%f%%) of pixels at %dx%d were interpolated\n\n",
               total_interpolated, nx * ny, ((double) total_interpolated) / (nx * ny) * 100, nx, ny);
 
-      /* free(parent_taus); free(parent_image); */
-      /* free(parent_imageS); free(parent_interp_flag); */
-      /* if (refined_level < refine_level - 1) { */
-      /*   parent_image = image_temp; */
-      /*   parent_taus = taus_temp; */
-      /*   parent_imageS = imageS_temp; */
-      /*   parent_interp_flag = interp_flag_temp; */
-      /* } else { */
-      /*   // Clean up just the interpolation flag */
-      /*   free(interp_flag_temp); */
-      /* } */
     }
 
     print_image_stats(image, imageS, nx, ny, params, scale);
@@ -859,7 +811,71 @@ void save_pixelTransfer(double *image, double *imageS, double *taus, int iold, i
     }
 }
 
+void lininterp2(double *image, double *imageS, double *taus, int i1, int j1,
+                int i2,int j2,int inew, int jnew, int nx, int ny, int only_intensity)
+{
+  // deposit the intensity and Stokes parameter in pixel
+    double Intensity=.5*(image[i1*ny+j1]+image[i2*ny+j2]);
+    image[inew*ny+jnew]=Intensity;
+    
+    if(!only_intensity){
+        
+        double Tau=.5*(taus[i1*ny+j1]+taus[i2*ny+j2]);
+        double Is=.5*(imageS[(i1*ny+j1)*NIMG+0]+imageS[(i2*ny+j2)*NIMG+0]);
+        double Qs=.5*(imageS[(i1*ny+j1)*NIMG+1]+imageS[(i2*ny+j2)*NIMG+1]);
+        double Us=.5*(imageS[(i1*ny+j1)*NIMG+2]+imageS[(i2*ny+j2)*NIMG+2]);
+        double Vs=.5*(imageS[(i1*ny+j1)*NIMG+3]+imageS[(i2*ny+j2)*NIMG+3]);
+        double tauF=.5*(imageS[(i1*ny+j1)*NIMG+4]+imageS[(i2*ny+j2)*NIMG+4]);
 
+        taus[inew*ny+jnew] = Tau;
+        imageS[(inew*ny+jnew)*NIMG+0] = Is;
+        imageS[(inew*ny+jnew)*NIMG+1] = Qs;
+        imageS[(inew*ny+jnew)*NIMG+2] = Us;
+        imageS[(inew*ny+jnew)*NIMG+3] = Vs;
+        imageS[(inew*ny+jnew)*NIMG+4] = tauF;
+
+    if (isnan(imageS[(i1*ny+j1)*NIMG+0])||isnan(imageS[(i2*ny+j2)*NIMG+0])) {
+      fprintf(stderr, "NaN in image! Exiting.\n");
+      exit(-1);
+    }
+
+    }
+}
+
+
+void lininterp4(double *image, double *imageS, double *taus, int i1, int j1,
+                int i2,int j2, int i3, int j3, int i4, int j4, int inew, int jnew,
+                int nx, int ny, int only_intensity)
+{
+  // deposit the intensity and Stokes parameter in pixel
+    double Intensity=.25*(image[i1*ny+j1]+image[i2*ny+j2]+image[i3*ny+j3]+image[i4*ny+j4]);
+    image[inew*ny+jnew]=Intensity;
+    
+    if(!only_intensity){
+        
+        double Tau=.25*(taus[i1*ny+j1]+taus[i2*ny+j2]+taus[i3*ny+j3]+taus[i4*ny+j4]);
+        double Is=.25*(imageS[(i1*ny+j1)*NIMG+0]+imageS[(i2*ny+j2)*NIMG+0]+imageS[(i3*ny+j3)*NIMG+0]+imageS[(i4*ny+j4)*NIMG+0]);
+        double Qs=.25*(imageS[(i1*ny+j1)*NIMG+1]+imageS[(i2*ny+j2)*NIMG+1]+imageS[(i3*ny+j3)*NIMG+1]+imageS[(i4*ny+j4)*NIMG+1]);
+        double Us=.25*(imageS[(i1*ny+j1)*NIMG+2]+imageS[(i2*ny+j2)*NIMG+2]+imageS[(i3*ny+j3)*NIMG+2]+imageS[(i4*ny+j4)*NIMG+2]);
+        double Vs=.25*(imageS[(i1*ny+j1)*NIMG+3]+imageS[(i2*ny+j2)*NIMG+3]+imageS[(i3*ny+j3)*NIMG+3]+imageS[(i4*ny+j4)*NIMG+3]);
+        double tauF=.25*(imageS[(i1*ny+j1)*NIMG+4]+imageS[(i2*ny+j2)*NIMG+4]+imageS[(i3*ny+j3)*NIMG+4]+imageS[(i4*ny+j4)*NIMG+4]);
+
+        taus[inew*ny+jnew] = Tau;
+        imageS[(inew*ny+jnew)*NIMG+0] = Is;
+        imageS[(inew*ny+jnew)*NIMG+1] = Qs;
+        imageS[(inew*ny+jnew)*NIMG+2] = Us;
+        imageS[(inew*ny+jnew)*NIMG+3] = Vs;
+        imageS[(inew*ny+jnew)*NIMG+4] = tauF;
+
+    if (isnan(imageS[(i1*ny+j1)*NIMG+0])||isnan(imageS[(i2*ny+j2)*NIMG+0])||isnan(imageS[(i3*ny+j3)*NIMG+0])||isnan(imageS[(i4*ny+j4)*NIMG+0])) {
+      fprintf(stderr, "NaN in image! Exiting.\n");
+      exit(-1);
+    }
+
+    }
+}
+
+    
 void print_image_stats(double *image, double *imageS, int nx, int ny, Params params, double scale)
 {
   double Ftot = 0.;
