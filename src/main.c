@@ -513,31 +513,14 @@ int main(int argc, char *argv[])
     fprintf(stderr, "\n\n");
 #endif
 
-    // REFINE based on previous image
-    double *parent_image = image_min;
-    double *parent_taus = taus_min;
-    double *parent_imageS = imageS_min;
-    int *parent_interp_flag = interp_flag;
-
-    double *image_temp, *taus_temp, *imageS_temp;
-    int *interp_flag_temp;
     int newspacingx, newspacingy;
     int previousspacingx, previousspacingy;
     double I1,I2,I3,I4,err_abs,err_rel;
 
     for (int refined_level = 1; refined_level < refine_level; refined_level++) {
-      /* nx *= 2; */
-      /* ny *= 2; */
         newspacingx=initialspacingx/pow(2,refined_level);
         newspacingy=initialspacingy/pow(2,refined_level);
 
-      if (refined_level < refine_level - 1) {
-        taus_temp = calloc(nx*ny, sizeof(*taus_temp));
-        imageS_temp = calloc(nx*ny*NIMG, sizeof(*imageS_temp));
-        image_temp = calloc(nx*ny, sizeof(*image_temp));
-      }
-      // We need interp flag for the last 
-      interp_flag_temp = calloc(nx*ny, sizeof(*interp_flag_temp));
 
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
       for (int i=0; i < nx; i+=newspacingx) {
