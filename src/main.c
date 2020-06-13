@@ -32,6 +32,15 @@ void save_pixel(double *image, double *imageS, double *taus, int i, int j, int n
                 double Intensity, double Is, double Qs, double Us, double Vs,
                 double freqcgs, double Tau, double tauF);
 void print_image_stats(double *image, double *imageS, int nx, int ny, Params params, double scale);
+void save_pixelTransfer(double *image, double *imageS, double *taus,
+                        int iold, int jold, int inew, int jnew, int nx, int ny, int only_intensity); //nearest neighbor saving
+void lininterp4(double *image, double *imageS, double *taus, int i1, int j1,
+                int i2,int j2, int i3, int j3, int i4, int j4, int inew, int jnew,
+                int nx, int ny, int only_intensity); //linear interpolation for floater case 
+void lininterp2(double *image, double *imageS, double *taus, int i1, int j1,
+                int i2,int j2,int inew, int jnew, int nx, int ny, int only_intensity); //linear interpolation for same row or column case
+
+
 
 // global variables. TODO scope into main
 static double tf = 0.;
@@ -91,7 +100,7 @@ int main(int argc, char *argv[])
     params.nx_min = params.nx;
     params.ny_min = params.ny;
   }
-  int refine_level = log2(params.nx/params.nx_min)+1;
+  int refine_level = log2((params.nx-1)/(params.nx_min-1))+1;
 
   // normalize frequency to electron rest-mass energy
   double freqcgs = params.freqcgs;
@@ -456,25 +465,17 @@ int main(int argc, char *argv[])
   } else {
     // BASE IMAGE at n_min
     // Allocate it, or use the existing allocation for just 1 level
-    nx = params.nx_min;
-    ny = params.ny_min;
-    double *taus_min, *imageS_min, *image_min;
+    int nxmin = params.nx_min;
+    int nymin = params.ny_min;
+    int initialspacingx=(nx-1)/(nxmin-1);
+    int initialspacingy=(ny-1)/(nymin-1);
+    
     int *interp_flag;
-    if (refine_level > 1) {
-      taus_min = calloc(nx*ny, sizeof(*taus_min));
-      imageS_min = calloc(nx*ny*NIMG, sizeof(*imageS_min));
-      image_min = calloc(nx*ny, sizeof(*image_min));
-      interp_flag = calloc(nx*ny, sizeof(*image_min));
-    } else {
-      taus_min = taus;
-      imageS_min = imageS;
-      image_min = image;
-    }
+    interp_flag=calloc(nx*ny,sizeof(*image));
     double avg_val = 0;
-
 #pragma omp parallel for schedule(dynamic,1) collapse(2) reduction(+:avg_val)
-    for (int i=0; i < nx; ++i) {
-      for (int j=0; j < ny; ++j) {
+    for (int i=0; i < nx; i+=initialspacingx) {
+      for (int j=0; j < ny; j+=initialspacingy) {
         if (j==0) fprintf(stderr, "%d ", i);
 
         double Intensity = 0;
@@ -485,149 +486,164 @@ int main(int argc, char *argv[])
                   fovx, fovy, freq, only_unpolarized, scale,
                   &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
         
-        avg_val += Intensity;
+        avg_val += Is;
 
-        if (refine_level == 1) {
-          // At one refinement just save the pixel
-          save_pixel(image, imageS, taus, i, j, nx, ny, 0,
-                     Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
-          // No need for an interpolation flag here
-        } else {
-          // Otherwise keep the Stokes params for next refinement
-          image_min[i*ny+j] = Intensity;
-          taus_min[i*ny+j] = Tau;
-          imageS_min[(i*ny+j)*NIMG+0] = Is;
-          imageS_min[(i*ny+j)*NIMG+1] = Qs;
-          imageS_min[(i*ny+j)*NIMG+2] = Us;
-          imageS_min[(i*ny+j)*NIMG+3] = Vs;
-          imageS_min[(i*ny+j)*NIMG+4] = tauF;
-          interp_flag[i*ny+j] = 0;
-        }
+        save_pixel(image, imageS, taus, i, j, nx, ny, 0,
+                   Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
+        
+        interp_flag[i*ny+j] = 0;
+        
       }
     }
     avg_val /= nx*ny;
+    printf("%e\n",avg_val);
 #if DEBUG
     fprintf(stderr, "\nBase image average flux in Jy/muas^2: %g\n", avg_val * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD));
 #else
     fprintf(stderr, "\n\n");
 #endif
 
-    // REFINE based on previous image
-    double *parent_image = image_min;
-    double *parent_taus = taus_min;
-    double *parent_imageS = imageS_min;
-    int *parent_interp_flag = interp_flag;
+    int newspacingx, newspacingy;
+    int previousspacingx, previousspacingy;
+    double I1,I2,I3,I4,err_abs,err_rel;
 
-    double *image_temp, *taus_temp, *imageS_temp;
-    int *interp_flag_temp;
     for (int refined_level = 1; refined_level < refine_level; refined_level++) {
-      nx *= 2;
-      ny *= 2;
+        newspacingx=initialspacingx/pow(2,refined_level);
+        newspacingy=initialspacingy/pow(2,refined_level);
 
-      if (refined_level < refine_level - 1) {
-        taus_temp = calloc(nx*ny, sizeof(*taus_temp));
-        imageS_temp = calloc(nx*ny*NIMG, sizeof(*imageS_temp));
-        image_temp = calloc(nx*ny, sizeof(*image_temp));
-      }
-      // We need interp flag for the last 
-      interp_flag_temp = calloc(nx*ny, sizeof(*interp_flag_temp));
 
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
-      for (int i=0; i < nx; ++i) {
-        for (int j=0; j < ny; ++j) {
+      for (int i=0; i < nx; i+=newspacingx) {
+        for (int j=0; j < ny; j+=newspacingy) {
           if (j==0) fprintf(stderr, "%d ", i);
 
           double Intensity = 0;
           double Is = 0, Qs = 0, Us = 0, Vs = 0;
           double Tau = 0, tauF = 0;
 
-          // Find the 4 parent pixels around my corner
-          // Set any pixels that would be outside the image to 0
-          // NOTE these are the invariant intensities, not CGS
-          int ip = (i+1)/2-1, jp = (j+1)/2-1, nxp = nx/2, nyp = ny/2;
-          double I1 = (ip > 0 && jp > 0) ? parent_image[(ip)*nyp+(jp)] : 0;
-          double I2 = (ip < nxp && jp > 0) ? parent_image[(ip+1)*nyp+(jp)] : 0;
-          double I3 = (ip > 0 && jp < nyp) ? parent_image[(ip)*nyp+(jp+1)] : 0;
-          double I4 = (ip < nxp && jp < nyp) ? parent_image[(ip+1)*nyp+(jp+1)] : 0;
-          // NOTE interpolation flag from parent is accessible here:
-          //int iflag1 = (ip > 0 && jp > 0) ? parent_interp_flag[(ip)*nyp+(jp)] : 0;
-          // 0: pixel was ray-traced
-          // 1: pixel was interpolated
+          previousspacingx=newspacingx*2;
+          previousspacingy=newspacingy*2;
 
-          double I_parent = (I1 + I2 + I3 + I4)/4;
-          //fprintf(stderr, "Parent av: %g\n", I_parent);
-
-          // Refinement criterion thanks to Zack Gelles: absolute & relative error of
-          // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel
-          // Make sure absolute error is in Jy/muas^2
-          double err_abs = ((I2 + I3) / 2 - I1) * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD);
-          double err_rel = (I2 + I3) / (2 * I1) - 1.;
-
-          // If the interpolation would cause too great an err_abs or err_rel,
-          // trace the full geodesic.
-          if ((fabs(err_abs) > params.refine_abs ||
-               fabs(err_rel) > params.refine_rel) &&
-              fabs(I_parent) / avg_val >= params.refine_cut) {
-            get_pixel(i, j, nx, ny, Xcam, params,
-                      fovx, fovy, freq, only_unpolarized, scale,
-                      &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
-
-            interp_flag_temp[i*ny+j] = 0;
-
-          } else {
-            // Otherwise just interpolate
-            interp_flag_temp[i*ny+j] = 1;
-
-            if (params.nearest_neighbor) {
-              Intensity = parent_image[(i/2)*(ny/2)+j/2];
-              Tau = parent_taus[(i/2)*(ny/2)+j/2];
-              Is = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0];
-              Qs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1];
-              Us = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2];
-              Vs = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3];
-              tauF = parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4];
-            } else { // Linear
-              int dx = 0, dy = 0;
-              if (i%2 == 0) {
-                if (i/2 > 0) dx = -1;
-              } else {
-                if (i/2 < nx/2-1) dx = 1;
-              }
-              if (j%2 == 0) {
-                if (j/2 > 0) dy = -1;
-              } else {
-                if (j/2 < ny/2-1) dy = 1;
-              }
-
-              Intensity = 0.5625*parent_image[(i/2)*(ny/2)+j/2] + 0.1875*parent_image[(i/2+dx)*(ny/2)+j/2]+
-                          0.1875*parent_image[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_image[(i/2+dx)*(ny/2)+j/2+dy];
-              Tau = 0.5625*parent_taus[(i/2)*(ny/2)+j/2] + 0.1875*parent_taus[(i/2+dx)*(ny/2)+j/2]+
-                    0.1875*parent_taus[(i/2)*(ny/2)+j/2+dy] + 0.0625*parent_taus[(i/2+dx)*(ny/2)+j/2+dy];
-              Is = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+0] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+0]+
-                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+0] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+0];
-              Qs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+1] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+1]+
-                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+1] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+1];
-              Us = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+2] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+2]+
-                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+2] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+2];
-              Vs = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+3] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+3]+
-                   0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+3] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+3];
-              tauF = 0.5625*parent_imageS[((i/2)*(ny/2)+j/2)*NIMG+4] + 0.1875*parent_imageS[((i/2+dx)*(ny/2)+j/2)*NIMG+4]+
-                     0.1875*parent_imageS[((i/2)*(ny/2)+j/2+dy)*NIMG+4] + 0.0625*parent_imageS[((i/2+dx)*(ny/2)+j/2+dy)*NIMG+4];
-            }
+          if(i%previousspacingx==0 && j%previousspacingy==0){ //pixel has already been ray-traced
+              continue;
           }
+          
+          else if(i%previousspacingx==0 && j%previousspacingy!=0){ //pixel lies on pre-existing row
+              I1=imageS[(i*ny+j-newspacingy)*NIMG]; 
+              I2=imageS[(i*ny+j+newspacingy)*NIMG];
+              err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD);
+              err_rel=(I1-I2)/2/I1;
 
-          if (refined_level == refine_level - 1) {
-            save_pixel(image, imageS, taus, i, j, nx, ny, 0,
+              if ((fabs(err_abs) > params.refine_abs && //could be changed to && if wanted
+                   fabs(err_rel) > params.refine_rel)&&
+                  fabs(I1)>params.refine_cut){ //ray trace (tolerances exceeded)
+                  
+                  get_pixel(i, j, nx, ny, Xcam, params,
+                    fovx, fovy, freq, only_unpolarized, scale,
+                    &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
+
+                  save_pixel(image, imageS, taus, i, j, nx, ny, 0,
                        Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
-          } else {
-            image_temp[i*ny+j] = Intensity;
-            taus_temp[i*ny+j] = Tau;
-            imageS_temp[(i*ny+j)*NIMG+0] = Is;
-            imageS_temp[(i*ny+j)*NIMG+1] = Qs;
-            imageS_temp[(i*ny+j)*NIMG+2] = Us;
-            imageS_temp[(i*ny+j)*NIMG+3] = Vs;
-            imageS_temp[(i*ny+j)*NIMG+4] = tauF;
+
+                  interp_flag[i*ny+j] = 0;
+                  
+              }
+              else { //interpolate
+                  interp_flag[i*ny+j]=1;
+                  if (params.nearest_neighbor){ //nearest interpolation
+                      save_pixelTransfer(image, imageS, taus, i, j-newspacingy, i, j, nx, ny, 0); //fills in with the nearest neighbor (choosing one side)
+                  }
+                  else {
+                      //linear
+                      lininterp2(image, imageS, taus, i, j-newspacingy,
+                                 i, j+newspacingy, i, j, nx, ny, 0);
+                      
+                  }
+              }
+           }
+
+           else if(i%previousspacingx!=0 && j%previousspacingy==0){ //pixel lies on pre-existing column
+               I1=imageS[((i-newspacingx)*ny+j)*NIMG]; 
+               I2=image[((i+newspacingx)*ny+j)*NIMG];
+              err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD);
+              err_rel=(I1-I2)/2/I1;
+
+              if ((fabs(err_abs) > params.refine_abs && //could be changed back to || if wanted
+                   fabs(err_rel) > params.refine_rel)&&
+                  fabs(I1)>params.refine_cut){ //ray trace (tolerances exceeded)
+                  
+                  get_pixel(i, j, nx, ny, Xcam, params,
+                    fovx, fovy, freq, only_unpolarized, scale,
+                    &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
+
+                  save_pixel(image, imageS, taus, i, j, nx, ny, 0,
+                       Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
+
+                  interp_flag[i*ny+j] = 0;
+                  
+              }
+              else { //interpolate
+                  interp_flag[i*ny+j]=1;
+                  if (params.nearest_neighbor){ //nearest interpolation
+                      save_pixelTransfer(image, imageS, taus, i-newspacingx, j, i, j, nx, ny, 0); //fills in with the nearest neighbor (choosing one side)
+                  }
+                  else {
+                      //linear
+                      lininterp2(image, imageS, taus, i-newspacingx, j,
+                                 i+newspacingx, j, i, j, nx, ny, 0);
+                  }
+              }
           }
+          
+           else {
+               I1 = imageS[((i-newspacingx)*ny+j-newspacingy)*NIMG]; //upper left? 
+               I2 = imageS[((i+newspacingx)*ny+j-newspacingy)*NIMG]; //upper right?
+               I3 = imageS[((i-newspacingx)*ny+j+newspacingy)*NIMG]; //bottom left?
+               I4 = imageS[((i+newspacingx)*ny+(j+newspacingy))*NIMG]; //bottom right?
+
+
+               /* // Refinement criterion thanks to Zack Gelles: absolute & relative error of */
+               /* // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel */
+               /* // Make sure absolute error is in Jy/muas^2 */
+
+               double err_abs = ((I2 + I3) / 2 - I1) / (JY * MUAS_PER_RAD * MUAS_PER_RAD);
+               double err_rel = (I2 + I3) / (2 * I1) - 1.;
+
+              if ((fabs(err_abs) > params.refine_abs && //could be changed to && if wanted
+                   fabs(err_rel) > params.refine_rel)&&
+                  fabs(I1)>params.refine_cut){
+
+                  //ray trace (tolerances exceeded)
+                  
+                  get_pixel(i, j, nx, ny, Xcam, params,
+                    fovx, fovy, freq, only_unpolarized, scale,
+                    &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
+
+                  save_pixel(image, imageS, taus, i, j, nx, ny, 0,
+                       Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
+
+                  interp_flag[i*ny+j] = 0;
+                  
+              }
+
+              else {
+                  //interpolate
+                  interp_flag[i*ny+j] = 1;
+                  if (params.nearest_neighbor){
+                      //nearest interpolation
+                      save_pixelTransfer(image, imageS, taus, i-newspacingx, j-newspacingy, i, j, nx, ny, 0);
+                      //fills in with the nearest neighbor (choosing one side)
+                  }
+                  else {
+                      // linear
+                      lininterp4(image, imageS, taus, i-newspacingx, j-newspacingy,
+                                 i+newspacingx,j-newspacingy,i-newspacingx,j+newspacingy,
+                                 i+newspacingx, j+newspacingy, i, j, nx, ny, 0);
+                  }
+
+              }
+           }
+
         }
       }
 
@@ -636,22 +652,11 @@ int main(int argc, char *argv[])
 #pragma omp parallel for collapse(2) reduction(+:total_interpolated)
       for (int i=0; i<nx; i++)
         for (int j=0; j<ny; j++)
-          total_interpolated += interp_flag_temp[i*ny+j];
+          total_interpolated += interp_flag[i*ny+j];
     
       fprintf(stderr, "\n%d of %d (%f%%) of pixels at %dx%d were interpolated\n\n",
               total_interpolated, nx * ny, ((double) total_interpolated) / (nx * ny) * 100, nx, ny);
 
-      free(parent_taus); free(parent_image);
-      free(parent_imageS); free(parent_interp_flag);
-      if (refined_level < refine_level - 1) {
-        parent_image = image_temp;
-        parent_taus = taus_temp;
-        parent_imageS = imageS_temp;
-        parent_interp_flag = interp_flag_temp;
-      } else {
-        // Clean up just the interpolation flag
-        free(interp_flag_temp);
-      }
     }
 
     print_image_stats(image, imageS, nx, ny, params, scale);
@@ -747,6 +752,101 @@ void save_pixel(double *image, double *imageS, double *taus, int i, int j, int n
     }
   }
 }
+
+void save_pixelTransfer(double *image, double *imageS, double *taus, int iold, int jold, int inew, int jnew, int nx, int ny, int only_intensity)
+{
+  // deposit the intensity and Stokes parameter in pixel
+    double Intensity=image[iold*ny+jold];
+    image[inew*ny+jnew]=Intensity;
+    
+    if(!only_intensity){
+        
+    double Tau=taus[iold*ny+jold];
+    double Is=imageS[(iold*ny+jold)*NIMG+0];
+    double Qs=imageS[(iold*ny+jold)*NIMG+1];
+    double Us=imageS[(iold*ny+jold)*NIMG+2];
+    double Vs=imageS[(iold*ny+jold)*NIMG+3];
+    double tauF=imageS[(iold*ny+jold)*NIMG+4];
+
+    taus[inew*ny+jnew] = Tau;
+    imageS[(inew*ny+jnew)*NIMG+0] = Is;
+    imageS[(inew*ny+jnew)*NIMG+1] = Qs;
+    imageS[(inew*ny+jnew)*NIMG+2] = Us;
+    imageS[(inew*ny+jnew)*NIMG+3] = Vs;
+    imageS[(inew*ny+jnew)*NIMG+4] = tauF;
+
+    if (isnan(imageS[(iold*ny+jold)*NIMG+0])) {
+      fprintf(stderr, "NaN in image! Exiting.\n");
+      exit(-1);
+    }
+
+    }
+}
+
+void lininterp2(double *image, double *imageS, double *taus, int i1, int j1,
+                int i2,int j2,int inew, int jnew, int nx, int ny, int only_intensity)
+{
+  // deposit the intensity and Stokes parameter in pixel
+    double Intensity=.5*(image[i1*ny+j1]+image[i2*ny+j2]);
+    image[inew*ny+jnew]=Intensity;
+    
+    if(!only_intensity){
+        
+        double Tau=.5*(taus[i1*ny+j1]+taus[i2*ny+j2]);
+        double Is=.5*(imageS[(i1*ny+j1)*NIMG+0]+imageS[(i2*ny+j2)*NIMG+0]);
+        double Qs=.5*(imageS[(i1*ny+j1)*NIMG+1]+imageS[(i2*ny+j2)*NIMG+1]);
+        double Us=.5*(imageS[(i1*ny+j1)*NIMG+2]+imageS[(i2*ny+j2)*NIMG+2]);
+        double Vs=.5*(imageS[(i1*ny+j1)*NIMG+3]+imageS[(i2*ny+j2)*NIMG+3]);
+        double tauF=.5*(imageS[(i1*ny+j1)*NIMG+4]+imageS[(i2*ny+j2)*NIMG+4]);
+
+        taus[inew*ny+jnew] = Tau;
+        imageS[(inew*ny+jnew)*NIMG+0] = Is;
+        imageS[(inew*ny+jnew)*NIMG+1] = Qs;
+        imageS[(inew*ny+jnew)*NIMG+2] = Us;
+        imageS[(inew*ny+jnew)*NIMG+3] = Vs;
+        imageS[(inew*ny+jnew)*NIMG+4] = tauF;
+
+    if (isnan(imageS[(i1*ny+j1)*NIMG+0])||isnan(imageS[(i2*ny+j2)*NIMG+0])) {
+      fprintf(stderr, "NaN in image! Exiting.\n");
+      exit(-1);
+    }
+
+    }
+}
+
+
+void lininterp4(double *image, double *imageS, double *taus, int i1, int j1,
+                int i2,int j2, int i3, int j3, int i4, int j4, int inew, int jnew,
+                int nx, int ny, int only_intensity)
+{
+  // deposit the intensity and Stokes parameter in pixel
+    double Intensity=.25*(image[i1*ny+j1]+image[i2*ny+j2]+image[i3*ny+j3]+image[i4*ny+j4]);
+    image[inew*ny+jnew]=Intensity;
+    
+    if(!only_intensity){
+        
+        double Tau=.25*(taus[i1*ny+j1]+taus[i2*ny+j2]+taus[i3*ny+j3]+taus[i4*ny+j4]);
+        double Is=.25*(imageS[(i1*ny+j1)*NIMG+0]+imageS[(i2*ny+j2)*NIMG+0]+imageS[(i3*ny+j3)*NIMG+0]+imageS[(i4*ny+j4)*NIMG+0]);
+        double Qs=.25*(imageS[(i1*ny+j1)*NIMG+1]+imageS[(i2*ny+j2)*NIMG+1]+imageS[(i3*ny+j3)*NIMG+1]+imageS[(i4*ny+j4)*NIMG+1]);
+        double Us=.25*(imageS[(i1*ny+j1)*NIMG+2]+imageS[(i2*ny+j2)*NIMG+2]+imageS[(i3*ny+j3)*NIMG+2]+imageS[(i4*ny+j4)*NIMG+2]);
+        double Vs=.25*(imageS[(i1*ny+j1)*NIMG+3]+imageS[(i2*ny+j2)*NIMG+3]+imageS[(i3*ny+j3)*NIMG+3]+imageS[(i4*ny+j4)*NIMG+3]);
+        double tauF=.25*(imageS[(i1*ny+j1)*NIMG+4]+imageS[(i2*ny+j2)*NIMG+4]+imageS[(i3*ny+j3)*NIMG+4]+imageS[(i4*ny+j4)*NIMG+4]);
+
+        taus[inew*ny+jnew] = Tau;
+        imageS[(inew*ny+jnew)*NIMG+0] = Is;
+        imageS[(inew*ny+jnew)*NIMG+1] = Qs;
+        imageS[(inew*ny+jnew)*NIMG+2] = Us;
+        imageS[(inew*ny+jnew)*NIMG+3] = Vs;
+        imageS[(inew*ny+jnew)*NIMG+4] = tauF;
+
+    if (isnan(imageS[(i1*ny+j1)*NIMG+0])||isnan(imageS[(i2*ny+j2)*NIMG+0])||isnan(imageS[(i3*ny+j3)*NIMG+0])||isnan(imageS[(i4*ny+j4)*NIMG+0])) {
+      fprintf(stderr, "NaN in image! Exiting.\n");
+      exit(-1);
+    }
+
+    }
+}
+
 
 void print_image_stats(double *image, double *imageS, int nx, int ny, Params params, double scale)
 {
