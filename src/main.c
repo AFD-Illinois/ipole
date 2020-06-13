@@ -471,18 +471,8 @@ int main(int argc, char *argv[])
     int initialspacingx=(nx-1)/(nxmin-1);
     int initialspacingy=(ny-1)/(nymin-1);
     
-    double *taus_min, *imageS_min, *image_min;
     int *interp_flag;
-    if (refine_level > 1) {
-      taus_min = calloc(nx*ny, sizeof(*taus_min));
-      imageS_min = calloc(nx*ny*NIMG, sizeof(*imageS_min));
-      image_min = calloc(nx*ny, sizeof(*image_min));
-      interp_flag = calloc(nx*ny, sizeof(*image_min));
-    } else {
-      taus_min = taus;
-      imageS_min = imageS;
-      image_min = image;
-    }
+    interp_flag=calloc(nx*ny,sizeof(*image));
     double avg_val = 0;
 #pragma omp parallel for schedule(dynamic,1) collapse(2) reduction(+:avg_val)
     for (int i=0; i < nx; i+=initialspacingx) {
