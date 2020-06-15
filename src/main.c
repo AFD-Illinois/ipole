@@ -486,7 +486,7 @@ int main(int argc, char *argv[])
                   fovx, fovy, freq, only_unpolarized, scale,
                   &Intensity, &Is, &Qs, &Us, &Vs, &Tau, &tauF);
         
-        avg_val += Is;
+        avg_val += Intensity;
 
         save_pixel(image, imageS, taus, i, j, nx, ny, 0,
                    Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
@@ -496,7 +496,6 @@ int main(int argc, char *argv[])
       }
     }
     avg_val /= nx*ny;
-    printf("%e\n",avg_val);
 #if DEBUG
     fprintf(stderr, "\nBase image average flux in Jy/muas^2: %g\n", avg_val * pow(freqcgs, 3) / (JY * MUAS_PER_RAD * MUAS_PER_RAD));
 #else
@@ -529,8 +528,8 @@ int main(int argc, char *argv[])
           }
           
           else if(i%previousspacingx==0 && j%previousspacingy!=0){ //pixel lies on pre-existing row
-              I1=imageS[(i*ny+j-newspacingy)*NIMG]; 
-              I2=imageS[(i*ny+j+newspacingy)*NIMG];
+              I1=imageS[(i*ny+j-newspacingy)*NIMG+0]; 
+              I2=imageS[(i*ny+j+newspacingy)*NIMG+0];
               err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD);
               err_rel=(I1-I2)/2/I1;
 
@@ -563,8 +562,8 @@ int main(int argc, char *argv[])
            }
 
            else if(i%previousspacingx!=0 && j%previousspacingy==0){ //pixel lies on pre-existing column
-               I1=imageS[((i-newspacingx)*ny+j)*NIMG]; 
-               I2=image[((i+newspacingx)*ny+j)*NIMG];
+               I1=imageS[((i-newspacingx)*ny+j)*NIMG+0]; 
+               I2=imageS[((i+newspacingx)*ny+j)*NIMG+0];
               err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD);
               err_rel=(I1-I2)/2/I1;
 
@@ -596,10 +595,10 @@ int main(int argc, char *argv[])
           }
           
            else {
-               I1 = imageS[((i-newspacingx)*ny+j-newspacingy)*NIMG]; //upper left? 
-               I2 = imageS[((i+newspacingx)*ny+j-newspacingy)*NIMG]; //upper right?
-               I3 = imageS[((i-newspacingx)*ny+j+newspacingy)*NIMG]; //bottom left?
-               I4 = imageS[((i+newspacingx)*ny+(j+newspacingy))*NIMG]; //bottom right?
+               I1 = imageS[((i-newspacingx)*ny+j-newspacingy)*NIMG+0]; //upper left? 
+               I2 = imageS[((i+newspacingx)*ny+j-newspacingy)*NIMG+0]; //upper right?
+               I3 = imageS[((i-newspacingx)*ny+j+newspacingy)*NIMG+0]; //bottom left?
+               I4 = imageS[((i+newspacingx)*ny+(j+newspacingy))*NIMG+0]; //bottom right?
 
 
                /* // Refinement criterion thanks to Zack Gelles: absolute & relative error of */
@@ -658,6 +657,7 @@ int main(int argc, char *argv[])
               total_interpolated, nx * ny, ((double) total_interpolated) / (nx * ny) * 100, nx, ny);
 
     }
+
 
     print_image_stats(image, imageS, nx, ny, params, scale);
 
