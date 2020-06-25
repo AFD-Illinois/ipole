@@ -82,7 +82,7 @@ yoff 0
 # PATH-TRACE PARAMETERS
 
 # Whether to save GRMHD variables along some paths
-trace 1
+trace 0
 # Pixel to trace i,j (rightward from left, upward from bottom)
 #trace_i 40
 #trace_j 40
