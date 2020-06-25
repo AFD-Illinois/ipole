@@ -157,7 +157,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > (1.1 * rmax_geo) && Kcon[1] < 0.) || // Stop either beyond rmax_geo
-      r < (1.05 * Rh)) { // Or right near the horizon
+      r < (Rh + 0.0001)) { // Or right near the horizon
     return (1);
   }
 

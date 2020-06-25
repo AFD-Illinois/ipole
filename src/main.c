@@ -369,8 +369,8 @@ int main(int argc, char *argv[])
                 }
               }
 
-              get_jkinv(Xi, Kconi, &ji, &ki);
-              get_jkinv(Xf, Kconf, &jf, &kf);
+              get_jkinv(Xi, Kconi, &ji, &ki, &params);
+              get_jkinv(Xf, Kconf, &jf, &kf, &params);
 
               dimage[pxidx].intensity = 
                 approximate_solve(dimage[pxidx].intensity, ji,ki,jf,kf, dtraj[stepidx].dl, &(dimage[pxidx].tau));
