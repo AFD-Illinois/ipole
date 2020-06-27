@@ -474,11 +474,16 @@ int main(int argc, char *argv[])
     int *interp_flag;
     interp_flag=calloc(nx*ny,sizeof(*image));
     double avg_val = 0;
+
+    double interpflux=0;
+    double *prelimarray=calloc(params.nx_min*params.ny_min,sizeof(*prelimarray));
+    
 #pragma omp parallel for schedule(dynamic,1) collapse(2) reduction(+:avg_val)
     for (int i=0; i < nx; i+=initialspacingx) {
       for (int j=0; j < ny; j+=initialspacingy) {
+          
         if (j==0) fprintf(stderr, "%d ", i);
-
+        int thislocation=i/initialspacingy*params.ny_min+j/initialspacingx;
         double Intensity = 0;
         double Is = 0, Qs = 0, Us = 0, Vs = 0;
         double Tau = 0, tauF = 0;
@@ -493,6 +498,42 @@ int main(int argc, char *argv[])
                    Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
         
         interp_flag[i*ny+j] = 0;
+
+        //adds the total number of pixels adjacent to this one
+        
+        if (i%(nx-1)!=0 && j%(ny-1)!=0){
+            //middle case
+            prelimarray[thislocation]=Intensity*initialspacingx*initialspacingy;
+        }
+
+        else if ((i==0 && j%(ny-1)!=0) || (i%(nx-1)!=0 && j==0)){
+            //top or left vertical (where top is defined as j=0)
+            //this assumes that nx=ny and nxmin=nymin
+            prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*initialspacingx;
+        }
+
+        else if (i%(nx-1)!=0 || j%(ny-1)!=0){
+            //bottom or rigth vertical
+            prelimarray[thislocation]=Intensity*(initialspacingx/2)*initialspacingx;
+        }
+
+        else{
+          //corner case
+            
+            if(i==0 && j==0){
+                //upper left corner
+                prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*(initialspacingx/2+1);
+            }
+            else if(i==0 || j==0){
+                //upper right or bottom left                                                                                                                                                    //assumes that nx=ny and nxmin=nymin
+                prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*initialspacingx/2;
+            }
+            else{
+                //bottom right
+                prelimarray[thislocation]=Intensity*(initialspacingx*initialspacingx)/4;
+            }
+        }
+
         
       }
     }
@@ -506,6 +547,14 @@ int main(int argc, char *argv[])
     int newspacingx, newspacingy;
     int previousspacingx, previousspacingy;
     double I1,I2,I3,I4,err_abs,err_rel;
+
+    //compute a total interpolated flux
+    for (int i=0;i<params.nx_min*params.ny_min;i++){
+        interpflux+=prelimarray[i];
+    }
+
+    interpflux *=pow(freqcgs, 3) / (JY*nx*ny*MUAS_PER_RAD*MUAS_PER_RAD)*params.fovx_dsource*params.fovy_dsource;
+    printf("%g\n",interpflux);
 
     for (int refined_level = 1; refined_level < refine_level; refined_level++) {
         newspacingx=initialspacingx/pow(2,refined_level);
@@ -531,7 +580,7 @@ int main(int argc, char *argv[])
           else if(i%previousspacingx==0 && j%previousspacingy!=0){ //pixel lies on pre-existing row
               I1=image[i*ny+j-newspacingy]; 
               I2=image[i*ny+j+newspacingy];
-              err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD);
+              err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
               err_rel=(I1-I2)/2/I1;
 
               if ((fabs(err_abs) > params.refine_abs && //could be changed to && if wanted
@@ -565,7 +614,7 @@ int main(int argc, char *argv[])
            else if(i%previousspacingx!=0 && j%previousspacingy==0){ //pixel lies on pre-existing column
                I1=image[(i-newspacingx)*ny+j]; 
                I2=image[(i+newspacingx)*ny+j];
-              err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD);
+              err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
               err_rel=(I1-I2)/2/I1;
 
               if ((fabs(err_abs) > params.refine_abs && //could be changed back to || if wanted
@@ -606,7 +655,7 @@ int main(int argc, char *argv[])
                /* // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel */
                /* // Make sure absolute error is in Jy/muas^2 */
 
-               double err_abs = ((I2 + I3) / 2 - I1) / (JY * MUAS_PER_RAD * MUAS_PER_RAD);
+               double err_abs = ((I2 + I3) / 2 - I1) / (JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
                double err_rel = (I2 + I3) / (2 * I1) - 1.;
 
               if ((fabs(err_abs) > params.refine_abs && //could be changed to && if wanted
@@ -655,11 +704,24 @@ int main(int argc, char *argv[])
           total_interpolated += interp_flag[i*ny+j];
     
       fprintf(stderr, "\n%d of %d (%f%%) of pixels at %dx%d were interpolated\n\n",
-              total_interpolated, nx * ny, ((double) total_interpolated) / (nx * ny) * 100, nx, ny);
+              total_interpolated, nx*ny , ((double) total_interpolated) / (nx * ny) * 100,(nx-1)/newspacingx , (ny-1)/newspacingy);
 
     }
 
     print_image_stats(image, imageS, nx, ny, params, scale);
+
+    int total_interpolated2=0; //prints the interp fraction to a file
+    for (int i=0; i<nx; i++)
+      for (int j=0; j<ny; j++)
+        total_interpolated2 += interp_flag[i*ny+j];
+
+
+
+    FILE *fp;
+    fp=fopen("interpvec.txt","w");
+    fprintf(fp,"%i\n",total_interpolated2);
+    fclose(fp);
+
 
     // don't dump if we've been asked to quench output. useful for batch jobs
     // like when fitting light curve fluxes
