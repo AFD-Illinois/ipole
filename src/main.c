@@ -711,15 +711,20 @@ int main(int argc, char *argv[])
     print_image_stats(image, imageS, nx, ny, params, scale);
 
     int total_interpolated2=0; //prints the interp fraction to a file
-    for (int i=0; i<nx; i++)
-      for (int j=0; j<ny; j++)
+    for (int i=0; i<nx; i++){
+      for (int j=0; j<ny; j++){
         total_interpolated2 += interp_flag[i*ny+j];
+      }
+    }
 
 
 
     FILE *fp;
     fp=fopen("interpvec.txt","w");
-    fprintf(fp,"%i\n",total_interpolated2);
+    //  fprintf(fp,"%i\n",total_interpolated2);
+    for (int i=0;i<nx*ny;i++){
+      fprintf(fp,"%i\n",interp_flag[i]);
+    }
     fclose(fp);
 
 
