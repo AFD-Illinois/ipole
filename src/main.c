@@ -500,20 +500,20 @@ int main(int argc, char *argv[])
         interp_flag[i*ny+j] = 0;
 
         //adds the total number of pixels adjacent to this one
+	//assumes nx=ny and nx_min=ny_min
         
         if (i%(nx-1)!=0 && j%(ny-1)!=0){
             //middle case
-            prelimarray[thislocation]=Intensity*initialspacingx*initialspacingy;
+            prelimarray[thislocation]=Intensity*initialspacingx*initialspacingx;
         }
 
         else if ((i==0 && j%(ny-1)!=0) || (i%(nx-1)!=0 && j==0)){
-            //top or left vertical (where top is defined as j=0)
-            //this assumes that nx=ny and nxmin=nymin
+            //bottom or left vertical (where top is defined as j=0)
             prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*initialspacingx;
         }
 
         else if (i%(nx-1)!=0 || j%(ny-1)!=0){
-            //bottom or rigth vertical
+            //top or right vertical
             prelimarray[thislocation]=Intensity*(initialspacingx/2)*initialspacingx;
         }
 
@@ -521,15 +521,15 @@ int main(int argc, char *argv[])
           //corner case
             
             if(i==0 && j==0){
-                //upper left corner
-                prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*(initialspacingx/2+1);
+	      //bottom left corner
+	      prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*(initialspacingx/2+1);
             }
             else if(i==0 || j==0){
-                //upper right or bottom left                                                                                                                                                    //assumes that nx=ny and nxmin=nymin
-                prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*initialspacingx/2;
+	      //bottom right or top left
+	      prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*initialspacingx/2;
             }
             else{
-                //bottom right
+                //top right
                 prelimarray[thislocation]=Intensity*(initialspacingx*initialspacingx)/4;
             }
         }
@@ -580,8 +580,8 @@ int main(int argc, char *argv[])
           else if(i%previousspacingx==0 && j%previousspacingy!=0){ //pixel lies on pre-existing row
               I1=image[i*ny+j-newspacingy]; 
               I2=image[i*ny+j+newspacingy];
-              err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
-              err_rel=(I1-I2)/2/I1;
+              err_abs=(I2-I1)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
+              err_rel=(I2-I1)/2/I1;
 
               if ((fabs(err_abs) > params.refine_abs && //could be changed to && if wanted
                    fabs(err_rel) > params.refine_rel)&&
@@ -614,8 +614,8 @@ int main(int argc, char *argv[])
            else if(i%previousspacingx!=0 && j%previousspacingy==0){ //pixel lies on pre-existing column
                I1=image[(i-newspacingx)*ny+j]; 
                I2=image[(i+newspacingx)*ny+j];
-              err_abs=(I1-I2)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
-              err_rel=(I1-I2)/2/I1;
+              err_abs=(I2-I1)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
+              err_rel=(I2-I1)/2/I1;
 
               if ((fabs(err_abs) > params.refine_abs && //could be changed back to || if wanted
                    fabs(err_rel) > params.refine_rel)&&
@@ -645,10 +645,10 @@ int main(int argc, char *argv[])
           }
           
            else {
-               I1 = image[(i-newspacingx)*ny+j-newspacingy]; //upper left? 
-               I2 = image[(i+newspacingx)*ny+j-newspacingy]; //upper right?
-               I3 = image[(i-newspacingx)*ny+j+newspacingy]; //bottom left?
-               I4 = image[(i+newspacingx)*ny+(j+newspacingy)]; //bottom right?
+               I1 = image[(i-newspacingx)*ny+j-newspacingy]; //bottom left 
+               I2 = image[(i+newspacingx)*ny+j-newspacingy]; //upper left
+               I3 = image[(i-newspacingx)*ny+j+newspacingy]; //bottom right
+               I4 = image[(i+newspacingx)*ny+(j+newspacingy)]; //upper right
 
 
                /* // Refinement criterion thanks to Zack Gelles: absolute & relative error of */
