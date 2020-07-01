@@ -508,12 +508,12 @@ int main(int argc, char *argv[])
         }
 
         else if ((i==0 && j%(ny-1)!=0) || (i%(nx-1)!=0 && j==0)){
-            //bottom or left vertical (where top is defined as j=0)
+            //bottom or left vertical edge
             prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*initialspacingx;
         }
 
         else if (i%(nx-1)!=0 || j%(ny-1)!=0){
-            //top or right vertical
+            //top or right vertical edge
             prelimarray[thislocation]=Intensity*(initialspacingx/2)*initialspacingx;
         }
 
@@ -577,9 +577,9 @@ int main(int argc, char *argv[])
               continue;
           }
           
-          else if(i%previousspacingx==0 && j%previousspacingy!=0){ //pixel lies on pre-existing row
-              I1=image[i*ny+j-newspacingy]; 
-              I2=image[i*ny+j+newspacingy];
+          else if(i%previousspacingx==0 && j%previousspacingy!=0){ //pixel lies on pre-existing column
+	      I1=image[i*ny+j-newspacingy]; //below 
+              I2=image[i*ny+j+newspacingy]; //above
               err_abs=(I2-I1)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
               err_rel=(I2-I1)/2/I1;
 
@@ -611,9 +611,9 @@ int main(int argc, char *argv[])
               }
            }
 
-           else if(i%previousspacingx!=0 && j%previousspacingy==0){ //pixel lies on pre-existing column
-               I1=image[(i-newspacingx)*ny+j]; 
-               I2=image[(i+newspacingx)*ny+j];
+           else if(i%previousspacingx!=0 && j%previousspacingy==0){ //pixel lies on pre-existing row
+              I1=image[(i-newspacingx)*ny+j]; //left
+	      I2=image[(i+newspacingx)*ny+j]; //right
               err_abs=(I2-I1)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
               err_rel=(I2-I1)/2/I1;
 
@@ -644,10 +644,10 @@ int main(int argc, char *argv[])
               }
           }
           
-           else {
+           else {  //pixel lies in equidistant from four corners
                I1 = image[(i-newspacingx)*ny+j-newspacingy]; //bottom left 
-               I2 = image[(i+newspacingx)*ny+j-newspacingy]; //upper left
-               I3 = image[(i-newspacingx)*ny+j+newspacingy]; //bottom right
+               I2 = image[(i+newspacingx)*ny+j-newspacingy]; //bottom right
+               I3 = image[(i-newspacingx)*ny+j+newspacingy]; //upper left
                I4 = image[(i+newspacingx)*ny+(j+newspacingy)]; //upper right
 
 
