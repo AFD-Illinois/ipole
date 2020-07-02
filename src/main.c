@@ -646,7 +646,7 @@ int main(int argc, char *argv[])
               }
           }
           
-           else {
+           else { //pixel lies equidistant from four corners
                I1 = imageS[((i-newspacingx)*ny+j-newspacingy)*NIMG+0]; //bottom left
                I2 = imageS[((i+newspacingx)*ny+j-newspacingy)*NIMG+0]; //bottom right
                I3 = imageS[((i-newspacingx)*ny+j+newspacingy)*NIMG+0]; //upper left
