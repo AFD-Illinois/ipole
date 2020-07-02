@@ -504,17 +504,17 @@ int main(int argc, char *argv[])
         
         if (i%(nx-1)!=0 && j%(ny-1)!=0){
             //middle case
-            prelimarray[thislocation]=Intensity*initialspacingx*initialspacingx;
+            prelimarray[thislocation]=Is*initialspacingx*initialspacingx;
         }
 
         else if ((i==0 && j%(ny-1)!=0) || (i%(nx-1)!=0 && j==0)){
             //bottom or left vertical edge
-            prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*initialspacingx;
+            prelimarray[thislocation]=Is*(initialspacingx/2+1)*initialspacingx;
         }
 
         else if (i%(nx-1)!=0 || j%(ny-1)!=0){
             //top or right vertical edge
-            prelimarray[thislocation]=Intensity*(initialspacingx/2)*initialspacingx;
+            prelimarray[thislocation]=Is*(initialspacingx/2)*initialspacingx;
         }
 
         else{
@@ -522,15 +522,15 @@ int main(int argc, char *argv[])
             
             if(i==0 && j==0){
 	      //bottom left corner
-	      prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*(initialspacingx/2+1);
+	      prelimarray[thislocation]=Is*(initialspacingx/2+1)*(initialspacingx/2+1);
             }
             else if(i==0 || j==0){
 	      //bottom right or top left
-	      prelimarray[thislocation]=Intensity*(initialspacingx/2+1)*initialspacingx/2;
+	      prelimarray[thislocation]=Is*(initialspacingx/2+1)*initialspacingx/2;
             }
             else{
                 //top right
-                prelimarray[thislocation]=Intensity*(initialspacingx*initialspacingx)/4;
+                prelimarray[thislocation]=Is*(initialspacingx*initialspacingx)/4;
             }
         }
 
