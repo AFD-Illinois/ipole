@@ -498,7 +498,8 @@ int main(int argc, char *argv[])
                    Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
         
         interp_flag[i*ny+j] = 0;
-
+	
+	//computes a total interpolated flux from first pass
         //adds the total number of pixels adjacent to this one
 	//assumes nx=ny and nx_min=ny_min
         
