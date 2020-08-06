@@ -17,8 +17,8 @@ dx 30
 dy 30
 
 # Image size
-nx 80
-ny 80
+nx 128
+ny 128
 
 # Distance to source in pc
 dsource 7.78e3
@@ -28,12 +28,5 @@ freqcgs 230.e9
 
 # MBH in solar masses
 MBH 4.e6
-
-# Accretion rate as fraction of Eddington
-# (assuming 10% efficiency)
-Mdot 0.01
-
-# BH dimensionless spin
-a 0.9
 
 outfile image.h5

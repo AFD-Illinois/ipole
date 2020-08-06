@@ -144,6 +144,12 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
   *rV = rVc;
 }
 
+void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv)
+{
+  *jnuinv = jIc;
+  *knuinv = aIc;
+}
+
 
 //// STUBS: Keep the rest of ipole off our back ////
 int radiating_region(double X[NDIM])

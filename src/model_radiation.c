@@ -451,69 +451,70 @@ double besselk_asym(int n, double x)
 /*
  * get the invariant emissivity and opacity at a given position for a given wavevector
  */
-void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
-    double *knuinv)
+void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv, Params *params)
 {
-  double nu, theta, B, Thetae, Ne, Bnuinv;
-  double Ucov[NDIM], Bcov[NDIM];
-  double Ucon[NDIM], Bcon[NDIM];
-  double Kcov[NDIM], gcov[NDIM][NDIM];
+  if (params->emission_type == 10) {
+    get_model_jk(X, Kcon, jnuinv, knuinv);
+  } else {
+    double nu, theta, B, Thetae, Ne, Bnuinv;
+    double Ucov[NDIM], Bcov[NDIM];
+    double Ucon[NDIM], Bcon[NDIM];
+    double Kcov[NDIM], gcov[NDIM][NDIM];
 
-  /* get fluid parameters */
-  Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
-  B = get_model_b(X);		/* field in G */
-  Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
+    /* get fluid parameters */
+    Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
+    B = get_model_b(X);		/* field in G */
+    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
 
-  if (Ne == 0.) {
-    *jnuinv = 0.;
-    *knuinv = 0.;
-    return;
-  }
+    if (Ne == 0.) {
+      *jnuinv = 0.;
+      *knuinv = 0.;
+      return;
+    }
 
-  /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
-  get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
+    /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
+    get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
 
-  gcov_func(X, gcov);
-  flip_index(Kcon, gcov, Kcov);
+    gcov_func(X, gcov);
+    flip_index(Kcon, gcov, Kcov);
 
-  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
+    theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
 
-  if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
-    *jnuinv = 0.;
-    *knuinv = 0.;
-    return;
-  }
+    if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
+      *jnuinv = 0.;
+      *knuinv = 0.;
+      return;
+    }
 
-  nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
+    nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
 
-  /* assume emission is thermal */
-  Bnuinv = Bnu_inv(nu, Thetae);
-  *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
+    /* assume emission is thermal */
+    Bnuinv = Bnu_inv(nu, Thetae);
+    *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
 
-  if (Bnuinv < SMALL)
-    *knuinv = SMALL;
-  else
-    *knuinv = *jnuinv / Bnuinv;
+    if (Bnuinv < SMALL)
+      *knuinv = SMALL;
+    else
+      *knuinv = *jnuinv / Bnuinv;
 
 #if DEBUG
-  if (isnan(*jnuinv) || isnan(*knuinv)) {
-    fprintf(stderr, "\nisnan get_jkinv\n");
-    fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
-        Ne, theta, nu, B, Thetae, Bnuinv);
-  }
+    if (isnan(*jnuinv) || isnan(*knuinv)) {
+      fprintf(stderr, "\nisnan get_jkinv\n");
+      fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
+          Ne, theta, nu, B, Thetae, Bnuinv);
+    }
 #endif
 
-  if (counterjet == 1) { // Emission from X[2] > midplane only
-    if (X[2] < (stopx[2] - startx[2]) / 2) {
-      *jnuinv = 0.;
-    }
-  } else if (counterjet == 2) { // Emission from X[2] < midplane only
-    if (X[2] > (stopx[2] - startx[2]) / 2) {
-      *jnuinv = 0.;
+    if (counterjet == 1) { // Emission from X[2] > midplane only
+      if (X[2] < (stopx[2] - startx[2]) / 2) {
+        *jnuinv = 0.;
+      }
+    } else if (counterjet == 2) { // Emission from X[2] < midplane only
+      if (X[2] > (stopx[2] - startx[2]) / 2) {
+        *jnuinv = 0.;
+      }
     }
   }
-
-  return;
 }
 
 /*

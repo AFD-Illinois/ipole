@@ -46,7 +46,7 @@ void integrate_emission(struct of_traj *traj, int nsteps,
   *Intensity = 0.;
   *Tau = 0.;
   double ji, ki;
-  get_jkinv(traj[nsteps].X, traj[nsteps].Kcon, &ji, &ki);
+  get_jkinv(traj[nsteps].X, traj[nsteps].Kcon, &ji, &ki, params);
 
   // Integrate the transfer equation (& parallel transport) forwards along trajectory
   for (int nstep=nsteps; nstep > 1; --nstep) {
@@ -57,7 +57,7 @@ void integrate_emission(struct of_traj *traj, int nsteps,
   }
 #else
     double jf, kf;
-    get_jkinv(traj[nstep-1].X, traj[nstep-1].Kcon, &jf, &kf);
+    get_jkinv(traj[nstep-1].X, traj[nstep-1].Kcon, &jf, &kf, params);
     *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, traj[nstep].dl, Tau);
     // prep next step
     ji = jf;
