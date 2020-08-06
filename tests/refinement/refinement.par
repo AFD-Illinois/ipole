@@ -10,8 +10,8 @@ ny_min 20
 
 # Refine on either a relative or absolute
 # interpolation error
-refine_rel 1.e-1
-refine_abs 1.e-5
+refine_rel 1.e-2
+refine_abs 1.e-6
 
 # Only refine in 4-pixel groups with more than
 # this proportion of the average flux
