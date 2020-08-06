@@ -13,6 +13,8 @@ rotcam 0
 # Pixels in x,y dimension
 nx 160
 ny 160
+nx_min 40
+ny_min 40
 
 # Distance to source in parsec
 dsource 16.9e6
@@ -82,7 +84,7 @@ yoff 0
 # PATH-TRACE PARAMETERS
 
 # Whether to save GRMHD variables along some paths
-trace 1
+trace 0
 # Pixel to trace i,j (rightward from left, upward from bottom)
 #trace_i 40
 #trace_j 40

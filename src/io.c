@@ -1,5 +1,5 @@
 /*
- * restart.c
+ * io.c
  *
  *  Created on: Sep 10, 2019
  *      Author: bprather
@@ -188,21 +188,19 @@ void write_header(double scale, double cam[NDIM],
 
 void dump(double image[], double imageS[], double taus[],
     const char *fname, double scale, double cam[NDIM],
-    double fovx, double fovy, Params *params, int nopol)
+    double fovx, double fovy, int nx, int ny, Params *params, int nopol)
 {
   hdf5_create(fname);
 
   write_header(scale, cam, fovx, fovy, params);
 
-  int nx = params->nx;
-  int ny = params->ny;
   double freqcgs = params->freqcgs;
   double dsource = params->dsource;
 
   // processing
   double Ftot_unpol=0., Ftot=0.;
-  for (int i=0; i<nx; ++i) {
-    for (int j=0; j<ny; ++j) {
+  for (int i=0; i<params->nx; ++i) {
+    for (int j=0; j<params->ny; ++j) {
       Ftot_unpol += image[i*ny+j] * scale;
       Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
     }
@@ -217,11 +215,16 @@ void dump(double image[], double imageS[], double taus[],
   nuLnu = 4. * M_PI * Ftot_unpol * dsource * dsource * JY * freqcgs;
   hdf5_write_single_val(&nuLnu, "nuLnu_unpol", H5T_IEEE_F64LE);
 
-  hsize_t unpol_dim[2] = {nx, ny};
-  hsize_t pol_dim[3] = {nx, ny, NIMG};
-  hdf5_write_full_array(image, "unpol", 2, unpol_dim, H5T_IEEE_F64LE);
-  hdf5_write_full_array(taus, "tau", 2, unpol_dim, H5T_IEEE_F64LE);
-  if (!nopol) hdf5_write_full_array(imageS, "pol", 3, pol_dim, H5T_IEEE_F64LE);
+  hsize_t unpol_mdim[2] = {nx, ny};
+  hsize_t pol_mdim[3] = {nx, ny, NIMG};
+  hsize_t unpol_fdim[2] = {params->nx, params->ny};
+  hsize_t pol_fdim[3] = {params->nx, params->ny, NIMG};
+  hsize_t unpol_start[2] = {0, 0};
+  hsize_t pol_start[3] = {0, 0, 0};
+
+  hdf5_write_array(image, "unpol", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_start, H5T_IEEE_F64LE);
+  hdf5_write_array(taus, "tau", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_start, H5T_IEEE_F64LE);
+  if (!nopol) hdf5_write_array(imageS, "pol", 3, pol_fdim, pol_start, pol_fdim, pol_mdim, pol_start, H5T_IEEE_F64LE);
 
   // housekeeping
   hdf5_close();
