@@ -11,10 +11,14 @@ phicam 0
 rotcam 0
 
 # Pixels in x,y dimension
-nx 160
-ny 160
-nx_min 40
-ny_min 40
+nx 32768
+ny 32768
+nx_min 128
+ny_min 128
+#nx 1024
+#ny 1024
+#nx_min 128
+#ny_min 128
 
 # Distance to source in parsec
 dsource 16.9e6
@@ -42,7 +46,7 @@ qu_conv 0
 quench_output 0
 # Unpolarized transport only (for speed; unpol is always run as well)
 # equiv to -unpol
-only_unpolarized 0
+only_unpolarized 1
 
 # IHARM MODEL PARAMETERS
 
@@ -54,14 +58,14 @@ dump tests/test-resources/sample_dump_SANE_a+0.94_0900.h5
 MBH 6.2e9
 
 # M_unit, the scale factor for the GRMHD file
-M_unit 3.25e26
+M_unit 6.085e24
 
 # Electron model parameters: Tp/Te for fixed models,
 # or Rlow, Rhigh.  e- model is read from each dump,
 # with some compile flag overrides available
 #tp_over_te 3
 trat_small 1
-trat_large 20
+trat_large 10
 
 counterjet 0
 

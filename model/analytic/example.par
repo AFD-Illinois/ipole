@@ -1,16 +1,19 @@
 # Analytic model options
 
 # Model to use: see model.c
-model 5
+model 1
 
 # Must ask the model for emissivities
 emission_type 10
 
 # Camera location
 # Note rcam is farther than ipole's usual
-rcam 1.e3
+rcam 1000
 thetacam 60
 phicam 0
+# Accuracy (not too high!)
+eps 0.01
+#maxnstep 50000
 
 # Camera FOV in r_g
 dx 30
@@ -23,10 +26,13 @@ ny 128
 # Distance to source in pc
 dsource 7.78e3
 
-# Frequency corresponding to 1 eV photons
+# Standard frequency nu_p
 freqcgs 230.e9
 
 # MBH in solar masses
 MBH 4.e6
 
 outfile image.h5
+
+trace 1
+trace_stride 8

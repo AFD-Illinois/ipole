@@ -67,6 +67,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 /**
  * Wrapper to call different distributions at different places in the simulation domain
  * See jar_calc_dist for distributions
+ * TODO put the general emission zero criteria here
  */
 void jar_calc(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
@@ -78,6 +79,17 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 #else
   jar_calc_dist(params->emission_type, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
 #endif
+
+  // Zero emission to isolate the jet/counterjet portion
+  if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
+    if (X[2] < (stopx[2] - startx[2]) / 2) {
+      *jI = *jQ = *jU = *jV = 0.;
+    }
+  } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
+    if (X[2] > (stopx[2] - startx[2]) / 2) {
+      *jI = *jQ = *jU = *jV = 0.;
+    }
+  }
 }
 
 /**
@@ -163,9 +175,9 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 #endif
 
   // ...then the parameters needed for all distributions...
-  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	// angle between k & b
-  nu = get_fluid_nu(Kcon, Ucov);	// freqcgs in Hz
-  B = get_model_b(X);	// field in G
+  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov); // angle between k & b
+  nu = get_fluid_nu(Kcon, Ucov); // freqcgs in Hz
+  B = get_model_b(X); // field in G
 
   //...and the ones for the specific distribution we'll be evaluating.
   switch (dist) {
@@ -182,7 +194,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   case E_POWERLAW:
     setConstParams(&paramsM);
     fit = paramsM.POWER_LAW;
-    // NOTE WE REPLACE Ne!! 
+    // NOTE WE REPLACE Ne!!
     get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &gamma_min, &gamma_max, &gamma_cut);
     break;
   case E_DEXTER_THERMAL:
@@ -459,13 +471,9 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
     double nu, theta, B, Thetae, Ne, Bnuinv;
     double Ucov[NDIM], Bcov[NDIM];
     double Ucon[NDIM], Bcon[NDIM];
-    double Kcov[NDIM], gcov[NDIM][NDIM];
 
     /* get fluid parameters */
     Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
-    B = get_model_b(X);		/* field in G */
-    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
-
     if (Ne == 0.) {
       *jnuinv = 0.;
       *knuinv = 0.;
@@ -474,18 +482,17 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
 
     /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
     get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
-
-    gcov_func(X, gcov);
-    flip_index(Kcon, gcov, Kcov);
-
     theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
-
+    // No emission along field
     if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
       *jnuinv = 0.;
       *knuinv = 0.;
       return;
     }
 
+    // Only compute these if we must
+    B = get_model_b(X);		/* field in G */
+    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
     nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
 
     /* assume emission is thermal */
@@ -505,11 +512,11 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
     }
 #endif
 
-    if (counterjet == 1) { // Emission from X[2] > midplane only
+    if (params->isolate_counterjet == 1) { // Emission from X[2] > midplane only
       if (X[2] < (stopx[2] - startx[2]) / 2) {
         *jnuinv = 0.;
       }
-    } else if (counterjet == 2) { // Emission from X[2] < midplane only
+    } else if (params->isolate_counterjet == 2) { // Emission from X[2] < midplane only
       if (X[2] > (stopx[2] - startx[2]) / 2) {
         *jnuinv = 0.;
       }

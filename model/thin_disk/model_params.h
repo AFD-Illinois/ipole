@@ -11,7 +11,6 @@
 
 // Model parameters
 extern double rmax_geo;
-extern int counterjet;
 
 // New definitions needed for problem defined with boundary condition
 // Uses are #ifdef'd off on the THIN_DISK flag above

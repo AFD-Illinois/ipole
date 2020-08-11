@@ -11,6 +11,5 @@
 
 // Necessary model parameters, can be used or not
 extern double rmax_geo;
-extern int counterjet;
 
 #endif /* MODEL_PARAMS_H */

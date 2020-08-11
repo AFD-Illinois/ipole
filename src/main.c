@@ -24,30 +24,32 @@
 #include <omp.h>
 
 // Some useful blocks of code to re-use
-void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
+// Note the difference between "int nx,ny" in get_pixel and "long int nx,ny" in save_pixel
+// explained in parameter parsing.
+void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params params,
                double fovx, double fovy, double freq, int only_unpolarized, double scale,
                double *Intensity, double *Is, double *Qs, double *Us, double *Vs,
                double *Tau, double *tauF);
-void save_pixel(double *image, double *imageS, double *taus, int i, int j, int nx, int ny, int only_unpol,
+void save_pixel(double *image, double *imageS, double *taus, size_t i, size_t j, size_t nx, size_t ny, int only_unpol,
                 double Intensity, double Is, double Qs, double Us, double Vs,
                 double freqcgs, double Tau, double tauF);
-void print_image_stats(double *image, double *imageS, int nx, int ny, Params params, double scale);
+void print_image_stats(double *image, double *imageS, size_t nx, size_t ny, Params params, double scale);
 void save_pixelTransfer(double *image, double *imageS, double *taus,
-                        int iold, int jold, int inew, int jnew, int nx, int ny, int only_intensity); //nearest neighbor saving
-void lininterp4(double *image, double *imageS, double *taus, int i1, int j1,
-                int i2,int j2, int i3, int j3, int i4, int j4, int inew, int jnew,
-                int nx, int ny, int only_intensity); //linear interpolation for floater case 
-void lininterp2(double *image, double *imageS, double *taus, int i1, int j1,
-                int i2,int j2,int inew, int jnew, int nx, int ny, int only_intensity); //linear interpolation for same row or column case
+                        size_t iold, size_t jold, size_t inew, size_t jnew, size_t nx, size_t ny, int only_intensity); //nearest neighbor saving
+void lininterp4(double *image, double *imageS, double *taus, size_t i1, size_t j1,
+                size_t i2,size_t j2, size_t i3, size_t j3, size_t i4, size_t j4, size_t inew, size_t jnew,
+                size_t nx, size_t ny, int only_intensity); //linear interpolation for floater case 
+void lininterp2(double *image, double *imageS, double *taus, size_t i1, size_t j1,
+                size_t i2,size_t j2,size_t inew, size_t jnew, size_t nx, size_t ny, int only_intensity); //linear interpolation for same row or column case
 
+
+// TODO use this more.  Are long=only or upscaled ops faster?
+static inline size_t imgindex(size_t n, size_t i, size_t j, size_t nx, size_t ny) {return (n*nx + i)*ny + j;}
 
 // global variables. TODO scope into main
 static double tf = 0.;
 
 Params params = { 0 };
-
-// Try to keep dynamic image sizes fast
-static inline int imgindex(int n, int i, int j, int nx, int ny) {return (n*nx + i)*ny + j;}
 
 int main(int argc, char *argv[]) 
 {
@@ -100,7 +102,7 @@ int main(int argc, char *argv[])
 
   int refine_level = log2((params.nx)/(params.nx_min))+1;
   // INTERNAL SIZE.  If nx or ny is even, compute an extra row/column to use the 2^N+1 scheme
-  int nx, ny, nxmin, nymin;
+  size_t nx, ny, nxmin, nymin;
   if (refine_level > 1 && params.nx % 2 == 0) {
     nx = params.nx + 1;
     nxmin = params.nx_min + 1;
@@ -165,8 +167,8 @@ int main(int argc, char *argv[])
   if (refine_level > 1) {
     fprintf(stderr,"Resolution: %dx%d, refined up to %dx%d (%d levels)\n",
         params.nx_min, params.ny_min, params.nx, params.ny, refine_level);
-    fprintf(stderr,"Refinement when > %g%% relative error or %g Jy/muas^2 absolute error, for pixel brightness > %f%% of average\n",
-            params.refine_rel*100, params.refine_abs, params.refine_cut*100);
+    fprintf(stderr,"Refinement when relative error is >%g%% or absolute error is >%g%% of estimated total flux, for pixel brightness > %f%% of average\n",
+            params.refine_rel*100, params.refine_abs*100, params.refine_cut*100);
   } else {
     fprintf(stderr,"Resolution: %dx%d\n", params.nx, params.ny);
   }
@@ -174,6 +176,10 @@ int main(int argc, char *argv[])
   double *taus = calloc(nx*ny, sizeof(*taus));
   double *imageS = calloc(nx*ny*NIMG, sizeof(*imageS));
   double *image = calloc(nx*ny, sizeof(*image));
+  if (taus == NULL || imageS == NULL || image == NULL) {
+    fprintf(stderr, "Could not allocate image memory!");
+    exit(-1);
+  }
 
   // slow light
   if (SLOW_LIGHT) {
@@ -206,16 +212,16 @@ int main(int argc, char *argv[])
 
     // first pass through geodesics to find lengths
 #pragma omp parallel for schedule(dynamic,2) collapse(2) reduction(max:tgeoi) reduction(max:maxsteplength) reduction(min:t0) reduction(min:tgeof) shared(nsteps)
-    for (int i=0; i<nx; ++i) {
-      for (int j=0; j<ny; ++j) {
-        if (j==0) fprintf(stderr, "%d ", i);
+    for (size_t i=0; i<nx; ++i) {
+      for (size_t j=0; j<ny; ++j) {
+        if (j==0) fprintf(stderr, "%ld ", i);
 
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, nx, ny, Xcam, params, fovx,fovy, X, Kcon);
+        init_XK(i,j, params.nx, params.ny, Xcam, params, fovx,fovy, X, Kcon);
 
-        for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
+        MULOOP Kcon[mu] *= freq;
 
         double tgeoitmp = 1.;
         double tgeoftmp = 1.;
@@ -227,7 +233,7 @@ int main(int argc, char *argv[])
           nstep++;
 
           if (nstep > params.maxnstep - 2) {
-            fprintf(stderr, "maxnstep exceeded on j=%d i=%d\n", j,i);
+            fprintf(stderr, "maxnstep exceeded on j=%ld i=%ld\n", j,i);
             break;
           }
 
@@ -261,14 +267,14 @@ int main(int argc, char *argv[])
 
     // now populate the geodesic data structures
 #pragma omp parallel for schedule(dynamic,2) collapse(2)
-    for (int i=0; i<nx; ++i) {
-      for (int j=0; j<ny; ++j) {
-        if (j==0) fprintf(stderr, "%d ", i);
+    for (size_t i=0; i<nx; ++i) {
+      for (size_t j=0; j<ny; ++j) {
+        if (j==0) fprintf(stderr, "%ld ", i);
 
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, nx, ny, Xcam, params, fovx,fovy, X, Kcon);
+        init_XK(i,j, params.nx, params.ny, Xcam, params, fovx,fovy, X, Kcon);
         for (int k=0; k<NDIM; ++k) Kcon[k] *= freq;
 
         MULOOP Xhalf[mu] = X[mu];
@@ -288,7 +294,7 @@ int main(int argc, char *argv[])
           }
 
           if (nstep > params.maxnstep - 2) {
-            fprintf(stderr, "maxnstep exceeded on j=%d i=%d\n", j,i);
+            fprintf(stderr, "maxnstep exceeded on j=%ld i=%ld\n", j,i);
             break;
           }
         }
@@ -348,9 +354,9 @@ int main(int argc, char *argv[])
         int do_output = 1;
 
 #pragma omp parallel for schedule(dynamic,2) collapse(2)
-        for (int i=0; i<nx; ++i) {
-          for (int j=0; j<ny; ++j) {
-            if (j==0) fprintf(stderr, "%d ", i);
+        for (size_t i=0; i<nx; ++i) {
+          for (size_t j=0; j<ny; ++j) {
+            if (j==0) fprintf(stderr, "%ld ", i);
 
             double ji,ki, jf,kf;
             double Xi[NDIM],Xhalf[NDIM],Xf[NDIM];
@@ -481,22 +487,27 @@ int main(int argc, char *argv[])
   } else {
     // BASE IMAGE at n_min
     // Allocate it, or use the existing allocation for just 1 level
-    int initialspacingx = (nx - 1) / (nxmin - 1);
-    int initialspacingy = (ny - 1) / (nymin - 1);
+    size_t initialspacingx = (nx - 1) / (nxmin - 1);
+    size_t initialspacingy = (ny - 1) / (nymin - 1);
 
     int *interp_flag = calloc(nx * ny, sizeof(*interp_flag));
     double *prelimarray = calloc(nxmin * nymin, sizeof(*prelimarray));
+    if (interp_flag == NULL || prelimarray == NULL) {
+      fprintf(stderr, "Could not allocate adaptive memory!\n");
+      exit(-1);
+    }
 
     // Note the average of the interpolated image != the average of calculated pixels, though they're close.
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
-    for (int i = 0; i < nx; i += initialspacingx) {
-      for (int j = 0; j < ny; j += initialspacingy) {
+    for (size_t i = 0; i < nx; i += initialspacingx) {
+      for (size_t j = 0; j < ny; j += initialspacingy) {
 
-        if (j==0) fprintf(stderr, "%d ", i);
-        int thislocation = i / initialspacingy * nymin + j / initialspacingx;
+        if (j==0) fprintf(stderr, "%ld ", i);
+        size_t thislocation = i / initialspacingy * nymin + j / initialspacingx;
         double Intensity = 0;
         double Is = 0, Qs = 0, Us = 0, Vs = 0;
         double Tau = 0, tauF = 0;
+        fprintf(stderr, "Calculating %ld,%ld of %ld, %ld, address %ld location %ld\n", i, j, nx, ny, i*ny+j, thislocation);
 
         get_pixel(i, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
                    only_unpolarized, scale, &Intensity, &Is, &Qs, &Us, &Vs,
@@ -536,13 +547,13 @@ int main(int argc, char *argv[])
         }
       }
     }
-    int newspacingx, newspacingy;
-    int previousspacingx, previousspacingy;
+    size_t newspacingx, newspacingy;
+    size_t previousspacingx, previousspacingy;
     double I1, I2, I3, I4, err_abs, err_rel;
 
     // compute a total interpolated flux
     double interpflux = 0;
-    for (int i = 0; i < nxmin * nymin; i++) {
+    for (size_t i = 0; i < nxmin * nymin; i++) {
       interpflux += prelimarray[i];
     }
 
@@ -557,10 +568,10 @@ int main(int argc, char *argv[])
       newspacingy = initialspacingy / pow(2, refined_level);
 
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
-      for (int i = 0; i < nx; i += newspacingx) {
-        for (int j = 0; j < ny; j += newspacingy) {
-          if (j == 0)
-            fprintf(stderr, "%d ", i);
+      for (size_t i = 0; i < nx; i += newspacingx) {
+        for (size_t j = 0; j < ny; j += newspacingy) {
+
+          if (j == 0) fprintf(stderr, "%ld ", i);
 
           double Intensity = 0;
           double Is = 0, Qs = 0, Us = 0, Vs = 0;
@@ -694,25 +705,18 @@ int main(int argc, char *argv[])
       }
 
       // Print how many pixels were interpolated
-      int total_interpolated = 0;
+      size_t total_interpolated = 0;
 #pragma omp parallel for collapse(2) reduction(+:total_interpolated)
-      for (int i = 0; i < nx; i++)
-        for (int j = 0; j < ny; j++)
+      for (size_t i = 0; i < nx; i++)
+        for (size_t j = 0; j < ny; j++)
           total_interpolated += interp_flag[i*ny+j];
     
-      fprintf(stderr, "\n%d of %d (%f%%) of pixels at %dx%d were interpolated\n\n",
+      fprintf(stderr, "\n%ld of %ld (%f%%) of pixels at %ldx%ld were interpolated\n\n",
               total_interpolated, nx*ny , ((double) total_interpolated) / (nx * ny) * 100,(nx-1)/newspacingx , (ny-1)/newspacingy);
     }
 
     // TODO print only for "real" pixels
     print_image_stats(image, imageS, nx, ny, params, scale);
-
-    int total_interpolated2 = 0; // prints the interp fraction to a file
-    for (int i = 0; i < nx; i++) {
-      for (int j = 0; j < ny; j++) {
-        total_interpolated2 += interp_flag[i*ny+j];
-      }
-    }
 
     // don't dump if we've been asked to quench output. useful for batch jobs
     // like when fitting light curve fluxes
@@ -733,7 +737,7 @@ int main(int argc, char *argv[])
 }
 
 // TODO Move these?
-void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
+void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params params,
                double fovx, double fovy, double freq, int only_unpolarized, double scale,
                double *Intensity, double *Is, double *Qs, double *Us, double *Vs,
                double *Tau, double *tauF)
@@ -759,7 +763,7 @@ void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
   // Record values along the geodesic if requested
   // TODO this is most likely not compatible with adaptive mode
   if (params.trace) {
-    int stride = params.trace_stride;
+    size_t stride = params.trace_stride;
     if (params.trace_i < 0 || params.trace_j < 0) { // If no single point is specified
       if (i % stride == 0 && j % stride == 0) { // Save every stride pixels
 #pragma omp critical
@@ -778,7 +782,7 @@ void get_pixel(int i, int j, int nx, int ny, double Xcam[NDIM], Params params,
   free(traj);
 }
 
-void save_pixel(double *image, double *imageS, double *taus, int i, int j, int nx, int ny, int only_intensity,
+void save_pixel(double *image, double *imageS, double *taus, size_t i, size_t j, size_t nx, size_t ny, int only_intensity,
                 double Intensity, double Is, double Qs, double Us, double Vs,
                 double freqcgs, double Tau, double tauF)
 {
@@ -806,7 +810,8 @@ void save_pixel(double *image, double *imageS, double *taus, int i, int j, int n
   }
 }
 
-void save_pixelTransfer(double *image, double *imageS, double *taus, int iold, int jold, int inew, int jnew, int nx, int ny, int only_intensity)
+void save_pixelTransfer(double *image, double *imageS, double *taus, size_t iold, size_t jold,
+                        size_t inew, size_t jnew, size_t nx, size_t ny, int only_intensity)
 {
   // deposit the intensity and Stokes parameter in pixel
     double Intensity=image[iold*ny+jold];
@@ -835,8 +840,8 @@ void save_pixelTransfer(double *image, double *imageS, double *taus, int iold, i
     }
 }
 
-void lininterp2(double *image, double *imageS, double *taus, int i1, int j1,
-                int i2,int j2,int inew, int jnew, int nx, int ny, int only_intensity)
+void lininterp2(double *image, double *imageS, double *taus, size_t i1, size_t j1,
+                size_t i2, size_t j2, size_t inew, size_t jnew, size_t nx, size_t ny, int only_intensity)
 {
   // deposit the intensity and Stokes parameter in pixel
     double Intensity=.5*(image[i1*ny+j1]+image[i2*ny+j2]);
@@ -866,9 +871,9 @@ void lininterp2(double *image, double *imageS, double *taus, int i1, int j1,
 }
 
 
-void lininterp4(double *image, double *imageS, double *taus, int i1, int j1,
-                int i2,int j2, int i3, int j3, int i4, int j4, int inew, int jnew,
-                int nx, int ny, int only_intensity)
+void lininterp4(double *image, double *imageS, double *taus, size_t i1, size_t j1,
+                size_t i2,size_t j2, size_t i3, size_t j3, size_t i4, size_t j4, size_t inew, size_t jnew,
+                size_t nx, size_t ny, int only_intensity)
 {
   // deposit the intensity and Stokes parameter in pixel
     double Intensity=.25*(image[i1*ny+j1]+image[i2*ny+j2]+image[i3*ny+j3]+image[i4*ny+j4]);
@@ -897,7 +902,7 @@ void lininterp4(double *image, double *imageS, double *taus, int i1, int j1,
     }
 }
 
-void print_image_stats(double *image, double *imageS, int nx, int ny, Params params, double scale)
+void print_image_stats(double *image, double *imageS, size_t nx, size_t ny, Params params, double scale)
 {
   double Ftot = 0.;
   double Ftot_unpol = 0.;
@@ -906,10 +911,10 @@ void print_image_stats(double *image, double *imageS, int nx, int ny, Params par
   double Qtot = 0.;
   double Utot = 0.;
   double Vtot = 0.;
-  int imax = 0;
-  int jmax = 0;
-  for (int i = 0; i < params.nx; i++) {
-    for (int j = 0; j < params.ny; j++) {
+  size_t imax = 0;
+  size_t jmax = 0;
+  for (size_t i = 0; i < params.nx; i++) {
+    for (size_t j = 0; j < params.ny; j++) {
       Ftot_unpol += image[i*ny+j]*scale;
       Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
       Iavg += imageS[(i*ny+j)*NIMG+0];
@@ -926,7 +931,7 @@ void print_image_stats(double *image, double *imageS, int nx, int ny, Params par
 
   // output normal flux quantities
   fprintf(stderr, "\nscale = %e\n", scale);
-  fprintf(stderr, "imax=%d jmax=%d Imax=%g Iavg=%g\n", imax, jmax, Imax, Iavg/(params.nx*params.ny));
+  fprintf(stderr, "imax=%ld jmax=%ld Imax=%g Iavg=%g\n", imax, jmax, Imax, Iavg/(params.nx*params.ny));
   fprintf(stderr, "freq: %g Ftot: %g Jy (%g Jy unpol xfer) scale=%g\n", params.freqcgs, Ftot, Ftot_unpol, scale);
   fprintf(stderr, "nuLnu = %g erg/s\n", 4.*M_PI*Ftot * params.dsource * params.dsource * JY * params.freqcgs);
 

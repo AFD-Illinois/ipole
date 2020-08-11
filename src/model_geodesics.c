@@ -116,7 +116,7 @@ int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj, doub
  * This takes the parameters struct directly since most of them are
  * camera parameters anyway
  */
-void init_XK(int i, int j, int nx, int ny, double Xcam[NDIM],
+void init_XK(long int i, long int j, int nx, int ny, double Xcam[NDIM],
              Params params, double fovx, double fovy,
              double X[NDIM], double Kcon[NDIM])
 {
@@ -194,7 +194,9 @@ double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {
   double dl;
   double dlx1 = eps / (fabs(Kcon[1]) + SMALL*SMALL);
-  double dlx2 = eps * fmin(fabs(X[2]), fabs(stopx[2] - X[2])) / (fabs(Kcon[2]) + SMALL*SMALL);
+  double dpole = fmin(fabs(X[2]), fabs(stopx[2] - X[2]));
+  double dlx2 = eps * dpole/3 / (fabs(Kcon[2]) + SMALL*SMALL);
+  //double dlx2 = eps / (fabs(Kcon[2]) + SMALL*SMALL);
   double dlx3 = eps / (fabs(Kcon[3]) + SMALL*SMALL);
 
   if (STEP_STRICT_MIN) {

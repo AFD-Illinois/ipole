@@ -17,7 +17,6 @@
 
 extern double DTd;
 extern double sigma_cut;
-extern int counterjet;
 extern double rmax_geo;
 
 #endif // MODEL_PARAMS_H

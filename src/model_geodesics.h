@@ -12,7 +12,7 @@
 #include "par.h"
 
 int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj, double eps, int step_max);
-void init_XK(int i, int j, int nx, int ny, double Xcam[NDIM],
+void init_XK(long int i, long int j, int nx, int ny, double Xcam[NDIM],
              Params params, double fovx, double fovy,
              double X[NDIM], double Kcon[NDIM]);
 

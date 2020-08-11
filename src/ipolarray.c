@@ -52,14 +52,17 @@ void integrate_emission(struct of_traj *traj, int nsteps,
   for (int nstep=nsteps; nstep > 1; --nstep) {
     // Solve unpolarized transport
 #if THIN_DISK
-  if (thindisk_region(traj[nstep].X, traj[nstep-1].X)) {
-    get_model_i(traj[nstep].X, traj[nstep].Kcon, Intensity);
-  }
+    if (thindisk_region(traj[nstep].X, traj[nstep-1].X)) {
+      get_model_i(traj[nstep].X, traj[nstep].Kcon, Intensity);
+    }
 #else
     double jf, kf;
     get_jkinv(traj[nstep-1].X, traj[nstep-1].Kcon, &jf, &kf, params);
-    *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, traj[nstep].dl, Tau);
-    // prep next step
+    // Only update intensity if we're in a radiating region
+    if (radiating_region(traj[nstep-1].X)) {
+      *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, traj[nstep].dl, Tau);
+    }
+    // Prep next step regardless of region
     ji = jf;
     ki = kf;
 #endif
@@ -169,16 +172,6 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
     gcov_func(Xf, gcov);
     jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
         &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
-
-    if (counterjet == 1) { // Emission from X[2] > midplane only
-      if (Xf[2] < (stopx[2] - startx[2]) / 2) {
-        jI = jQ = jU = jV = 0.;
-      }
-    } else if (counterjet == 2) { // Emission from X[2] < midplane only
-      if (Xf[2] > (stopx[2] - startx[2]) / 2) {
-        jI = jQ = jU = jV = 0.;
-      }
-    }
 
     /* make plasma tetrad */
     B = get_model_b(Xf); /* field in G */

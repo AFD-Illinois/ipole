@@ -20,7 +20,6 @@ double Te_unit;
 
 // Model parameters: public
 double rmax_geo;
-int counterjet = 0;
 // Model parameters: private
 static double MBH_solar = 4.e6;
 static double MBH;
@@ -28,6 +27,7 @@ static int model;
 
 // e.g. parameterization from GRRT paper
 double A, alpha, height, l0, freqcgs;
+double r_isco;
 
 // Forward declarations for non-public functions
 void set_units();
@@ -37,7 +37,6 @@ void try_set_model_parameter(const char *word, const char *value)
   // Test the given word against our parameters' names,
   // and if it matches set the corresponding global
   set_by_word_val(word, value, "MBH", &MBH_solar, TYPE_DBL);
-  set_by_word_val(word, value, "counterjet", &counterjet, TYPE_DBL);
 
   set_by_word_val(word, value, "model", &model, TYPE_INT);
   // Normal ipole pulls this, but we also need it for the GRRT problems
@@ -49,8 +48,8 @@ void init_model(double *tA, double *tB)
 {
   // Set all the geometry globals we need
   // TODO do this in geometry?  Deal with model/geom interface...
-  use_eKS_internal = 1;
-  metric = 0; // Doesn't matter due to above
+  use_eKS_internal = 0;
+  metric = METRIC_MKS;
   hslope = 1.0;
 
   if (model == 1) {
@@ -88,7 +87,7 @@ void init_model(double *tA, double *tB)
   // We already set stuff from parameters, so set_units here
   set_units();
 
-  printf("Running analytic model %d:\nMBH: %g\na: %g\n", model, MBH, a);
+  printf("Running analytic model %d:\nMBH: %g\na: %g\nRh: %g\nR_isco: %g\n\n", model, MBH, a, Rh, r_isco);
   printf("A: %g\nalpha: %g\nh: %g\nl0: %g\n\n", A, alpha, height, l0);
 }
 
@@ -105,7 +104,10 @@ void set_units()
   Rh = 1 + sqrt(1. - a * a);
   Rin = Rh;
   Rout = 1000.0;
-  rmax_geo = MIN(1000.0, Rout);
+  rmax_geo = Rout;
+  double z1 = 1. + pow(1. - a * a, 1. / 3.) * (pow(1. + a, 1. / 3.) + pow(1. - a, 1. / 3.));
+  double z2 = sqrt(3. * a * a + z1 * z1);
+  r_isco = 3. + z2 - copysign(sqrt((3. - z1) * (3. + z1 + 2. * z2)), a);
   startx[0] = 0.0;
   startx[1] = log(Rin);
   startx[2] = 0.0;
@@ -147,16 +149,11 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
   // Define a model here relating X,K -> j_S, alpha_S, rho_S
   // (and below relating X,K -> u,B 4-vectors)
   // ipole will do the rest
-  double r, th;
-  bl_coord(X, &r, &th);
-  double n = (3.e-18) * exp(-1./2 * (pow(r/10, 2) + pow(height * cos(th), 2)));
 
-  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-  get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
-  double nu = get_fluid_nu(Kcon, Ucov);
-
-  *jI = n * pow(nu / freqcgs, -alpha) / pow(nu, 2);
-  *aI = A * n * pow(nu / freqcgs, -(2.5 + alpha)) * nu;
+  // Just take the unpolarized emissivity and absorptivity as I,
+  // and set the rest to zero
+  // Of course, you can be more elaborate
+  get_model_jk(X, Kcon, jI, aI);
 
   *jQ = 0;
   *jU = 0;
@@ -175,11 +172,17 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
 
 void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv)
 {
-  // Currently just takes jI, aI from _jar, but can be defined differently for comparison/raw unpolarized problems
-  double jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV;
-  get_model_jar(X, Kcon, &jI, &jQ, &jU, &jV, &aI, &aQ, &aU, &aV, &rQ, &rU, &rV);
-  *jnuinv = jI;
-  *knuinv = aI;
+  // Matter/emission model defined in Gold et al 2020 section 3
+  double r, th;
+  bl_coord(X, &r, &th);
+  double n = (3.e-18) * exp(-1./2 * (pow(r/10, 2) + pow(height * cos(th), 2)));
+
+  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
+  get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
+  double nu = get_fluid_nu(Kcon, Ucov);
+
+  *jnuinv = n * pow(nu / freqcgs, -alpha) / pow(nu, 2);
+  *knuinv = A * n * pow(nu / freqcgs, -(2.5 + alpha)) * nu;
 }
 
 int radiating_region(double X[NDIM])
@@ -187,7 +190,11 @@ int radiating_region(double X[NDIM])
   // If you don't want conditionals in get_model_jar, 
   // you can control here where the coefficients are applied
 
-  return 1;
+  // ipole's tracing start/stop are a bit loose, so we allow
+  // emission only inside the specified range
+  double r, th;
+  bl_coord(X, &r, &th);
+  return r > 2 && r < rmax_geo;
 }
 
 void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
@@ -203,12 +210,12 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   gcon_func(gcov, gcon);
 
   // normal observer velocity for Ucon/Ucov
-  Ucov[0] =
-      - sqrt(-1. / (gcon[0][0] - 2. * gcon[0][3] * l
+  double ubar = sqrt(-1. / (gcon[0][0] - 2. * gcon[0][3] * l
                   + gcon[3][3] * l * l));
+  Ucov[0] = -ubar;
   Ucov[1] = 0.;
   Ucov[2] = 0.;
-  Ucov[3] = - l * Ucov[0];
+  Ucov[3] = l * ubar;
 
   flip_index(Ucov, gcon, Ucon);
 }

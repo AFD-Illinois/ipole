@@ -28,7 +28,6 @@ double Te_unit;
 
 // MODEL PARAMETERS: PUBLIC
 double DTd;
-int counterjet = 0;
 double rmax_geo = 100.;
 double rmin_geo = 1.;
 double sigma_cut = 1.0;
@@ -106,7 +105,6 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "M_unit", &M_unit, TYPE_DBL);
 
   set_by_word_val(word, value, "dump", (void *)fnam, TYPE_STR);
-  set_by_word_val(word, value, "counterjet", &counterjet, TYPE_INT);
 
   set_by_word_val(word, value, "tp_over_te", &tp_over_te, TYPE_DBL);
   set_by_word_val(word, value, "trat_small", &trat_small, TYPE_DBL);

@@ -12,7 +12,6 @@
 
 // Model parameters (TODO eliminate if we can these are unused)
 extern double rmax_geo;
-extern int counterjet;
 extern double model_dl;
 
 void record_stokes_parameters(double SI, double SQ, double SU, double SV, double lam);

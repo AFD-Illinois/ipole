@@ -20,7 +20,6 @@ double Te_unit;
 
 // Model parameters: public
 double rmax_geo;
-int counterjet = 0;
 // Model parameters: private
 static double Mdot = 0.01;
 static double MBH_solar = 10.;
@@ -49,7 +48,6 @@ void try_set_model_parameter(const char *word, const char *value)
   // Test the given word against our parameters' names,
   // and if it matches set the corresponding global
   set_by_word_val(word, value, "MBH", &MBH_solar, TYPE_DBL);
-  set_by_word_val(word, value, "counterjet", &counterjet, TYPE_DBL);
 
   set_by_word_val(word, value, "a", &a, TYPE_DBL);
   set_by_word_val(word, value, "Mdot", &Mdot, TYPE_DBL);

@@ -31,6 +31,8 @@ typedef struct params_t {
   // Which e- energy distributions/emissivities to use
   int emission_type;
 
+  int isolate_counterjet;
+
   const char dump[STRLEN];
   const char outf[STRLEN];
 
