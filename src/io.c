@@ -202,7 +202,7 @@ void dump(double image[], double imageS[], double taus[],
   for (int i=0; i<params->nx; ++i) {
     for (int j=0; j<params->ny; ++j) {
       Ftot_unpol += image[i*ny+j] * scale;
-      Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
+      if (!nopol) Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
     }
   }
 
