@@ -188,7 +188,7 @@ void write_header(double scale, double cam[NDIM],
 
 void dump(double image[], double imageS[], double taus[],
     const char *fname, double scale, double cam[NDIM],
-    double fovx, double fovy, int nx, int ny, Params *params, int nopol)
+    double fovx, double fovy, size_t nx, size_t ny, Params *params, int nopol)
 {
   hdf5_create(fname);
 
@@ -199,8 +199,8 @@ void dump(double image[], double imageS[], double taus[],
 
   // processing
   double Ftot_unpol=0., Ftot=0.;
-  for (int i=0; i<params->nx; ++i) {
-    for (int j=0; j<params->ny; ++j) {
+  for (int i=0; i < params->nx; ++i) {
+    for (int j=0; j < params->ny; ++j) {
       Ftot_unpol += image[i*ny+j] * scale;
       if (!nopol) Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
     }
