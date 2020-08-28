@@ -19,13 +19,20 @@ do
   folder=${folder: : -1}
   if [[ "$folder" != "test-resources" ]]; then
     cd $folder
-    if [[ $folder == *"thin_disk"* ]]; then
+    if [[ $folder == *"analytic"* ]]; then
+      make -f ../../makefile -j8 MODEL=analytic
+    elif [[ $folder == *"thin_disk"* ]]; then
       make -f ../../makefile -j8 MODEL=thin_disk
     else
       make -f ../../makefile -j8 MODEL=iharm
     fi
-    ./ipole -par $folder.par &> out_$folder.txt
-    ../verify.sh
+
+    if [[ $folder == *"analytic"* ]]; then
+      python3 analytic_test.py
+    else
+      ./ipole -par $folder.par &> out_$folder.txt
+      ../verify.sh
+    fi
     cd -
   fi
 done
