@@ -175,26 +175,16 @@ void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knu
   // Matter/emission model defined in Gold et al 2020 section 3
   double r, th;
   bl_coord(X, &r, &th);
-  double n = (3.e-18) * exp(-1./2 * (pow(r/10, 2) + pow(height * cos(th), 2)));
+  double n_exp = 1./2 * (pow(r/10, 2) + pow(height * cos(th), 2));
+  // Cutoff when result will be ~0
+  double n = ( n_exp < 200 ) ? (3.e-18) * exp(-n_exp) : 0;
 
   double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
   get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
   double nu = get_fluid_nu(Kcon, Ucov);
 
   *jnuinv = n * pow(nu / freqcgs, -alpha) / pow(nu, 2);
-  *knuinv = A * n * pow(nu / freqcgs, -(2.5 + alpha)) * nu;
-}
-
-int radiating_region(double X[NDIM])
-{
-  // If you don't want conditionals in get_model_jar, 
-  // you can control here where the coefficients are applied
-
-  // ipole's tracing start/stop are a bit loose, so we allow
-  // emission only inside the specified range
-  double r, th;
-  bl_coord(X, &r, &th);
-  return r > 2 && r < rmax_geo;
+  *knuinv = (A * n * pow(nu / freqcgs, -(2.5 + alpha)) + 1.e-54) * nu;
 }
 
 void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
@@ -202,25 +192,47 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
 {
   double r, th;
   bl_coord(X, &r, &th);
+  // Note these quantities from Gold et al are in BL!
+  // We could have converted the problem to KS, but instead we did this
   double R = r * sin(th);
   double l = (l0 / (1 + R)) * pow(R, 1 + 0.5);
 
-  double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+  double bl_gcov[NDIM][NDIM], bl_gcon[NDIM][NDIM];
+  gcov_bl(r, th, bl_gcov);
+  gcon_func(bl_gcov, bl_gcon);
+
+  // Get the normal observer velocity for Ucon/Ucov, in BL coordinates
+  double bl_Ucov[NDIM];
+  double ubar = sqrt(-1. / (bl_gcon[0][0] - 2. * bl_gcon[0][3] * l
+                  + bl_gcon[3][3] * l * l));
+  bl_Ucov[0] = -ubar;
+  bl_Ucov[1] = 0.;
+  bl_Ucov[2] = 0.;
+  bl_Ucov[3] = l * ubar;
+
+  double bl_Ucon[NDIM];
+  flip_index(bl_Ucov, bl_gcon, bl_Ucon);
+
+  // Transform to KS coordinates,
+  double ks_Ucon[NDIM];
+  bl_to_ks(X, bl_Ucon, ks_Ucon);
+  // then to our coordinates,
+  vec_from_ks(X, ks_Ucon, Ucon);
+
+  // and grab Ucon
+  double gcov[NDIM][NDIM];
   gcov_func(X, gcov);
-  gcon_func(gcov, gcon);
-
-  // normal observer velocity for Ucon/Ucov
-  double ubar = sqrt(-1. / (gcon[0][0] - 2. * gcon[0][3] * l
-                  + gcon[3][3] * l * l));
-  Ucov[0] = -ubar;
-  Ucov[1] = 0.;
-  Ucov[2] = 0.;
-  Ucov[3] = l * ubar;
-
-  flip_index(Ucov, gcon, Ucon);
+  flip_index(Ucon, gcov, Ucov);
 }
 
 //// STUBS: Functions for normal models which we don't use ////
+int radiating_region(double X[NDIM])
+{
+  // If you don't want conditionals in get_model_jar, 
+  // you can control here where the coefficients are applied
+  return 1;
+}
+
 // This is only called for trace file output
 void get_model_primitives(double X[NDIM], double *p) {return;}
 // Define these to specify a fluid model: e- density/temperature for
@@ -230,3 +242,79 @@ double get_model_b(double X[NDIM]) {return 0;}
 double get_model_ne(double X[NDIM]) {return 0;}
 void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
           double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
+
+// ORIGINAL IMPLEMENTATIONS FROM COMPARISON IBOTHROS
+// These match the implementations above
+// void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv)
+// {
+//   double r, th;
+//   bl_coord(X, &r, &th);
+
+//   double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
+//   get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
+
+//   /* and get the frequency */
+//   double nu = get_fluid_nu(Kcon,Ucov);	/* returns fluid frequency in cgs */
+
+//   /** find emissivity, absorptivity **/
+//   /* first density */
+//   double z_over_h,r_over_R0,nexp,ne;
+//   z_over_h = height*cos(th);
+//   r_over_R0 = r/10.;
+//   nexp = 0.5*r_over_R0*r_over_R0 + 0.5*z_over_h*z_over_h;
+//   ne = (nexp < 200.) ? 3.0e-18*exp(-nexp) : 0.;  /* electron number density; cgs */
+
+//   double jnu,knu;
+//   jnu = ne*pow(nu/freqcgs,-alpha);  /* cgs emissivity */
+//   *jnuinv = jnu/(nu*nu);                        /* invariant cgs emissivity */
+//   knu = A*ne*pow(nu/freqcgs,-alpha-2.5) + 1.e-54;      /* cgs absorptivity */
+//   *knuinv = nu*knu;                            /* invariant cgs absorptivity */
+//   //*snuinv = jnuinv/(*knuinv);                  /* invariant source fnc */
+
+//   //fprintf(stderr,"%g %g %g %g\n", jnu, jnuinv, knu, nu*knu);
+
+//   /* check for errors */
+//   if(isnan(*jnuinv) || isnan(*knuinv)) {
+//     fprintf(stderr,"isnan get_jkinv\n") ;
+//     exit(1);
+//   }
+// }
+
+// void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
+//                      double Bcon[NDIM], double Bcov[NDIM])
+// {
+//   double r,th;
+//   bl_coord(X,&r,&th);  /* find r,th from X; units such that GM = c = 1 */
+//   //if(r > 900.) fprintf(stderr,"%g %g\n", r, th) ;
+
+//   /* find frequency in fluid frame */
+//   /* find fluid four-velocity in BL coords */
+//   double R;
+//   R = r*sin(th);
+
+//   Ucov[0] = -1.;
+//   Ucov[1] = 0.;
+//   Ucov[2] = 0.;
+//   Ucov[3] = l0*pow(R, 1. + 0.5)/(1. + R);
+
+//   double BLgcov[NDIM][NDIM], BLgcon[NDIM][NDIM];
+//   gcov_bl(r,th,BLgcov);
+//   gcon_func(BLgcov, BLgcon);
+//   normalize(Ucov, BLgcon);	/* normalize Ucov so that U . U = -1 */
+
+//   //fprintf(stderr,"%g %g %g %g\n",Ucov[0],Ucov[1],Ucov[2],Ucov[3]);
+
+//   /* transform to Kerr-Schild coordinates.  This was done
+//       analytically, offstage */
+//   double l,e,DD;
+//   e = -Ucov[0]; l = Ucov[3]; DD = r*r - 2.*r + a*a;
+//   Ucov[0] = -e;
+//   Ucov[1] = -r*(a*l - 2.*e*r)/DD;	/* yes, u_r != 0 */
+//   Ucov[2] = 0.;
+//   Ucov[3] = l;
+
+//   double gcon[NDIM][NDIM], gcov[NDIM][NDIM];
+//   gcov_func(X, gcov);
+//   gcon_func(gcov, gcon);
+//   flip_index(Ucov, gcon, Ucon);
+// }
