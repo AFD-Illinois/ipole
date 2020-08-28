@@ -134,7 +134,7 @@ void init_XK(long int i, long int j, int nx, int ny, double Xcam[NDIM],
   // xoff: allow arbitrary offset for e.g. ML training imgs
   // +0.5: project geodesics from px centers
   // xoff/yoff are separated to keep consistent behavior between refinement levels
-  double dxoff = (i+0.5+params.xoff)/params.nx - 0.5;
+  double dxoff = (i+0.5+params.xoff-0.01)/params.nx - 0.5;
   double dyoff = (j+0.5+params.yoff)/params.ny - 0.5;
   Kcon_tetrad[0] = 0.;
   Kcon_tetrad[1] = (dxoff*cos(params.rotcam) - dyoff*sin(params.rotcam)) * fovx;
