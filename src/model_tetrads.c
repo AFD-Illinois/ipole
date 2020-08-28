@@ -143,7 +143,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
  * This combination measures the final Stokes parameters correctly (IEEE/IAS).
  * These values are then translated if a different convention is to be output.
  *
- * Points the camera so that the angular momentum k_phi at FOV center is 0
+ * Points the camera so that the angular momentum k_{th,phi} at FOV center is 0
  */
 
 void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
@@ -154,7 +154,6 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   gcon_func(Gcov, Gcon);
   double Ucam[NDIM], Kcon[NDIM], trial[NDIM];
 
-#ifdef CAMERA_CENTER_ZAMO
   // center the camera according to impact parameter, i.e., make it
   // so that Kcontetrad = ( 1, 0, 0, 1 ) corresponds to an outgoing
   // wavevector with zero angular momentum / zero impact parameter.
@@ -184,8 +183,30 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   trial[3] = 0.;
 
   make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
+}
 
-#else
+/*
+ * Make orthonormal basis for camera frame -- old implementation
+ *
+ * e^0 along Ucam
+ * e^3 outward (!) along radius vector
+ * e^2 toward north pole of coordinate system ("y" in the image plane)
+ * e^1 in the remaining direction ("x" in the image plane)
+ *
+ * This combination measures the final Stokes parameters correctly (IEEE/IAS).
+ * These values are then translated if a different convention is to be output.
+ *
+ * Points the camera so that the *contravariant wavevector* k^{th,phi} = 0
+ */
+
+void make_camera_tetrad_old(double X[NDIM], double Econ[NDIM][NDIM],
+                        double Ecov[NDIM][NDIM])
+{
+  double Gcov[NDIM][NDIM], Gcon[NDIM][NDIM];
+  gcov_func(X, Gcov);
+  gcon_func(Gcov, Gcon);
+  double Ucam[NDIM], Kcon[NDIM], trial[NDIM];
+
   // old centering method
 
   Ucam[0] = 1.;
@@ -205,8 +226,4 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   trial[3] = 0.;
 
   make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
-
-#endif
-
 }
-

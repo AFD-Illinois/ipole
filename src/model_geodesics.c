@@ -124,14 +124,18 @@ void init_XK(long int i, long int j, int nx, int ny, double Xcam[NDIM],
   double Ecov[NDIM][NDIM];
   double Kcon_tetrad[NDIM];
 
-  make_camera_tetrad(Xcam, Econ, Ecov);
+  if (params.old_centering) {
+    make_camera_tetrad_old(Xcam, Econ, Ecov);
+  } else {
+    make_camera_tetrad(Xcam, Econ, Ecov);
+  }
 
   // Construct outgoing wavevectors
   // xoff: allow arbitrary offset for e.g. ML training imgs
   // +0.5: project geodesics from px centers
   // xoff/yoff are separated to keep consistent behavior between refinement levels
-  double dxoff = (i+0.5-0.01)/nx - 0.5 + params.xoff/nx;
-  double dyoff = (j+0.5)/ny - 0.5 + params.yoff/ny;
+  double dxoff = (i+0.5+params.xoff)/params.nx - 0.5;
+  double dyoff = (j+0.5+params.yoff)/params.ny - 0.5;
   Kcon_tetrad[0] = 0.;
   Kcon_tetrad[1] = (dxoff*cos(params.rotcam) - dyoff*sin(params.rotcam)) * fovx;
   Kcon_tetrad[2] = (dxoff*sin(params.rotcam) + dyoff*cos(params.rotcam)) * fovy;
@@ -156,7 +160,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   // Necessary geometric stop conditions
   double r, th;
   bl_coord(X, &r, &th);
-  if ((r > (1.1 * rmax_geo) && Kcon[1] < 0.) || // Stop either beyond rmax_geo
+  if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
       r < (Rh + 0.0001)) { // Or right near the horizon
     return (1);
   }
@@ -193,7 +197,8 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
 double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {
   double dl;
-  double dlx1 = eps / (fabs(Kcon[1]) + SMALL*SMALL);
+  double deh = fmin(fabs(X[1] - startx[1]), 3);
+  double dlx1 = eps * deh/3 / (fabs(Kcon[1]) + SMALL*SMALL);
   double dpole = fmin(fabs(X[2]), fabs(stopx[2] - X[2]));
   double dlx2 = eps * dpole/3 / (fabs(Kcon[2]) + SMALL*SMALL);
   //double dlx2 = eps / (fabs(Kcon[2]) + SMALL*SMALL);

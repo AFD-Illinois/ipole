@@ -18,6 +18,7 @@ typedef struct params_t {
   int nx, ny;           // image dimensions in px
   double dsource;       // in pc
   double freqcgs;       // ... in cgs
+  int old_centering;    // 0 uses k_phi=0 "ZAMO" new centering, 1 uses k^phi=0 old centering
 
   // Geodesic accuracy
   double eps;
@@ -41,7 +42,6 @@ typedef struct params_t {
   double refine_abs, refine_rel; // Refinement tolerances
   double refine_cut;    // minimum intensity at which to bother refining
   int nearest_neighbor; // use nearest-neighbor instead of matching-order interpolation
-
 
   // ML parameters
   double xoff, yoff;    // in pixels
