@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     params.ny_min = params.ny;
   }
 
-  int refine_level = log2((params.nx)/(params.nx_min))+1;
+  int refine_level = log2((params.nx - params.nx % 2)/(params.nx_min - params.nx_min % 2))+1;
   // INTERNAL SIZE.  If nx or ny is even, compute an extra row/column to use the 2^N+1 scheme
   size_t nx, ny, nxmin, nymin;
   if (refine_level > 1 && params.nx % 2 == 0) {
@@ -477,6 +477,10 @@ int main(int argc, char *argv[])
     // Allocate it, or use the existing allocation for just 1 level
     size_t initialspacingx = (nx - 1) / (nxmin - 1);
     size_t initialspacingy = (ny - 1) / (nymin - 1);
+    // fprintf(stderr, "Image dimensions: %d %d, memory dimensions %ld %ld, minimum %ld %ld\n",
+    //         params.nx, params.ny, nx, ny, nxmin, nymin);
+    
+    // fprintf(stderr, "Intial spacing: %ld\n", initialspacingx);
 
     int *interp_flag = calloc(nx * ny, sizeof(*interp_flag));
     double *prelimarray = NULL;
@@ -543,28 +547,28 @@ int main(int argc, char *argv[])
         }
       }
     }
-    size_t newspacingx, newspacingy;
-    size_t previousspacingx, previousspacingy;
-    double I1, I2, I3, I4, err_abs, err_rel;
-    double interpflux;
 
-    // compute a total interpolated flux
+    // compute estimated flux total and intensity average
+    double Iavg = 0;
     if (refine_level > 1) {
-      interpflux = 0;
+      double interp_tot = 0;
       for (size_t i = 0; i < nxmin * nymin; i++) {
-        interpflux += prelimarray[i];
+        interp_tot += prelimarray[i];
       }
 
-      interpflux *= scale * pow(freqcgs, 3);
+      // Average intensity per pixel
+      Iavg = interp_tot / (params.nx * params.ny) * pow(freqcgs, 3);
+
+      // Print calculated total intensity for debug
 #if DEBUG
-      fprintf(stderr, "\nInitial flux guess: %g", interpflux);
+      fprintf(stderr, "\nInitial flux guess: %g", interp_tot * scale);
 #endif
-      fprintf(stderr, "\n\n");
+      fprintf(stderr, "\n\n"); // TODO even for non-refined?
     }
 
     for (int refined_level = 1; refined_level < refine_level; refined_level++) {
-      newspacingx = initialspacingx / pow(2, refined_level);
-      newspacingy = initialspacingy / pow(2, refined_level);
+      size_t newspacingx = initialspacingx / pow(2, refined_level);
+      size_t newspacingy = initialspacingy / pow(2, refined_level);
 
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
       for (size_t i = 0; i < nx; i += newspacingx) {
@@ -576,9 +580,10 @@ int main(int argc, char *argv[])
           double Is = 0, Qs = 0, Us = 0, Vs = 0;
           double Tau = 0, tauF = 0;
 
-          previousspacingx = newspacingx * 2;
-          previousspacingy = newspacingy * 2;
+          size_t previousspacingx = newspacingx * 2;
+          size_t previousspacingy = newspacingy * 2;
 
+          double I1, I2, I3, I4, err_abs, err_rel;
           if (i % previousspacingx == 0 && j % previousspacingy == 0) {
             // pixel has already been ray-traced
             continue;
@@ -587,7 +592,7 @@ int main(int argc, char *argv[])
 
             I1 = image[i*ny+j-newspacingy]; // below
             I2 = image[i*ny+j+newspacingy]; // above
-            err_abs = (I2 - I1) / 2 / (JY * MUAS_PER_RAD * MUAS_PER_RAD) / interpflux * params.fovx_dsource * params.fovy_dsource;
+            err_abs = (I2 - I1) / 2 / Iavg;
             err_rel = (I2 - I1) / 2 / I1;
 
             if ((fabs(err_abs) > params.refine_abs && // could be changed to || if wanted
@@ -623,7 +628,7 @@ int main(int argc, char *argv[])
             // pixel lies on pre-existing row
             I1 = image[(i-newspacingx)*ny+j]; //left
             I2 = image[(i+newspacingx)*ny+j]; //right
-            err_abs = (I2 - I1) / 2 / (JY * MUAS_PER_RAD * MUAS_PER_RAD) / interpflux * params.fovx_dsource * params.fovy_dsource;
+            err_abs = (I2 - I1) / 2 / Iavg;
             err_rel = (I2 - I1) / 2 / I1;
 
             if ((fabs(err_abs) > params.refine_abs && //could be changed back to || if wanted
@@ -665,7 +670,7 @@ int main(int argc, char *argv[])
             // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel
             // Make sure absolute error is in Jy/muas^2
 
-            double err_abs = ((I2 + I3) / 2 - I1) / (JY * MUAS_PER_RAD * MUAS_PER_RAD) / interpflux * params.fovx_dsource * params.fovy_dsource;
+            double err_abs = ((I2 + I3) / 2 - I1) / Iavg;
             double err_rel = (I2 + I3) / (2 * I1) - 1.;
 
             if ((fabs (err_abs) > params.refine_abs && //could be changed to && if wanted
