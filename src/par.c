@@ -62,7 +62,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->ny = 160;
 
   params->eps = 0.01;
-  params->maxnstep = 10000;
+  params->maxnstep = 50000;
 
   params->dsource = DM87_PC; // or DSGRA_PC
 

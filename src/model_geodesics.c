@@ -155,7 +155,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
-      r < (Rh + 0.5)) { // Or right near the horizon
+      r < (Rh + 0.0001)) { // Or right near the horizon
     return (1);
   }
 
@@ -191,8 +191,8 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
 double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {
   double dl;
-  double deh = fmin(fabs(X[1] - startx[1]), 3);
-  double dlx1 = eps * deh/3 / (fabs(Kcon[1]) + SMALL*SMALL);
+  double deh = fmin(fabs(X[1] - startx[1]), 0.1);
+  double dlx1 = eps * (10*deh) / (fabs(Kcon[1]) + SMALL*SMALL);
   double dpole = fmin(fabs(X[2]), fabs(stopx[2] - X[2]));
   double dlx2 = eps * dpole/3 / (fabs(Kcon[2]) + SMALL*SMALL);
   //double dlx2 = eps / (fabs(Kcon[2]) + SMALL*SMALL);
