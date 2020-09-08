@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
   Compare two images and quantify their differences
 """

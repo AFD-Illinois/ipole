@@ -28,13 +28,14 @@
  * e^0 along U
  * e^2 along b
  * e^3 along spatial part of K
+ * 
+ * Returns flag for whether the tetrad is suspicious.
+ * Ideally ipole should crash on these errors but there are a lot of corner cases...
  */
-void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
+int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
                         double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM],
                         double Ecov[NDIM][NDIM])
 {
-  int k, l;
-
   // start w/ time component parallel to U
   set_Econ_from_trial(Econ[0], 0, Ucon);
   normalize(Econ[0], Gcov);
@@ -63,7 +64,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
   /*** done w/ basis vector 2 ***/
 
   // whatever is left is econ1
-  for (k = 0; k < 4; k++) /* trial vector */
+  for (int k = 0; k < 4; k++) /* trial vector */
     Econ[1][k] = 1.;
   // project out econ[0-2]
   project_out(Econ[1], Econ[0], Gcov);
@@ -76,6 +77,7 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
 
   // less restrictive condition on geometry for eKS coordinates which are
   // used when the exotic is expected.
+  int oddflag = 0;
   if ((fabs(fabs(dot) - 1.) > 1.e-10 && use_eKS_internal == 0)
       || (fabs(fabs(dot) - 1.) > 1.e-7 && use_eKS_internal == 1)) {
     fprintf(stderr, "that's odd: %g\n", fabs(dot) - 1.);
@@ -95,41 +97,34 @@ void make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
       udotb += Bcon[mu] * ucov[mu];
     }
     fprintf(stderr, "u.u = %g  u.b = %g\n", udotu, udotb);
-
-    int i, j, k;
-    double del[NDIM];
-    double X[NDIM];
-    void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
-    Xtoijk(X, &i, &j, &k, del);
-    fprintf(stderr, "X[]: %g %g %g %g  (%d %d %d)\n", X[0], X[1], X[2], X[3], i,
-            j, k);
+    oddflag = 1;
     //exit(-2);
   }
 
   /* we expect dot = 1. for right-handed system.
    If not, flip Econ[1] to make system right-handed. */
   if (dot < 0.) {
-    for (k = 0; k < 4; k++)
+    for (int k = 0; k < 4; k++)
       Econ[1][k] *= -1.;
   }
 
   /*** done w/ basis vector 3 ***/
 
   /* now make covariant version */
-  for (k = 0; k < 4; k++) {
+  for (int k = 0; k < 4; k++) {
 
     /* lower coordinate basis index */
     flip_index(Econ[k], Gcov, Ecov[k]);
   }
 
   /* then raise tetrad basis index */
-  for (l = 0; l < 4; l++) {
+  for (int l = 0; l < 4; l++) {
     Ecov[0][l] *= -1.;
   }
 
   // For paranoia could run check_ortho here
 
-  return;
+  return oddflag;
 }
 
 /*

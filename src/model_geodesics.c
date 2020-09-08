@@ -102,12 +102,6 @@ int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj, doub
     }
   }
 
-#if DEBUG
-  if (nstep >= step_max-1) {
-    fprintf(stderr, "\nMaxNStep exceeded!  Inaccuracies are likely!\n");
-  }
-#endif
-
   return nstep;
 }
 
@@ -161,7 +155,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
-      r < (Rh + 0.0001)) { // Or right near the horizon
+      r < (Rh + 0.5)) { // Or right near the horizon
     return (1);
   }
 

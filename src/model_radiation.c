@@ -158,7 +158,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   }
 
   // If we must do work, grab the 4-vectors...
-  get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
+  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
 #if DEBUG
   if (isnan(Ucov[0])) {
     void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
@@ -481,7 +481,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
     }
 
     /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
-    get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
+    get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
     theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
     // No emission along field
     if (theta <= 0. || theta >= M_PI) {	/* no emission along field */

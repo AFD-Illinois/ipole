@@ -158,7 +158,8 @@ int radiating_region(double X[NDIM])
 
 // B does NOT affect polarization calculation, since we control the coefficients
 // U, however, would, so we set it to 0
-void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
+void get_model_fourv(double X[NDIM], double Kcon[NDIM],
+                     double Ucon[NDIM], double Ucov[NDIM],
                      double Bcon[NDIM], double Bcov[NDIM])
 {
   double gcov[NDIM][NDIM], gcon[NDIM][NDIM];

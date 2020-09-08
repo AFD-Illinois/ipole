@@ -36,7 +36,14 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
 
 
 /************************PRIMARY FUNCTION*******************************/
-void integrate_emission(struct of_traj *traj, int nsteps,
+/**
+ * Calculate the emission produced/absorbed/rotated along the given trajectory traj
+ * of total length nsteps.
+ * Return arguments of intensity, total optical depth, total Faraday depth, and complex polarized emission tensor N^alpha^beta
+ * 
+ * Returns flag indicating at least one step either used a questionable tetrad, or produced a NaN value
+ */
+int integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
                     double complex N_coord[NDIM][NDIM], Params *params) {
   // Initialize polarized emission at the end of the trajectory
@@ -49,6 +56,7 @@ void integrate_emission(struct of_traj *traj, int nsteps,
   get_jkinv(traj[nsteps].X, traj[nsteps].Kcon, &ji, &ki, params);
 
   // Integrate the transfer equation (& parallel transport) forwards along trajectory
+  int oddflag = 0;
   for (int nstep=nsteps; nstep > 1; --nstep) {
     // Solve unpolarized transport
 #if THIN_DISK
@@ -69,18 +77,25 @@ void integrate_emission(struct of_traj *traj, int nsteps,
 
     // Solve polarized transport
     if (!params->only_unpolarized) {
-      evolve_N(traj[nstep].X, traj[nstep].Kcon,
-               traj[nstep].Xhalf, traj[nstep].Kconhalf,
-               traj[nstep-1].X, traj[nstep-1].Kcon,
-               traj[nstep].dl, N_coord, tauF, params);
+      int sflag = evolve_N(traj[nstep].X, traj[nstep].Kcon,
+                          traj[nstep].Xhalf, traj[nstep].Kconhalf,
+                          traj[nstep-1].X, traj[nstep-1].Kcon,
+                          traj[nstep].dl, N_coord, tauF, params);
+      oddflag |= sflag;
 #if DEBUG
-      if (isnan(creal(N_coord[0][0]))) {
-        printf("NaN in N00!\n");
-        exit(-3);
-      }
+      if (sflag) fprintf(stderr, "\nOdd tetrad step %d", nstep);
 #endif
+      if (isnan(creal(N_coord[0][0]))) {
+        oddflag |= 2;
+#if DEBUG
+        fprintf(stderr, "NaN in N00!\n");
+        exit(-3);
+#endif
+      }
     }
   }
+
+  return oddflag;
 }
 
 /***************************MAIN FUNCTIONS******************************/
@@ -136,8 +151,10 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
  * here we compute new right-hand side of the equation
  * and somehow rotate this along the geodesics knowing
  * first point and last point X and K
+ * 
+ * Return a flag indicating whether a questionable tetrad was used.
  */
-void evolve_N(double Xi[NDIM], double Kconi[NDIM],
+int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double Xhalf[NDIM], double Kconhalf[NDIM],
     double Xf[NDIM], double Kconf[NDIM],
     double dlam, double complex N_coord[NDIM][NDIM], double *tauF, Params *params)
@@ -157,6 +174,7 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double SI0, SQ0, SU0, SV0;
   double SI1, SQ1, SU1, SV1;
   double SI2, SQ2, SU2, SV2;
+  int oddflag = 0;
 
   /* parallel transport N by a half, and then full, step */
   push_polar(Xi, Xi, Xhalf, Kconi, Kconi, Kconhalf, N_coord, N_coord, Nh, 0.5 * dlam);
@@ -166,7 +184,7 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
   if ( radiating_region(Xf) ) {
 
     // get fluid parameters at Xf
-    get_model_fourv(Xf, Ucon, Ucov, Bcon, Bcov);
+    get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
 
     // evaluate transport coefficients
     gcov_func(Xf, gcov);
@@ -182,7 +200,7 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
       Bcon[3] = 1.;
     }
 
-    make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
+    oddflag = make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
 
     /* convert N to Stokes */
     complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
@@ -328,9 +346,9 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
     // get fluid parameters at Xf -- B is set to grtrans' "polarization direction"
     double gcov[NDIM][NDIM];
     gcov_func(Xf, gcov);
-    get_model_fourv_K(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
+    get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
 
-    make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
+    oddflag = make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
     // Otherwise N_tetrad is uninitialized memory.  Probably fine but meh
     complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
     tensor_to_stokes(N_tetrad, &SI0, &SQ0, &SU0, &SV0);
@@ -352,7 +370,7 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
 #endif
 
   /* SOURCE STEP DONE */
-
+  return oddflag;
 }
 
 /* converts tensor N to Stokes parameters detected at the camera*/

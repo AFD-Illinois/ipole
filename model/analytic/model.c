@@ -180,14 +180,37 @@ void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knu
   double n = ( n_exp < 200 ) ? (3.e-18) * exp(-n_exp) : 0;
 
   double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-  get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
+  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
   double nu = get_fluid_nu(Kcon, Ucov);
 
-  *jnuinv = n * pow(nu / freqcgs, -alpha) / pow(nu, 2);
-  *knuinv = (A * n * pow(nu / freqcgs, -(2.5 + alpha)) + 1.e-54) * nu;
+  *jnuinv = fmax( n * pow(nu / freqcgs, -alpha) / pow(nu, 2), 0);
+  *knuinv = fmax( (A * n * pow(nu / freqcgs, -(2.5 + alpha)) + 1.e-54) * nu, 0);
 }
 
-void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
+// This sure is a vector.
+void calc_polvec(double X[NDIM], double Kcon[NDIM], double a, double fourf[NDIM])
+{
+  double fourf_bl[NDIM], fourf_ks[NDIM];
+  fourf_bl[0] = 0;
+  fourf_bl[1] = 0;
+  fourf_bl[2] = 1;
+  fourf_bl[3] = 0;
+
+  // Then transform to KS and to eKS
+  bl_to_ks(X, fourf_bl, fourf_ks);
+  vec_to_ks(X, fourf_ks, fourf);
+
+  // Now normalize
+  double gcov[NDIM][NDIM], fourf_cov[NDIM];
+  gcov_func(X, gcov);
+  flip_index(fourf, gcov, fourf_cov);
+  double normf = sqrt(fourf[0] * fourf_cov[0] + fourf[1] * fourf_cov[1] + fourf[2] * fourf_cov[2]
+      + fourf[3] * fourf_cov[3]);
+
+  MULOOP fourf[mu] /= normf;
+}
+
+void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], double Ucov[NDIM],
                      double Bcon[NDIM], double Bcov[NDIM])
 {
   double r, th;
@@ -197,9 +220,14 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   double R = r * sin(th);
   double l = (l0 / (1 + R)) * pow(R, 1 + 0.5);
 
+  // Metrics: BL
   double bl_gcov[NDIM][NDIM], bl_gcon[NDIM][NDIM];
   gcov_bl(r, th, bl_gcov);
   gcon_func(bl_gcov, bl_gcon);
+  // Native
+  double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+  gcov_func(X, gcov);
+  gcon_func(gcov, gcon);
 
   // Get the normal observer velocity for Ucon/Ucov, in BL coordinates
   double bl_Ucov[NDIM];
@@ -219,10 +247,23 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
   // then to our coordinates,
   vec_from_ks(X, ks_Ucon, Ucon);
 
-  // and grab Ucon
-  double gcov[NDIM][NDIM];
-  gcov_func(X, gcov);
+  // and grab Ucov
   flip_index(Ucon, gcov, Ucov);
+
+  // ...or don't do any of that
+  // double ubar = sqrt(-1. / (gcon[0][0] - 2. * gcon[0][3] * l
+  //                 + gcon[3][3] * l * l));
+  // Ucov[0] = -ubar;
+  // Ucov[1] = 0.;
+  // Ucov[2] = 0.;
+  // Ucov[3] = l * ubar;
+  // flip_index(Ucov, gcon, Ucon);
+
+  // Then BS something for B...
+  calc_polvec(X, Kcon, a, Bcon);
+
+  // and Flip
+  flip_index(Bcon, gcov, Bcov);
 }
 
 //// STUBS: Functions for normal models which we don't use ////

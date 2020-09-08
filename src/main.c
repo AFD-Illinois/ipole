@@ -23,6 +23,11 @@
 #include <complex.h>
 #include <omp.h>
 
+// Print a backtrace of a certain pixel, useful for debugging
+// Set to -1 to disable
+#define DIAG_PX_I -1
+#define DIAG_PX_J -1
+
 // Some useful blocks of code to re-use
 // Note the difference between "int nx,ny" in get_pixel and "long int nx,ny" in save_pixel
 // explained in parameter parsing.
@@ -477,8 +482,8 @@ int main(int argc, char *argv[])
     // Allocate it, or use the existing allocation for just 1 level
     size_t initialspacingx = (nx - 1) / (nxmin - 1);
     size_t initialspacingy = (ny - 1) / (nymin - 1);
-    // fprintf(stderr, "Image dimensions: %d %d, memory dimensions %ld %ld, minimum %ld %ld\n",
-    //         params.nx, params.ny, nx, ny, nxmin, nymin);
+    fprintf(stderr, "Image dimensions: %d %d, memory dimensions %ld %ld, minimum %ld %ld\n",
+            params.nx, params.ny, nx, ny, nxmin, nymin);
     
     // fprintf(stderr, "Intial spacing: %ld\n", initialspacingx);
 
@@ -569,6 +574,7 @@ int main(int argc, char *argv[])
     for (int refined_level = 1; refined_level < refine_level; refined_level++) {
       size_t newspacingx = initialspacingx / pow(2, refined_level);
       size_t newspacingy = initialspacingy / pow(2, refined_level);
+      fprintf(stderr, "Refining level %d of %d, spacing %ld,%ld\n", refined_level+1, refine_level, newspacingx, newspacingy);
 
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
       for (size_t i = 0; i < nx; i += newspacingx) {
@@ -716,9 +722,9 @@ int main(int argc, char *argv[])
           total_interpolated += interp_flag[i*ny+j];
         }
       }
-      // Report interpolation stats vs the number of computed pixels, not the total
-      size_t nx_level = (nx-1)/newspacingx;
-      size_t ny_level = (ny-1)/newspacingy;
+      // Report interpolation stats vs the number of computed, relevant pixels, not the total
+      size_t nx_level = params.nx/newspacingx;
+      size_t ny_level = params.ny/newspacingy;
       fprintf(stderr, "\n%ld of %ld (%f%%) of computed pixels at %ldx%ld were interpolated\n\n",
               total_interpolated, nx_level * ny_level, ((double) total_interpolated) / (nx_level * ny_level) * 100, nx_level, ny_level);
     }
@@ -760,12 +766,25 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   MULOOP Kcon[mu] *= freq;
 #endif
   int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep);
+  if (nstep >= params.maxnstep-1) {
+    // You almost certainly don't want to continue if this happens
+    fprintf(stderr, "\nMaxNStep exceeded in pixel %ld %ld!  Inaccuracies are likely!\n", i, j);
+    exit(-10);
+  }
 
   // Integrate emission forward along trajectory
-  integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params);
+  int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params);
 
   if (!only_intensity) {
     project_N(traj[1].X, traj[1].Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);
+  }
+
+  if (oddflag != 0 || (i == DIAG_PX_I && j == DIAG_PX_J)) {
+    fprintf(stderr, "\nOddity in pixel %ld %ld (flag %d):\n", i, j, oddflag);
+    print_vector("Starting X", X);
+    print_vector("Starting Kcon", Kcon);
+    fprintf(stderr, "nstep: %d\n", nstep);
+
   }
 
   // Record values along the geodesic if requested

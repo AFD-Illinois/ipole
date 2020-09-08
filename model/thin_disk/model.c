@@ -176,7 +176,7 @@ int thindisk_region(double Xi[NDIM], double Xf[NDIM])
   //return (fabs(fabs(thf) - M_PI_2) < 0.01);
 }
 
-void get_model_fourv_K(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM],
+void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM],
                        double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM])
 {
   double r, th, T, omega;
@@ -362,8 +362,6 @@ double get_model_thetae(double X[NDIM]) {return 0;}
 double get_model_b(double X[NDIM]) {return 0;}
 double get_model_ne(double X[NDIM]) {return 0;}
 void get_model_primitives(double X[NDIM], double *p) {return;}
-void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM]) {return;}
 void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
           double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
 // In case we want to mess with emissivities directly
