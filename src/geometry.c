@@ -1,7 +1,9 @@
 #include "geometry.h"
 
 #include "decs.h"
+
 #include "coordinates.h"
+#include "debug_tools.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -16,26 +18,32 @@
  MM 11 July 17
  */
 
+int invert_matrix(double Am[][NDIM], double Aminv[][NDIM]);
+int LU_decompose(double A[][NDIM], int permute[]);
+void LU_substitution(double A[][NDIM], double B[], int permute[]);
+
 /* assumes gcov has been set first; returns sqrt{|g|} */
 double gdet_func(double gcov[][NDIM])
 {
-
   int i, j;
   int permute[NDIM];
   double gcovtmp[NDIM][NDIM];
   double gdet;
-  int LU_decompose(double A[][NDIM], int permute[]);
 
-  for (i = 0; i < NDIM; i++)
+  for (i = 0; i < NDIM; i++) {
     for (j = 0; j < NDIM; j++) {
       gcovtmp[i][j] = gcov[i][j];
     }
-  if (LU_decompose(gcovtmp, permute) != 0) {
-    fprintf(stderr, "gdet_func(): singular matrix encountered! \n");
-    exit(1);
   }
-  gdet = 1.;
+  if (LU_decompose(gcovtmp, permute) != 0) {
+#if DEBUG
+    fprintf(stderr, "\nSingluar matrix in gdet_func()!\n");
+    print_matrix("gcov", gcov);
+#endif
+    return -1;
+  }
 
+  gdet = 1.;
   for (i = 0; i < NDIM; i++)
     gdet *= gcovtmp[i][i];
 
@@ -45,20 +53,14 @@ double gdet_func(double gcov[][NDIM])
 /* invert gcov to get gcon */
 int gcon_func(double gcov[][NDIM], double gcon[][NDIM])
 {
-  int invert_matrix(double Am[][NDIM], double Aminv[][NDIM]);
-
   int sing = invert_matrix(gcov, gcon);
+#if DEBUG
   if (sing) {
-    for (int mu = 0; mu < NDIM; mu++) {
-      for (int nu = 0; nu < NDIM; nu++) {
-        printf("gcov[%i][%i] = %e\n", mu, nu, gcov[mu][nu]);
-      }
-    }
+    fprintf(stderr, "\nSingluar matrix in gcon_func()!\n");
+    print_matrix("gcov", gcov);
   }
-
+#endif
   return sing;
-
-  /* done! */
 }
 
 inline void flip_index(double ucon[NDIM], double Gcov[NDIM][NDIM], double ucov[NDIM])
@@ -99,7 +101,11 @@ void get_connection(double X[NDIM], double conn[NDIM][NDIM][NDIM])
   double gl[NDIM][NDIM];
 
   gcov_func(X, gcov);
-  gcon_func(gcov, gcon);
+  if(gcon_func(gcov, gcon)) {
+    fprintf(stderr, "Encountered singluar gcov when getting connection!\n");
+    print_vector("X", X);
+    print_matrix("gcov", gcov);
+  }
 
   for (k = 0; k < NDIM; k++) {
     for (l = 0; l < NDIM; l++)
@@ -229,8 +235,6 @@ int invert_matrix(double Am[][NDIM], double Aminv[][NDIM])
   int n = NDIM;
   int permute[NDIM];
   double dxm[NDIM], Amtmp[NDIM][NDIM];
-  int LU_decompose(double A[][NDIM], int permute[]);
-  void LU_substitution(double A[][NDIM], double B[], int permute[]);
 
   for (i = 0; i < NDIM; i++)
     for (j = 0; j < NDIM; j++) {
@@ -239,7 +243,7 @@ int invert_matrix(double Am[][NDIM], double Aminv[][NDIM])
 
   // Get the LU matrix:
   if (LU_decompose(Amtmp, permute) != 0) {
-    fprintf(stderr, "invert_matrix(): singular matrix encountered! \n");
+    //fprintf(stderr, "invert_matrix(): singular matrix encountered! \n");
     return (1);
   }
 
@@ -307,7 +311,7 @@ int LU_decompose(double A[][NDIM], int permute[])
 
     /* Make sure that there is at least one non-zero element in this row: */
     if (absmax == 0.) {
-      fprintf(stderr, "LU_decompose(): row-wise singular matrix!\n");
+      //fprintf(stderr, "LU_decompose(): row-wise singular matrix!\n");
       return (1);
     }
 

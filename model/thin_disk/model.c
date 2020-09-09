@@ -98,7 +98,7 @@ void set_units()
   r_isco = 3. + z2 - copysign(sqrt((3. - z1) * (3. + z1 + 2. * z2)), a);
   Rin = Rh;
   Rout = 100.0;
-  rmax_geo = MIN(1000., Rout);
+  rmax_geo = fmin(1000., Rout);
   startx[0] = 0.0;
   startx[1] = log(Rin);
   startx[2] = 0.0;
@@ -124,6 +124,14 @@ void output_hdf5()
   hdf5_write_single_val(&a, "a", H5T_IEEE_F64LE);
   hdf5_write_single_val(&Mdot, "Mdot", H5T_IEEE_F64LE);
 
+  hdf5_make_directory("units");
+  hdf5_set_directory("/header/units/");
+  hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
+  //hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
+
+  hdf5_set_directory("/");
 }
 
 //// PUBLIC INTERFACE ////
@@ -138,7 +146,7 @@ void get_model_stokes(double X[NDIM], double Kcon[NDIM], double *SI,
     thindisk_vals(r, &T, &omega);
 
     double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-    get_model_fourv_K(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+    get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
 
     // Recall "B" was set by calc_polvec
     double mu = fabs(cos(get_bk_angle(X, Kcon, Ucov, Bcon, Bcov)));
@@ -169,7 +177,7 @@ int thindisk_region(double Xi[NDIM], double Xf[NDIM])
   bl_coord(Xf, &rf, &thf);
   // Set the intensity whenever and exactly when we cross the disk, outside horizon
   int midplane = (sign(thi - M_PI_2) != sign(thf - M_PI_2));
-  int em_region = rf > r_isco && rf < 100.0;
+  int em_region = rf > r_isco && rf < Rout;
   return midplane && em_region;
 
   // Less restrictive

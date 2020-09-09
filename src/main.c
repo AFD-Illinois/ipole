@@ -482,10 +482,13 @@ int main(int argc, char *argv[])
     // Allocate it, or use the existing allocation for just 1 level
     size_t initialspacingx = (nx - 1) / (nxmin - 1);
     size_t initialspacingy = (ny - 1) / (nymin - 1);
+
+#if DEBUG
     fprintf(stderr, "Image dimensions: %d %d, memory dimensions %ld %ld, minimum %ld %ld\n",
-            params.nx, params.ny, nx, ny, nxmin, nymin);
-    
-    // fprintf(stderr, "Intial spacing: %ld\n", initialspacingx);
+           params.nx, params.ny, nx, ny, nxmin, nymin);
+
+    fprintf(stderr, "Intial spacing: %ld\n", initialspacingx);
+#endif
 
     int *interp_flag = calloc(nx * ny, sizeof(*interp_flag));
     double *prelimarray = NULL;
@@ -529,24 +532,24 @@ int main(int argc, char *argv[])
           
           if (i % (nx - 1) != 0 && j % (ny - 1) != 0) {
             // middle case
-            prelimarray[thislocation] = Is * initialspacingx * initialspacingx;
+            prelimarray[thislocation] = Intensity * initialspacingx * initialspacingx;
           } else if ((i == 0 && j % (ny - 1) != 0) || (i % (nx - 1) != 0 && j == 0)) {
             // bottom or left vertical edge
-            prelimarray[thislocation] = Is * (initialspacingx / 2 + 1) * initialspacingx;
+            prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * initialspacingx;
           } else if (i % (nx - 1) != 0 || j % (ny - 1) != 0) {
             // top or right vertical edge
-            prelimarray[thislocation] = Is * (initialspacingx / 2) * initialspacingx;
+            prelimarray[thislocation] = Intensity * (initialspacingx / 2) * initialspacingx;
           } else {
             // corner case
             if (i == 0 && j == 0) {
               // bottom left corner
-              prelimarray[thislocation] = Is * (initialspacingx / 2 + 1) * (initialspacingx / 2 + 1);
+              prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * (initialspacingx / 2 + 1);
             } else if (i == 0 || j == 0) {
               // bottom right or top left
-              prelimarray[thislocation] = Is * (initialspacingx / 2 + 1) * initialspacingx / 2;
+              prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * initialspacingx / 2;
             } else {
               // top right
-              prelimarray[thislocation] = Is * (initialspacingx * initialspacingx) / 4;
+              prelimarray[thislocation] = Intensity * (initialspacingx * initialspacingx) / 4;
             }
           }
         }
@@ -562,11 +565,11 @@ int main(int argc, char *argv[])
       }
 
       // Average intensity per pixel
-      Iavg = interp_tot / (params.nx * params.ny) * pow(freqcgs, 3);
+      Iavg = interp_tot * pow(freqcgs, 3) / (nx * ny);
 
       // Print calculated total intensity for debug
 #if DEBUG
-      fprintf(stderr, "\nInitial flux guess: %g", interp_tot * scale);
+      fprintf(stderr, "\nInitial flux guess: %g", Iavg * (params.nx * params.ny) * scale);
 #endif
       fprintf(stderr, "\n\n"); // TODO even for non-refined?
     }
@@ -768,7 +771,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep);
   if (nstep >= params.maxnstep-1) {
     // You almost certainly don't want to continue if this happens
-    fprintf(stderr, "\nMaxNStep exceeded in pixel %ld %ld!  Inaccuracies are likely!\n", i, j);
+    fprintf(stderr, "\nMaxNStep exceeded in pixel %ld %ld!\n", i, j);
     exit(-10);
   }
 
@@ -776,15 +779,16 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params);
 
   if (!only_intensity) {
-    project_N(traj[1].X, traj[1].Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);
+    project_N(X, Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);
   }
 
-  if (oddflag != 0 || (i == DIAG_PX_I && j == DIAG_PX_J)) {
+  // Catch anything with bad tetrads, anything we manually specify, and signficantly negative pixels
+  if (oddflag != 0 || (i == DIAG_PX_I && j == DIAG_PX_J) || *Is < -1.e-10) {
     fprintf(stderr, "\nOddity in pixel %ld %ld (flag %d):\n", i, j, oddflag);
-    print_vector("Starting X", X);
+    //print_vector("Starting X", X);
     print_vector("Starting Kcon", Kcon);
     fprintf(stderr, "nstep: %d\n", nstep);
-
+    fprintf(stderr, "Final Stokes parameters: [%g %g %g %g]\n", *Is, *Qs, *Us, *Vs);
   }
 
   // Record values along the geodesic if requested

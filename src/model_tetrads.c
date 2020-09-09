@@ -72,33 +72,19 @@ int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
   project_out(Econ[1], Econ[3], Gcov);
   normalize(Econ[1], Gcov);
 
+  int oddflag = 0;
+
   /* check handedness */
-  double dot = check_handedness(Econ, Gcov);
+  double dot;
+  if (check_handedness(Econ, Gcov, &dot)) {
+    oddflag |= 16;
+  }
 
   // less restrictive condition on geometry for eKS coordinates which are
   // used when the exotic is expected.
-  int oddflag = 0;
   if ((fabs(fabs(dot) - 1.) > 1.e-10 && use_eKS_internal == 0)
       || (fabs(fabs(dot) - 1.) > 1.e-7 && use_eKS_internal == 1)) {
-    fprintf(stderr, "that's odd: %g\n", fabs(dot) - 1.);
-    fprintf(stderr, "Ucon[] = %e %e %e %e\n", Ucon[0], Ucon[1], Ucon[2],
-            Ucon[3]);
-    fprintf(stderr, "Kcon[] = %e %e %e %e\n", Kcon[0], Kcon[1], Kcon[2],
-            Kcon[3]);
-    fprintf(stderr, "Bcon[] = %e %e %e %e\n", Bcon[0], Bcon[1], Bcon[2],
-            Bcon[3]);
-
-    double ucov[4];
-    flip_index(Ucon, Gcov, ucov);
-    double udotu = 0., udotb = 0.;
-    MULOOP
-    {
-      udotu += Ucon[mu] * ucov[mu];
-      udotb += Bcon[mu] * ucov[mu];
-    }
-    fprintf(stderr, "u.u = %g  u.b = %g\n", udotu, udotb);
-    oddflag = 1;
-    //exit(-2);
+    oddflag |= 1;
   }
 
   /* we expect dot = 1. for right-handed system.
@@ -112,7 +98,6 @@ int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
 
   /* now make covariant version */
   for (int k = 0; k < 4; k++) {
-
     /* lower coordinate basis index */
     flip_index(Econ[k], Gcov, Ecov[k]);
   }
@@ -141,7 +126,7 @@ int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
  * Points the camera so that the angular momentum k_{th,phi} at FOV center is 0
  */
 
-void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
+int make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
                         double Ecov[NDIM][NDIM])
 {
   double Gcov[NDIM][NDIM], Gcon[NDIM][NDIM];
@@ -177,7 +162,20 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
   trial[2] = 1.;
   trial[3] = 0.;
 
-  make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
+  int sing = make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
+#if DEBUG
+  if(sing) {
+    fprintf(stderr, "\nError making Camera tetrad, something is wrong!\n");
+    fprintf(stderr, "Used the following vectors:\n");
+    print_vector("X", X);
+    print_vector("Ucam", Ucam);
+    print_vector("Kcon", Kcon);
+    print_vector("trial", trial);
+    print_matrix("gcov", Gcov);
+    print_matrix("gcon", Gcon);
+  }
+#endif
+  return sing;
 }
 
 /*
@@ -194,7 +192,7 @@ void make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
  * Points the camera so that the *contravariant wavevector* k^{th,phi} = 0
  */
 
-void make_camera_tetrad_old(double X[NDIM], double Econ[NDIM][NDIM],
+int make_camera_tetrad_old(double X[NDIM], double Econ[NDIM][NDIM],
                         double Ecov[NDIM][NDIM])
 {
   double Gcov[NDIM][NDIM], Gcon[NDIM][NDIM];
@@ -220,5 +218,18 @@ void make_camera_tetrad_old(double X[NDIM], double Econ[NDIM][NDIM],
   trial[2] = 1.;
   trial[3] = 0.;
 
-  make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
+  int sing = make_plasma_tetrad(Ucam, Kcon, trial, Gcov, Econ, Ecov);
+#if DEBUG
+  if(sing) {
+    fprintf(stderr, "\nError making Camera tetrad, something is wrong!\n");
+    fprintf(stderr, "Used the following vectors:\n");
+    print_vector("X", X);
+    print_vector("Ucam", Ucam);
+    print_vector("Kcon", Kcon);
+    print_vector("trial", trial);
+    print_matrix("gcov", Gcov);
+    print_matrix("gcon", Gcon);
+  }
+#endif
+  return sing;
 }

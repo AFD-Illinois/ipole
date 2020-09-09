@@ -37,6 +37,8 @@
 #define ROT_OLD         11
 #define ROT_PIECEWISE   12
 #define ROT_SHCHERBAKOV 13
+// Debugging
+#define E_UNPOL         15
 
 // Declarations of local fitting functions, for Dexter fits and old rotativities
 void dexter_j_fit_thermal(double Ne, double nu, double Thetae, double B, double theta,
@@ -77,7 +79,14 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 #if INTEGRATOR_TEST
   jar_calc_dist(E_CUSTOM, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
 #else
-  jar_calc_dist(params->emission_type, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+  if (params->emission_type == E_UNPOL) {
+    get_jkinv(X, Kcon, jI, aI, params);
+    *jQ = 0.0; *jU = 0.0; *jV = 0.0;
+    *aQ = 0.0; *aU = 0.0; *aV = 0.0;
+    *rQ = 0; *rU = 0; *rV = 0;
+  } else {
+    jar_calc_dist(params->emission_type, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+  }
 #endif
 
   // Zero emission to isolate the jet/counterjet portion
@@ -129,7 +138,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   double powerlaw_p = 0, gamma_min = 0, gamma_max = 0, gamma_cut = 0;
   // Kappa:
   double kappa = 0, kappa_width = 0;
-  // Symphony params struct
+  // Symphony parameters struct, not to be confused with ipole Params
   struct parameters paramsM; int fit = 0;
 
   // Ignore everything if this isn't our job
@@ -141,19 +150,9 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   // (or there are actually no e- to emit)
   Ne = get_model_ne(X);
   if (Ne <= 0.) {
-    *jI = 0.0;
-    *jQ = 0.0;
-    *jU = 0.0;
-    *jV = 0.0;
-
-    *aI = 0.0;
-    *aQ = 0.0;
-    *aU = 0.0;
-    *aV = 0.0;
-
-    *rQ = 0;
-    *rU = 0;
-    *rV = 0;
+    *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
+    *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
+    *rQ = 0; *rU = 0; *rV = 0;
     return;
   }
 
@@ -204,15 +203,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   // EMISSIVITIES
   // Avoid issues directly along field lines
   if (theta <= 0 || theta >= M_PI) {
-    *jI = 0.0;
-    *jQ = 0.0;
-    *jU = 0.0;
-    *jV = 0.0;
-
-    *aI = 0.0;
-    *aQ = 0.0;
-    *aU = 0.0;
-    *aV = 0.0;
+    *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
+    *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
   } else {
     // EMISSIVITIES
     if (dist == E_DEXTER_THERMAL || dist > 10) {
@@ -238,7 +230,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     if (dist == E_THERMAL || dist == E_DEXTER_THERMAL || dist > 10) { // Thermal distributions
       // Get absorptivities via Kirchoff's law
       // Already invariant
-      double Bnuinv = Bnu_inv(nu, Thetae);   // Planck function
+      double Bnuinv = Bnu_inv(nu, Thetae); // Planck function
       *aI = *jI / Bnuinv;
       *aQ = *jQ / Bnuinv;
       *aU = *jU / Bnuinv;
@@ -250,10 +242,10 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       *aV = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
 
       // Make invariant
-      *aI /= nusq;
-      *aQ /= nusq;
-      *aU /= nusq;
-      *aV /= nusq;
+      *aI *= nu;
+      *aQ *= nu;
+      *aU *= nu;
+      *aV *= nu;
     }
   }
 
@@ -465,7 +457,7 @@ double besselk_asym(int n, double x)
  */
 void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv, Params *params)
 {
-  if (params->emission_type == 10) {
+  if (params->emission_type == E_CUSTOM) {
     get_model_jk(X, Kcon, jnuinv, knuinv);
   } else {
     double nu, theta, B, Thetae, Ne, Bnuinv;

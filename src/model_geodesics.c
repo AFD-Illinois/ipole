@@ -34,19 +34,24 @@
  * * In this function, dl is the length of the step *to* point N;
  *   afterward it is *from* point N onward
  */
-int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj, double eps, int step_max) {
-
+int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, double eps, int step_max)
+{
+  //fprintf(stderr, "Begin trace geodesic");
+  double X[NDIM], Kcon[NDIM];
   double Xhalf[NDIM], Kconhalf[NDIM];
 
-  // Save the first step
+  // Initialize the running values and save the first step
   // Note "half" values *trail* when integrating away from camera, so they don't
-  // make sense to record for the starting location
+  // make sense to record -- we just initialize them for safety
   MULOOP {
-    traj[0].X[mu] = X[mu];
-    traj[0].Kcon[mu] = Kcon[mu];
+    X[mu] = Xi[mu];
+    Xhalf[mu] = Xi[mu];
+    Kcon[mu] = Kconi[mu];
+    Kconhalf[mu] = Kconi[mu];
+
+    traj[0].X[mu] = Xi[mu];
+    traj[0].Kcon[mu] = Kconi[mu];
   }
-  // Initialize Xhalf for the first while loop check though
-  MULOOP Xhalf[mu] = X[mu];
 
   int nstep = 0;
 
@@ -102,6 +107,7 @@ int trace_geodesic(double X[NDIM], double Kcon[NDIM], struct of_traj *traj, doub
     }
   }
 
+  //fprintf(stderr, "End trace geodesic");
   return nstep;
 }
 
@@ -142,6 +148,7 @@ void init_XK(long int i, long int j, int nx, int ny, double Xcam[NDIM],
   tetrad_to_coordinate(Econ, Kcon_tetrad, Kcon);
 
   /* set position */
+  // TODO this doesn't initialize X0 properly
   MULOOP X[mu] = Xcam[mu];
 }
 
@@ -151,28 +158,34 @@ void init_XK(long int i, long int j, int nx, int ny, double Xcam[NDIM],
 
 int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[NDIM])
 {
+  // The opaque thin disk adds a stop condidion: we don't bother integrating more than 2 steps
+  // beyond the midplane
+#if THIN_DISK
+  static int n_left = -1;
+#pragma omp threadprivate(n_left)
+#endif
+
   // Necessary geometric stop conditions
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
       r < (Rh + 0.0001)) { // Or right near the horizon
+#if THIN_DISK
+    // If we stopped during the thin disk timer, remember to reset it!
+    n_left = -1;
+#endif
     return (1);
   }
 
   // Additional stop condition for thin disks: the disk is opaque
 #if THIN_DISK
-  static int n_left = -1;
-#pragma omp threadprivate(n_left)
-
   if (thindisk_region(X, Xhalf) && n_left < 0) { // Set timer when we reach disk
     n_left = 2;
     return 0;
-  } else if (n_left < 0) { // Otherwise continue normally
-    return 0;
-  } else if (n_left > 0) { // Or decrement the timer if we need
+  } else if (n_left > 0) { // Or decrement the timer if it's set
     n_left--;
     return 0;
-  } else {  // If timer is 0, stop and reset
+  } else if (n_left == 0) { // If timer is 0, stop and reset
     n_left = -1;
     return 1;
   }
@@ -183,10 +196,14 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
 
 
 /**
- * This is slightly modified from ipole pre-polyphony.
- * It is now a strict minimum, which may reduce some extra steps near the pole,
- * but runs the risk of overstepping there.
- * TODO test this clears Angelo's issue & maybe the old thin-disk issue
+ * Choose stepsize according to inverse Kcon, dramatically decreasing the step
+ * toward the coordinate pole and EH.
+ * 
+ * Use the sum of inverses by default; the strict minimum seems to occasionally
+ * overstep even for small eps
+ * 
+ * TODO this is the geometry step but dictates physics as well.
+ * Optionally skip geometry steps near the pole for accuracy
  */
 double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {

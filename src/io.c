@@ -232,7 +232,9 @@ void dump(double image[], double imageS[], double taus[],
 
 /*
  * Given a path, dump a variable computed along that path into a file.
- * Note this is most definitely *not* thread-safe
+ * Note this is most definitely *not* thread-safe, so it gets called from an 'omp critical'
+ * 
+ * TODO output of I,Q,U,V, as parallel-transported to camera, along traces
  */
 void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny,
                     double scale, double cam[NDIM], double fovx, double fovy, Params *params)
@@ -268,9 +270,11 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 //  double *Bcon = calloc(NDIM*nstep, sizeof(double));
 //  double *Bcov = calloc(NDIM*nstep, sizeof(double));
 
+  // TODO NDIM and NSTOKES are not the same thing
   double *j_inv = calloc(NDIM*nstep, sizeof(double));
   double *alpha_inv = calloc(NDIM*nstep, sizeof(double));
   double *rho_inv = calloc(NDIM*nstep, sizeof(double));
+  double *unpol_inv = calloc(2*nstep, sizeof(double));
 
   for (int i=0; i<nstep; i++) {
     get_model_primitives(traj[i].X, &(prims[i*nprims]));
@@ -279,6 +283,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     jar_calc(traj[i].X, traj[i].Kcon, &(j_inv[i*NDIM]), &(j_inv[i*NDIM+1]), &(j_inv[i*NDIM+2]), &(j_inv[i*NDIM+3]),
              &(alpha_inv[i*NDIM]), &(alpha_inv[i*NDIM+1]), &(alpha_inv[i*NDIM+2]), &(alpha_inv[i*NDIM+3]),
              &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]), params);
+    get_jkinv(traj[i].X, traj[i].Kcon, &(unpol_inv[i*2+0]), &(unpol_inv[i*2+1]), params);
 
     b[i] = get_model_b(traj[i].X);
     ne[i] = get_model_ne(traj[i].X);
@@ -354,6 +359,10 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 8;
   hdf5_write_chunked_array(prims, "prims", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
+  // Unpolarized coefficients j and k
+  fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 2;
+  hdf5_write_chunked_array(unpol_inv, "jk", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+
   free(b); free(ne); free(thetae);
   free(nu); free(mu);
 
@@ -363,6 +372,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   //free(Ucon); free(Ucov); free(Bcon); free(Bcov);
   free(j_inv); free(alpha_inv); free(rho_inv);
+  free(unpol_inv);
 
   free(prims);
 

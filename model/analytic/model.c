@@ -1,6 +1,3 @@
-// Template for analytic emission or electron spatial distributions
-// Fill get_model_jar and get_model_fourv and you're off!
-
 #include "model.h"
 
 #include "decs.h"
@@ -13,15 +10,19 @@
 double M_unit;
 double L_unit;
 double T_unit;
-double RHO_unit;
 double U_unit;
 double B_unit;
 double Te_unit;
+// This one is useful
+double RHO_unit;
 
 // Model parameters: public
-double rmax_geo;
+double rmax_geo = 1000.0;
 // Model parameters: private
+static double rmin_geo = 0;
 static double MBH_solar = 4.e6;
+static double RHO_unit_in = 0;
+
 static double MBH;
 static int model;
 
@@ -29,21 +30,46 @@ static int model;
 double A, alpha, height, l0, freqcgs;
 double r_isco;
 
+/**
+ * This is a template for analytic problems, which consist of prescription:
+ * X,K -> 4-vectors Ucon/cov, Bcon/cov
+ * And either:
+ * X,K -> emission coefficients jS, alphaS, rhoS
+ * or:
+ * X,K -> e- density and temperature ne, Thetae
+ */
+
 // Forward declarations for non-public functions
 void set_units();
 
+//// INITIALIZATION: Functions called from elsewhere in ipole ////
+
+/**
+ * This function is called for each word/value pair ipole encounters,
+ * either from a parfile or the command line.
+ * You can define new pairs here, skim what you need of ipole's defaults, or whatever
+ * 
+ * ipole will not warn on unspecified parameters. Have good defaults (set on declaration)
+ */
 void try_set_model_parameter(const char *word, const char *value)
 {
   // Test the given word against our parameters' names,
   // and if it matches set the corresponding global
-  set_by_word_val(word, value, "MBH", &MBH_solar, TYPE_DBL);
-
   set_by_word_val(word, value, "model", &model, TYPE_INT);
+  set_by_word_val(word, value, "MBH", &MBH_solar, TYPE_DBL);
+  set_by_word_val(word, value, "rho_unit", &RHO_unit_in, TYPE_DBL);
+  // TODO NEED to move this into main parameters
+  set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
+  set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
+
   // Normal ipole pulls this, but we also need it for the GRRT problems
   // and this is easier than grabbing it from the 'params' struct
   set_by_word_val(word, value, "freqcgs", &freqcgs, TYPE_DBL);
 }
 
+/**
+ * Initialization takes boundary times, for slow light.  Most analytic models won't use them.
+ */
 void init_model(double *tA, double *tB)
 {
   // Set all the geometry globals we need
@@ -97,6 +123,13 @@ void set_units()
   MBH = MBH_solar * MSUN;
   L_unit = GNEWT * MBH / (CL * CL);
   T_unit = L_unit / CL;
+  // Could also set M_unit here from RHO_unit
+  if (RHO_unit_in > 0) {
+    RHO_unit = RHO_unit_in;
+  } else {
+    RHO_unit = 3.e-18;
+  }
+  B_unit = CL * sqrt(4.*M_PI*RHO_unit);
 
   // Set all the geometry for coordinates.c
   // TODO function like initialize_coordinates, that makes sure these are all set.
@@ -104,7 +137,8 @@ void set_units()
   Rh = 1 + sqrt(1. - a * a);
   Rin = Rh;
   Rout = 1000.0;
-  rmax_geo = Rout;
+  // Limit rmax_geo?
+
   double z1 = 1. + pow(1. - a * a, 1. / 3.) * (pow(1. + a, 1. / 3.) + pow(1. - a, 1. / 3.));
   double z2 = sqrt(3. * a * a + z1 * z1);
   r_isco = 3. + z2 - copysign(sqrt((3. - z1) * (3. + z1 + 2. * z2)), a);
@@ -141,6 +175,29 @@ void output_hdf5()
 }
 
 //// INTERFACE: Functions called from elsewhere in ipole ////
+double get_model_ne(double X[NDIM])
+{
+  // Matter model defined in Gold et al 2020 section 3
+  double r, th;
+  bl_coord(X, &r, &th);
+  double n_exp = 1./2 * (pow(r/10, 2) + pow(height * cos(th), 2));
+  // Cutoff when result will be ~0
+  return ( n_exp < 200 ) ? RHO_unit * exp(-n_exp) : 0;
+}
+
+void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv)
+{
+  // Emission model defined in Gold et al 2020 section 3
+  double n = get_model_ne(X);
+
+  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
+  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+  double nu = get_fluid_nu(Kcon, Ucov);
+
+  *jnuinv = fmax( n * pow(nu / freqcgs, -alpha) / pow(nu, 2), 0);
+  *knuinv = fmax( (A * n * pow(nu / freqcgs, -(2.5 + alpha)) + 1.e-54) * nu, 0);
+}
+
 void get_model_jar(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
@@ -153,12 +210,15 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
   // Just take the unpolarized emissivity and absorptivity as I,
   // and set the rest to zero
   // Of course, you can be more elaborate
-  get_model_jk(X, Kcon, jI, aI);
+  double j, k;
+  get_model_jk(X, Kcon, &j, &k);
 
+  *jI = j;
   *jQ = 0;
   *jU = 0;
   *jV = 0;
 
+  *aI = k;
   *aQ = 0;
   *aU = 0;
   *aV = 0;
@@ -168,46 +228,6 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
   *rV = 0;
 
   return;
-}
-
-void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv)
-{
-  // Matter/emission model defined in Gold et al 2020 section 3
-  double r, th;
-  bl_coord(X, &r, &th);
-  double n_exp = 1./2 * (pow(r/10, 2) + pow(height * cos(th), 2));
-  // Cutoff when result will be ~0
-  double n = ( n_exp < 200 ) ? (3.e-18) * exp(-n_exp) : 0;
-
-  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
-  double nu = get_fluid_nu(Kcon, Ucov);
-
-  *jnuinv = fmax( n * pow(nu / freqcgs, -alpha) / pow(nu, 2), 0);
-  *knuinv = fmax( (A * n * pow(nu / freqcgs, -(2.5 + alpha)) + 1.e-54) * nu, 0);
-}
-
-// This sure is a vector.
-void calc_polvec(double X[NDIM], double Kcon[NDIM], double a, double fourf[NDIM])
-{
-  double fourf_bl[NDIM], fourf_ks[NDIM];
-  fourf_bl[0] = 0;
-  fourf_bl[1] = 0;
-  fourf_bl[2] = 1;
-  fourf_bl[3] = 0;
-
-  // Then transform to KS and to eKS
-  bl_to_ks(X, fourf_bl, fourf_ks);
-  vec_to_ks(X, fourf_ks, fourf);
-
-  // Now normalize
-  double gcov[NDIM][NDIM], fourf_cov[NDIM];
-  gcov_func(X, gcov);
-  flip_index(fourf, gcov, fourf_cov);
-  double normf = sqrt(fourf[0] * fourf_cov[0] + fourf[1] * fourf_cov[1] + fourf[2] * fourf_cov[2]
-      + fourf[3] * fourf_cov[3]);
-
-  MULOOP fourf[mu] /= normf;
 }
 
 void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], double Ucov[NDIM],
@@ -259,27 +279,48 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
   // Ucov[3] = l * ubar;
   // flip_index(Ucov, gcon, Ucon);
 
-  // Then BS something for B...
-  calc_polvec(X, Kcon, a, Bcon);
-
-  // and Flip
-  flip_index(Bcon, gcov, Bcov);
+  // This model defines no field so we can safely set these to 0
+  // Normally the direction of B is used in making the plasma tetrad,
+  // but ipole defaults to "Bcon" of (0,1,1,1)
+  Bcon[0] = 0;
+  Bcon[1] = 0;
+  Bcon[2] = 0;
+  Bcon[3] = 0;
+  Bcov[0] = 0;
+  Bcov[1] = 0;
+  Bcov[2] = 0;
+  Bcov[3] = 0;
 }
 
-//// STUBS: Functions for normal models which we don't use ////
+/**
+ * This problem defines no field, but here's a default example in terms of the 4-vectors Bcov/con, commented
+ * This function is separate so that b can be cached for speed
+ */
+double get_model_b(double X[NDIM])
+{
+  return 0;
+  // double Ucon[NDIM],Bcon[NDIM];
+  // double Ucov[NDIM],Bcov[NDIM];
+  // double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
+  // get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+  // return sqrt(Bcon[0]*Bcov[0] + Bcon[1]*Bcov[1] + Bcon[2]*Bcov[2] + Bcon[3]*Bcov[3]) * B_unit;
+}
+
 int radiating_region(double X[NDIM])
 {
   // If you don't want conditionals in get_model_jar, 
   // you can control here where the coefficients are applied
-  return 1;
+  double r, th;
+  bl_coord(X, &r, &th);
+  return r > Rh + 0.0001 && r > rmin_geo && r < 1000.0;
 }
 
-// This is only called for trace file output
-void get_model_primitives(double X[NDIM], double *p) {return;}
+//// STUBS: Functions for normal models which we don't use ////
 // Define these to specify a fluid model: e- density/temperature for
 // synchrotron radiation based on an energy distribution
 double get_model_thetae(double X[NDIM]) {return 0;}
-double get_model_b(double X[NDIM]) {return 0;}
-double get_model_ne(double X[NDIM]) {return 0;}
 void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
           double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
+
+// This is only called for trace file output, and doesn't really apply to analytic models
+void get_model_primitives(double X[NDIM], double *p) {return;}

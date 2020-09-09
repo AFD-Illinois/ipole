@@ -61,23 +61,29 @@ void set_Econ_from_trial(double Econ[4], int defdir, double trial[4])
  * experience suggests that roundoff produces errors of
  * order 10^{-12} in the result.
  */
-double check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM])
+int check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM], double *dot)
 {
   int i, j, k, l;
 
   double g = gdet_func(Gcov);
+  if(g < 0.) {
+#if DEBUG
+    fprintf(stderr, "\nEncountered singular gcov checking handedness!\n");
+#endif
+    return 1;
+  }
 
   /* check handedness */
-  double dot = 0.;
+  *dot = 0.;
   for (i = 0; i < 4; i++)
     for (j = 0; j < 4; j++)
       for (l = 0; l < 4; l++)
         for (k = 0; k < 4; k++) {
-          dot += g * levi_civita(i, j, k, l) * Econ[0][i] * Econ[1][j]
+          *dot += g * levi_civita(i, j, k, l) * Econ[0][i] * Econ[1][j]
               * Econ[2][k] * Econ[3][l];
         }
 
-  return (dot);
+  return 0;
 }
 
 /*
