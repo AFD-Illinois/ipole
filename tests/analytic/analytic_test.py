@@ -11,8 +11,8 @@ bad = 0
 for i in range(1,6):
     results = run({'model': i}, parfile="analytic.par")
     err = np.abs(results['Ftot_unpol'] / published[i] - 1)
-    print("Ftot: {} Relative Error: {}".format(results['Ftot_unpol'], err))
-    if err > 0.2:
+    print("Ftot: {} Ftot_pol: {} Exact value: {} Relative Error: {}".format(results['Ftot_unpol'], results['Ftot_pol'], published[i], err))
+    if err > 0.02:
         bad = 1
 
 exit(bad)
