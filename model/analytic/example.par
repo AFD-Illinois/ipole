@@ -1,5 +1,7 @@
 # Analytic model options
 
+outfile image.h5
+
 # Model to use: see model.c
 model 1
 
@@ -11,9 +13,6 @@ emission_type 10
 rcam 1000
 thetacam 60
 phicam 0
-# Accuracy (not too high!)
-eps 0.01
-#maxnstep 50000
 
 # Camera FOV in r_g
 dx 30
@@ -31,8 +30,3 @@ freqcgs 230.e9
 
 # MBH in solar masses
 MBH 4.e6
-
-outfile image.h5
-
-trace 1
-trace_stride 8
