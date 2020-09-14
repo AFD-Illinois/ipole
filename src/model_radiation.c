@@ -461,8 +461,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
     get_model_jk(X, Kcon, jnuinv, knuinv);
   } else {
     double nu, theta, B, Thetae, Ne, Bnuinv;
-    double Ucov[NDIM], Bcov[NDIM];
-    double Ucon[NDIM], Bcon[NDIM];
+    double Ucov[NDIM], Ucon[NDIM], Bcon[NDIM], Bcov[NDIM];
 
     /* get fluid parameters */
     Ne = get_model_ne(X);	/* check to see if we're outside fluid model */

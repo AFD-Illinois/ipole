@@ -279,31 +279,27 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
   // Ucov[3] = l * ubar;
   // flip_index(Ucov, gcon, Ucon);
 
-  // This model defines no field so we can safely set these to 0
-  // Normally the direction of B is used in making the plasma tetrad,
-  // but ipole defaults to "Bcon" of (0,1,1,1)
+  // This model defines no field in emission, but the field is used for making
+  // tetrads so we want it consistent
   Bcon[0] = 0;
   Bcon[1] = 0;
-  Bcon[2] = 0;
+  Bcon[2] = 1;
   Bcon[3] = 0;
-  Bcov[0] = 0;
-  Bcov[1] = 0;
-  Bcov[2] = 0;
-  Bcov[3] = 0;
+  flip_index(Bcon, gcov, Bcov);
 }
 
 /**
- * This problem defines no field, but here's a default example in terms of the 4-vectors Bcov/con, commented
- * This function is separate so that b can be cached for speed
+ * This problem defines no field in emission, but we want to control ipole's worst
+ * tendencies when making tetrads.  This will return a correct value even for a
+ * possible fluid/field model later, too.
  */
 double get_model_b(double X[NDIM])
 {
-  return 0;
-  // double Ucon[NDIM],Bcon[NDIM];
-  // double Ucov[NDIM],Bcov[NDIM];
-  // double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
-  // get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
-  // return sqrt(Bcon[0]*Bcov[0] + Bcon[1]*Bcov[1] + Bcon[2]*Bcov[2] + Bcon[3]*Bcov[3]) * B_unit;
+  double Ucon[NDIM],Bcon[NDIM];
+  double Ucov[NDIM],Bcov[NDIM];
+  double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
+  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+  return sqrt(Bcon[0]*Bcov[0] + Bcon[1]*Bcov[1] + Bcon[2]*Bcov[2] + Bcon[3]*Bcov[3]) * B_unit;
 }
 
 int radiating_region(double X[NDIM])
