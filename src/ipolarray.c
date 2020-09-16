@@ -19,6 +19,13 @@
 #include "debug_tools.h"
 #include <complex.h>
 
+// Sub-functions
+void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
+    double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
+    complex double Ni[NDIM][NDIM],
+    complex double Nm[NDIM][NDIM],
+    complex double Nf[NDIM][NDIM], double dlam);
+
 /* tensor tools */
 void complex_lower(double complex N[NDIM][NDIM], double gcov[NDIM][NDIM],
     int low1, int low2, double complex Nl[NDIM][NDIM]);
@@ -36,62 +43,150 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
 
 
 /************************PRIMARY FUNCTION*******************************/
-void integrate_emission(struct of_traj *traj, int nsteps,
+/**
+ * Calculate the emission produced/absorbed/rotated along the given trajectory traj
+ * of total length nsteps.
+ * Return arguments of intensity, total optical depth, total Faraday depth, and complex polarized emission tensor N^alpha^beta
+ * 
+ * Returns flag indicating at least one step either used a questionable tetrad, or produced a NaN value
+ */
+int integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
-                    double complex N_coord[NDIM][NDIM], Params *params) {
-  // Initialize polarized emission at the end of the trajectory
-  init_N(traj[nsteps].X, traj[nsteps].Kcon, N_coord);
+                    double complex N_coord[NDIM][NDIM], Params *params)
+{
+  //fprintf(stderr, "Begin integrate emission");
+  // Initialize
+  MUNULOOP N_coord[mu][nu] = 0.0 + I * 0.0;
   *tauF = 0.;
   // Unpolarized
   *Intensity = 0.;
   *Tau = 0.;
-  double ji, ki;
-  get_jkinv(traj[nsteps].X, traj[nsteps].Kcon, &ji, &ki);
+  // Error flag
+  int oddflag = 0;
 
   // Integrate the transfer equation (& parallel transport) forwards along trajectory
-  for (int nstep=nsteps; nstep > 1; --nstep) {
-    // Solve unpolarized transport
+  for (int nstep=nsteps; nstep > 0; --nstep) {
+    int sflag = 0;
+    struct of_traj ti = traj[nstep];
+    struct of_traj tf = traj[nstep-1];
+
+    // Parallel transport polarization vector if necessary
+    if (!params->only_unpolarized) {
+      double complex Nh[NDIM][NDIM];
+      push_polar(ti.X, ti.X, ti.Xhalf, ti.Kcon, ti.Kcon, ti.Kconhalf, N_coord, N_coord, Nh, 0.5 * ti.dl);
+      push_polar(ti.X, ti.Xhalf, tf.X, ti.Kcon, ti.Kconhalf, tf.Kcon, N_coord, Nh, N_coord, ti.dl);
+    }
+
 #if THIN_DISK
-  if (thindisk_region(traj[nstep].X, traj[nstep-1].X)) {
-    get_model_i(traj[nstep].X, traj[nstep].Kcon, Intensity);
-  }
-#else
-    double jf, kf;
-    get_jkinv(traj[nstep-1].X, traj[nstep-1].Kcon, &jf, &kf);
-    *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, traj[nstep].dl, Tau);
-    // prep next step
-    ji = jf;
-    ki = kf;
+    if (thindisk_region(ti.X, tf.X)) {
+      // The thin disk problem emits nowhere but uses a boundary condition region defined by thindisk_region
+      // There we just get a starting value for intensity with get_model_i
+      get_model_i(ti.X, ti.Kcon, Intensity);
+
+      if (!params->only_unpolarized) {
+        // For polarized emission, it sets all Stokes parameters according to the function get_model_stokes
+        // We also have to transform into & out of fluid frame
+
+        // Make a tetrad
+        double gcov[NDIM][NDIM];
+        gcov_func(tf.X, gcov);
+        double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
+        get_model_fourv(tf.X, tf.Kcon, Ucon, Ucov, Bcon, Bcov);
+        double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
+        sflag |= make_plasma_tetrad(Ucon, tf.Kcon, Bcon, gcov, Econ, Ecov);
+
+        // Get the Stokes parameters
+        double SI, SQ, SU, SV;
+        get_model_stokes(tf.X, tf.Kcon, &SI, &SQ, &SU, &SV);
+
+        // make N_tetrad, and transform
+        double complex N_tetrad[NDIM][NDIM];
+        complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
+        stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
+        complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
+      }
+    }
 #endif
 
-    // Solve polarized transport
-    if (!params->only_unpolarized) {
-      evolve_N(traj[nstep].X, traj[nstep].Kcon,
-               traj[nstep].Xhalf, traj[nstep].Kconhalf,
-               traj[nstep-1].X, traj[nstep-1].Kcon,
-               traj[nstep].dl, N_coord, tauF, params);
-#if DEBUG
-      if (isnan(creal(N_coord[0][0]))) {
-        printf("NaN in N00!\n");
-        exit(-3);
+    if (radiating_region(tf.X)) {
+      // Solve unpolarized transport
+      double ji, ki, jf, kf;
+      get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
+      get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
+      *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+
+      // Solve polarized transport
+      if (!params->only_unpolarized) {
+        sflag |= evolve_N(ti.X, ti.Kcon,
+                        ti.Xhalf, ti.Kconhalf,
+                        tf.X, tf.Kcon,
+                        ti.dl, N_coord, tauF, params);
       }
-#endif
     }
+
+    // smoosh together all the flags we hit along a geodesic
+    oddflag |= sflag;
+
+    // Cry immediately on bad tetrads, even if we're not debugging
+    if (sflag & 1) {
+      fprintf(stderr, "that's odd: no orthonormal tetrad found for\n");
+      double gcov[NDIM][NDIM];
+      gcov_func(tf.X, gcov);
+      double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
+      get_model_fourv(tf.X, tf.Kcon, Ucon, Ucov, Bcon, Bcov);
+      print_vector("Ucon", Ucon);
+      print_vector("Kcon", tf.Kcon);
+      print_vector("Bcon", Bcon);
+      fprintf(stderr, "nstep: %d\n", nstep);
+
+      double ucov[4];
+      flip_index(Ucon, gcov, ucov);
+      double udotu = 0., udotb = 0.;
+      MULOOP {
+        udotu += Ucon[mu] * ucov[mu];
+        udotb += Bcon[mu] * ucov[mu];
+      }
+      fprintf(stderr, "u.u = %g  u.b = %g\n", udotu, udotb);
+      // exit(-1);
+    }
+    // Same if there was something in gcov
+    if (sflag & 16) {
+      fprintf(stderr, "Matrix inversion failed in tetrad check, step %d:\n", nstep);
+      // TODO
+    }
+
+    // TODO pull more relevant stuff back out here
+#if DEBUG
+    // Cry on bad tauF
+    if (sflag & 2) {
+      printf("tauF = %e dlam = %e\n", *tauF, ti.dl);
+      fprintf(stderr, "nstep: %d\n", nstep);
+      exit(-1);
+    }
+
+    // Cry on bad N
+    if (sflag & 4) {
+      fprintf(stderr, "\nNaN in N00!\n");
+      fprintf(stderr, "nstep: %d\n", nstep);
+      print_vector("Xi", ti.X);
+      print_vector("Xf", tf.X);
+      print_vector("Kconi", ti.Kcon);
+      print_vector("Kconf", tf.Kcon);
+      //printf("Stokes initial: [%e %e %e %e]\n", SI0, SQ0, SU0, SV0);
+      //printf("Stokes final: [%e %e %e %e] dlam: %e\n", SI, SQ, SU, SV, dlam);
+      //printf("Coefficients: j: [%e %e %e %e] a: [%e %e %e %e] rho: [%e %e %e]\n", jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+      //MUNULOOP printf("Econ[%i][%i] = %e Ncoord = %e Ntet = %e\n", mu, nu, Econ[mu][nu], creal(N_coord[mu][nu]), creal(N_tetrad[mu][nu]));
+      exit(-1);
+    }
+#endif
   }
+
+  //fprintf(stderr, "End integrate emission");
+  // Otherwise propagate the full flag so caller can yell or record
+  return oddflag;
 }
 
 /***************************MAIN FUNCTIONS******************************/
-/*
- * initialize tensor N in the coordinate frame at the beginning of the
- * geodesics integration = it is zero
- */
-void init_N(double X[NDIM], double Kcon[NDIM],
-    double complex N_coord[NDIM][NDIM])
-{
-  MUNULOOP N_coord[mu][nu] = 0.0 + I * 0.0;
-  return;
-}
-
 /*
  * parallel transport N over dl
  */
@@ -125,7 +220,6 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
       lconn[j][k][l] * Nm[i][k] * Km[l]
   ) * dl;
 
-  return;
 }
 
 /*
@@ -133,17 +227,19 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
  * here we compute new right-hand side of the equation
  * and somehow rotate this along the geodesics knowing
  * first point and last point X and K
+ * 
+ * Return an error flag indicating any singular matrix, bad tetrad, etc.
  */
-void evolve_N(double Xi[NDIM], double Kconi[NDIM],
+int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double Xhalf[NDIM], double Kconhalf[NDIM],
     double Xf[NDIM], double Kconf[NDIM],
     double dlam, double complex N_coord[NDIM][NDIM], double *tauF, Params *params)
 {
+  // TODO might be useful to split this into flat-space S->S portion and transformations to/from N
   double gcov[NDIM][NDIM];
   double Ucon[NDIM],Bcon[NDIM];
   double Ucov[NDIM],Bcov[NDIM];
   double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
-  double complex Nh[NDIM][NDIM];
   double complex N_tetrad[NDIM][NDIM];
   double B;
   double jI, jQ, jU, jV;
@@ -154,202 +250,139 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double SI0, SQ0, SU0, SV0;
   double SI1, SQ1, SU1, SV1;
   double SI2, SQ2, SU2, SV2;
+  int oddflag = 0;
 
-  /* parallel transport N by a half, and then full, step */
-  push_polar(Xi, Xi, Xhalf, Kconi, Kconi, Kconhalf, N_coord, N_coord, Nh, 0.5 * dlam);
-  push_polar(Xi, Xhalf, Xf, Kconi, Kconhalf, Kconf, N_coord, Nh, N_coord, dlam);
+  // get fluid parameters at Xf
+  get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
 
-  /* absorption/emission/rotation step.  only complete if radiating_region condition is satisfied */
-  if ( radiating_region(Xf) ) {
+  // evaluate transport coefficients
+  jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
+      &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
 
-    // get fluid parameters at Xf
-    get_model_fourv(Xf, Ucon, Ucov, Bcon, Bcov);
-
-    // evaluate transport coefficients
-    gcov_func(Xf, gcov);
-    jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
-        &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
-
-    if (counterjet == 1) { // Emission from X[2] > midplane only
-      if (Xf[2] < (stopx[2] - startx[2]) / 2) {
-        jI = jQ = jU = jV = 0.;
-      }
-    } else if (counterjet == 2) { // Emission from X[2] < midplane only
-      if (Xf[2] > (stopx[2] - startx[2]) / 2) {
-        jI = jQ = jU = jV = 0.;
-      }
-    }
-
-    /* make plasma tetrad */
-    B = get_model_b(Xf); /* field in G */
-    if (B < 0.) {
-      Bcon[0] = 0.;
-      Bcon[1] = 1.;
-      Bcon[2] = 1.;
-      Bcon[3] = 1.;
-    }
-
-    make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
-
-    /* convert N to Stokes */
-    complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
-    tensor_to_stokes(N_tetrad, &SI0, &SQ0, &SU0, &SV0);
-
-    /* apply the Faraday rotation solution for a half step */
-    double x = dlam * 0.5;
-
-    rdS = rQ * SQ0 + rU * SU0 + rV * SV0;
-    rho2 = rQ * rQ + rU * rU + rV * rV;
-    rho = sqrt(rho2);
-    double c, s, sh;
-    c = cos(rho * x);
-    s = sin(rho * x);
-    sh = sin(0.5 * rho * x);
-    if (rho2 > 0) {
-      SI1 = SI0;
-      SQ1 = SQ0 * c + 2 * rQ * rdS / rho2 * sh * sh + (rU * SV0 - rV * SU0) / rho * s;
-      SU1 = SU0 * c + 2 * rU * rdS / rho2 * sh * sh + (rV * SQ0 - rQ * SV0) / rho * s;
-      SV1 = SV0 * c + 2 * rV * rdS / rho2 * sh * sh + (rQ * SU0 - rU * SQ0) / rho * s;
-    } else {
-      SI1 = SI0;
-      SQ1 = SQ0;
-      SU1 = SU0;
-      SV1 = SV0;
-    }
-    /* done rotation solution half step */
-
-    /* apply full absorption/emission step */
-    x = dlam;
-    double aI2 = aI * aI;
-    double aP2 = aQ * aQ + aU * aU + aV * aV;
-    double aP = sqrt(aP2);
-    double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
-    double adj = aQ * jQ + aU * jU + aV * jV;
-
-    if (aP > SMALL) { /* full analytic solution has trouble if polarized absorptivity is small */
-      double expaIx = exp(-aI * x);
-      double sinhaPx = sinh(aP * x);
-      double coshaPx = cosh(aP * x);
-
-      SI2 = (SI1 * coshaPx * expaIx
-          - (ads0 / aP) * sinhaPx * expaIx
-          + adj / (aI2 - aP2) * (-1 + (aI * sinhaPx + aP * coshaPx) / aP * expaIx)
-          + aI * jI / (aI2 - aP2) * (1 - (aI * coshaPx + aP * sinhaPx) / aI * expaIx));
-
-      SQ2 = (SQ1 * expaIx
-          + ads0 * aQ / aP2 * (-1 + coshaPx) * expaIx
-          - aQ / aP * SI1 * sinhaPx * expaIx
-          + jQ * (1 - expaIx) / aI
-          + adj * aQ / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx
-              - aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx)
-          + jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
-
-      SU2 = (SU1 * expaIx
-          + ads0 * aU / aP2 * (-1 + coshaPx) * expaIx
-          - aU / aP * SI1 * sinhaPx * expaIx
-          + jU * (1 - expaIx) / aI
-          + adj * aU / (aI * (aI2 - aP2)) *
-          (1 - (1 - aI2 / aP2) * expaIx -
-              aI / aP2 * (aI * coshaPx +
-                  aP * sinhaPx) * expaIx)
-          + jI * aU / (aP * (aI2 - aP2)) *
-          (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
-
-      SV2 = (SV1 * expaIx
-          + ads0 * aV / aP2 * (-1 + coshaPx) * expaIx
-          - aV / aP * SI1 * sinhaPx * expaIx
-          + jV * (1 - expaIx) / aI
-          + adj * aV / (aI * (aI2 - aP2)) * (1 -
-              (1 - aI2 / aP2) * expaIx -
-              aI / aP2 * (aI * coshaPx +
-                  aP * sinhaPx) * expaIx)
-          + jI * aV / (aP * (aI2 - aP2)) *
-          (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
-
-    } else { /* this should really be a series expansion in aP */
-      SI2 = SI1 + x * jI;
-      SQ2 = SQ1 + x * jQ;
-      SU2 = SU1 + x * jU;
-      SV2 = SV1 + x * jV;
-    }
-    /* done absorption/emission full step */
-
-    /* apply second rotation half-step */
-    x = dlam * 0.5;
-    rdS = rQ * SQ2 + rU * SU2 + rV * SV2;
-    rho2 = rQ * rQ + rU * rU + rV * rV;
-    rho = sqrt(rho2);
-    c = cos(rho * x);
-    s = sin(rho * x);
-    sh = sin(0.5 * rho * x);
-    if (rho2 > 0) {
-      SI = SI2;
-      SQ = SQ2 * c + 2 * rQ * rdS / rho2 * sh * sh + (rU * SV2 - rV * SU2) / rho * s;
-      SU = SU2 * c + 2 * rU * rdS / rho2 * sh * sh + (rV * SQ2 - rQ * SV2) / rho * s;
-      SV = SV2 * c + 2 * rV * rdS / rho2 * sh * sh + (rQ * SU2 - rU * SQ2) / rho * s;
-    } else {
-      SI = SI2;
-      SQ = SQ2;
-      SU = SU2;
-      SV = SV2;
-    }
-    /* done second rotation half-step */
-
-    *tauF += dlam*fabs(rV); //*sqrt(SQ*SQ + SU*SU);
-
-#if DEBUG
-    if (*tauF > 1.e100 || *tauF < -1.e100 || isnan(*tauF)) {
-      printf("tauF = %e dlam = %e rV = %e\n", *tauF, dlam, rV);
-      exit(-1);
-    }
-#endif
-
-    /* re-pack the Stokes parameters into N */
-    stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
-    complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
-
-#if DEBUG
-    if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) {
-      printf("\nNaN in N00!\n");
-      print_vector("Xi", Xi);
-      print_vector("Xf", Xf);
-      print_vector("Kconi", Kconi);
-      print_vector("Kconf", Kconf);
-      printf("Stokes initial: [%e %e %e %e]\n", SI0, SQ0, SU0, SV0);
-      printf("Stokes final: [%e %e %e %e] dlam: %e\n", SI, SQ, SU, SV, dlam);
-      printf("Coefficients: j: [%e %e %e %e] a: [%e %e %e %e] rho: [%e %e %e]\n", jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
-      MUNULOOP printf("Econ[%i][%i] = %e Ncoord = %e Ntet = %e\n", mu, nu, Econ[mu][nu], creal(N_coord[mu][nu]), creal(N_tetrad[mu][nu]));
-    }
-#endif
-
+  // make plasma tetrad
+  B = get_model_b(Xf); /* field in G */
+  if (B <= 0.) {
+    Bcon[0] = 0.;
+    Bcon[1] = 1.;
+    Bcon[2] = 1.;
+    Bcon[3] = 1.;
   }
 
-#if THIN_DISK
-  // The thin disk problem emits nowhere but uses a boundary condition region defined by thindisk_region
-  // In this region, it sets all Stokes parameters according to the function get_model_stokes
+  gcov_func(Xf, gcov);
+  oddflag |= make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
 
-  //check_N(N[NDIM][NDIM], Kcon[NDIM], gcov[NDIM][NDIM]);
+  /* convert N to Stokes */
+  complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
+  tensor_to_stokes(N_tetrad, &SI0, &SQ0, &SU0, &SV0);
 
-  // If we're in exactly the thin disk...
-  if (thindisk_region(Xi, Xf)) {
-    // get fluid parameters at Xf -- B is set to grtrans' "polarization direction"
-    double gcov[NDIM][NDIM];
-    gcov_func(Xf, gcov);
-    get_model_fourv_K(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
+  /* apply the Faraday rotation solution for a half step */
+  double x = dlam * 0.5;
 
-    make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
-    // Otherwise N_tetrad is uninitialized memory.  Probably fine but meh
-    complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
-    tensor_to_stokes(N_tetrad, &SI0, &SQ0, &SU0, &SV0);
-
-    get_model_stokes(Xf, Kconf, &SI, &SQ, &SU, &SV);
-
-    stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
-    complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
+  rdS = rQ * SQ0 + rU * SU0 + rV * SV0;
+  rho2 = rQ * rQ + rU * rU + rV * rV;
+  rho = sqrt(rho2);
+  double c, s, sh;
+  c = cos(rho * x);
+  s = sin(rho * x);
+  sh = sin(0.5 * rho * x);
+  if (rho2 > 0) {
+    SI1 = SI0;
+    SQ1 = SQ0 * c + 2 * rQ * rdS / rho2 * sh * sh + (rU * SV0 - rV * SU0) / rho * s;
+    SU1 = SU0 * c + 2 * rU * rdS / rho2 * sh * sh + (rV * SQ0 - rQ * SV0) / rho * s;
+    SV1 = SV0 * c + 2 * rV * rdS / rho2 * sh * sh + (rQ * SU0 - rU * SQ0) / rho * s;
+  } else {
+    SI1 = SI0;
+    SQ1 = SQ0;
+    SU1 = SU0;
+    SV1 = SV0;
   }
+  /* done rotation solution half step */
 
-  //check_N(N[NDIM][NDIM], Kcon[NDIM], gcov[NDIM][NDIM]);
-#endif
+  /* apply full absorption/emission step */
+  x = dlam;
+  double aI2 = aI * aI;
+  double aP2 = aQ * aQ + aU * aU + aV * aV;
+  double aP = sqrt(aP2);
+  double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
+  double adj = aQ * jQ + aU * jU + aV * jV;
+
+  if (aP > SMALL) { /* full analytic solution has trouble if polarized absorptivity is small */
+    double expaIx = exp(-aI * x);
+    double sinhaPx = sinh(aP * x);
+    double coshaPx = cosh(aP * x);
+
+    SI2 = (SI1 * coshaPx * expaIx
+        - (ads0 / aP) * sinhaPx * expaIx
+        + adj / (aI2 - aP2) * (-1 + (aI * sinhaPx + aP * coshaPx) / aP * expaIx)
+        + aI * jI / (aI2 - aP2) * (1 - (aI * coshaPx + aP * sinhaPx) / aI * expaIx));
+
+    SQ2 = (SQ1 * expaIx
+        + ads0 * aQ / aP2 * (-1 + coshaPx) * expaIx
+        - aQ / aP * SI1 * sinhaPx * expaIx
+        + jQ * (1 - expaIx) / aI
+        + adj * aQ / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx
+            - aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx)
+        + jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
+
+    SU2 = (SU1 * expaIx
+        + ads0 * aU / aP2 * (-1 + coshaPx) * expaIx
+        - aU / aP * SI1 * sinhaPx * expaIx
+        + jU * (1 - expaIx) / aI
+        + adj * aU / (aI * (aI2 - aP2)) *
+        (1 - (1 - aI2 / aP2) * expaIx -
+            aI / aP2 * (aI * coshaPx +
+                aP * sinhaPx) * expaIx)
+        + jI * aU / (aP * (aI2 - aP2)) *
+        (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
+
+    SV2 = (SV1 * expaIx
+        + ads0 * aV / aP2 * (-1 + coshaPx) * expaIx
+        - aV / aP * SI1 * sinhaPx * expaIx
+        + jV * (1 - expaIx) / aI
+        + adj * aV / (aI * (aI2 - aP2)) * (1 -
+            (1 - aI2 / aP2) * expaIx -
+            aI / aP2 * (aI * coshaPx +
+                aP * sinhaPx) * expaIx)
+        + jI * aV / (aP * (aI2 - aP2)) *
+        (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
+
+  } else {
+    // Still account for aI which may be >> aP, e.g. simulating unpolarized transport
+    // Should still make this an expansion in aP as well
+    double tau_fake = 0;
+    SI2 = approximate_solve(SI1, jI, aI, jI, aI, x, &tau_fake);
+    SQ2 = approximate_solve(SQ1, jQ, aI, jQ, aI, x, &tau_fake);
+    SU2 = approximate_solve(SU1, jU, aI, jU, aI, x, &tau_fake);
+    SV2 = approximate_solve(SV1, jV, aI, jV, aI, x, &tau_fake);
+  }
+  /* done absorption/emission full step */
+
+  /* apply second rotation half-step */
+  x = dlam * 0.5;
+  rdS = rQ * SQ2 + rU * SU2 + rV * SV2;
+  rho2 = rQ * rQ + rU * rU + rV * rV;
+  rho = sqrt(rho2);
+  c = cos(rho * x);
+  s = sin(rho * x);
+  sh = sin(0.5 * rho * x);
+  if (rho2 > 0) {
+    SI = SI2;
+    SQ = SQ2 * c + 2 * rQ * rdS / rho2 * sh * sh + (rU * SV2 - rV * SU2) / rho * s;
+    SU = SU2 * c + 2 * rU * rdS / rho2 * sh * sh + (rV * SQ2 - rQ * SV2) / rho * s;
+    SV = SV2 * c + 2 * rV * rdS / rho2 * sh * sh + (rQ * SU2 - rU * SQ2) / rho * s;
+  } else {
+    SI = SI2;
+    SQ = SQ2;
+    SU = SU2;
+    SV = SV2;
+  }
+  /* done second rotation half-step */
+
+  *tauF += dlam*fabs(rV); //*sqrt(SQ*SQ + SU*SU);
+
+  /* re-pack the Stokes parameters into N */
+  stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
+  complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
 
   // Record Stokes parameters iff we're doing an integrator test
 #if INTEGRATOR_TEST
@@ -358,8 +391,13 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
   record_stokes_parameters(SI, SQ, SU, SV, lam);
 #endif
 
-  /* SOURCE STEP DONE */
 
+  // Flag if something is wrong
+  if (*tauF > 1.e100 || *tauF < -1.e100 || isnan(*tauF)) oddflag |= 2;
+  if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) oddflag |= 4;
+
+  /* SOURCE STEP DONE */
+  return oddflag;
 }
 
 /* converts tensor N to Stokes parameters detected at the camera*/
@@ -417,9 +455,6 @@ double approximate_solve(double Ii, double ji, double ki, double jf,
 
 /*************************SUPPORTING FUNCTIONS******************************/
 
-/*
- *
- */
 void complex_lower(double complex N[NDIM][NDIM],
     double gcov[NDIM][NDIM],
     int low1, int low2, double complex Nl[NDIM][NDIM])

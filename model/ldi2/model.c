@@ -20,7 +20,6 @@ double Te_unit;
 
 // TODO get rid of these in ipole proper to get rid of them here
 double rmax_geo = 1e30;
-int counterjet = 0;
 double model_dl;
 // TODO this default needs to be kept in sync with maxnstep,
 // to avoid difficulties
@@ -144,6 +143,12 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
   *rV = rVc;
 }
 
+void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv)
+{
+  *jnuinv = jIc;
+  *knuinv = aIc;
+}
+
 
 //// STUBS: Keep the rest of ipole off our back ////
 int radiating_region(double X[NDIM])
@@ -153,7 +158,8 @@ int radiating_region(double X[NDIM])
 
 // B does NOT affect polarization calculation, since we control the coefficients
 // U, however, would, so we set it to 0
-void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
+void get_model_fourv(double X[NDIM], double Kcon[NDIM],
+                     double Ucon[NDIM], double Ucov[NDIM],
                      double Bcon[NDIM], double Bcov[NDIM])
 {
   double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
@@ -184,9 +190,4 @@ void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
 double get_model_thetae(double X[NDIM]) {return 0;}
 double get_model_b(double X[NDIM]) {return 1;}
 double get_model_ne(double X[NDIM]) {return 1;} // Otherwise we trigger the "empty space" emissivity
-// These are never used.  Maybe in trace stuff someday
-void get_model_bcov(double X[NDIM], double Bcov[NDIM]) {Bcov[0] = 0; Bcov[1] = 1; Bcov[2] = X[1]; Bcov[3] = 0;}
-void get_model_bcon(double X[NDIM], double Bcon[NDIM]) {Bcon[0] = 0; Bcon[1] = 1; Bcon[2] = 1; Bcon[3] = 0;}
-void get_model_ucov(double X[NDIM], double Ucov[NDIM]) {Ucov[0] = 1; Ucov[1] = 0; Ucov[2] = 0; Ucov[3] = 0;}
-void get_model_ucon(double X[NDIM], double Ucon[NDIM]) {Ucon[0] = -1; Ucon[1] = 0; Ucon[2] = 0; Ucon[3] = 0;}
 void get_model_primitives(double X[NDIM], double *p) {return;}

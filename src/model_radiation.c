@@ -37,6 +37,8 @@
 #define ROT_OLD         11
 #define ROT_PIECEWISE   12
 #define ROT_SHCHERBAKOV 13
+// Debugging
+#define E_UNPOL         15
 
 // Declarations of local fitting functions, for Dexter fits and old rotativities
 void dexter_j_fit_thermal(double Ne, double nu, double Thetae, double B, double theta,
@@ -67,6 +69,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 /**
  * Wrapper to call different distributions at different places in the simulation domain
  * See jar_calc_dist for distributions
+ * TODO put the general emission zero criteria here
  */
 void jar_calc(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
@@ -76,8 +79,26 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 #if INTEGRATOR_TEST
   jar_calc_dist(E_CUSTOM, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
 #else
-  jar_calc_dist(params->emission_type, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+  if (params->emission_type == E_UNPOL) {
+    get_jkinv(X, Kcon, jI, aI, params);
+    *jQ = 0.0; *jU = 0.0; *jV = 0.0;
+    *aQ = 0.0; *aU = 0.0; *aV = 0.0;
+    *rQ = 0; *rU = 0; *rV = 0;
+  } else {
+    jar_calc_dist(params->emission_type, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+  }
 #endif
+
+  // Zero emission to isolate the jet/counterjet portion
+  if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
+    if (X[2] < (stopx[2] - startx[2]) / 2) {
+      *jI = *jQ = *jU = *jV = 0.;
+    }
+  } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
+    if (X[2] > (stopx[2] - startx[2]) / 2) {
+      *jI = *jQ = *jU = *jV = 0.;
+    }
+  }
 }
 
 /**
@@ -117,7 +138,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   double powerlaw_p = 0, gamma_min = 0, gamma_max = 0, gamma_cut = 0;
   // Kappa:
   double kappa = 0, kappa_width = 0;
-  // Symphony params struct
+  // Symphony parameters struct, not to be confused with ipole Params
   struct parameters paramsM; int fit = 0;
 
   // Ignore everything if this isn't our job
@@ -129,24 +150,14 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   // (or there are actually no e- to emit)
   Ne = get_model_ne(X);
   if (Ne <= 0.) {
-    *jI = 0.0;
-    *jQ = 0.0;
-    *jU = 0.0;
-    *jV = 0.0;
-
-    *aI = 0.0;
-    *aQ = 0.0;
-    *aU = 0.0;
-    *aV = 0.0;
-
-    *rQ = 0;
-    *rU = 0;
-    *rV = 0;
+    *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
+    *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
+    *rQ = 0; *rU = 0; *rV = 0;
     return;
   }
 
   // If we must do work, grab the 4-vectors...
-  get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
+  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
 #if DEBUG
   if (isnan(Ucov[0])) {
     void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
@@ -163,9 +174,9 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 #endif
 
   // ...then the parameters needed for all distributions...
-  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	// angle between k & b
-  nu = get_fluid_nu(Kcon, Ucov);	// freqcgs in Hz
-  B = get_model_b(X);	// field in G
+  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov); // angle between k & b
+  nu = get_fluid_nu(Kcon, Ucov); // freqcgs in Hz
+  B = get_model_b(X); // field in G
 
   //...and the ones for the specific distribution we'll be evaluating.
   switch (dist) {
@@ -182,7 +193,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   case E_POWERLAW:
     setConstParams(&paramsM);
     fit = paramsM.POWER_LAW;
-    // NOTE WE REPLACE Ne!! 
+    // NOTE WE REPLACE Ne!!
     get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &gamma_min, &gamma_max, &gamma_cut);
     break;
   case E_DEXTER_THERMAL:
@@ -192,15 +203,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   // EMISSIVITIES
   // Avoid issues directly along field lines
   if (theta <= 0 || theta >= M_PI) {
-    *jI = 0.0;
-    *jQ = 0.0;
-    *jU = 0.0;
-    *jV = 0.0;
-
-    *aI = 0.0;
-    *aQ = 0.0;
-    *aU = 0.0;
-    *aV = 0.0;
+    *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
+    *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
   } else {
     // EMISSIVITIES
     if (dist == E_DEXTER_THERMAL || dist > 10) {
@@ -226,7 +230,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     if (dist == E_THERMAL || dist == E_DEXTER_THERMAL || dist > 10) { // Thermal distributions
       // Get absorptivities via Kirchoff's law
       // Already invariant
-      double Bnuinv = Bnu_inv(nu, Thetae);   // Planck function
+      double Bnuinv = Bnu_inv(nu, Thetae); // Planck function
       *aI = *jI / Bnuinv;
       *aQ = *jQ / Bnuinv;
       *aU = *jU / Bnuinv;
@@ -238,10 +242,10 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       *aV = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
 
       // Make invariant
-      *aI /= nusq;
-      *aQ /= nusq;
-      *aU /= nusq;
-      *aV /= nusq;
+      *aI *= nu;
+      *aQ *= nu;
+      *aU *= nu;
+      *aV *= nu;
     }
   }
 
@@ -451,69 +455,64 @@ double besselk_asym(int n, double x)
 /*
  * get the invariant emissivity and opacity at a given position for a given wavevector
  */
-void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv,
-    double *knuinv)
+void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv, Params *params)
 {
-  double nu, theta, B, Thetae, Ne, Bnuinv;
-  double Ucov[NDIM], Bcov[NDIM];
-  double Ucon[NDIM], Bcon[NDIM];
-  double Kcov[NDIM], gcov[NDIM][NDIM];
+  if (params->emission_type == E_CUSTOM) {
+    get_model_jk(X, Kcon, jnuinv, knuinv);
+  } else {
+    double nu, theta, B, Thetae, Ne, Bnuinv;
+    double Ucov[NDIM], Ucon[NDIM], Bcon[NDIM], Bcov[NDIM];
 
-  /* get fluid parameters */
-  Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
-  B = get_model_b(X);		/* field in G */
-  Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
+    /* get fluid parameters */
+    Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
+    if (Ne == 0.) {
+      *jnuinv = 0.;
+      *knuinv = 0.;
+      return;
+    }
 
-  if (Ne == 0.) {
-    *jnuinv = 0.;
-    *knuinv = 0.;
-    return;
-  }
+    /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
+    get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+    theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
+    // No emission along field
+    if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
+      *jnuinv = 0.;
+      *knuinv = 0.;
+      return;
+    }
 
-  /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
-  get_model_fourv(X, Ucon, Ucov, Bcon, Bcov);
+    // Only compute these if we must
+    B = get_model_b(X);		/* field in G */
+    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
+    nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
 
-  gcov_func(X, gcov);
-  flip_index(Kcon, gcov, Kcov);
+    /* assume emission is thermal */
+    Bnuinv = Bnu_inv(nu, Thetae);
+    *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
 
-  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
-
-  if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
-    *jnuinv = 0.;
-    *knuinv = 0.;
-    return;
-  }
-
-  nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
-
-  /* assume emission is thermal */
-  Bnuinv = Bnu_inv(nu, Thetae);
-  *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
-
-  if (Bnuinv < SMALL)
-    *knuinv = SMALL;
-  else
-    *knuinv = *jnuinv / Bnuinv;
+    if (Bnuinv < SMALL)
+      *knuinv = SMALL;
+    else
+      *knuinv = *jnuinv / Bnuinv;
 
 #if DEBUG
-  if (isnan(*jnuinv) || isnan(*knuinv)) {
-    fprintf(stderr, "\nisnan get_jkinv\n");
-    fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
-        Ne, theta, nu, B, Thetae, Bnuinv);
-  }
+    if (isnan(*jnuinv) || isnan(*knuinv)) {
+      fprintf(stderr, "\nisnan get_jkinv\n");
+      fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
+          Ne, theta, nu, B, Thetae, Bnuinv);
+    }
 #endif
 
-  if (counterjet == 1) { // Emission from X[2] > midplane only
-    if (X[2] < (stopx[2] - startx[2]) / 2) {
-      *jnuinv = 0.;
-    }
-  } else if (counterjet == 2) { // Emission from X[2] < midplane only
-    if (X[2] > (stopx[2] - startx[2]) / 2) {
-      *jnuinv = 0.;
+    if (params->isolate_counterjet == 1) { // Emission from X[2] > midplane only
+      if (X[2] < (stopx[2] - startx[2]) / 2) {
+        *jnuinv = 0.;
+      }
+    } else if (params->isolate_counterjet == 2) { // Emission from X[2] < midplane only
+      if (X[2] > (stopx[2] - startx[2]) / 2) {
+        *jnuinv = 0.;
+      }
     }
   }
-
-  return;
 }
 
 /*

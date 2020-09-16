@@ -17,6 +17,6 @@ void jar_calc(double X[NDIM], double Kcon[NDIM], double *jI, double *jQ,
               double *aV, double *rQ, double *rU, double *rV, Params *params);
 
 double jnu_synch(double nu, double Ne, double Thetae, double B, double theta);
-void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv);
+void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv, Params *params);
 
 #endif /* MODEL_RADIATION_H */

@@ -34,7 +34,7 @@ def run(args, exe="./ipole", quench=False, unpol=False, parfile=None, verbose=0)
     if "Ftot" in line:
       proc = line.replace('(','').replace(')','').split()
       results['Ftot_pol'] = float(proc[3])
-      results['Ftot_unpol'] = float(proc[4])
+      results['Ftot_unpol'] = float(proc[5])
 
   return results
 

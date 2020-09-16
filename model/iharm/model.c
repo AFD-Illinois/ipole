@@ -28,7 +28,6 @@ double Te_unit;
 
 // MODEL PARAMETERS: PUBLIC
 double DTd;
-int counterjet = 0;
 double rmax_geo = 100.;
 double rmin_geo = 1.;
 double sigma_cut = 1.0;
@@ -106,7 +105,6 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "M_unit", &M_unit, TYPE_DBL);
 
   set_by_word_val(word, value, "dump", (void *)fnam, TYPE_STR);
-  set_by_word_val(word, value, "counterjet", &counterjet, TYPE_INT);
 
   set_by_word_val(word, value, "tp_over_te", &tp_over_te, TYPE_DBL);
   set_by_word_val(word, value, "trat_small", &trat_small, TYPE_DBL);
@@ -276,8 +274,9 @@ double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
 // Calculate Ucon,Ucov,Bcon,Bcov from primitives at location X using 
 // interpolation (on the primitives). This has been all wrapped into
 // a single function because some calculations require each other.
-void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
-                                     double Bcon[NDIM], double Bcov[NDIM])
+void get_model_fourv(double X[NDIM], double Kcon[NDIM],
+                     double Ucon[NDIM], double Ucov[NDIM],
+                     double Bcon[NDIM], double Bcov[NDIM])
 {
   double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
 
@@ -478,7 +477,7 @@ void init_physical_quantities(int n)
         } else {
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
-        data[n]->thetae[i][j][k] = MAX(data[n]->thetae[i][j][k], 1.e-3);
+        data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
        
         //thetae[i][j][k] = (gam-1.)*MP/ME*p[UU][i][j][k]/p[KRHO][i][j][k];
         //printf("rho = %e thetae = %e\n", p[KRHO][i][j][k], thetae[i][j][k]);
@@ -679,8 +678,8 @@ void init_iharm_grid(char *fnam, int dumpidx)
   }
 
   // Don't emit beyond specified limit, coordinate limit, or 100M, whichever is *least*
-  rmax_geo = MIN(rmax_geo, MIN(100., Rout));
-  rmin_geo = MAX(rmin_geo, Rin);
+  rmax_geo = fmin(rmax_geo, fmin(100., Rout));
+  rmin_geo = fmax(rmin_geo, Rin);
 
   hdf5_set_directory("/");
   hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
@@ -1000,3 +999,4 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV) {return;}
+void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv) {return;}

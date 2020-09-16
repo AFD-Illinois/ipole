@@ -21,8 +21,7 @@
 #define sign(x) (((x) < 0) ? -1 : ((x) > 0))
 #define delta(x, y) ((x) == (y))
 
-#define MAX(a,b) (((a)>(b))?(a):(b))
-#define MIN(a,b) (((a)<(b))?(a):(b))
+// MAX and MIN were here but are both unsafe & slow. Use fmax/fmin
 
 #define MULOOP for(int mu=0;mu<NDIM;mu++)
 #define MUNULOOP for(int mu=0;mu<NDIM;mu++) for(int nu=0;nu<NDIM;nu++)

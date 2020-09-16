@@ -48,8 +48,11 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->qu_conv = 0;
   params->quench_output = 0;
   params->only_unpolarized = 0;
+  params->old_centering = 0;
 
   params->emission_type = 4;
+
+  params->isolate_counterjet = 0;
 
   params->rcam = 1000.;
   params->thetacam = 90.;
@@ -59,7 +62,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->ny = 160;
 
   params->eps = 0.01;
-  params->maxnstep = 10000;
+  params->maxnstep = 50000;
 
   params->dsource = DM87_PC; // or DSGRA_PC
 
@@ -127,6 +130,8 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "quench_output", &(params->quench_output), TYPE_INT);
   set_by_word_val(word, value, "only_unpolarized", &(params->only_unpolarized), TYPE_INT);
   set_by_word_val(word, value, "emission_type", &(params->emission_type), TYPE_INT);
+  set_by_word_val(word, value, "counterjet", &(params->isolate_counterjet), TYPE_INT);
+  set_by_word_val(word, value, "old_centering", &(params->old_centering), TYPE_INT);
 
   set_by_word_val(word, value, "rcam", &(params->rcam), TYPE_DBL);
   set_by_word_val(word, value, "thetacam", &(params->thetacam), TYPE_DBL);
