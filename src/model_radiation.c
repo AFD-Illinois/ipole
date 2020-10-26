@@ -37,8 +37,15 @@
 #define ROT_OLD         11
 #define ROT_PIECEWISE   12
 #define ROT_SHCHERBAKOV 13
-// Debugging
-#define E_UNPOL         15
+// >20 == default emsision + turning something off
+#define E_UNPOL         20
+#define E_NORHOQ        21
+#define E_NORHOV        22
+#define E_NOROT         23
+#define E_NOJI          24
+#define E_NOJQ          25
+#define E_NOJV          26
+#define E_NOV           27
 
 // Declarations of local fitting functions, for Dexter fits and old rotativities
 void dexter_j_fit_thermal(double Ne, double nu, double Thetae, double B, double theta,
@@ -84,8 +91,21 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     *jQ = 0.0; *jU = 0.0; *jV = 0.0;
     *aQ = 0.0; *aU = 0.0; *aV = 0.0;
     *rQ = 0; *rU = 0; *rV = 0;
+  } else if (params->emission_type > E_UNPOL) {
+    jar_calc_dist(E_DEXTER_THERMAL, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
   } else {
     jar_calc_dist(params->emission_type, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+  }
+  // Debugging stuff to turn off various coefficients
+  switch (params->emission_type) {
+  case E_NORHOQ: *rQ = 0; break;
+  case E_NORHOV: *rV = 0; break;
+  case E_NOROT:  *rQ = 0; *rU = 0; *rV = 0; break;
+  case E_NOJI: *jI = 0; *aI = 0; break;
+  case E_NOJQ: *jQ = 0; *aQ = 0; break;
+  case E_NOJV: *jV = 0; *aV = 0; break;
+  case E_NOV:  *rQ = 0; *jV = 0; *aV = 0; break;
+  default: break;
   }
 #endif
 
@@ -196,7 +216,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     // NOTE WE REPLACE Ne!!
     get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &gamma_min, &gamma_max, &gamma_cut);
     break;
-  case E_DEXTER_THERMAL:
+  default:
     Thetae = get_model_thetae(X);
   }
 
@@ -256,7 +276,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   } else if (dist == ROT_OLD) { // Old incorrect distribution, for compatibility
     old_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
   } else if (dist == E_DEXTER_THERMAL) { // Dexter rQ, Shcherbakov rV
-    // TODO All-Dexter default option w/Taylor series, make this compat 
+    // TODO All-Dexter default option w/Taylor series, make this compat
     shcherbakov_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
   } else { // TODO Fix Symphony, these are currently equal to ROT_OLD
     *rQ = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
@@ -355,6 +375,39 @@ void piecewise_rho_fit(double Ne, double nu, double Thetae, double B, double the
     // Use the constant low-temperature limit
     *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) * cos(theta);
   }
+}
+
+void grtrans_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
+                    double *rQ, double *rU, double *rV)
+{
+  double Thetaer = 1. / Thetae;
+
+  double omega0 = EE * B / ME / CL;
+  double wp2 = 4. * M_PI * Ne * EE * EE / ME;
+
+  // Faraday rotativities for thermal plasma
+  double Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
+
+  double eps11m22, eps12;
+  if (Thetae > 1e-2) {
+    eps11m22 = jffunc(Xe) * wp2 * omega0*omega0 / pow(2*M_PI*nu, 4) *
+                (gsl_sf_bessel_Kn(1,Thetaer) / gsl_sf_bessel_Kn(2,Thetaer) + 6*Thetae) *
+                sin(theta) * sin(theta);
+
+    double step = 0.5 + 0.5*tanh((Thetae-1) / 0.05);
+    
+    eps12 = wp2 * omega0 / pow(2*M_PI*nu, 3) *
+            (gsl_sf_bessel_Kn(0,Thetaer) - step * Je(Xe)) / 
+            gsl_sf_bessel_Kn(2,Thetaer) * cos(theta);
+  } else {
+    eps11m22 = jffunc(Xe) * wp2 * omega0*omega0 / pow(2*M_PI*nu, 4) *
+                (1 + 6*Thetae) * sin(theta) * sin(theta);
+    eps12 = wp2 * omega0 / pow(2*M_PI*nu, 3) * cos(theta);
+  }
+
+  *rQ = 2*M_PI*nu/2/CL * eps11m22;
+  *rU = 0.0;
+  *rV = 2*M_PI*nu/CL * eps12;
 }
 
 void old_rho_fit(double Ne, double nu, double Thetae, double B, double theta,
