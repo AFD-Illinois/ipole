@@ -125,6 +125,19 @@ void evolve_N(double Xi[NDIM], double Kconi[NDIM],
       }
     }
 
+    //ARR:  Modify according to positron ratio
+    jI *= (1 + positronRatio);
+    jQ *= (1 + positronRatio);
+    jU *= (1 + positronRatio);
+    jV *= (1 - positronRatio);
+    aI *= (1 + positronRatio);
+    aQ *= (1 + positronRatio);
+    aU *= (1 + positronRatio);
+    aV *= (1 - positronRatio);
+    rQ *= (1 + positronRatio);
+    rU *= (1 + positronRatio);
+    rV *= (1 - positronRatio);
+
     /* make plasma tetrad */
     B = get_model_b(Xf); /* field in G */
     if (B < 0.) {

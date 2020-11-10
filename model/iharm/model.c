@@ -47,6 +47,9 @@ static double Mdot_dump;
 static double MdotEdd_dump;
 static double Ladv_dump;
 
+//ARR: positron to electron ratio
+double positronRatio = 0.0;
+
 // MAYBES
 //static double t0;
 
@@ -98,6 +101,9 @@ void try_set_model_parameter(const char *word, const char *value)
 
   set_by_word_val(word, value, "dump", (void *)fnam, TYPE_STR);
   set_by_word_val(word, value, "counterjet", &counterjet, TYPE_INT);
+
+  //ARR:  positron to electron ratio
+  set_by_word_val(word, value, "positronRatio", &positronRatio, TYPE_DBL);
 
   set_by_word_val(word, value, "tp_over_te", &tp_over_te, TYPE_DBL);
   set_by_word_val(word, value, "trat_small", &trat_small, TYPE_DBL);
