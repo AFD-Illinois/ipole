@@ -409,6 +409,7 @@ double get_model_thetae(double X[NDIM])
 //b field strength in Gauss
 double get_model_b(double X[NDIM])
 {
+  // TODO how *should* we handle exiting the domain consistently?
   if ( X_in_domain(X) == 0 ) return 0.;
   
   double bA, bB, tfac;
