@@ -8,6 +8,7 @@
 #include "decs.h"
 #include "coordinates.h"
 #include "geometry.h"
+#include "ipolarray.h"
 #include "radiation.h"
 #include "par.h"
 #include "hdf5_utils.h"
@@ -17,6 +18,7 @@
 
 #include <unistd.h>
 #include <string.h>
+#include <complex.h>
 
 void write_header(double scale, double cam[NDIM],
     double fovx, double fovy, Params *params);
@@ -234,7 +236,7 @@ void dump(double image[], double imageS[], double taus[],
  * Given a path, dump a variable computed along that path into a file.
  * Note this is most definitely *not* thread-safe, so it gets called from an 'omp critical'
  * 
- * TODO output of I,Q,U,V, as parallel-transported to camera, along traces
+ * TODO Output of Q/U as locally parallel transported forward along the curve?
  */
 void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny,
                     double scale, double cam[NDIM], double fovx, double fovy, Params *params)
@@ -247,43 +249,59 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   }
 
   int nprims = 8;
-  double *prims = calloc(nprims*nstep, sizeof(double));
+  // Admittedly confusing nomenclature:
+  // nstep = # of final step
+  // nsteps = # steps = nstep + 1
+  int nsteps = nstep + 1;
+  double *prims = calloc(nprims*nsteps, sizeof(double));
 
-  double *b = calloc(nstep, sizeof(double));
-  double *ne = calloc(nstep, sizeof(double));
-  double *thetae = calloc(nstep, sizeof(double));
-  double *nu = calloc(nstep, sizeof(double));
-  double *mu = calloc(nstep, sizeof(double));
+  double *b = calloc(nsteps, sizeof(double));
+  double *ne = calloc(nsteps, sizeof(double));
+  double *thetae = calloc(nsteps, sizeof(double));
+  double *nu = calloc(nsteps, sizeof(double));
+  double *mu = calloc(nsteps, sizeof(double));
 
-  double *dl = calloc(nstep, sizeof(double));
-  double *X = calloc(NDIM*nstep, sizeof(double));
+  double *dl = calloc(nsteps, sizeof(double));
+  double *X = calloc(NDIM*nsteps, sizeof(double));
   // Vectors aren't really needed.  Put back in behind flag if it comes up
-  double *Kcon = calloc(NDIM*nstep, sizeof(double));
-//  double *Kcov = calloc(NDIM*nstep, sizeof(double));
+  double *Kcon = calloc(NDIM*nsteps, sizeof(double));
+//  double *Kcov = calloc(NDIM*nsteps, sizeof(double));
 
-  double *r = calloc(nstep, sizeof(double));
-  double *th = calloc(nstep, sizeof(double));
-  double *phi = calloc(nstep, sizeof(double));
+  double *r = calloc(nsteps, sizeof(double));
+  double *th = calloc(nsteps, sizeof(double));
+  double *phi = calloc(nsteps, sizeof(double));
 
-//  double *Ucon = calloc(NDIM*nstep, sizeof(double));
-//  double *Ucov = calloc(NDIM*nstep, sizeof(double));
-//  double *Bcon = calloc(NDIM*nstep, sizeof(double));
-//  double *Bcov = calloc(NDIM*nstep, sizeof(double));
+  double *j_unpol = calloc(nsteps, sizeof(double));
+  double *k_unpol = calloc(nsteps, sizeof(double));
+  double *I_unpol = calloc(nsteps, sizeof(double));
+
+//  double *Ucon = calloc(NDIM*nsteps, sizeof(double));
+//  double *Ucov = calloc(NDIM*nsteps, sizeof(double));
+//  double *Bcon = calloc(NDIM*nsteps, sizeof(double));
+//  double *Bcov = calloc(NDIM*nsteps, sizeof(double));
 
   // TODO NDIM and NSTOKES are not the same thing
-  double *j_inv = calloc(NDIM*nstep, sizeof(double));
-  double *alpha_inv = calloc(NDIM*nstep, sizeof(double));
-  double *rho_inv = calloc(NDIM*nstep, sizeof(double));
-  double *unpol_inv = calloc(2*nstep, sizeof(double));
+  double *j_inv = calloc(NDIM*nsteps, sizeof(double));
+  double *alpha_inv = calloc(NDIM*nsteps, sizeof(double));
+  double *rho_inv = calloc(NDIM*nsteps, sizeof(double));
 
-  for (int i=0; i<nstep; i++) {
+  // Initialize stuff we'll carry along
+  double complex N_coord[NDIM][NDIM] = {0.};
+  double Intensity = 0, Tau = 0, tauF = 0;
+  double rotcam = params->rotcam*M_PI/180.;
+  // Record Stokes parameters
+  double *stokes = calloc(NDIM*nsteps,sizeof(double));
+  double *stokes_coordinate = calloc(NDIM*nsteps,sizeof(double));
+
+  for (int i=nstep; i > 0; --i) {
+    // Record ambient variables
     get_model_primitives(traj[i].X, &(prims[i*nprims]));
     double Ucont[NDIM], Ucovt[NDIM], Bcont[NDIM], Bcovt[NDIM];
     get_model_fourv(traj[i].X, traj[i].Kcon, Ucont, Ucovt, Bcont, Bcovt);
     jar_calc(traj[i].X, traj[i].Kcon, &(j_inv[i*NDIM]), &(j_inv[i*NDIM+1]), &(j_inv[i*NDIM+2]), &(j_inv[i*NDIM+3]),
              &(alpha_inv[i*NDIM]), &(alpha_inv[i*NDIM+1]), &(alpha_inv[i*NDIM+2]), &(alpha_inv[i*NDIM+3]),
              &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]), params);
-    get_jkinv(traj[i].X, traj[i].Kcon, &(unpol_inv[i*2+0]), &(unpol_inv[i*2+1]), params);
+    get_jkinv(traj[i].X, traj[i].Kcon, &(j_unpol[i]), &(k_unpol[i]), params);
 
     b[i] = get_model_b(traj[i].X);
     ne[i] = get_model_ne(traj[i].X);
@@ -291,17 +309,31 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     nu[i] = get_fluid_nu(traj[i].Kcon, Ucovt);
     mu[i] = get_bk_angle(traj[i].X, traj[i].Kcon, Ucovt, Bcont, Bcovt);
 
+    // Record trajectory
     dl[i] = traj[i].dl;
     MULOOP {
       X[i*NDIM+mu] = traj[i].X[mu];
       Kcon[i*NDIM+mu] = traj[i].Kcon[mu];
     }
-//    double Gcov[NDIM][NDIM];
-//    gcov_func(traj[i].X, Gcov);
-//    lower(traj[i].Kcon, Gcov, &(Kcov[i*NDIM]));
+   double Gcov[NDIM][NDIM], Gcon[NDIM][NDIM];
+   gcov_func(traj[i].X, Gcov);
+   gcon_func(Gcov, Gcon);
+//   lower(traj[i].Kcon, Gcov, &(Kcov[i*NDIM]));
 
     bl_coord(traj[i].X, &(r[i]), &(th[i]));
     phi[i] = traj[i].X[3];
+
+    // Integrate and record results
+    int flag = integrate_emission(&(traj[i]), 1, &Intensity, &Tau, &tauF, N_coord, params);
+    I_unpol[i] = Intensity;
+    project_N(traj[i-1].X, traj[i-1].Kcon, N_coord,
+              &(stokes[i*NDIM]), &(stokes[i*NDIM+1]), &(stokes[i*NDIM+2]), &(stokes[i*NDIM+3]),
+              0);
+    any_tensor_to_stokes(N_coord, Gcov,
+              &(stokes_coordinate[i*NDIM]), &(stokes_coordinate[i*NDIM+1]),
+              &(stokes_coordinate[i*NDIM+2]), &(stokes_coordinate[i*NDIM+3]));
+    if (flag) printf("Flagged integration when tracing: %d\n", flag);
+
   }
 
   hdf5_set_directory("/");
@@ -320,8 +352,8 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hsize_t fdims_s[] = { nx, ny, params->maxnstep };
   hsize_t chunk_s[] =  { 1, 1, 200 };
   hsize_t fstart_s[] = { i, j, 0 };
-  hsize_t fcount_s[] = { 1, 1, nstep };
-  hsize_t mdims_s[] =  { 1, 1, nstep };
+  hsize_t fcount_s[] = { 1, 1, nsteps };
+  hsize_t mdims_s[] =  { 1, 1, nsteps };
   hsize_t mstart_s[] = { 0, 0, 0 };
 
   hdf5_write_chunked_array(b, "b", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
@@ -335,12 +367,16 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_chunked_array(th, "th", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(phi, "phi", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
 
+  hdf5_write_chunked_array(j_unpol, "j_unpol", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(k_unpol, "k_unpol", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(I_unpol, "I_unpol", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+
   // VECTORS: Anything with N values per geodesic step
   hsize_t fdims_v[] = { nx, ny, params->maxnstep, 4 };
   hsize_t chunk_v[] =  { 1, 1, 200, 4 };
   hsize_t fstart_v[] = { i, j, 0, 0 };
-  hsize_t fcount_v[] = { 1, 1, nstep, 4 };
-  hsize_t mdims_v[] =  { 1, 1, nstep, 4 };
+  hsize_t fcount_v[] = { 1, 1, nsteps, 4 };
+  hsize_t mdims_v[] =  { 1, 1, nsteps, 4 };
   hsize_t mstart_v[] = { 0, 0, 0, 0 };
 
   hdf5_write_chunked_array(X, "X", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
@@ -356,24 +392,24 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_chunked_array(alpha_inv, "alpha_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(rho_inv, "rho_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
+  hdf5_write_chunked_array(stokes, "stokes", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(stokes_coordinate, "stokes_coordinate", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+
   fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 8;
   hdf5_write_chunked_array(prims, "prims", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-  // Unpolarized coefficients j and k
-  fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 2;
-  hdf5_write_chunked_array(unpol_inv, "jk", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-
+  // Scalars
   free(b); free(ne); free(thetae);
   free(nu); free(mu);
-
-  free(X);
-  //free(Kcon); free(Kcov);
   free(r); free(th); free(phi);
+  free(j_unpol); free(k_unpol); free(I_unpol);
 
+  // Vectors
+  free(X);
+  free(Kcon); //free(Kcov);
   //free(Ucon); free(Ucov); free(Bcon); free(Bcov);
   free(j_inv); free(alpha_inv); free(rho_inv);
-  free(unpol_inv);
-
+  free(stokes); free(stokes_coordinate);
   free(prims);
 
   hdf5_close();

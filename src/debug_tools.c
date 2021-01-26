@@ -4,8 +4,10 @@
  * Printing and sanity checks for tetrads
  */
 
-#include "geometry.h"
 #include "decs.h"
+
+#include "geometry.h"
+#include "ipolarray.h"
 
 // The world needed these
 // Maybe not in this form
@@ -105,9 +107,6 @@ void check_N(double complex N[NDIM][NDIM],
 
   /* check invariants */
   double complex Nud[NDIM][NDIM];
-  void complex_lower(double complex N[NDIM][NDIM],
-      double gcov[NDIM][NDIM], int low1, int low2,
-      double complex Nl[NDIM][NDIM]);
   complex_lower(N, gcov, 0, 1, Nud);
   for (i = 0; i < 4; i++)
   fprintf(stderr, "N: %d %g + i %g\n", i, creal(N[i][i]),

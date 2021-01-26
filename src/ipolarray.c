@@ -11,12 +11,16 @@
 #include "ipolarray.h"
 
 #include "decs.h"
+
 #include "coordinates.h"
+#include "debug_tools.h"
 #include "geometry.h"
+#include "radiation.h"
+
 #include "model.h"
 #include "model_radiation.h"
 #include "model_tetrads.h"
-#include "debug_tools.h"
+
 #include <complex.h>
 
 // Sub-functions
@@ -25,22 +29,6 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     complex double Ni[NDIM][NDIM],
     complex double Nm[NDIM][NDIM],
     complex double Nf[NDIM][NDIM], double dlam);
-
-/* tensor tools */
-void complex_lower(double complex N[NDIM][NDIM], double gcov[NDIM][NDIM],
-    int low1, int low2, double complex Nl[NDIM][NDIM]);
-void stokes_to_tensor(double fI, double fQ, double fU, double fV,
-    double complex f_tetrad[NDIM][NDIM]);
-void tensor_to_stokes(double complex f_tetrad[NDIM][NDIM], double *fI,
-    double *fQ, double *fU, double *fV);
-void complex_coord_to_tetrad_rank2(double complex T_coord[NDIM][NDIM],
-    double Ecov[NDIM][NDIM],
-    double complex T_tetrad[NDIM][NDIM]);
-void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
-    double Econ[NDIM][NDIM],
-    double complex T_coord[NDIM][NDIM]);
-
-
 
 /************************PRIMARY FUNCTION*******************************/
 /**
@@ -55,13 +43,8 @@ int integrate_emission(struct of_traj *traj, int nsteps,
                     double complex N_coord[NDIM][NDIM], Params *params)
 {
   //fprintf(stderr, "Begin integrate emission\n");
-  // Initialize
-  MUNULOOP N_coord[mu][nu] = 0.0 + I * 0.0;
-  *tauF = 0.;
-  // Unpolarized
-  *Intensity = 0.;
-  *Tau = 0.;
-  // Error flag
+
+  // Initialize error flag
   int oddflag = 0;
 
   // Integrate the transfer equation (& parallel transport) forwards along trajectory
@@ -130,8 +113,6 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     // smoosh together all the flags we hit along a geodesic
     oddflag |= sflag;
 
-
-
     // Cry immediately on bad tetrads, even if we're not debugging
     if (sflag & 1) {
       fprintf(stderr, "that's odd: no orthonormal tetrad found at\n");
@@ -168,7 +149,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     // Same if there was something in gcov
     if (sflag & 16) {
       fprintf(stderr, "Matrix inversion failed in tetrad check, step %d:\n", nstep);
-      // TODO
+      // TODO print more stuff here
     }
 
     // TODO pull more relevant stuff back out here
@@ -546,6 +527,20 @@ void tensor_to_stokes(double complex f_tetrad[NDIM][NDIM],
   *fQ = creal(f_tetrad[1][1] - f_tetrad[2][2]) / 2;
   *fU = creal(f_tetrad[1][2] + f_tetrad[2][1]) / 2;
   *fV = cimag(f_tetrad[2][1] - f_tetrad[1][2]) / 2;
+
+}
+
+void any_tensor_to_stokes(double complex f_any[NDIM][NDIM], double gcov[NDIM][NDIM],
+    double *fI, double *fQ, double *fU, double *fV)
+{
+
+  // TODO Find the others with a guaranteed coordinate-frame tetrad?
+  double complex f_lower[NDIM][NDIM];
+  complex_lower(f_any, gcov, 0, 1, f_lower);
+  *fI = creal(f_lower[0][0] + f_lower[1][1] + f_lower[2][2] + f_lower[3][3]) / 2;
+  *fQ = 0.;
+  *fU = 0.;
+  *fV = 0.;
 
 }
 
