@@ -24,6 +24,8 @@ typedef struct params_t {
   int quench_output;    // Quench output, i.e. "quench" argument
   int only_unpolarized; // Unpolarized transport only
 
+  double positronRatio; //Ratio of positrons to electrons.
+
   const char dump[STRLEN];
   const char outf[STRLEN];
 
