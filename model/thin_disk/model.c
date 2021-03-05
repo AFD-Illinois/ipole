@@ -92,7 +92,6 @@ void set_units()
   // Set all the geometry
   // TODO function like initialize_coordinates, that makes sure these are all set.
   R0 = 0.;
-  Rh = 1 + sqrt(1. - a * a);
   double z1 = 1. + pow(1. - a * a, 1. / 3.) * (pow(1. + a, 1. / 3.) + pow(1. - a, 1. / 3.));
   double z2 = sqrt(3. * a * a + z1 * z1);
   r_isco = 3. + z2 - copysign(sqrt((3. - z1) * (3. + z1 + 2. * z2)), a);

@@ -2,6 +2,8 @@
 #define COORDINATES_H
 
 #include "decs.h"
+#include "matrix.h"
+#include "debug_tools.h"
 
 // Poor man's enum of coordinate systems
 // Modified Kerr-Schild coordinates.  Gammie '03.
@@ -16,31 +18,404 @@
 // Spherical coordinates in Minkowski space
 #define METRIC_MINKOWSKI 4
 
-// Coordinate parameters.  See 
 extern int use_eKS_internal;
 extern int metric;
 extern double a, hslope; // mks
 extern double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 extern double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 extern double startx[NDIM], stopx[NDIM], dx[NDIM];
-extern double R0, Rin, Rout, Rh;
+extern double R0, Rin, Rout;
 
-void bl_coord(double *X, double *r, double *th);
-void bl_to_ks(double X[NDIM], double ucon_bl[NDIM], double ucon_ks[NDIM]);
-void ks_to_bl(double X[NDIM], double ucon_ks[NDIM], double ucon_bl[NDIM]);
-void gcov_func(double *X, double gcov[][NDIM]);
-// TODO privatize these, why are they needed in models?
-void gcov_ks(double r, double th, double gcov[NDIM][NDIM]);
-void gcov_bl(double r, double th, double gcov[NDIM][NDIM]);
+static inline void print_statics() {
+    fprintf(stderr, "use_eKS_internal: %d metric: %d\n", use_eKS_internal, metric);
+    fprintf(stderr, "a, hslope, poly_norm, poly_xt, poly_alpha, mks_smooth: %f, %f, %f, %f, %f, %f\n",
+            a, hslope, poly_norm, poly_xt, poly_alpha, mks_smooth);
+    fprintf(stderr, "mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0: %f, %f, %f, %f, %f\n",
+            mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0);
+    print_vector("startx", startx);
+    print_vector("stopx", stopx);
+    print_vector("dx", dx);
+    fprintf(stderr, "R0, Rin, Rout: %f, %f, %f\n", R0, Rin, Rout);
+}
 
-// Internal
-void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM]);
-void set_dXdx(double X[NDIM], double dXdx[NDIM][NDIM]);
-void vec_to_ks(double X[NDIM], double v_nat[NDIM], double v_ks[NDIM]);
-void vec_from_ks(double X[NDIM], double v_ks[NDIM], double v_nat[NDIM]);
+/*
+ * Despite the name, this returns r, th coordinates for a KS or BL
+ * coordinate system (since they're equal), from a set of "modified"
+ * native coordinates X
+ * If METRIC_MINKOWSKI is set, returns spherical coordinates instead
+ */
+static inline void bl_coord(double X[NDIM], double *r, double *th)
+{
+  //print_statics();
+  if (metric == METRIC_MINKOWSKI) {
+      *r = X[1];
+      *th = X[2];
+      return;
+  }
 
-// Translation to native coords
-void native_coord(double r, double th, double phi, double X[NDIM]);
-double root_find(double X[NDIM]);
+  *r = exp(X[1]);
+
+  if (use_eKS_internal) {
+    *th = M_PI * X[2];
+  } else {
+    double y, thG, thJ;
+    switch (metric) {
+      case METRIC_MKS:
+        *th = M_PI * X[2] + ((1. - hslope) / 2.) * sin(2. * M_PI * X[2]);
+        break;
+      case METRIC_BHACMKS:
+        *th = X[2] + (hslope / 2.) * sin(2. * X[2]);
+        break;
+      case METRIC_FMKS:
+        thG = M_PI * X[2] + ((1. - hslope) / 2.) * sin(2. * M_PI * X[2]);
+        y = 2 * X[2] - 1.;
+        thJ = poly_norm * y
+            * (1. + pow(y / poly_xt, poly_alpha) / (poly_alpha + 1.)) + 0.5 * M_PI;
+        *th = thG + exp(mks_smooth * (startx[1] - X[1])) * (thJ - thG);
+        break;
+      case METRIC_MKS3:
+        *r = exp(X[1]) + mks3R0;
+        *th = (M_PI
+            * (1.
+                + 1. / tan((mks3H0 * M_PI) / 2.)
+                    * tan(
+                        mks3H0 * M_PI
+                            * (-0.5
+                                + (mks3MY1
+                                    + (pow(2., mks3MP0) * (-mks3MY1 + mks3MY2))
+                                        / pow(exp(X[1]) + mks3R0, mks3MP0))
+                                    * (1. - 2. * X[2]) + X[2])))) / 2.;
+        break;
+    }
+  }
+}
+
+static inline void bl_to_ks(double X[NDIM], double ucon_bl[NDIM], double ucon_ks[NDIM])
+{
+  double r, th;
+  bl_coord(X, &r, &th);
+
+  double trans[NDIM][NDIM];
+  MUNULOOP
+    trans[mu][nu] = delta(mu, nu);
+
+  trans[0][1] = 2. * r / (r * r - 2. * r + a * a);
+  trans[3][1] = a / (r * r - 2. * r + a * a);
+
+  MULOOP
+    ucon_ks[mu] = 0.;
+  MUNULOOP
+    ucon_ks[mu] += trans[mu][nu] * ucon_bl[nu];
+}
+
+static inline void ks_to_bl(double X[NDIM], double ucon_ks[NDIM], double ucon_bl[NDIM])
+{
+  double r, th;
+  bl_coord(X, &r, &th);
+
+  double trans[NDIM][NDIM], rev_trans[NDIM][NDIM];
+  MUNULOOP
+    trans[mu][nu] = delta(mu, nu);
+
+  trans[0][1] = 2. * r / (r * r - 2. * r + a * a);
+  trans[3][1] = a / (r * r - 2. * r + a * a);
+
+  invert_matrix(trans, rev_trans);
+
+  MULOOP
+    ucon_bl[mu] = 0.;
+  MUNULOOP
+    ucon_bl[mu] += rev_trans[mu][nu] * ucon_ks[nu];
+}
+
+// compute KS metric at point (r,th) in KS coordinates (cyclic in t, ph)
+static inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
+{
+  double cth = cos(th);
+  double sth = sin(th);
+
+  double s2 = sth * sth;
+  double rho2 = r * r + a * a * cth * cth;
+
+  // Compute KS metric from KS coordinates (cyclic in t,phi)
+  gcov[0][0] = -1. + 2. * r / rho2;
+  gcov[0][1] = 2. * r / rho2;
+  gcov[0][2] = 0.;
+  gcov[0][3] = -2. * a * r * s2 / rho2;
+
+  gcov[1][0] = 2. * r / rho2;
+  gcov[1][1] = 1. + 2. * r / rho2;
+  gcov[1][2] = 0.;
+  gcov[1][3] = -a * s2 * (1. + 2. * r / rho2);
+
+  gcov[2][0] = 0.;
+  gcov[2][1] = 0.;
+  gcov[2][2] = rho2;
+  gcov[2][3] = 0.;
+
+  gcov[3][0] = -2. * a * r * s2 / rho2;
+  gcov[3][1] = -a * s2 * (1. + 2. * r / rho2);
+  gcov[3][2] = 0.;
+  gcov[3][3] = s2 * (rho2 + a * a * s2 * (1. + 2. * r / rho2));
+}
+
+static inline void gcov_bl(double r, double th, double gcov[NDIM][NDIM])
+{
+  double sth, cth, s2, a2, r2, DD, mu;
+  sth = fabs(sin(th));
+  s2 = sth * sth;
+  cth = cos(th);
+  a2 = a * a;
+  r2 = r * r;
+  DD = 1. - 2. / r + a2 / r2;
+  mu = 1. + a2 * cth * cth / r2;
+
+  // Compute BL metric from BL coordinates
+  gcov[0][0] = -(1. - 2. / (r * mu));
+  gcov[0][1] = 0.;
+  gcov[0][2] = 0.;
+  gcov[0][3] = -2. * a * s2 / (r * mu);
+
+  gcov[1][0] = 0.;
+  gcov[1][1] = mu / DD;
+  gcov[1][2] = 0.;
+  gcov[1][3] = 0.;
+
+  gcov[2][0] = 0.;
+  gcov[2][1] = 0.;
+  gcov[2][2] = r2 * mu;
+  gcov[2][3] = 0.;
+
+  gcov[3][0] = -2. * a * s2 / (r * mu);
+  gcov[3][1] = 0.;
+  gcov[3][2] = 0.;
+  gcov[3][3] = r2 * sth * sth * (1. + a2 / r2 + 2. * a2 * s2 / (r2 * r * mu));
+
+}
+
+static inline void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
+{
+  // Jacobian with respect to KS basis where X is given in
+  // non-KS basis
+  MUNULOOP
+    dxdX[mu][nu] = delta(mu, nu);
+
+  dxdX[1][1] = exp(X[1]); // Overridden by one case below
+
+  if (use_eKS_internal) {
+    dxdX[2][2] = M_PI;
+  } else {
+    switch (metric) {
+      case METRIC_MKS:
+        dxdX[2][2] = M_PI + (1 - hslope) * M_PI * cos(2. * M_PI * X[2]);
+        break;
+      case METRIC_BHACMKS:
+        dxdX[2][2] = 1 + hslope * cos(2. * X[2]);
+        break;
+      case METRIC_FMKS:
+        dxdX[2][1] = -exp(mks_smooth * (startx[1] - X[1])) * mks_smooth
+            * (
+            M_PI / 2. -
+            M_PI * X[2]
+                + poly_norm * (2. * X[2] - 1.)
+                    * (1
+                        + (pow((-1. + 2 * X[2]) / poly_xt, poly_alpha))
+                            / (1 + poly_alpha))
+                - 1. / 2. * (1. - hslope) * sin(2. * M_PI * X[2]));
+        dxdX[2][2] = M_PI + (1. - hslope) * M_PI * cos(2. * M_PI * X[2])
+            + exp(mks_smooth * (startx[1] - X[1]))
+                * (-M_PI
+                    + 2. * poly_norm
+                        * (1.
+                            + pow((2. * X[2] - 1.) / poly_xt, poly_alpha)
+                                / (poly_alpha + 1.))
+                    + (2. * poly_alpha * poly_norm * (2. * X[2] - 1.)
+                        * pow((2. * X[2] - 1.) / poly_xt, poly_alpha - 1.))
+                        / ((1. + poly_alpha) * poly_xt)
+                    - (1. - hslope) * M_PI * cos(2. * M_PI * X[2]));
+        break;
+      case METRIC_MKS3:
+        dxdX[2][1] = -(pow(2., -1. + mks3MP0) * exp(X[1]) * mks3H0 * mks3MP0
+            * (mks3MY1 - mks3MY2) * pow(M_PI, 2)
+            * pow(exp(X[1]) + mks3R0, -1 - mks3MP0) * (-1 + 2 * X[2]) * 1.
+            / tan((mks3H0 * M_PI) / 2.)
+            * pow(
+                1.
+                    / cos(
+                        mks3H0 * M_PI
+                            * (-0.5
+                                + (mks3MY1
+                                    + (pow(2, mks3MP0) * (-mks3MY1 + mks3MY2))
+                                        / pow(exp(X[1]) + mks3R0, mks3MP0))
+                                    * (1 - 2 * X[2]) + X[2])),
+                2));
+        dxdX[2][2] = (mks3H0 * pow(M_PI, 2)
+            * (1
+                - 2
+                    * (mks3MY1
+                        + (pow(2, mks3MP0) * (-mks3MY1 + mks3MY2))
+                            / pow(exp(X[1]) + mks3R0, mks3MP0))) * 1.
+            / tan((mks3H0 * M_PI) / 2.)
+            * pow(
+                1.
+                    / cos(
+                        mks3H0 * M_PI
+                            * (-0.5
+                                + (mks3MY1
+                                    + (pow(2, mks3MP0) * (-mks3MY1 + mks3MY2))
+                                        / pow(exp(X[1]) + mks3R0, mks3MP0))
+                                    * (1 - 2 * X[2]) + X[2])),
+                2)) / 2.;
+        break;
+      case METRIC_MINKOWSKI:
+        // Blank transform: just override L_11
+        dxdX[1][1] = 1.;
+    }
+  }
+}
+
+static inline void set_dXdx(double X[NDIM], double dXdx[NDIM][NDIM]) {
+  double dxdX[NDIM][NDIM];
+  set_dxdX(X, dxdX);
+  invert_matrix(dxdX, dXdx);
+}
+
+/**
+ * Returns g_{munu} in native coordinates at location specified by X
+ */
+static inline void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
+{
+  double r, th;
+  bl_coord(X, &r, &th);
+
+  if (metric == METRIC_MINKOWSKI) {
+      MUNULOOP gcov[mu][nu] = 0;
+      gcov[0][0] = -1;
+      gcov[1][1] = 1;
+      gcov[2][2] = r*r;
+      gcov[3][3] = r*r*sin(th)*sin(th);
+      return;
+  }
+
+  // compute ks metric
+  double Gcov_ks[NDIM][NDIM];
+  gcov_ks(r, th, Gcov_ks);
+
+  // convert from ks metric to mks/mmks
+  double dxdX[NDIM][NDIM];
+  set_dxdX(X, dxdX);
+
+  MUNULOOP
+  {
+    gcov[mu][nu] = 0;
+    for (int lam = 0; lam < NDIM; ++lam) {
+      for (int kap = 0; kap < NDIM; ++kap) {
+        gcov[mu][nu] += Gcov_ks[lam][kap] * dxdX[lam][mu] * dxdX[kap][nu];
+      }
+    }
+  }
+}
+
+/**
+ * Translate a contravariant vector from native -> KS (embedding) coordinates
+ */
+static inline void vec_to_ks(double X[NDIM], double v_nat[NDIM], double v_ks[NDIM]) {
+  double dxdX[NDIM][NDIM];
+  set_dxdX(X, dxdX);
+
+  MULOOP v_ks[mu] = 0.;
+  MUNULOOP v_ks[mu] += dxdX[mu][nu] * v_nat[nu];
+}
+
+/**
+ * Translate a contravariant vector from KS (embedding) -> native coordinates
+ */
+static inline void vec_from_ks(double X[NDIM], double v_ks[NDIM], double v_nat[NDIM]) {
+  double dXdx[NDIM][NDIM];
+  set_dXdx(X, dXdx);
+
+  MULOOP v_nat[mu] = 0.;
+  MUNULOOP v_nat[mu] += dXdx[mu][nu] * v_ks[nu];
+}
+
+// EMBEDDING -> NATIVE COORDINATE INVERSIONS/ROOTFIND
+
+/**
+ * Function to grab just the theta coordinate for root finding
+ */
+static inline double theta_func(double X[NDIM])
+{
+  double r, th;
+  bl_coord(X, &r, &th);
+  return th;
+}
+/**
+ * Root-find the camera X2 in native coordinates
+ */
+static inline double root_find(double X[NDIM])
+{
+  double th = X[2];
+  double tha, thb, thc;
+
+  double Xa[NDIM], Xb[NDIM], Xc[NDIM];
+  Xa[1] = log(X[1]);
+  Xa[3] = X[3];
+  Xb[1] = Xa[1];
+  Xb[3] = Xa[3];
+  Xc[1] = Xa[1];
+  Xc[3] = Xa[3];
+
+  if (X[2] < M_PI / 2.) {
+    Xa[2] = startx[2];
+    Xb[2] = (stopx[2] - startx[2])/2 + SMALL;
+  } else {
+    Xa[2] = (stopx[2] - startx[2])/2 - SMALL;
+    Xb[2] = stopx[2];
+  }
+
+  double tol = 1.e-9;
+  tha = theta_func(Xa);
+  thb = theta_func(Xb);
+
+  // check limits first
+  if (fabs(tha-th) < tol) {
+    return Xa[2];
+  } else if (fabs(thb-th) < tol) {
+    return Xb[2];
+  }
+
+  // bisect for a bit
+  for (int i = 0; i < 1000; i++) {
+    Xc[2] = 0.5 * (Xa[2] + Xb[2]);
+    thc = theta_func(Xc);
+
+    if ((thc - th) * (thb - th) < 0.)
+      Xa[2] = Xc[2];
+    else
+      Xb[2] = Xc[2];
+
+    double err = theta_func(Xc) - th;
+    if (fabs(err) < tol)
+      break;
+  }
+
+  return Xc[2];
+}
+
+/**
+ * Translate embedding coordinates r,th,phi into native representation X1,X2,X3
+ * Used for the camera
+ */
+static inline void native_coord(double r, double th, double phi, double X[NDIM]) {
+  if (metric == METRIC_MINKOWSKI) {
+    X[0] = 1; X[1] = r; X[2] = th/180*M_PI; X[3] = phi/180*M_PI;
+  } else {
+    double x[NDIM] = {0., r, th/180.*M_PI, phi/180.*M_PI};
+    X[0] = 0.0;
+    X[1] = log(r);
+    X[2] = root_find(x);
+    X[3] = phi/180.*M_PI;
+  }
+}
 
 #endif // COORDINATES_H

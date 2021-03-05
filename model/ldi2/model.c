@@ -63,7 +63,11 @@ void init_model(double *tA, double *tB)
   // Set all the geometry globals we need
   metric = METRIC_MINKOWSKI;
   use_eKS_internal = 0;
-  Rh = 0.5; // Don't integrate past the coordinate origin, spherical coordinates don't like that
+
+  // Exclude the origin
+  // ipole ends geodesics on the "horizon"
+  // == 1 + sqrt(1 - a^2)
+  a = 1.0;
 
   // Unitless
   M_unit = 1.0;

@@ -240,9 +240,6 @@ void init_model(double *tA, double *tB)
   #else // FAST LIGHT
   data[2]->t =10000.;
   #endif // SLOW_LIGHT
-
-  // horizon radius
-  Rh = 1 + sqrt(1. - a * a);
 }
 
 /*

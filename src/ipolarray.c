@@ -131,7 +131,8 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 
       double ucov[4];
       flip_index(Ucon, gcov, ucov);
-      double bsq = 0., udotu = 0., udotb = 0., kdotk = 0., kdotu = 0., kdotb = 0.;
+      double bsq = 0., udotu = 0., udotb = 0., kdotu = 0., kdotb = 0.;
+      //double kdotk = 0.;
       MULOOP {
         bsq += Bcon[mu] * Bcov[mu];
         udotu += Ucon[mu] * ucov[mu];

@@ -54,7 +54,7 @@ static inline size_t imgindex(size_t n, size_t i, size_t j, size_t nx, size_t ny
 // global variables. TODO scope into main
 static double tf = 0.;
 
-Params params = { 0 };
+Params params;
 
 int main(int argc, char *argv[]) 
 {
@@ -592,7 +592,8 @@ int main(int argc, char *argv[])
           size_t previousspacingx = newspacingx * 2;
           size_t previousspacingy = newspacingy * 2;
 
-          double I1, I2, I3, I4, err_abs, err_rel;
+          double I1, I2, I3, err_abs, err_rel;
+          //double I4;
           if (i % previousspacingx == 0 && j % previousspacingy == 0) {
             // pixel has already been ray-traced
             continue;
@@ -673,7 +674,7 @@ int main(int argc, char *argv[])
             I1 = image[(i-newspacingx)*ny+j-newspacingy]; // bottom left
             I2 = image[(i+newspacingx)*ny+j-newspacingy]; // bottom right
             I3 = image[(i-newspacingx)*ny+j+newspacingy]; // upper left
-            I4 = image[(i+newspacingx)*ny+(j+newspacingy)]; // upper right
+            //I4 = image[(i+newspacingx)*ny+(j+newspacingy)]; // upper right
 
             // Refinement criterion thanks to Zack Gelles: absolute & relative error of
             // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel
@@ -760,7 +761,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
                double *Tau, double *tauF)
 {
   double X[NDIM] = {0.}, Kcon[NDIM] = {0.};
-  double complex N_coord[NDIM][NDIM] = {0.};
+  double complex N_coord[NDIM][NDIM] = {{0.}};
   *Intensity = 0.;
   *Tau = 0.;
   *tauF = 0.;
@@ -775,6 +776,8 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   if (nstep >= params.maxnstep-1) {
     // You almost certainly don't want to continue if this happens
     fprintf(stderr, "\nMaxNStep exceeded in pixel %ld %ld!\n", i, j);
+    print_vector("Starting X", X);
+    print_vector("Starting Kcon", Kcon);
     exit(-10);
   }
 
@@ -788,7 +791,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   // Catch anything with bad tetrads, anything we manually specify, and signficantly negative pixels
   if (oddflag != 0 || (i == DIAG_PX_I && j == DIAG_PX_J) || *Is < -1.e-10) {
     fprintf(stderr, "\nOddity in pixel %ld %ld (flag %d):\n", i, j, oddflag);
-    //print_vector("Starting X", X);
+    print_vector("Starting X", X);
     print_vector("Starting Kcon", Kcon);
     fprintf(stderr, "nstep: %d\n", nstep);
     fprintf(stderr, "Final Stokes parameters: [%g %g %g %g]\n", *Is, *Qs, *Us, *Vs);

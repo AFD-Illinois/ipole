@@ -286,9 +286,9 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *rho_inv = calloc(NDIM*nsteps, sizeof(double));
 
   // Initialize stuff we'll carry along
-  double complex N_coord[NDIM][NDIM] = {0.};
+  double complex N_coord[NDIM][NDIM] = {{0.}};
   double Intensity = 0, Tau = 0, tauF = 0;
-  double rotcam = params->rotcam*M_PI/180.;
+  //double rotcam = params->rotcam*M_PI/180.;
   // Record Stokes parameters
   double *stokes = calloc(NDIM*nsteps,sizeof(double));
   double *stokes_coordinate = calloc(NDIM*nsteps,sizeof(double));

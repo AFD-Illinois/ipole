@@ -166,10 +166,11 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
 #endif
 
   // Necessary geometric stop conditions
+  double rh = 1 + sqrt(1. - a * a); //fprintf(stderr, "%f ", rh);
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
-      r < (Rh + 0.0001)) { // Or right near the horizon
+      r < (rh + 0.0001)) { // Or right near the horizon
 #if THIN_DISK
     // If we stopped during the thin disk timer, remember to reset it!
     n_left = -1;

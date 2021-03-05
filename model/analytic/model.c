@@ -134,8 +134,7 @@ void set_units()
   // Set all the geometry for coordinates.c
   // TODO function like initialize_coordinates, that makes sure these are all set.
   R0 = 0.;
-  Rh = 1 + sqrt(1. - a * a);
-  Rin = Rh;
+  Rin = 1 + sqrt(1. - a * a);
   Rout = 1000.0;
   // Limit rmax_geo?
 
@@ -308,7 +307,8 @@ int radiating_region(double X[NDIM])
   // you can control here where the coefficients are applied
   double r, th;
   bl_coord(X, &r, &th);
-  return r > Rh + 0.0001 && r > rmin_geo && r < 1000.0;
+  double Rh = 1 + sqrt(1. - a * a);
+  return (r > Rh + 0.0001) && (r > rmin_geo) && (r < 1000.0);
 }
 
 //// STUBS: Functions for normal models which we don't use ////
