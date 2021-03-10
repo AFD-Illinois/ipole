@@ -31,6 +31,11 @@ double approximate_solve (double Ii, double ji, double ki, double jf, double kf,
 void project_N(double X[NDIM],double Kcon[NDIM],
     double complex Ncon[NDIM][NDIM],
     double *Stokes_I, double *Stokes_Q,double *Stokes_U,double *Stokes_V, double rotcam);
+void parallel_transport_vector(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
+    double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
+    double Ni[NDIM],
+    double Nm[NDIM],
+    double Nf[NDIM], double dl);
 
 /* tensor tools */
 void complex_lower(double complex N[NDIM][NDIM], double gcov[NDIM][NDIM],

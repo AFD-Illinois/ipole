@@ -221,6 +221,38 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 }
 
 /*
+
+Parallel Transport a real vector over dl
+(see push_polar above)
+
+*/
+void parallel_transport_vector(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
+    double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
+    double Ni[NDIM],
+    double Nm[NDIM],
+    double Nf[NDIM], double dl)
+{
+    
+  /* find the connection */
+  double lconn[NDIM][NDIM][NDIM];
+  get_connection(Xm, lconn);
+  int i, j, k;
+
+  /* push N */
+  for (i = 0; i < 4; i++)
+  Nf[i] = Ni[i];
+
+  for (i = 0; i < 4; i++)
+  for (j = 0; j < 4; j++)
+  for (k = 0; k < 4; k++)
+  Nf[i] += -(lconn[i][j][k] * Nm[j] * Km[k]) * 
+  dl / (L_unit * HPL / (ME * CL * CL));
+
+  return;
+}
+
+
+/*
  * Updates N for one step on geodesics, using the previous step N
  * here we compute new right-hand side of the equation
  * and somehow rotate this along the geodesics knowing
@@ -228,6 +260,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
  * 
  * Return an error flag indicating any singular matrix, bad tetrad, etc.
  */
+
 int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double Xhalf[NDIM], double Kconhalf[NDIM],
     double Xf[NDIM], double Kconf[NDIM],
