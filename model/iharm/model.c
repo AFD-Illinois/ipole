@@ -54,6 +54,8 @@ static double Mdot_dump;
 static double MdotEdd_dump;
 static double Ladv_dump;
 
+static int reverse_field=1;
+
 // MAYBES
 //static double t0;
 
@@ -791,7 +793,21 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
     hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 
-  hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
+  //Reversing B Field
+  if(reverse_field==1){
+    double multiplier = -1.0;
+    for(int i=0;i<N1;i++){
+      for(int j=0;j<N2;j++){
+        for(int k=0;k<N3;k++){ 
+          data[n]->p[B1][i][j][k] = multiplier*data[n]->p[B1][i][j][k];
+          data[n]->p[B2][i][j][k] = multiplier*data[n]->p[B2][i][j][k];
+          data[n]->p[B3][i][j][k] = multiplier*data[n]->p[B3][i][j][k];
+        }
+      }
+    }
+  }                                                                                           
+	
+	hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
 
   hdf5_close();
 

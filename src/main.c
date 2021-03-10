@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
 {
   // motd
   fprintf(stderr, "%s. githash: %s\n", VERSION_STRING, xstr(VERSION));
+	fprintf(stderr,"\nWARNING. iharm/model.c CONTAINS A CODE BLOCK TO REVERSE B FIELD. CHECK BEFORE RUNNING\n");
   fprintf(stderr, "notes: %s\n\n", xstr(NOTES));
 
   // initialization
