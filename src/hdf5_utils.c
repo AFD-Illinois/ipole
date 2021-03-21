@@ -239,6 +239,43 @@ hid_t hdf5_make_str_type(size_t len)
   return string_type;
 }
 
+// Read attribute (supports int and double)
+int hdf5_read_attr_num(void *data, const char *att_name, const char *data_name, hsize_t hdf5_type)
+{
+  char path[STRLEN];
+  strncpy(path, hdf5_cur_dir, STRLEN);
+  strncat(path, data_name, STRLEN - strlen(path));
+
+  if(DEBUG) printf("Reading att %s\n", path);
+
+  hid_t attribute_id = H5Aopen_by_name(file_id, path, att_name, H5P_DEFAULT,  H5P_DEFAULT);
+  if (attribute_id < 0) FAIL((int) attribute_id, "hdf5_read_attr_num", path);
+  H5Aread(attribute_id, hdf5_type, data);
+  H5Aclose(attribute_id);
+
+  return 0;
+}
+
+// Read attribute array of doubles
+int hdf5_read_attr_arr(void *data, const char *att_name, const char *data_name)
+{
+  char path[STRLEN];
+  strncpy(path, hdf5_cur_dir, STRLEN);
+  strncat(path, data_name, STRLEN - strlen(path));
+
+  if(DEBUG) printf("Reading att array %s\n", path);
+
+  hid_t attribute_id = H5Aopen_by_name(file_id, path, att_name, H5P_DEFAULT,  H5P_DEFAULT);
+  if (attribute_id < 0) FAIL((int) attribute_id, "hdf5_read_attr_arr", path);
+
+  // TODO here we assume that we have enough space for the array read!
+  hid_t atype  = H5Aget_type(attribute_id);
+  H5Aread(attribute_id, atype, data);
+  H5Aclose(attribute_id);
+
+  return 0;
+}
+
 // Add the named attribute to the named variable
 int hdf5_add_attr(const void *att, const char *att_name, const char *data_name, hsize_t hdf5_type)
 {
@@ -463,10 +500,17 @@ int hdf5_read_single_val(void *val, const char *name, hsize_t hdf5_type)
 int hdf5_read_array(void *data, const char *name, size_t rank,
                       hsize_t *fdims, hsize_t *fstart, hsize_t *fcount, hsize_t *mdims, hsize_t *mstart, hsize_t hdf5_type)
 {
-  hid_t filespace = H5Screate_simple(rank, fdims, NULL);
+  return hdf5_read_array_multidim(data, name, rank, fdims, fstart, fcount, rank, mdims, mstart, fcount, hdf5_type);
+}
+
+int hdf5_read_array_multidim(void *data, const char *name, 
+      size_t frank, hsize_t *fdims, hsize_t *fstart, hsize_t *fcount, 
+      size_t mrank, hsize_t *mdims, hsize_t *mstart, hsize_t *mcount, hsize_t hdf5_type)
+{
+  hid_t filespace = H5Screate_simple(frank, fdims, NULL);
   H5Sselect_hyperslab(filespace, H5S_SELECT_SET, fstart, NULL, fcount,
     NULL);
-  hid_t memspace = H5Screate_simple(rank, mdims, NULL);
+  hid_t memspace = H5Screate_simple(mrank, mdims, NULL);
   H5Sselect_hyperslab(memspace, H5S_SELECT_SET, mstart, NULL, fcount,
     NULL);
 
@@ -483,6 +527,9 @@ int hdf5_read_array(void *data, const char *name, size_t rank,
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 #endif
   herr_t err = H5Dread(dset_id, hdf5_type, memspace, filespace, plist_id, data);
+
+  H5Eprint2(H5E_DEFAULT, stderr);
+
   if (err < 0) FAIL(err, "hdf5_read_array", path);
 
   H5Dclose(dset_id);

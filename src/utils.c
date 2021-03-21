@@ -9,11 +9,11 @@
 #include <stdio.h>
 
 // malloc utilities
-void *malloc_rank1(int n1, int size)
+void *malloc_rank1(size_t n1, size_t size)
 {
   void *A;
 
-  if ((A = malloc(n1*size)) == NULL) {
+  if ((A = malloc(n1 * size)) == NULL) {
     fprintf(stderr,"malloc failure in malloc_rank1\n");
     exit(123);
   }
