@@ -58,7 +58,7 @@ static double Mdot_dump;
 static double MdotEdd_dump;
 static double Ladv_dump;
 
-static int reverse_field=1;
+static int reverse_field = 0;
 
 // MAYBES
 //static double t0;
@@ -126,6 +126,8 @@ void try_set_model_parameter(const char *word, const char *value)
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
+
+  set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
 
   // for slow light
   set_by_word_val(word, value, "dump_min", &dumpmin, TYPE_INT);
@@ -238,7 +240,7 @@ void get_dumpfile_type(char *fnam, int dumpidx)
     dumpfile_format = FORMAT_IHARM_v1;
     fprintf(stderr, "iharm!\n");
   } else {
-    // note this will return -1 if the "header" group does not exists
+    // note this will return -1 if the "header" group does not exist
     dumpfile_format = FORMAT_HAMR_EKS;
     fprintf(stderr, "hamr!\n");
   }
@@ -1269,7 +1271,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   //Reversing B Field
-  if(reverse_field==1){
+  if(reverse_field) {
     double multiplier = -1.0;
     for(int i=0;i<N1;i++){
       for(int j=0;j<N2;j++){

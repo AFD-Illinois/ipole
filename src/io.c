@@ -15,6 +15,7 @@
 
 #include "model.h"
 #include "model_radiation.h"
+#include "model_tetrads.h"
 
 #include <unistd.h>
 #include <string.h>
@@ -235,8 +236,6 @@ void dump(double image[], double imageS[], double taus[],
 /*
  * Given a path, dump a variable computed along that path into a file.
  * Note this is most definitely *not* thread-safe, so it gets called from an 'omp critical'
- * 
- * TODO Output of Q/U as locally parallel transported forward along the curve?
  */
 void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny,
                     double scale, double cam[NDIM], double fovx, double fovy, Params *params)
@@ -280,13 +279,13 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 //  double *Bcon = calloc(NDIM*nsteps, sizeof(double));
 //  double *Bcov = calloc(NDIM*nsteps, sizeof(double));
 
-  // TODO NDIM and NSTOKES are not the same thing
+  // TODO NDIM and NSTOKES are not necessarily the same thing...
   double *j_inv = calloc(NDIM*nsteps, sizeof(double));
   double *alpha_inv = calloc(NDIM*nsteps, sizeof(double));
   double *rho_inv = calloc(NDIM*nsteps, sizeof(double));
 
   // Initialize stuff we'll carry along
-  double complex N_coord[NDIM][NDIM] = {0.};
+  double complex N_coord[NDIM][NDIM] = {{0.}};
   double complex N_tetrad[NDIM][NDIM];
   double Intensity = 0, Tau = 0, tauF = 0;
   double rotcam = params->rotcam*M_PI/180.;
@@ -297,7 +296,11 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   // Record Stokes parameters
   double *stokes = calloc(NDIM*nsteps,sizeof(double));
-  // double *stokes_coordinate = calloc(NDIM*nsteps,sizeof(double));
+  double *stokes_coordinate = calloc(NDIM*nsteps,sizeof(double));
+  double *ntetrad = calloc(NDIM*NDIM*nsteps,sizeof(double));
+  double *ncoord = calloc(NDIM*NDIM*nsteps,sizeof(double));
+  double *econ = calloc(NDIM*NDIM*nsteps,sizeof(double));
+  double *ecov = calloc(NDIM*NDIM*nsteps,sizeof(double));
 
   double *e2Constructed = calloc(NDIM*nsteps,sizeof(double));
   double *e2ConstructedCov = calloc(NDIM*nsteps,sizeof(double));
@@ -353,13 +356,25 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
       //reset e2Final to be that of the current parallely transported vector to flip index
       e2Final[mu] = e2Transported[i*NDIM+mu];
     }
+    MUNULOOP {
+      econ[i*NDIM*NDIM + mu*NDIM + nu] = Econt[mu][nu];
+      ecov[i*NDIM*NDIM + mu*NDIM + nu] = Ecovt[mu][nu];
+    }
+
     flip_index(e2Final,Gcov,e2Cov);
     MULOOP e2TransportedCov[i*NDIM+mu] = e2Cov[mu];
 
-    //convert N to Stokes in plasma frame and record the coherency tensor at the current step
+    // Convert N to Stokes in plasma frame and record the coherency tensor at the current step
     complex_coord_to_tetrad_rank2(N_coord,Ecovt,N_tetrad);
-    //Record the Stokes parameters in the correct index
+    // Record N
+    MUNULOOP {
+      ntetrad[i*NDIM*NDIM + mu*NDIM + nu] = N_tetrad[mu][nu];
+      ncoord[i*NDIM*NDIM + mu*NDIM + nu] = N_coord[mu][nu];
+    }
+    // Record the Stokes parameters in the correct index
     tensor_to_stokes(N_tetrad,&(stokes[(i)*NDIM]), &(stokes[(i)*NDIM+1]), &(stokes[(i)*NDIM+2]), &(stokes[(i)*NDIM+3]));
+    project_N(traj[i-1].X, traj[i-1].Kcon, N_coord, &(stokes_coordinate[i*NDIM]), &(stokes_coordinate[i*NDIM+1]),
+              &(stokes_coordinate[i*NDIM+2]), &(stokes_coordinate[i*NDIM+3]), rotcam);
 
     // Integrate and record results
     int flag = integrate_emission(&(traj[i]), 1, &Intensity, &Tau, &tauF, N_coord, params);
@@ -439,9 +454,24 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 8;
   hdf5_write_chunked_array(prims, "prims", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
+  // TENSORS: Anything with N values per geodesic step
+  hsize_t fdims_t[] = { nx, ny, params->maxnstep, 4, 4 };
+  hsize_t chunk_t[] =  { 1, 1, 200, 4, 4 };
+  hsize_t fstart_t[] = { i, j, 0, 0, 0 };
+  hsize_t fcount_t[] = { 1, 1, nsteps, 4, 4 };
+  hsize_t mdims_t[] =  { 1, 1, nsteps, 4, 4 };
+  hsize_t mstart_t[] = { 0, 0, 0, 0, 0 };
+  hdf5_write_chunked_array(ntetrad, "ntetrad", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(ncoord, "ncoord", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(econ, "Econ", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(ecov, "Ecov", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
+
+  // DEALLOCATE
+
   // Scalars
   free(b); free(ne); free(thetae);
   free(nu); free(mu);
+  free(dl);
   free(r); free(th); free(phi);
   free(j_unpol); free(k_unpol); free(I_unpol);
 
@@ -455,6 +485,10 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   free(e2Constructed);free(e2ConstructedCov);
   free(e2Transported);free(e2TransportedCov);
   free(prims);
+
+  // Tensors
+  free(ntetrad); free(ncoord);
+  free(econ); free(ecov);
 
   hdf5_close();
 }

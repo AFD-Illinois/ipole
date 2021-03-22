@@ -762,7 +762,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
                double *Tau, double *tauF)
 {
   double X[NDIM] = {0.}, Kcon[NDIM] = {0.};
-  double complex N_coord[NDIM][NDIM] = {0.};
+  double complex N_coord[NDIM][NDIM] = {{0.}};
   *Intensity = 0.;
   *Tau = 0.;
   *tauF = 0.;
