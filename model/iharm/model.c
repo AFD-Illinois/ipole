@@ -228,9 +228,11 @@ void get_dumpfile_type(char *fnam, int dumpidx)
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
 
+  // TODO needs KORAL/MKS3 support
+
   hdf5_open(fname);
-  int version_exists = hdf5_exists("header/version");
-  if (version_exists == 1) {
+  int hamr_attr_exists = hdf5_attr_exists("", "dscale");
+  if (!hamr_attr_exists) {
     dumpfile_format = FORMAT_IHARM_v1;
     fprintf(stderr, "iharm!\n");
   } else {
@@ -634,12 +636,23 @@ void init_hamr_grid(char *fnam, int dumpidx)
   stopx[2] = (stopx[2] + 1)/2.;
   dx[2] /= 2;
 
-  fprintf(stderr, "Native coordinate start: %g %g %g stop: %g %g %g\n",
-                  startx[1], startx[2], startx[3], stopx[1], stopx[2], stopx[3]);
-
   // set limit for tracking geodesic emission
   rmax_geo = fmin(rmax_geo, fmin(100., Rout));
   rmin_geo = fmax(rmin_geo, Rin);
+
+  cstartx[0] = 0;
+  cstartx[1] = 0;
+  cstartx[2] = 0;
+  cstartx[3] = 0;
+  cstopx[0] = 0;
+  cstopx[1] = log(Rout);
+  cstopx[2] = 1.0;
+  cstopx[3] = 2*M_PI;
+
+  fprintf(stderr, "Native coordinate start: %g %g %g stop: %g %g %g\n",
+                  cstartx[1], cstartx[2], cstartx[3], cstopx[1], cstopx[2], cstopx[3]);
+  fprintf(stderr, "Grid start: %g %g %g stop: %g %g %g\n",
+                  startx[1], startx[2], startx[3], stopx[1], stopx[2], stopx[3]);
 
   init_storage();
   hdf5_close();
@@ -838,6 +851,8 @@ void init_iharm_grid(char *fnam, int dumpidx)
   cstopx[3] = 2*M_PI;
 
   fprintf(stderr, "Native coordinate start: %g %g %g stop: %g %g %g\n",
+                  cstartx[1], cstartx[2], cstartx[3], cstopx[1], cstopx[2], cstopx[3]);
+  fprintf(stderr, "Grid start: %g %g %g stop: %g %g %g\n",
                   startx[1], startx[2], startx[3], stopx[1], stopx[2], stopx[3]);
 
   init_storage();

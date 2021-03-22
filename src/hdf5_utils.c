@@ -293,6 +293,22 @@ int hdf5_add_attr(const void *att, const char *att_name, const char *data_name, 
   return 0;
 }
 
+// Check that the named attribute exists
+int hdf5_attr_exists(const char *data_name, const char *att_name)
+{
+  char path[STRLEN];
+  strncpy(path, hdf5_cur_dir, STRLEN);
+  strncat(path, data_name, STRLEN - strlen(path));
+
+  if(DEBUG) printf("Checking att %s:%s\n", path, att_name);
+
+  hid_t link_plist = H5Pcreate(H5P_LINK_ACCESS);
+  herr_t exists = H5Aexists_by_name(file_id, path, att_name, link_plist);
+  H5Pclose(link_plist);
+
+  return exists > 0;
+}
+
 // Add an attribute named "units"
 int hdf5_add_units(const char *name, const char *unit)
 {
