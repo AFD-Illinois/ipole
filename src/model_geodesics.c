@@ -221,7 +221,6 @@ double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 
   // Make the step cautious near the pole, improving accuracy of Stokes U
   double cut = 0.02;
-  // TODO: REFIX for coordinate systems that don't extend (0, 1)
   double lx2 = cstopx[2] - cstartx[2];
   double dpole = fmin(fabs(X[2] / lx2), fabs((cstopx[2] - X[2]) / lx2));
   double d2fac = (dpole < cut) ? dpole/3 : fmin(cut/3 + (dpole-cut)*10., 1);

@@ -622,34 +622,12 @@ void init_hamr_grid(char *fnam, int dumpidx)
   stopx[2] = startx[2]+N2*dx[2];
   stopx[3] = startx[3]+N3*dx[3];
 
-  /*
-   
-  // note this isn't really right either, based on the x3 data in the file not 
-  // actually being regular. nevertheless, it's the best we can do for now.
-
-  double *coord_buf = malloc(N1*N2*N3 * sizeof(double));
-  hsize_t fdims[] = { N1 * N2 * N3 };
-  hsize_t fstart[] = { 0 };
-  hsize_t fcount[] = { N1 * N2 * N3 };
-
-  hdf5_read_array(coord_buf, "x1", 1, fdims, fstart, fcount, fdims, fstart, H5T_IEEE_F64LE);
-  startx[1] = coord_buf[0];
-  stopx[1] = coord_buf[N1*N2*N3-1];
-
-  hdf5_read_array(coord_buf, "x2", 1, fdims, fstart, fcount, fdims, fstart, H5T_IEEE_F64LE);
-  startx[2] = coord_buf[0];
-  stopx[2] = coord_buf[N1*N2*N3-1];
-
-  hdf5_read_array(coord_buf, "x3", 1, fdims, fstart, fcount, fdims, fstart, H5T_IEEE_F64LE);
-  startx[3] = coord_buf[0];
-  stopx[3] = coord_buf[N1*N2*N3-1];
-
-  dx[1] = ( stopx[1] - startx[1] ) / N1;
-  dx[2] = ( stopx[2] - startx[2] ) / N2;
-  dx[3] = ( stopx[3] - startx[3] ) / N3;
-  free(coord_buf);
-
-  */
+  // set boundary of coordinate system
+  MULOOP cstartx[mu] = 0.;
+  cstopx[0] = 0;
+  cstopx[1] = log(Rout);
+  cstopx[2] = 1;
+  cstopx[3] = 2*M_PI;
 
   // now translate from hamr x2 \in (-1, 1) -> mks x2 \in (0, 1)
   startx[2] = (startx[2] + 1)/2.;
@@ -1062,9 +1040,11 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
 
       // use gcov_eKS as temporary storage for gcov_KS during gcov_hamr calculation
       gcov_ks(r, th, gcov_eKS);
-      //fprintf(stderr, "KS %d %d %g %g %g %g %g %g %g %g %g %g %g %g\n", i,j,r,th,gcov_eKS[0][0],
-      //gcov_eKS[0][1],gcov_eKS[0][2],gcov_eKS[0][3],gcov_eKS[1][1],gcov_eKS[1][2],gcov_eKS[1][3],
-      //gcov_eKS[2][2],gcov_eKS[2][3],gcov_eKS[3][3]);
+      //fprintf(stderr, "KS %d %d %g %g %g %g %g %g %g %g %g %g %g %g\n", i,j,r,th,
+      //  gcov_eKS[0][0],gcov_eKS[0][1],gcov_eKS[0][2],gcov_eKS[0][3],
+      //  gcov_eKS[1][1],gcov_eKS[1][2],gcov_eKS[1][3],
+      //  gcov_eKS[2][2],gcov_eKS[2][3],
+      //  gcov_eKS[3][3]);
 
       double dxdX[NDIM][NDIM];
       MUNULOOP dxdX[mu][nu] = delta(mu, nu);
@@ -1081,9 +1061,11 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
       }
       gcon_func(gcov_hamr, gcon_hamr);
 
-      //fprintf(stderr, "HAMR %d %d %g %g %g %g %g %g %g %g %g %g %g %g\n", i,j,r,th,gcov_hamr[0][0],
-      //gcov_hamr[0][1],gcov_hamr[0][2],gcov_hamr[0][3],gcov_hamr[1][1],gcov_hamr[1][2],gcov_hamr[1][3],
-      //gcov_hamr[2][2],gcov_hamr[2][3],gcov_hamr[3][3]);
+      //fprintf(stderr, "HAMR %d %d %g %g %g %g %g %g %g %g %g %g %g %g\n", i,j,r,th,
+      //  gcov_hamr[0][0],gcov_hamr[0][1],gcov_hamr[0][2],gcov_hamr[0][3],
+      //  gcov_hamr[1][1],gcov_hamr[1][2],gcov_hamr[1][3],
+      //  gcov_hamr[2][2],gcov_hamr[2][3],
+      //  gcov_hamr[3][3]);
 
       // now we can freely use gcov_eKS
       gcov_func(X, gcov_eKS);
@@ -1115,22 +1097,21 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
         // reconstruct the magnetic field with everything hamr
         double udotB = 0.;
         for (int l = 1; l < NDIM; l++) {
-          udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
+          udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k] / alpha;  // note alpha factor!
         }
         bcon[0] = udotB;
         for (int l = 1; l < NDIM; l++) {
-          bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
+          bcon[l] = (data[n]->p[B1+l-1][i][j][k]/alpha + ucon[l]*udotB)/ucon[0];  // note alpha!
         }
         flip_index(bcon, gcov_hamr, bcov);
-
-        //fprintf(stderr, "bcon %d %d %d -> %g %g %g %g\n", i,j,k, bcon[0],bcon[1],bcon[2],bcon[3]);
-        //fprintf(stderr, "ucon %d %d %d -> %g %g %g %g\n", i,j,k, ucon[0],ucon[1],ucon[2],ucon[3]);
-        //fprintf(stderr, "B %d %d %d -> %g %g %g\n", i,j,k, data[n]->p[B1][i][j][k],data[n]->p[B2][i][j][k],data[n]->p[B3][i][j][k]);
 
         double bsq = 0.;
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
-
+ 
+        //fprintf(stderr, "bcon %d %d %d -> %g %g %g %g\n", i,j,k, bcon[0],bcon[1],bcon[2],bcon[3]);
+        //fprintf(stderr, "ucon %d %d %d -> %g %g %g %g\n", i,j,k, ucon[0],ucon[1],ucon[2],ucon[3]);
+        //fprintf(stderr, "B %d %d %d -> %g %g %g\n", i,j,k, data[n]->p[B1][i][j][k],data[n]->p[B2][i][j][k],data[n]->p[B3][i][j][k]);
         //fprintf(stderr, "bsq = %g  %d %d %d\n", bsq, i, j, k);
 
         // translate from hamr -> eKS
@@ -1147,9 +1128,9 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
         data[n]->p[B2][i][j][k] = ucon[0] * bcon[2] - bcon[0] * ucon[2];
         data[n]->p[B3][i][j][k] = ucon[0] * bcon[3] - bcon[0] * ucon[3];
 
-        // now do more checks
+        // now do more checks. left in for posterity
         if (1 == 0) {
-          fprintf(stderr, "init ucon %d %d %d %g %g %g %g\n", i,j,k, ucon[0],ucon[1],ucon[2],ucon[3]);
+          fprintf(stderr, "init ucon %d %d %d %g %g %g %g\n", i,j,k,ucon[0],ucon[1],ucon[2],ucon[3]);
           double UdotU = 0.;
           for(int l = 1; l < NDIM; l++) {
             for(int m = 1; m < NDIM; m++) {
@@ -1162,9 +1143,9 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
             ucon[l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon_eKS[0][l];
           }
           flip_index(ucon, gcov_eKS, ucov);
-          fprintf(stderr, "end ucon %d %d %d %g %g %g %g\n", i,j,k, ucon[0],ucon[1],ucon[2],ucon[3]);
+          fprintf(stderr, "end ucon %d %d %d %g %g %g %g\n", i,j,k,ucon[0],ucon[1],ucon[2],ucon[3]);
 
-          fprintf(stderr, "init bcon %d %d %d %g %g %g %g\n", i,j,k, bcon[0],bcon[1],bcon[2],bcon[3]);
+          fprintf(stderr, "init bcon %d %d %d %g %g %g %g\n", i,j,k,bcon[0],bcon[1],bcon[2],bcon[3]);
           double udotB = 0.;
           for (int l = 1; l < NDIM; l++) {
             udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
@@ -1173,7 +1154,11 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
           for (int l = 1; l < NDIM; l++) {
             bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
           }
-          fprintf(stderr, "end bcon %d %d %d %g %g %g %g\n", i,j,k, bcon[0],bcon[1],bcon[2],bcon[3]);
+          fprintf(stderr, "end bcon %d %d %d %g %g %g %g\n", i,j,k,bcon[0],bcon[1],bcon[2],bcon[3]);
+
+          bsq = 0.;
+          MULOOP bsq += bcon[mu]*bcov[mu];
+          fprintf(stderr, "end bsq %d %d %d %g\n", i,j,k, bsq);
         }
 
         // compute diagnostics about the dump. note g is in eKS, so ucon+ must be too!
