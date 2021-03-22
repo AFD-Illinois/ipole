@@ -41,8 +41,10 @@ int hdf5_write_chunked_array(const void *data, const char *name, size_t rank,
 int hdf5_exists(const char *name);
 int hdf5_read_single_val(void *val, const char *name, hsize_t hdf5_type);
 int hdf5_read_full_array(void *data, const char *name, size_t rank, hsize_t *dims, hsize_t hdf5_type);
-int hdf5_read_array(void *data, const char *name, size_t rank,
-                      hsize_t *fdims, hsize_t *fstart, hsize_t *fcount, hsize_t *mdims, hsize_t *mstart, hsize_t hdf5_type);
+int hdf5_read_array(void *data, const char *name, size_t rank, hsize_t *fdims, hsize_t *fstart, hsize_t *fcount, hsize_t *mdims, hsize_t *mstart, hsize_t hdf5_type);
+int hdf5_read_array_multidim(void *data, const char *name, size_t frank, hsize_t *fdims, hsize_t *fstart, hsize_t *fcount, size_t mrank, hsize_t *mdims, hsize_t *mstart, hsize_t *mcount, hsize_t hdf5_type);
+int hdf5_read_attr_num(void *data, const char *att_name, const char *data_name, hsize_t hdf5_type);
+int hdf5_read_attr_arr(void *data, const char *att_name, const char *data_name);
 
 // Convenience and annotations
 hid_t hdf5_make_str_type(size_t len);

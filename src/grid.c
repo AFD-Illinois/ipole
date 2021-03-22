@@ -135,9 +135,9 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
     MULOOP XG[mu] = X[mu];
   }
 
-  // the X[3] coordinate is allowed to vary so first map it to [0, stopx[3])
-  phi = fmod(XG[3], stopx[3]);
-  if(phi < 0.0) phi = stopx[3]+phi;
+  // the X[3] coordinate is allowed to vary so first map it to [0, cstopx[3])
+  phi = fmod(XG[3], cstopx[3]);
+  if(phi < 0.0) phi = cstopx[3]+phi;
 
   // get provisional zone index. see note above function for details. note we
   // shift to zone centers because that's where variables are most exact.

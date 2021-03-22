@@ -675,6 +675,7 @@ int main(int argc, char *argv[])
             I2 = image[(i+newspacingx)*ny+j-newspacingy]; // bottom right
             I3 = image[(i-newspacingx)*ny+j+newspacingy]; // upper left
             I4 = image[(i+newspacingx)*ny+(j+newspacingy)]; // upper right
+            (void)I4; // silence unused warning
 
             // Refinement criterion thanks to Zack Gelles: absolute & relative error of
             // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel
@@ -772,7 +773,8 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
 #if !INTEGRATOR_TEST
   MULOOP Kcon[mu] *= freq;
 #endif
-  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep);
+
+  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep, 0);
   if (nstep >= params.maxnstep-1) {
     // You almost certainly don't want to continue if this happens
     fprintf(stderr, "\nMaxNStep exceeded in pixel %ld %ld!\n", i, j);
