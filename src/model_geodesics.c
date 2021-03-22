@@ -216,14 +216,14 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
 double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {
   double dl;
-  double deh = fmin(fabs(X[1] - startx[1]), 0.1);
+  double deh = fmin(fabs(X[1] - startx[1]), 0.1); // TODO coordinate dependent
   double dlx1 = eps * (10*deh) / (fabs(Kcon[1]) + SMALL*SMALL);
 
   // Make the step cautious near the pole, improving accuracy of Stokes U
   double cut = 0.02;
   // TODO: REFIX for coordinate systems that don't extend (0, 1)
-  double lx2 = stopx[2] - startx[2];
-  double dpole = fmin(fabs(X[2] / lx2), fabs((1. - X[2]) / lx2));
+  double lx2 = cstopx[2] - cstartx[2];
+  double dpole = fmin(fabs(X[2] / lx2), fabs((cstopx[2] - X[2]) / lx2));
   double d2fac = (dpole < cut) ? dpole/3 : fmin(cut/3 + (dpole-cut)*10., 1);
   double dlx2 = eps * d2fac / (fabs(Kcon[2]) + SMALL*SMALL);
 

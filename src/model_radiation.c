@@ -91,11 +91,11 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
   // Zero emission to isolate the jet/counterjet portion
   if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
-    if (X[2] < (stopx[2] - startx[2]) / 2) {
+    if (X[2] < (cstopx[2] - cstartx[2]) / 2) {
       *jI = *jQ = *jU = *jV = 0.;
     }
   } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
-    if (X[2] > (stopx[2] - startx[2]) / 2) {
+    if (X[2] > (cstopx[2] - cstartx[2]) / 2) {
       *jI = *jQ = *jU = *jV = 0.;
     }
   }
@@ -504,11 +504,11 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
 #endif
 
     if (params->isolate_counterjet == 1) { // Emission from X[2] > midplane only
-      if (X[2] < (stopx[2] - startx[2]) / 2) {
+      if (X[2] < (cstopx[2] - cstartx[2]) / 2) {
         *jnuinv = 0.;
       }
     } else if (params->isolate_counterjet == 2) { // Emission from X[2] < midplane only
-      if (X[2] > (stopx[2] - startx[2]) / 2) {
+      if (X[2] > (cstopx[2] - cstartx[2]) / 2) {
         *jnuinv = 0.;
       }
     }

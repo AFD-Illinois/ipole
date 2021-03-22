@@ -705,16 +705,21 @@ void init_iharm_grid(char *fnam, int dumpidx)
   metric = 0;
   use_eKS_internal = 0;
 
+  // Read the coordinate system and set the only value about it not recorded in the dump
   if ( strncmp(metric_name, "MKS", 19) == 0) {
     metric = METRIC_MKS;
+    cstopx[2] = 1.0;
   } else if ( strncmp(metric_name, "BHAC_MKS", 19) == 0) {
     metric = METRIC_BHACMKS;
+    cstopx[2] = M_PI;
   } else if ( strncmp(metric_name, "MMKS", 19) == 0 || strncmp(metric_name, "FMKS", 19) == 0) {
     // TODO Handle MMKS vs FMKS signifiers in dumps somehow...
     metric = METRIC_FMKS;
+    cstopx[2] = 1.0;
   } else if ( strncmp(metric_name, "MKS3", 19) == 0 ) {
     use_eKS_internal = 1;
     metric = METRIC_MKS3;
+    cstopx[2] = 1.0;
   } else {
     fprintf(stderr, "File is in unknown metric %s.  Cannot continue.\n", metric_name);
     exit(-1);
@@ -840,10 +845,19 @@ void init_iharm_grid(char *fnam, int dumpidx)
   hdf5_set_directory("/");
   hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
 
+  // The rest of the 
   stopx[0] = 1.;
   stopx[1] = startx[1]+N1*dx[1];
   stopx[2] = startx[2]+N2*dx[2];
   stopx[3] = startx[3]+N3*dx[3];
+  // Start & stop for specifically the *coordinate system*, for step sizes & so on
+  cstartx[0] = 0;
+  cstartx[1] = 0;
+  cstartx[2] = 0;
+  cstartx[3] = 0;
+  cstopx[0] = 0;
+  cstopx[1] = log(Rout);
+  cstopx[3] = 2*M_PI;
 
   fprintf(stderr, "Native coordinate start: %g %g %g stop: %g %g %g\n",
                   startx[1], startx[2], startx[3], stopx[1], stopx[2], stopx[3]);
