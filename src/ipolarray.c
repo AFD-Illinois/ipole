@@ -405,6 +405,22 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 
   *tauF += dlam*fabs(rV); //*sqrt(SQ*SQ + SU*SU);
 
+  if (SI < 0) {
+    SI = 0;
+    SQ = 0;
+    SU = 0;
+    SV = 0;
+  } else {
+    double overpol = sqrt(SQ*SQ + SU*SU + SV*SV) / SI;
+    if ( overpol > 1. ) {
+      printf("Stokes start: %g %g %g %g Middle: %g %g %g %g End: %g %g %g %g Final %g %g %g %g\n",
+              SI0, SQ0, SU0, SV0, SI1, SQ1, SU1, SV1, SI2, SQ2, SU2, SV2, SI, SQ, SU, SV);
+      SQ /= overpol;
+      SU /= overpol;
+      SV /= overpol;
+    }
+  }
+
   /* re-pack the Stokes parameters into N */
   stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
   complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
