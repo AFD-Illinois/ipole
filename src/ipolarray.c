@@ -466,20 +466,22 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 
   *tauF += dlam*fabs(rV); //*sqrt(SQ*SQ + SU*SU);
 
-  // Correct the resulting Stokes parameters to guarantee:
-  // 1. I > 0
-  // 2. sqrt(Q^2 + U^2 + V^2) < I
-  if (SI < 0) {
-    SI = 0;
-    SQ = 0;
-    SU = 0;
-    SV = 0;
-  } else {
-    double pol_frac = sqrt(SQ*SQ + SU*SU + SV*SV) / SI;
-    if ( pol_frac > 1. ) {
-      SQ /= pol_frac;
-      SU /= pol_frac;
-      SV /= pol_frac;
+  if (params->stokes_floors) {
+    // Correct the resulting Stokes parameters to guarantee:
+    // 1. I > 0
+    // 2. sqrt(Q^2 + U^2 + V^2) < I
+    if (SI < 0) {
+      SI = 0;
+      SQ = 0;
+      SU = 0;
+      SV = 0;
+    } else {
+      double pol_frac = sqrt(SQ*SQ + SU*SU + SV*SV) / SI;
+      if ( pol_frac > 1. ) {
+        SQ /= pol_frac;
+        SU /= pol_frac;
+        SV /= pol_frac;
+      }
     }
   }
 

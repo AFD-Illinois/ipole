@@ -31,6 +31,9 @@ typedef struct params_t {
 
   // Which e- energy distributions/emissivities to use
   int emission_type;
+  // Whether to apply I > 0 "floor" when integrating forward the Stokes parameters
+  // Probably harmless!
+  int stokes_floors;
 
   int isolate_counterjet;
 

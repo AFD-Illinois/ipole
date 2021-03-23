@@ -51,6 +51,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->old_centering = 0;
 
   params->emission_type = 4;
+  params->stokes_floors = 1;
 
   params->isolate_counterjet = 0;
 
@@ -130,6 +131,7 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "quench_output", &(params->quench_output), TYPE_INT);
   set_by_word_val(word, value, "only_unpolarized", &(params->only_unpolarized), TYPE_INT);
   set_by_word_val(word, value, "emission_type", &(params->emission_type), TYPE_INT);
+  set_by_word_val(word, value, "stokes_floors", &(params->stokes_floors), TYPE_INT);
   set_by_word_val(word, value, "counterjet", &(params->isolate_counterjet), TYPE_INT);
   set_by_word_val(word, value, "old_centering", &(params->old_centering), TYPE_INT);
 
