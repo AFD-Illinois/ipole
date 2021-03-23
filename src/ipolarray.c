@@ -354,6 +354,15 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + adj / (aI2 - aP2) * (-1 + (aI * sinhaPx + aP * coshaPx) / aP * expaIx)
         + aI * jI / (aI2 - aP2) * (1 - (aI * coshaPx + aP * sinhaPx) / aI * expaIx));
 
+#if DEBUG
+    double term1 = fabs(SI1 * coshaPx * expaIx);
+    double term2 = fabs( - (ads0 / aP) * sinhaPx * expaIx);
+    double term3 = fabs( adj / (aI2 - aP2) * (-1 + (aI * sinhaPx + aP * coshaPx) / aP * expaIx) );
+    double term4 = fabs( aI * jI / (aI2 - aP2) * (1 - (aI * coshaPx + aP * sinhaPx) / aI * expaIx) );
+    if (fmax(fmax(fmax(term1, term2), term3), term4) / fabs(SI2) > 1e16)
+      printf("CAT I: Term1: %g 2: %g 3: %g 4: %g Total: %g\n", term1, term2, term3, term4, SI2);
+#endif
+
     SQ2 = (SQ1 * expaIx
         + ads0 * aQ / aP2 * (-1 + coshaPx) * expaIx
         - aQ / aP * SI1 * sinhaPx * expaIx
@@ -361,6 +370,19 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + adj * aQ / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx
             - aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx)
         + jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
+
+#if DEBUG
+    term1 = fabs( SQ1 * expaIx );
+    term2 = fabs( ads0 * aQ / aP2 * (-1 + coshaPx) * expaIx );
+    term3 = fabs( - aQ / aP * SI1 * sinhaPx * expaIx );
+    term4 = fabs( jQ * (1 - expaIx) / aI );
+    double term5 = fabs( adj * aQ / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx
+                                              - aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
+    double term6 = fabs( jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
+
+    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SQ2) > 1e16)
+      printf("CAT Q: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SQ2);
+#endif
 
     SU2 = (SU1 * expaIx
         + ads0 * aU / aP2 * (-1 + coshaPx) * expaIx
@@ -373,6 +395,19 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + jI * aU / (aP * (aI2 - aP2)) *
         (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
 
+#if DEBUG
+    term1 = fabs( SU1 * expaIx );
+    term2 = fabs( ads0 * aU / aP2 * (-1 + coshaPx) * expaIx );
+    term3 = fabs( - aU / aP * SI1 * sinhaPx * expaIx );
+    term4 = fabs( jU * (1 - expaIx) / aI );
+    term5 = fabs( adj * aU / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx -
+                                                  aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
+    term6 = fabs( jI * aU / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
+
+    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SU2) > 1e16)
+      printf("CAT U: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SU2);
+#endif
+
     SV2 = (SV1 * expaIx
         + ads0 * aV / aP2 * (-1 + coshaPx) * expaIx
         - aV / aP * SI1 * sinhaPx * expaIx
@@ -383,6 +418,19 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
                 aP * sinhaPx) * expaIx)
         + jI * aV / (aP * (aI2 - aP2)) *
         (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
+
+#if DEBUG
+    term1 = fabs( SV1 * expaIx );
+    term2 = fabs( ads0 * aV / aP2 * (-1 + coshaPx) * expaIx );
+    term3 = fabs( - aV / aP * SI1 * sinhaPx * expaIx );
+    term4 = fabs( jV * (1 - expaIx) / aI );
+    term5 = fabs( adj * aV / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx -
+                                                    aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
+    term6 = fabs( jI * aV / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
+
+    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SV2) > 1e16)
+      printf("CAT V: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SV2);
+#endif
 
   } else {
     // Still account for aI which may be >> aP, e.g. simulating unpolarized transport
@@ -417,6 +465,23 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   /* done second rotation half-step */
 
   *tauF += dlam*fabs(rV); //*sqrt(SQ*SQ + SU*SU);
+
+  // Correct the resulting Stokes parameters to guarantee:
+  // 1. I > 0
+  // 2. sqrt(Q^2 + U^2 + V^2) < I
+  if (SI < 0) {
+    SI = 0;
+    SQ = 0;
+    SU = 0;
+    SV = 0;
+  } else {
+    double pol_frac = sqrt(SQ*SQ + SU*SU + SV*SV) / SI;
+    if ( pol_frac > 1. ) {
+      SQ /= pol_frac;
+      SU /= pol_frac;
+      SV /= pol_frac;
+    }
+  }
 
   /* re-pack the Stokes parameters into N */
   stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
