@@ -51,7 +51,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->old_centering = 0;
 
   params->emission_type = 4;
-  params->stokes_floors = 1;
+  params->stokes_floors = 0;
 
   params->isolate_counterjet = 0;
 
