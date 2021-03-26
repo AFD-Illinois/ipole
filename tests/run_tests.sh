@@ -9,7 +9,7 @@
 
 for folder in */
 do
-  folder=${folder: : -1}
+  folder=$(echo $folder | sed 's/.$//')
   if [[ "$folder" != "test-resources" ]]; then
     cd $folder
     if [[ $folder == *"sample_dump"* ]]; then
