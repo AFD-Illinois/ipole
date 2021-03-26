@@ -113,6 +113,10 @@ int main(int argc, char *argv[])
   // normalize frequency to electron rest-mass energy
   double freqcgs = params.freqcgs;
   freq = params.freqcgs * HPL / (ME * CL * CL);
+  if (freq == 0) {
+    fprintf(stderr, "Frequency cannot be zero. Quitting!\n");
+    exit(1);
+  }
 
   // Initialize the camera
   params.rotcam *= M_PI/180.;

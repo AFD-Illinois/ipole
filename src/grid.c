@@ -221,6 +221,12 @@ double gdet_zone(int i, int j, int k)
   Xzone[2] = startx[2] + (j+0.5)*dx[2];
   Xzone[3] = startx[3] + (k+0.5)*dx[3];
 
+  if (metric == METRIC_MINKOWSKI) {
+    double gcov[NDIM][NDIM];
+    gcov_func(Xzone, gcov);
+    return gdet_func(gcov);
+  }
+
   // then get gcov for the zone (in zone coordinates)
   double gcovKS[NDIM][NDIM], gcov[NDIM][NDIM];
   double r, th;
