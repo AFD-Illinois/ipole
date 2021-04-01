@@ -23,6 +23,7 @@ extern double a, hslope; // mks
 extern double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 extern double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 extern double startx[NDIM], stopx[NDIM], dx[NDIM];
+extern double cstartx[NDIM], cstopx[NDIM];
 extern double R0, Rin, Rout, Rh;
 
 void bl_coord(double *X, double *r, double *th);

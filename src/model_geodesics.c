@@ -34,7 +34,7 @@
  * * In this function, dl is the length of the step *to* point N;
  *   afterward it is *from* point N onward
  */
-int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, double eps, int step_max)
+int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, double eps, int step_max, int print)
 {
   //fprintf(stderr, "Begin trace geodesic");
   double X[NDIM], Kcon[NDIM];
@@ -83,16 +83,24 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
 #endif
 
     // To print each point (TODO option?)
-    // print_vector("X", X);
-    // print_vector("Kcon", Kcon);
-    // fprintf(stderr, "dl: %f\n", dl);
-    // double r, th;
-    // bl_coord(X, &r, &th);
-    // fprintf(stderr, "BL r, th: %g, %g\n", r, th);
-    // double Gcov[NDIM][NDIM];
-    // gcov_func(X, Gcov);
-    // print_matrix("Gcov", Gcov);
-    // getchar();
+    if (print) {
+      print_vector("X", X);
+      print_vector("Kcon", Kcon);
+      fprintf(stderr, "dl: %f\n", dl);
+      double r, th;
+      bl_coord(X, &r, &th);
+      fprintf(stderr, "BL r, th: %g, %g\n", r, th);
+      double Gcov[NDIM][NDIM];
+      gcov_func(X, Gcov);
+      print_matrix("Gcov", Gcov);
+      double Gcov_ks[NDIM][NDIM];
+      gcov_ks(r, th, Gcov_ks);
+      print_matrix("Gcov_ks", Gcov_ks);
+      double dxdX[NDIM][NDIM];
+      set_dxdX(X, dxdX);
+      print_matrix("dxdX", dxdX);
+      getchar();
+     }
 
     /* move photon one step backwards, the procecure updates X
        and Kcon full step and returns also values in the middle */
@@ -208,11 +216,16 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
 double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {
   double dl;
-  double deh = fmin(fabs(X[1] - startx[1]), 0.1);
+  double deh = fmin(fabs(X[1] - startx[1]), 0.1); // TODO coordinate dependent
   double dlx1 = eps * (10*deh) / (fabs(Kcon[1]) + SMALL*SMALL);
-  double dpole = fmin(fabs(X[2]), fabs(stopx[2] - X[2]));
-  double dlx2 = eps * dpole/3 / (fabs(Kcon[2]) + SMALL*SMALL);
-  //double dlx2 = eps / (fabs(Kcon[2]) + SMALL*SMALL);
+
+  // Make the step cautious near the pole, improving accuracy of Stokes U
+  double cut = 0.02;
+  double lx2 = cstopx[2] - cstartx[2];
+  double dpole = fmin(fabs(X[2] / lx2), fabs((cstopx[2] - X[2]) / lx2));
+  double d2fac = (dpole < cut) ? dpole/3 : fmin(cut/3 + (dpole-cut)*10., 1);
+  double dlx2 = eps * d2fac / (fabs(Kcon[2]) + SMALL*SMALL);
+
   double dlx3 = eps / (fabs(Kcon[3]) + SMALL*SMALL);
 
   if (STEP_STRICT_MIN) {

@@ -54,7 +54,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
                     double complex N_coord[NDIM][NDIM], Params *params)
 {
-  //fprintf(stderr, "Begin integrate emission");
+  //fprintf(stderr, "Begin integrate emission\n");
   // Initialize
   MUNULOOP N_coord[mu][nu] = 0.0 + I * 0.0;
   *tauF = 0.;
@@ -71,6 +71,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     struct of_traj tf = traj[nstep-1];
 
     // Parallel transport polarization vector if necessary
+    //fprintf(stderr, "Push Polar\n");
     if (!params->only_unpolarized) {
       double complex Nh[NDIM][NDIM];
       push_polar(ti.X, ti.X, ti.Xhalf, ti.Kcon, ti.Kcon, ti.Kconhalf, N_coord, N_coord, Nh, 0.5 * ti.dl);
@@ -114,6 +115,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
       get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
       *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+      //fprintf(stderr, "Unpolarized transport\n");
 
       // Solve polarized transport
       if (!params->only_unpolarized) {
@@ -121,15 +123,23 @@ int integrate_emission(struct of_traj *traj, int nsteps,
                         ti.Xhalf, ti.Kconhalf,
                         tf.X, tf.Kcon,
                         ti.dl, N_coord, tauF, params);
+        //fprintf(stderr, "Polarized transport\n");
       }
     }
 
     // smoosh together all the flags we hit along a geodesic
     oddflag |= sflag;
 
+
+
     // Cry immediately on bad tetrads, even if we're not debugging
     if (sflag & 1) {
-      fprintf(stderr, "that's odd: no orthonormal tetrad found for\n");
+      fprintf(stderr, "that's odd: no orthonormal tetrad found at\n");
+      fprintf(stderr, "nstep: %d\n", nstep);
+      double r, th;
+      bl_coord(tf.X, &r, &th);
+      fprintf(stderr, "X: %g %g %g %g\n", tf.X[0], tf.X[1], tf.X[2], tf.X[3]);
+      fprintf(stderr, "r,th: %g %g\n", r, th);
       double gcov[NDIM][NDIM];
       gcov_func(tf.X, gcov);
       double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
@@ -137,16 +147,21 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       print_vector("Ucon", Ucon);
       print_vector("Kcon", tf.Kcon);
       print_vector("Bcon", Bcon);
-      fprintf(stderr, "nstep: %d\n", nstep);
 
       double ucov[4];
       flip_index(Ucon, gcov, ucov);
-      double udotu = 0., udotb = 0.;
+      double bsq = 0., udotu = 0., udotb = 0., kdotu = 0., kdotb = 0.;
       MULOOP {
+        bsq += Bcon[mu] * Bcov[mu];
         udotu += Ucon[mu] * ucov[mu];
         udotb += Bcon[mu] * ucov[mu];
+        kdotu += tf.Kcon[mu] * ucov[mu];
+        kdotb += tf.Kcon[mu] * Bcov[mu];
       }
-      fprintf(stderr, "u.u = %g  u.b = %g\n", udotu, udotb);
+      double bsq_reported = get_model_b(tf.X);
+      fprintf(stderr, "If all of the following are nonzero, file a bug:\n");
+      fprintf(stderr, "bsq = %g bsq_reported = %g u.u = %g  u.b = %g k.u = %g k.b = %g\n",
+                      bsq, bsq_reported, udotu, udotb, kdotu, kdotb);
       // exit(-1);
     }
     // Same if there was something in gcov
@@ -179,9 +194,10 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       exit(-1);
     }
 #endif
+  //fprintf(stderr, "End Loop\n");
   }
 
-  //fprintf(stderr, "End integrate emission");
+  //fprintf(stderr, "End integrate emission\n");
   // Otherwise propagate the full flag so caller can yell or record
   return oddflag;
 }
@@ -259,8 +275,11 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
       &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
 
-  // make plasma tetrad
-  B = get_model_b(Xf); /* field in G */
+  // Guess B if we *absolutely must*
+  // Note get_model_b (rightly) returns 0 outside the domain,
+  // but we can cling to the 4-vectors a bit longer
+  B = 0.;
+  MULOOP B += Bcon[mu] * Bcov[mu];
   if (B <= 0.) {
     Bcon[0] = 0.;
     Bcon[1] = 1.;
@@ -268,8 +287,13 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     Bcon[3] = 1.;
   }
 
+  // make plasma tetrad
   gcov_func(Xf, gcov);
   oddflag |= make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
+
+  // TODO If B is 0, just keep guessing
+  //int exhausted = 0;
+  //while (oddflag && B <= 0. && !exhausted) { etc }
 
   /* convert N to Stokes */
   complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
@@ -316,6 +340,15 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + adj / (aI2 - aP2) * (-1 + (aI * sinhaPx + aP * coshaPx) / aP * expaIx)
         + aI * jI / (aI2 - aP2) * (1 - (aI * coshaPx + aP * sinhaPx) / aI * expaIx));
 
+#if DEBUG
+    double term1 = fabs(SI1 * coshaPx * expaIx);
+    double term2 = fabs( - (ads0 / aP) * sinhaPx * expaIx);
+    double term3 = fabs( adj / (aI2 - aP2) * (-1 + (aI * sinhaPx + aP * coshaPx) / aP * expaIx) );
+    double term4 = fabs( aI * jI / (aI2 - aP2) * (1 - (aI * coshaPx + aP * sinhaPx) / aI * expaIx) );
+    if (fmax(fmax(fmax(term1, term2), term3), term4) / fabs(SI2) > 1e16)
+      printf("CAT I: Term1: %g 2: %g 3: %g 4: %g Total: %g\n", term1, term2, term3, term4, SI2);
+#endif
+
     SQ2 = (SQ1 * expaIx
         + ads0 * aQ / aP2 * (-1 + coshaPx) * expaIx
         - aQ / aP * SI1 * sinhaPx * expaIx
@@ -323,6 +356,19 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + adj * aQ / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx
             - aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx)
         + jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
+
+#if DEBUG
+    term1 = fabs( SQ1 * expaIx );
+    term2 = fabs( ads0 * aQ / aP2 * (-1 + coshaPx) * expaIx );
+    term3 = fabs( - aQ / aP * SI1 * sinhaPx * expaIx );
+    term4 = fabs( jQ * (1 - expaIx) / aI );
+    double term5 = fabs( adj * aQ / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx
+                                              - aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
+    double term6 = fabs( jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
+
+    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SQ2) > 1e16)
+      printf("CAT Q: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SQ2);
+#endif
 
     SU2 = (SU1 * expaIx
         + ads0 * aU / aP2 * (-1 + coshaPx) * expaIx
@@ -335,6 +381,19 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + jI * aU / (aP * (aI2 - aP2)) *
         (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
 
+#if DEBUG
+    term1 = fabs( SU1 * expaIx );
+    term2 = fabs( ads0 * aU / aP2 * (-1 + coshaPx) * expaIx );
+    term3 = fabs( - aU / aP * SI1 * sinhaPx * expaIx );
+    term4 = fabs( jU * (1 - expaIx) / aI );
+    term5 = fabs( adj * aU / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx -
+                                                  aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
+    term6 = fabs( jI * aU / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
+
+    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SU2) > 1e16)
+      printf("CAT U: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SU2);
+#endif
+
     SV2 = (SV1 * expaIx
         + ads0 * aV / aP2 * (-1 + coshaPx) * expaIx
         - aV / aP * SI1 * sinhaPx * expaIx
@@ -345,6 +404,19 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
                 aP * sinhaPx) * expaIx)
         + jI * aV / (aP * (aI2 - aP2)) *
         (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
+
+#if DEBUG
+    term1 = fabs( SV1 * expaIx );
+    term2 = fabs( ads0 * aV / aP2 * (-1 + coshaPx) * expaIx );
+    term3 = fabs( - aV / aP * SI1 * sinhaPx * expaIx );
+    term4 = fabs( jV * (1 - expaIx) / aI );
+    term5 = fabs( adj * aV / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx -
+                                                    aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
+    term6 = fabs( jI * aV / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
+
+    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SV2) > 1e16)
+      printf("CAT V: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SV2);
+#endif
 
   } else {
     // Still account for aI which may be >> aP, e.g. simulating unpolarized transport
@@ -379,6 +451,25 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   /* done second rotation half-step */
 
   *tauF += dlam*fabs(rV); //*sqrt(SQ*SQ + SU*SU);
+
+  if (params->stokes_floors) {
+    // Correct the resulting Stokes parameters to guarantee:
+    // 1. I > 0
+    // 2. sqrt(Q^2 + U^2 + V^2) < I
+    if (SI < 0) {
+      SI = 0;
+      SQ = 0;
+      SU = 0;
+      SV = 0;
+    } else {
+      double pol_frac = sqrt(SQ*SQ + SU*SU + SV*SV) / SI;
+      if ( pol_frac > 1. ) {
+        SQ /= pol_frac;
+        SU /= pol_frac;
+        SV /= pol_frac;
+      }
+    }
+  }
 
   /* re-pack the Stokes parameters into N */
   stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);

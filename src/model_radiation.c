@@ -111,11 +111,11 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
   // Zero emission to isolate the jet/counterjet portion
   if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
-    if (X[2] < (stopx[2] - startx[2]) / 2) {
+    if (X[2] < (cstopx[2] - cstartx[2]) / 2) {
       *jI = *jQ = *jU = *jV = 0.;
     }
   } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
-    if (X[2] > (stopx[2] - startx[2]) / 2) {
+    if (X[2] > (cstopx[2] - cstartx[2]) / 2) {
       *jI = *jQ = *jU = *jV = 0.;
     }
   }
@@ -239,6 +239,25 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       *jU = -j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
       *jV = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     }
+    // Check basic relationships
+    if (*jI < 0) {
+      fprintf(stderr, "Negative total emissivity! Exiting!\n");
+      exit(-1);
+    }
+    double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
+    if (*jI < jP) {
+      // Transport does not like 100% polarization...
+      double pol_frac_e = *jI / jP - 0.01;
+      //double pol_frac_e = 0.9;
+      *jQ *= pol_frac_e;
+      *jU *= pol_frac_e;
+      *jV *= pol_frac_e;
+#if DEBUG
+      fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n",
+      jP, *jI, pol_frac_e);
+#endif
+    }
+
     // Make invariant
     double nusq = nu*nu;
     *jI /= nusq;
@@ -249,7 +268,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     // ABSORPTIVITIES
     if (dist == E_THERMAL || dist == E_DEXTER_THERMAL || dist > 10) { // Thermal distributions
       // Get absorptivities via Kirchoff's law
-      // Already invariant
+      // Already invariant, guaranteed to respect aI > aP
       double Bnuinv = Bnu_inv(nu, Thetae); // Planck function
       *aI = *jI / Bnuinv;
       *aQ = *jQ / Bnuinv;
@@ -260,6 +279,25 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       *aQ = -alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
       *aU = -alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
       *aV = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
+
+      // Check basic relationships
+      if (*aI < 0) {
+        fprintf(stderr, "Negative total absorptivity! Exiting!\n");
+        exit(-1);
+      }
+      double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
+      if (*aI < aP) {
+        // Transport does not like 100% polarization...
+        double pol_frac_a = *aI / aP - 0.01;
+        //double pol_frac_a = 0.9;
+        *aQ *= pol_frac_a;
+        *aU *= pol_frac_a;
+        *aV *= pol_frac_a;
+#if DEBUG
+        fprintf(stderr, "Polarized absorptivities too large:\n %g vs %g, corrected by %g\n",
+        aP, *aI, pol_frac_a);
+#endif
+      }
 
       // Make invariant
       *aI *= nu;
@@ -557,11 +595,11 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
 #endif
 
     if (params->isolate_counterjet == 1) { // Emission from X[2] > midplane only
-      if (X[2] < (stopx[2] - startx[2]) / 2) {
+      if (X[2] < (cstopx[2] - cstartx[2]) / 2) {
         *jnuinv = 0.;
       }
     } else if (params->isolate_counterjet == 2) { // Emission from X[2] < midplane only
-      if (X[2] > (stopx[2] - startx[2]) / 2) {
+      if (X[2] > (cstopx[2] - cstartx[2]) / 2) {
         *jnuinv = 0.;
       }
     }

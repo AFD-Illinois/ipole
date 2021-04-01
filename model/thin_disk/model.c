@@ -107,6 +107,8 @@ void set_units()
   stopx[1] = log(Rout);
   stopx[2] = 1.0;
   stopx[3] = 2*M_PI;
+  MULOOP cstartx[mu] = startx[mu];
+  MULOOP cstopx[mu] = stopx[mu];
 
   // Some precomputation.  TODO should this be Mdot?
   T0 = pow(3.0 / 8.0 / M_PI * GNEWT * MBH * M_unit / pow(L_unit, 3) / SIG, 1. / 4.);

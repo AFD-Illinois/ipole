@@ -11,6 +11,7 @@ double a, hslope; // mks
 double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 double startx[NDIM], stopx[NDIM], dx[NDIM];
+double cstartx[NDIM], cstopx[NDIM];
 double R0, Rin, Rout, Rh;
 
 /*
