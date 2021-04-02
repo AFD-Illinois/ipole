@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 // Strings and string tools
-#define VERSION_STRING "ipole-beta-1.2"
+#define VERSION_STRING "ipole-release-1.3"
 #define xstr(s) str(s)
 #define str(s) #s
 #define STRLEN (2048)
