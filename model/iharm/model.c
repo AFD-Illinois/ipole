@@ -32,6 +32,10 @@ double U_unit;
 double B_unit;
 double Te_unit;
 
+// MOLECULAR WEIGHTS
+static double Ne_factor = 1.;  // used for, e.g., singly ionized helium
+static double mu_i, mu_e, mu_tot;
+
 // MODEL PARAMETERS: PUBLIC
 double DTd;
 double rmax_geo = 100.;
@@ -67,7 +71,9 @@ static double Ladv_dump;
 //    0 : constant TP_OVER_TE
 //    1 : use dump file model (kawazura?)
 //    2 : use mixed TP_OVER_TE (beta model)
+//    3 : use mixed TP_OVER_TE (beta model) with fluid temperature
 // TODO the way this is selected is horrid.  Make it a parameter.
+#define ELECTRONS_TFLUID (3)
 static int RADIATION, ELECTRONS;
 static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
@@ -520,7 +526,7 @@ void init_physical_quantities(int n)
   for (int i = 0; i < N1+2; i++) {
     for (int j = 0; j < N2+2; j++) {
       for (int k = 0; k < N3+2; k++) {
-        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
+        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) * Ne_factor;
 
         double bsq = data[n]->b[i][j][k] / B_unit;
         bsq = bsq*bsq;
@@ -537,6 +543,12 @@ void init_physical_quantities(int n)
           // see, e.g., Eq. 8 of the EHT GRRT formula list
           Thetae_unit = (MP/ME) * (game-1.) * (gamp-1.) / ( (gamp-1.) + (game-1.)*trat );
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
+        } else if (ELECTRONS == ELECTRONS_TFLUID) {
+          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
+          double betasq = beta*beta / beta_crit/beta_crit;
+          double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
+          double dfactor = mu_tot / mu_e + mu_tot / mu_i * trat;
+          data[n]->thetae[i][j][k] = data[n]->p[THF][i][j][k] / dfactor;
         } else {
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
@@ -721,6 +733,17 @@ void init_iharm_grid(char *fnam, int dumpidx)
     exit(-3);
   }
 
+  if ( hdf5_exists("weights") ) {
+    hdf5_set_directory("/header/weights/");
+    hdf5_read_single_val(&mu_i, "mu_i", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mu_e, "mu_e", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mu_tot, "mu_tot", H5T_IEEE_F64LE);
+    fprintf(stderr, "Loaded molecular weights (mu_i, mu_e, mu_tot): %g %g %g\n", mu_i, mu_e, mu_tot);
+    Ne_factor = 1. / mu_e;
+    hdf5_set_directory("/header/");
+    ELECTRONS = ELECTRONS_TFLUID;
+  }
+
   char metric_name[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric_name, "metric", HDF5_STR_TYPE);
@@ -770,6 +793,9 @@ void init_iharm_grid(char *fnam, int dumpidx)
     }
     ELECTRONS = 1;
     Thetae_unit = MP/ME;
+  } else if (ELECTRONS == ELECTRONS_TFLUID) {
+    fprintf(stderr, "Using Ressler/Athena electrons with mixed tp_over_te and\n");
+    fprintf(stderr, "trat_small = %g, trat_large = %g, and beta_crit = %g\n", trat_small, trat_large, beta_crit);
   } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
     ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
     fprintf(stderr, "Using fixed tp_over_te ratio = %g\n", tp_over_te);
@@ -919,6 +945,10 @@ void output_hdf5()
     hdf5_write_single_val(&trat_small, "rlow", H5T_IEEE_F64LE);
     hdf5_write_single_val(&trat_large, "rhigh", H5T_IEEE_F64LE);
     hdf5_write_single_val(&beta_crit, "beta_crit", H5T_IEEE_F64LE);
+  } else if (ELECTRONS == ELECTRONS_TFLUID) {
+    hdf5_write_single_val(&mu_i, "mu_i", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&mu_e, "mu_e", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&mu_tot, "mu_tot", H5T_IEEE_F64LE);
   }
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
 
@@ -1296,6 +1326,11 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
     hdf5_read_array(data[n]->p[KEL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
     fstart[3] = 9;
     hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+  }
+
+  if (ELECTRONS == ELECTRONS_TFLUID) {
+    fstart[3] = 8;
+    hdf5_read_array(data[n]->p[THF][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 
   hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
