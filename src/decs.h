@@ -27,6 +27,7 @@
 #define MUNULOOP for(int mu=0;mu<NDIM;mu++) for(int nu=0;nu<NDIM;nu++)
 
 struct of_traj {
+  int nturns;
   double dl;
   double X[NDIM];
   double Kcon[NDIM];

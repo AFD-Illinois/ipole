@@ -34,7 +34,7 @@
  * * In this function, dl is the length of the step *to* point N;
  *   afterward it is *from* point N onward
  */
-int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, double eps, int step_max, int print)
+int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, double eps, int step_max, double Xcam[NDIM], int print)
 {
   //fprintf(stderr, "Begin trace geodesic");
   double X[NDIM], Kcon[NDIM];
@@ -54,6 +54,17 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
   }
 
   int nstep = 0;
+  int passed_midplane_if_zero = -1;
+  int nturns = 0;
+
+  // Correct potential off-by-one error for subrings
+  if (Xcam[2] < 0.5) {
+    passed_midplane_if_zero = 1;
+  } else if (Xcam[2] > 0.5) {
+    passed_midplane_if_zero = -1;
+  } else {
+    passed_midplane_if_zero = 0.;
+  }
 
   // Integrate backwards
   while ( (!stop_backward_integration(X, Xhalf, Kcon)) && (nstep < step_max - 1) ) {
@@ -113,6 +124,31 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
       traj[nstep].Xhalf[mu] = Xhalf[mu];
       traj[nstep].Kconhalf[mu] = Kconhalf[mu];
     }
+
+    //subring decomposition from George Wong
+    // first deal with midplane debauchery
+    if (passed_midplane_if_zero != 0) {
+      // first test: if we started with 0 < X2 < 0.5
+      if (passed_midplane_if_zero > 0) {
+        if (traj[nstep].X[2] > 0.5) {
+          passed_midplane_if_zero = 0;
+        }
+            } else {
+        if (traj[nstep].X[2] < 0.5) {
+          passed_midplane_if_zero = 0;
+        }
+      }
+    } else {
+      // ignore first few steps to deal with ever-changing initial condition
+      if (nstep > 3) {
+        double dX2a = traj[nstep-1].X[2] - traj[nstep-2].X[2];
+        double dX2b = traj[nstep].X[2] - traj[nstep-1].X[2];
+        if (dX2a * dX2b < 0) nturns++;
+      }
+    }
+
+    traj[nstep].nturns = nturns;
+
   }
 
   //fprintf(stderr, "End trace geodesic");
