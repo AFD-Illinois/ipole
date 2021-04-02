@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 // Strings and string tools
-#define VERSION_STRING "ipole-beta-1.2"
+#define VERSION_STRING "ipole-beta-1.4"
 #define xstr(s) str(s)
 #define str(s) #s
 #define STRLEN (2048)
@@ -27,6 +27,7 @@
 #define MUNULOOP for(int mu=0;mu<NDIM;mu++) for(int nu=0;nu<NDIM;nu++)
 
 struct of_traj {
+  int nturns;
   double dl;
   double X[NDIM];
   double Kcon[NDIM];

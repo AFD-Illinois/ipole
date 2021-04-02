@@ -408,7 +408,7 @@ int main(int argc, char *argv[])
               
               // polarized transport
               if (! params.only_unpolarized) {
-                evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF), &params);
+                evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF), 0, &params);
                 if (isnan(creal(dimage[pxidx].N_coord[0][0]))) {
                   exit(-2);
                 }
@@ -774,7 +774,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   MULOOP Kcon[mu] *= freq;
 #endif
 
-  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep, 0);
+  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep, Xcam, 0);
   if (nstep >= params.maxnstep-1) {
     // You almost certainly don't want to continue if this happens
     fprintf(stderr, "\nMaxNStep exceeded in pixel %ld %ld!\n", i, j);

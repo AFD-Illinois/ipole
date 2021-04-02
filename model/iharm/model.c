@@ -17,6 +17,8 @@
 #define USE_MIXED_TPTE (1)
 #define NSUP (3)
 
+#define USE_GEODESIC_SIGMACUT (1)
+
 #define FORMAT_HAMR_EKS (3)
 #define FORMAT_IHARM_v1 (1)
 int dumpfile_format = 0;
@@ -73,6 +75,7 @@ static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
 
 // Ignore radiation interactions within one degree of polar axis
+static double polar_cut = -1;
 static double th_beg = 0.0174;
 static int nloaded = 0;
 
@@ -85,6 +88,7 @@ struct of_data {
   double ***ne;
   double ***thetae;
   double ***b;
+  double ***sigma;
 };
 static struct of_data dataA, dataB, dataC;
 static struct of_data *data[NSUP];
@@ -128,6 +132,8 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
   set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
+  // allow cutting out the spine
+  set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
 
   // for slow light
   set_by_word_val(word, value, "dump_min", &dumpmin, TYPE_INT);
@@ -279,6 +285,15 @@ void init_model(double *tA, double *tB)
 
   // horizon radius
   Rh = 1 + sqrt(1. - a * a);
+
+  // possibly cut around the pole
+  if (polar_cut >= 0) {
+    th_beg = 0.0174 * polar_cut;
+  } else {
+    if (dumpfile_format == FORMAT_HAMR_EKS) {
+      th_beg = 0.0174 * 2;
+    }
+  }
 }
 
 /*
@@ -457,9 +472,26 @@ double get_model_b(double X[NDIM])
   return tfac*bA + (1. - tfac)*bB;
 }
 
+double get_model_sigma(double X[NDIM]) 
+{
+  if ( X_in_domain(X) == 0 ) return 0.;
+
+  double sigmaA, sigmaB, tfac;
+  int nA, nB;
+  tfac = set_tinterp_ns(X, &nA, &nB);
+  sigmaA = interp_scalar(X, data[nA]->sigma);
+  sigmaB = interp_scalar(X, data[nB]->sigma);
+  return tfac*sigmaA + (1. - tfac)*sigmaB;
+}
+
 double get_model_ne(double X[NDIM])
 {
   if ( X_in_domain(X) == 0 ) return 0.;
+
+#if USE_GEODESIC_SIGMACUT
+  double sigma = get_model_sigma(X);
+  if (sigma > sigma_cut) return 0.;
+#endif
 
   double neA, neB, tfac;
   int nA, nB;
@@ -512,12 +544,10 @@ void init_physical_quantities(int n)
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
         data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
-       
-        //thetae[i][j][k] = (gam-1.)*MP/ME*p[UU][i][j][k]/p[KRHO][i][j][k];
-        //printf("rho = %e thetae = %e\n", p[KRHO][i][j][k], thetae[i][j][k]);
 
         //strongly magnetized = empty, no shiny spine
-        if (sigma_m > sigma_cut) {
+        data[n]->sigma[i][j][k] = sigma_m;  // allow sigma cut per geodesic step
+        if (sigma_m > sigma_cut && !USE_GEODESIC_SIGMACUT) {
           data[n]->b[i][j][k]=0.0;
           data[n]->ne[i][j][k]=0.0;
           data[n]->thetae[i][j][k]=0.0;
@@ -536,6 +566,7 @@ void init_storage(void)
     data[n]->ne = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->b = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->sigma = malloc_rank3(N1+2,N2+2,N3+2);
   }
 }
 
@@ -673,7 +704,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
   hdf5_open(fname);
 
   // get dump info to copy to ipole output
-//  hdf5_read_single_val(&t0, "t", H5T_IEEE_F64LE);
+  //  hdf5_read_single_val(&t0, "t", H5T_IEEE_F64LE);
   fluid_header = hdf5_get_blob("/header");
 
   hdf5_set_directory("/header/");

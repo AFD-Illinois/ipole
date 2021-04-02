@@ -93,11 +93,22 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 #endif
 
     if (radiating_region(tf.X)) {
+
+      int ZERO_EMISSION = 0;
+      if (params->target_nturns >= 0 && ti.nturns != params->target_nturns) {
+        ZERO_EMISSION = 1; 
+      }
+
       // Solve unpolarized transport
       double ji, ki, jf, kf;
       get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
       get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
-      *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+
+      if (ZERO_EMISSION) {
+        *Intensity = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
+      } else {
+        *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+      }
       //fprintf(stderr, "Unpolarized transport\n");
 
       // Solve polarized transport
@@ -105,7 +116,8 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         sflag |= evolve_N(ti.X, ti.Kcon,
                         ti.Xhalf, ti.Kconhalf,
                         tf.X, tf.Kcon,
-                        ti.dl, N_coord, tauF, params);
+                        ti.dl, N_coord, tauF, 
+                        ZERO_EMISSION, params);
         //fprintf(stderr, "Polarized transport\n");
       }
     }
@@ -263,7 +275,8 @@ void parallel_transport_vector(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM]
 int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double Xhalf[NDIM], double Kconhalf[NDIM],
     double Xf[NDIM], double Kconf[NDIM],
-    double dlam, double complex N_coord[NDIM][NDIM], double *tauF, Params *params)
+    double dlam, double complex N_coord[NDIM][NDIM], double *tauF, 
+    int ZERO_EMISSION, Params *params)
 {
   // TODO might be useful to split this into flat-space S->S portion and transformations to/from N
   double gcov[NDIM][NDIM];
@@ -288,6 +301,12 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   // evaluate transport coefficients
   jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
       &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
+  if (ZERO_EMISSION) {
+    jI = 0.;
+    jQ = 0.;
+    jU = 0.;
+    jV = 0.;
+  }
 
   // Guess B if we *absolutely must*
   // Note get_model_b (rightly) returns 0 outside the domain,
