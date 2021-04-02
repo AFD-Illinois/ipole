@@ -73,6 +73,7 @@ static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
 
 // Ignore radiation interactions within one degree of polar axis
+static double polar_cut = -1;
 static double th_beg = 0.0174;
 static int nloaded = 0;
 
@@ -127,6 +128,9 @@ void try_set_model_parameter(const char *word, const char *value)
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
+
+  // allow cutting out the spine
+  set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
 
   // for slow light
   set_by_word_val(word, value, "dump_min", &dumpmin, TYPE_INT);
@@ -278,6 +282,15 @@ void init_model(double *tA, double *tB)
 
   // horizon radius
   Rh = 1 + sqrt(1. - a * a);
+
+  // possibly cut around the pole
+  if (polar_cut >= 0) {
+    th_beg = 0.0174 * polar_cut;
+  } else {
+    if (dumpfile_format == FORMAT_HAMR_EKS) {
+      th_beg = 0.0174 * 2;
+    }
+  }
 }
 
 /*
