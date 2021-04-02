@@ -76,19 +76,28 @@ if __name__ == "__main__":
     ax3 = plt.subplot(2,2,3)
     ax4 = plt.subplot(2,2,4)
 
+    # get mask for total intensity based on negative values
+    Imaskval = np.abs(I.min()) * 100.
+    Imaskval = np.nanmax(I) / np.power(I.shape[0],5.)
+
     # total intensity
     im1 = ax1.imshow(I, cmap='afmhot', vmin=0., vmax=1.e-4, origin='lower', extent=extent)
     colorbar(im1)
 
     # linear polarization fraction
     lpfrac = 100.*np.sqrt(Q*Q+U*U)/I
+    lpfrac[np.abs(I)<Imaskval] = np.nan
+    ax2.set_facecolor('black')
     im2 = ax2.imshow(lpfrac, cmap='jet', vmin=0., vmax=100., origin='lower', extent=extent)
     colorbar(im2)
 
     # circular polarization fraction
     cpfrac = 100.*V/I
-    vext = max(np.abs(cpfrac.min()),np.abs(cpfrac.max()))
+    cpfrac[np.abs(I)<Imaskval] = np.nan
+    vext = max(np.abs(np.nanmin(cpfrac)),np.abs(np.nanmax(cpfrac)))
     vext = max(vext, 1.)
+    if np.isnan(vext): vext = 10.
+    ax4.set_facecolor('black')
     im4 = ax4.imshow(cpfrac, cmap='seismic', vmin=-vext, vmax=vext, origin='lower', extent=extent)
     colorbar(im4)
 
@@ -100,7 +109,10 @@ if __name__ == "__main__":
     if EVPA_CONV == "NofW":
       evpa += 90.
       evpa[evpa > 90.] -= 180.
-    im3 = ax3.imshow(evpa, cmap='hsv', vmin=-90., vmax=90., origin='lower', extent=extent)
+    evpa2 = np.copy(evpa)
+    evpa2[np.abs(I)<Imaskval] = np.nan
+    ax3.set_facecolor('black')
+    im3 = ax3.imshow(evpa2, cmap='hsv', vmin=-90., vmax=90., origin='lower', extent=extent)
     colorbar(im3)
 
     # quiver on intensity

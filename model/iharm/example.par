@@ -1,0 +1,92 @@
+# example.par  --  an example parameter file
+# Note that lines beginning with the '#' character and
+# empty lines are ignored by the parser. 
+
+# IPOLE PARAMETERS
+
+# Camera position: r in M, theta/phi in degrees   
+rcam 1000
+thetacam 17
+phicam 0
+rotcam 0
+
+# Pixels in x,y dimension
+nx 160
+ny 160
+
+# Distance to source in parsec
+dsource 16.9e6
+
+# FOV from a distance Dsource, in muas
+fovx_dsource 160
+fovy_dsource 160
+# Alternative FOV: specify in-plane, units of M,
+# e.g. for 40M square image:
+#dx 40
+#dy 40
+
+# Observed frequency in Hz
+freqcgs 230.e9
+
+# Output image name. HDF5 format
+outfile image.h5
+
+# Add a ppm version with a default name. Legacy purposes
+add_ppm 0
+# Convention for Stokes Q & U: 0 is "East of North", 1 is "North of West"
+qu_conv 0
+# Suppress output. Usually command-line for fitting
+# equiv. to -quench
+quench_output 0
+# Unpolarized transport only (for speed; unpol is always run as well)
+# equiv to -unpol
+only_unpolarized 0
+
+# IHARM MODEL PARAMETERS
+
+# Name of the grmhd dump file to reference
+# Required for the primary "iharm" model
+dump tests/test-resources/sample_dump_SANE_a+0.94_0900.h5
+
+# BH mass in solar masses
+MBH 6.2e9
+
+# M_unit, the scale factor for the GRMHD file
+M_unit 3.e27
+
+# Electron model parameters: Tp/Te for fixed models,
+# or Rlow, Rhigh.  e- model is read from each dump,
+# with some compile flag overrides available
+#tp_over_te 3
+trat_small 1
+trat_large 20
+
+counterjet 0
+
+# ML PARAMETERS
+
+# Offset in pixels to prevent overtraining
+xoff 0
+yoff 0
+
+# SLOW-LIGHT PARAMETERS
+
+# These are ignored unless ipole is compiled with
+# SLOW_LIGHT flag, see source
+#img_cadence
+#restart_int
+#dump_min
+#dump_max
+#dump_skip
+
+# PATH-TRACE PARAMETERS
+
+# Whether to save GRMHD variables along some paths
+trace 0
+# Pixel to trace i,j (rightward from left, upward from bottom)
+trace_i 40
+trace_j 40
+# Or trace every N pixels in each direction
+# trace_stride 4
+# Trace file name
+trace_outf trace.h5

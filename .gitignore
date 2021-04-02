@@ -1,9 +1,20 @@
-model.c
-model.h
-*.mp4
-*.p
-*.dat
+# Development
+__pycache__/
+*.pyc
+build_archive/
+*.o
 ipole
+
+# Output
+out*.txt
+plot*.txt
+
+# Data
+*.p
+*.h5
+*.fits
+# Viz
 *.png
 *.ppm
+*.mp4
 *.vtk
