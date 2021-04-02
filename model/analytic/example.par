@@ -1,0 +1,32 @@
+# Analytic model options
+
+outfile image.h5
+
+# Model to use: see model.c
+model 1
+
+# Must ask the model for emissivities
+emission_type 10
+
+# Camera location
+# Note rcam is farther than ipole's usual
+rcam 1000
+thetacam 60
+phicam 0
+
+# Camera FOV in r_g
+dx 30
+dy 30
+
+# Image size
+nx 128
+ny 128
+
+# Distance to source in pc
+dsource 7.78e3
+
+# Standard frequency nu_p
+freqcgs 230.e9
+
+# MBH in solar masses
+MBH 4.e6

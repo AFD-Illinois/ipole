@@ -39,7 +39,12 @@ double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM])
            Kcon[2] * Ucov[2] + Kcon[3] * Ucov[3])
            * ME * CL * CL / HPL;
 
-    if (nu < 0.) nu = 1.;
+    if (nu < 0.) {
+      nu = 1.;
+#if DEBUG
+      fprintf(stderr, "Fluid nu < 0: %g !", nu);
+#endif
+    }
 
     if (isnan(nu)) {
       fprintf(stderr, "isnan get_fluid_nu, K: %g %g %g %g\n",

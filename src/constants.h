@@ -16,6 +16,7 @@
 #define EV				(1.60217653e-12		) /* electron volt in erg */
 #define SIGMA_THOMSON	                (0.665245873e-24	) /* Thomson cross section in cm^2 */
 #define JY				(1.e-23			) /* Jansky (flux/freq. unit) in cgs */
+#define MUAS_PER_RAD    (2.06265e11     ) /* Micro-arcseconds in 1 radian */
 
 #define ALPHAF                          (7.29735e-3             ) /* (fine-structure constant)^-1 */
 #define KEV                             (1.602e-9               ) /*kiloelectronovolt*/

@@ -41,7 +41,7 @@ void print_vector(char *name, double v[NDIM])
 {
   fprintf(stderr, "%s: ", name);
   fprintf(stderr,
-          "%g\t%g\t%g\t%g\n",
+          "%.10g\t%.10g\t%.10g\t%.10g\n",
           v[0], v[1], v[2], v[3]);
   MUNULOOP
     if (isnan(v[nu]))

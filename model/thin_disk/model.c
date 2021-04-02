@@ -20,7 +20,6 @@ double Te_unit;
 
 // Model parameters: public
 double rmax_geo;
-int counterjet = 0;
 // Model parameters: private
 static double Mdot = 0.01;
 static double MBH_solar = 10.;
@@ -49,7 +48,6 @@ void try_set_model_parameter(const char *word, const char *value)
   // Test the given word against our parameters' names,
   // and if it matches set the corresponding global
   set_by_word_val(word, value, "MBH", &MBH_solar, TYPE_DBL);
-  set_by_word_val(word, value, "counterjet", &counterjet, TYPE_DBL);
 
   set_by_word_val(word, value, "a", &a, TYPE_DBL);
   set_by_word_val(word, value, "Mdot", &Mdot, TYPE_DBL);
@@ -61,16 +59,18 @@ void init_model(double *tA, double *tB)
 
   // Set all the geometry globals we need
   // TODO do this in geometry?  Deal with model/geom interface...
-  METRIC_eKS = 1;
-  METRIC_MKS = 0;
-  METRIC_FMKS = 0;
-  METRIC_MKS3 = 0;
+  use_eKS_internal = 1;
+  metric = 0; // Doesn't matter due to above
   hslope = 1.0;
+  // Needed for camera rootfinding
+  // TODO standard geometry init that handles this...
+  startx[2] = 0.;
+  stopx[2] = 1;
 
   // We already set stuff from parameters, so set_units here
   set_units();
 
-  printf("Running thin disk:\nMBH: %f\nMdot: %f\na: %f\n", MBH, Mdot, a);
+  printf("Running thin disk:\nMBH: %g\nMdot: %g\na: %g\n\n", MBH, Mdot, a);
 }
 
 void set_units()
@@ -90,7 +90,7 @@ void set_units()
   B_unit = CL * sqrt(4. * M_PI * RHO_unit);
 
   // Set all the geometry
-  // TODO move this to coordinates.c
+  // TODO function like initialize_coordinates, that makes sure these are all set.
   R0 = 0.;
   Rh = 1 + sqrt(1. - a * a);
   double z1 = 1. + pow(1. - a * a, 1. / 3.) * (pow(1. + a, 1. / 3.) + pow(1. - a, 1. / 3.));
@@ -98,7 +98,17 @@ void set_units()
   r_isco = 3. + z2 - copysign(sqrt((3. - z1) * (3. + z1 + 2. * z2)), a);
   Rin = Rh;
   Rout = 100.0;
-  rmax_geo = MIN(1000., Rout);
+  rmax_geo = fmin(1000., Rout);
+  startx[0] = 0.0;
+  startx[1] = log(Rin);
+  startx[2] = 0.0;
+  startx[3] = 0.0;
+  stopx[0] = 0.0;
+  stopx[1] = log(Rout);
+  stopx[2] = 1.0;
+  stopx[3] = 2*M_PI;
+  MULOOP cstartx[mu] = startx[mu];
+  MULOOP cstopx[mu] = stopx[mu];
 
   // Some precomputation.  TODO should this be Mdot?
   T0 = pow(3.0 / 8.0 / M_PI * GNEWT * MBH * M_unit / pow(L_unit, 3) / SIG, 1. / 4.);
@@ -116,6 +126,14 @@ void output_hdf5()
   hdf5_write_single_val(&a, "a", H5T_IEEE_F64LE);
   hdf5_write_single_val(&Mdot, "Mdot", H5T_IEEE_F64LE);
 
+  hdf5_make_directory("units");
+  hdf5_set_directory("/header/units/");
+  hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
+  //hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
+
+  hdf5_set_directory("/");
 }
 
 //// PUBLIC INTERFACE ////
@@ -130,7 +148,7 @@ void get_model_stokes(double X[NDIM], double Kcon[NDIM], double *SI,
     thindisk_vals(r, &T, &omega);
 
     double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-    get_model_fourv_K(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+    get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
 
     // Recall "B" was set by calc_polvec
     double mu = fabs(cos(get_bk_angle(X, Kcon, Ucov, Bcon, Bcov)));
@@ -161,47 +179,36 @@ int thindisk_region(double Xi[NDIM], double Xf[NDIM])
   bl_coord(Xf, &rf, &thf);
   // Set the intensity whenever and exactly when we cross the disk, outside horizon
   int midplane = (sign(thi - M_PI_2) != sign(thf - M_PI_2));
-  int em_region = rf > r_isco && rf < 100.0;
+  int em_region = rf > r_isco && rf < Rout;
   return midplane && em_region;
 
   // Less restrictive
   //return (fabs(fabs(thf) - M_PI_2) < 0.01);
 }
 
-void get_model_fourv_K(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM],
+void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM],
                        double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM])
 {
   double r, th, T, omega;
-  double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
-  double bl_gcov[NDIM][NDIM];
+  double gcov[NDIM][NDIM];
 
   // Get native metric
   gcov_func(X, gcov);
-  gcon_func(gcov, gcon);
 
   // Then get some stuff in BL for Ucon
   bl_coord(X, &r, &th);
-  gcov_bl(r, th, bl_gcov);
 
   thindisk_vals(r, &T, &omega);
 
   // normal observer velocity for Ucon/Ucov
-  double Ucon_bl[NDIM], Ucon_ks[NDIM];
-  Ucon_bl[0] =
+  Ucon[0] =
       sqrt(-1. / (gcov[0][0] + 2. * gcov[0][3] * omega
                   + gcov[3][3] * omega * omega));
-  Ucon_bl[1] = 0.;
-  Ucon_bl[2] = 0.;
-  Ucon_bl[3] = omega * Ucon_bl[0];
-
-  // Convert U to KS then to eKS, and flip
-  bl_to_ks(X, Ucon_bl, Ucon_ks);
-  vec_from_ks(X, Ucon_ks, Ucon);
-  // Dummy
-  MULOOP Ucon[mu] = Ucon_bl[mu];
+  Ucon[1] = 0.;
+  Ucon[2] = 0.;
+  Ucon[3] = omega * Ucon[0];
 
   flip_index(Ucon, gcov, Ucov);
-  //check_u(Ucon, Ucov); // For paranoia. Needs debug_tools.h
 
   // B is handled in native coordinates here
   calc_polvec(X, Kcon, a, Bcon);
@@ -365,9 +372,11 @@ double get_model_thetae(double X[NDIM]) {return 0;}
 double get_model_b(double X[NDIM]) {return 0;}
 double get_model_ne(double X[NDIM]) {return 0;}
 void get_model_primitives(double X[NDIM], double *p) {return;}
-void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM]) {return;}
-void get_model_bcov(double X[NDIM], double Bcov[NDIM]) {return;}
-void get_model_bcon(double X[NDIM], double Bcon[NDIM]) {return;}
-void get_model_ucov(double X[NDIM], double Ucov[NDIM]) {return;}
-void get_model_ucon(double X[NDIM], double Ucon[NDIM]) {return;}
+void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
+          double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
+// In case we want to mess with emissivities directly
+void get_model_jar(double X[NDIM], double Kcon[NDIM],
+    double *jI, double *jQ, double *jU, double *jV,
+    double *aI, double *aQ, double *aU, double *aV,
+    double *rQ, double *rU, double *rV) {return;}
+void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv) {return;}

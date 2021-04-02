@@ -48,6 +48,12 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->qu_conv = 0;
   params->quench_output = 0;
   params->only_unpolarized = 0;
+  params->old_centering = 0;
+
+  params->emission_type = 4;
+  params->stokes_floors = 0;
+
+  params->isolate_counterjet = 0;
 
   params->rcam = 1000.;
   params->thetacam = 90.;
@@ -56,9 +62,23 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->nx = 160;
   params->ny = 160;
 
+  params->eps = 0.01;
+  params->maxnstep = 50000;
+
   params->dsource = DM87_PC; // or DSGRA_PC
 
   params->restart_int = -1.;
+
+  params->target_nturns = -1;
+
+  params->nx_min = -1;
+  params->ny_min = -1;
+  // Decent guesses for e.g. Zack Gelles's sample image.
+  params->refine_rel = 1.e-1;
+  params->refine_abs = 1.e-5;
+  // Disable these unless requested
+  params->refine_cut = 0.0;
+  params->nearest_neighbor = 0;
 
   params->xoff = 0.0;
   params->yoff = 0.0;
@@ -67,7 +87,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->trace_stride = 1;
   params->trace_i = -1;
   params->trace_j = -1;
-  // This is what the par infra does.
+
   // I'm not sure there's still any advantage to "const" if we do this,
   // but hey, no warnings
   sscanf("trace.h5", "%s", (char *) (void *) params->trace_outf);
@@ -112,6 +132,10 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "qu_conv", &(params->qu_conv), TYPE_INT);
   set_by_word_val(word, value, "quench_output", &(params->quench_output), TYPE_INT);
   set_by_word_val(word, value, "only_unpolarized", &(params->only_unpolarized), TYPE_INT);
+  set_by_word_val(word, value, "emission_type", &(params->emission_type), TYPE_INT);
+  set_by_word_val(word, value, "stokes_floors", &(params->stokes_floors), TYPE_INT);
+  set_by_word_val(word, value, "counterjet", &(params->isolate_counterjet), TYPE_INT);
+  set_by_word_val(word, value, "old_centering", &(params->old_centering), TYPE_INT);
 
   set_by_word_val(word, value, "rcam", &(params->rcam), TYPE_DBL);
   set_by_word_val(word, value, "thetacam", &(params->thetacam), TYPE_DBL);
@@ -132,6 +156,17 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
 
   set_by_word_val(word, value, "nx", &(params->nx), TYPE_INT);
   set_by_word_val(word, value, "ny", &(params->ny), TYPE_INT);
+  set_by_word_val(word, value, "nx_min", &(params->nx_min), TYPE_INT);
+  set_by_word_val(word, value, "ny_min", &(params->ny_min), TYPE_INT);
+  set_by_word_val(word, value, "refine_abs", &(params->refine_abs), TYPE_DBL);
+  set_by_word_val(word, value, "refine_rel", &(params->refine_rel), TYPE_DBL);
+  set_by_word_val(word, value, "refine_cut", &(params->refine_cut), TYPE_DBL);
+  set_by_word_val(word, value, "use_nearest_neighbor", &(params->nearest_neighbor), TYPE_INT);
+
+  set_by_word_val(word, value, "target_nturns", &(params->target_nturns), TYPE_INT);
+
+  set_by_word_val(word, value, "eps", &(params->eps), TYPE_DBL);
+  set_by_word_val(word, value, "maxnstep", &(params->maxnstep), TYPE_INT);
 
   set_by_word_val(word, value, "xoff", &(params->xoff), TYPE_DBL);
   set_by_word_val(word, value, "yoff", &(params->yoff), TYPE_DBL);

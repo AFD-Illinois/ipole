@@ -10,6 +10,7 @@ out*.txt
 plot*.txt
 
 # Data
+test-resources
 *.p
 *.h5
 *.fits

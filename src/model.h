@@ -22,12 +22,19 @@ int radiating_region(double X[NDIM]);
 double get_model_thetae(double X[NDIM]);
 double get_model_b(double X[NDIM]);
 double get_model_ne(double X[NDIM]);
-void get_model_fourv(double X[NDIM], double Ucon[NDIM], double Ucov[NDIM],
+
+// For exotic or custom distributions
+void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
+                             double *gamma_min, double *gamma_max, double *gamma_cut);
+void get_model_jar(double X[NDIM], double Kcon[NDIM],
+    double *jI, double *jQ, double *jU, double *jV,
+    double *aI, double *aQ, double *aU, double *aV,
+    double *rQ, double *rU, double *rV);
+void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv);
+
+void get_model_fourv(double X[NDIM], double Kcon[NDIM],
+                     double Ucon[NDIM], double Ucov[NDIM],
                      double Bcon[NDIM], double Bcov[NDIM]);
-void get_model_bcov(double X[NDIM], double Bcov[NDIM]);
-void get_model_bcon(double X[NDIM], double Bcon[NDIM]);
-void get_model_ucov(double X[NDIM], double Ucov[NDIM]);
-void get_model_ucon(double X[NDIM], double Ucon[NDIM]);
 
 void update_data(double *tA, double *tB);
 void update_data_until(double *tA, double *tB, double tgt);

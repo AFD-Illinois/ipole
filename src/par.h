@@ -18,14 +18,36 @@ typedef struct params_t {
   int nx, ny;           // image dimensions in px
   double dsource;       // in pc
   double freqcgs;       // ... in cgs
+  int old_centering;    // 0 uses k_phi=0 "ZAMO" new centering, 1 uses k^phi=0 old centering
+
+  // Geodesic accuracy
+  double eps;
+  int maxnstep;
 
   int add_ppm;          // Whether to additionally make a ppm image of I
   int qu_conv;          // Convention for Stokes Q,U.  0 (default) -> East of North (observer).  1 -> North of West
   int quench_output;    // Quench output, i.e. "quench" argument
   int only_unpolarized; // Unpolarized transport only
 
+  // Which e- energy distributions/emissivities to use
+  int emission_type;
+  // Whether to apply I > 0 "floor" when integrating forward the Stokes parameters
+  // Probably harmless!
+  int stokes_floors;
+
+  int isolate_counterjet;
+
   const char dump[STRLEN];
   const char outf[STRLEN];
+
+  // Subrings
+  int target_nturns;
+
+  // Adaptive tracing
+  int nx_min, ny_min;   // dimensions of lowest resolution image
+  double refine_abs, refine_rel; // Refinement tolerances
+  double refine_cut;    // minimum intensity at which to bother refining
+  int nearest_neighbor; // use nearest-neighbor instead of matching-order interpolation
 
   // ML parameters
   double xoff, yoff;    // in pixels

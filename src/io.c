@@ -1,5 +1,5 @@
 /*
- * restart.c
+ * io.c
  *
  *  Created on: Sep 10, 2019
  *      Author: bprather
@@ -180,13 +180,7 @@ void write_header(double scale, double cam[NDIM],
   hsize_t vec_dim[1] = {NDIM};
   hdf5_write_full_array(cam, "x", 1, vec_dim, H5T_IEEE_F64LE);
 
-  hdf5_set_directory("/header/");
-  hdf5_make_directory("units");
-  hdf5_set_directory("/header/units/");
-  hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
+  //fprintf(stderr, "Wrote header\n");
 
   // allow model to output its parameters
   output_hdf5();
@@ -194,23 +188,21 @@ void write_header(double scale, double cam[NDIM],
 
 void dump(double image[], double imageS[], double taus[],
     const char *fname, double scale, double cam[NDIM],
-    double fovx, double fovy, Params *params, int nopol)
+    double fovx, double fovy, size_t nx, size_t ny, Params *params, int nopol)
 {
   hdf5_create(fname);
 
   write_header(scale, cam, fovx, fovy, params);
 
-  int nx = params->nx;
-  int ny = params->ny;
   double freqcgs = params->freqcgs;
   double dsource = params->dsource;
 
   // processing
   double Ftot_unpol=0., Ftot=0.;
-  for (int i=0; i<nx; ++i) {
-    for (int j=0; j<ny; ++j) {
+  for (int i=0; i < params->nx; ++i) {
+    for (int j=0; j < params->ny; ++j) {
       Ftot_unpol += image[i*ny+j] * scale;
-      Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
+      if (!nopol) Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
     }
   }
 
@@ -223,11 +215,16 @@ void dump(double image[], double imageS[], double taus[],
   nuLnu = 4. * M_PI * Ftot_unpol * dsource * dsource * JY * freqcgs;
   hdf5_write_single_val(&nuLnu, "nuLnu_unpol", H5T_IEEE_F64LE);
 
-  hsize_t unpol_dim[2] = {nx, ny};
-  hsize_t pol_dim[3] = {nx, ny, NIMG};
-  hdf5_write_full_array(image, "unpol", 2, unpol_dim, H5T_IEEE_F64LE);
-  hdf5_write_full_array(taus, "tau", 2, unpol_dim, H5T_IEEE_F64LE);
-  if (!nopol) hdf5_write_full_array(imageS, "pol", 3, pol_dim, H5T_IEEE_F64LE);
+  hsize_t unpol_mdim[2] = {nx, ny};
+  hsize_t pol_mdim[3] = {nx, ny, NIMG};
+  hsize_t unpol_fdim[2] = {params->nx, params->ny};
+  hsize_t pol_fdim[3] = {params->nx, params->ny, NIMG};
+  hsize_t unpol_start[2] = {0, 0};
+  hsize_t pol_start[3] = {0, 0, 0};
+
+  hdf5_write_array(image, "unpol", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_start, H5T_IEEE_F64LE);
+  hdf5_write_array(taus, "tau", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_start, H5T_IEEE_F64LE);
+  if (!nopol) hdf5_write_array(imageS, "pol", 3, pol_fdim, pol_start, pol_fdim, pol_mdim, pol_start, H5T_IEEE_F64LE);
 
   // housekeeping
   hdf5_close();
@@ -235,7 +232,9 @@ void dump(double image[], double imageS[], double taus[],
 
 /*
  * Given a path, dump a variable computed along that path into a file.
- * Note this is most definitely *not* thread-safe
+ * Note this is most definitely *not* thread-safe, so it gets called from an 'omp critical'
+ * 
+ * TODO output of I,Q,U,V, as parallel-transported to camera, along traces
  */
 void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny,
                     double scale, double cam[NDIM], double fovx, double fovy, Params *params)
@@ -259,7 +258,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *dl = calloc(nstep, sizeof(double));
   double *X = calloc(NDIM*nstep, sizeof(double));
   // Vectors aren't really needed.  Put back in behind flag if it comes up
-//  double *Kcon = calloc(NDIM*nstep, sizeof(double));
+  double *Kcon = calloc(NDIM*nstep, sizeof(double));
 //  double *Kcov = calloc(NDIM*nstep, sizeof(double));
 
   double *r = calloc(nstep, sizeof(double));
@@ -271,17 +270,20 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 //  double *Bcon = calloc(NDIM*nstep, sizeof(double));
 //  double *Bcov = calloc(NDIM*nstep, sizeof(double));
 
+  // TODO NDIM and NSTOKES are not the same thing
   double *j_inv = calloc(NDIM*nstep, sizeof(double));
   double *alpha_inv = calloc(NDIM*nstep, sizeof(double));
   double *rho_inv = calloc(NDIM*nstep, sizeof(double));
+  double *unpol_inv = calloc(2*nstep, sizeof(double));
 
   for (int i=0; i<nstep; i++) {
     get_model_primitives(traj[i].X, &(prims[i*nprims]));
     double Ucont[NDIM], Ucovt[NDIM], Bcont[NDIM], Bcovt[NDIM];
-    get_model_fourv(traj[i].X, Ucont, Ucovt, Bcont, Bcovt);
+    get_model_fourv(traj[i].X, traj[i].Kcon, Ucont, Ucovt, Bcont, Bcovt);
     jar_calc(traj[i].X, traj[i].Kcon, &(j_inv[i*NDIM]), &(j_inv[i*NDIM+1]), &(j_inv[i*NDIM+2]), &(j_inv[i*NDIM+3]),
              &(alpha_inv[i*NDIM]), &(alpha_inv[i*NDIM+1]), &(alpha_inv[i*NDIM+2]), &(alpha_inv[i*NDIM+3]),
-             &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]));
+             &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]), params);
+    get_jkinv(traj[i].X, traj[i].Kcon, &(unpol_inv[i*2+0]), &(unpol_inv[i*2+1]), params);
 
     b[i] = get_model_b(traj[i].X);
     ne[i] = get_model_ne(traj[i].X);
@@ -292,7 +294,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     dl[i] = traj[i].dl;
     MULOOP {
       X[i*NDIM+mu] = traj[i].X[mu];
-//      Kcon[i*NDIM+mu] = traj[i].Kcon[mu];
+      Kcon[i*NDIM+mu] = traj[i].Kcon[mu];
     }
 //    double Gcov[NDIM][NDIM];
 //    gcov_func(traj[i].X, Gcov);
@@ -315,7 +317,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_array(&nstep, "nstep", 2, fdims_p, fstart_p, fcount_p, mdims_p, mstart_p, H5T_STD_I32LE);
 
   // SCALARS: Anything with one value for every geodesic step
-  hsize_t fdims_s[] = { nx, ny, MAXNSTEP };
+  hsize_t fdims_s[] = { nx, ny, params->maxnstep };
   hsize_t chunk_s[] =  { 1, 1, 200 };
   hsize_t fstart_s[] = { i, j, 0 };
   hsize_t fcount_s[] = { 1, 1, nstep };
@@ -334,7 +336,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_chunked_array(phi, "phi", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
 
   // VECTORS: Anything with N values per geodesic step
-  hsize_t fdims_v[] = { nx, ny, MAXNSTEP, 4 };
+  hsize_t fdims_v[] = { nx, ny, params->maxnstep, 4 };
   hsize_t chunk_v[] =  { 1, 1, 200, 4 };
   hsize_t fstart_v[] = { i, j, 0, 0 };
   hsize_t fcount_v[] = { 1, 1, nstep, 4 };
@@ -342,7 +344,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hsize_t mstart_v[] = { 0, 0, 0, 0 };
 
   hdf5_write_chunked_array(X, "X", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-//  hdf5_write_chunked_array(Kcon, "Kcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(Kcon, "Kcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 //  hdf5_write_chunked_array(Kcov, "Kcov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
 //  hdf5_write_chunked_array(Ucon, "Ucon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
@@ -357,6 +359,10 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 8;
   hdf5_write_chunked_array(prims, "prims", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
+  // Unpolarized coefficients j and k
+  fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 2;
+  hdf5_write_chunked_array(unpol_inv, "jk", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+
   free(b); free(ne); free(thetae);
   free(nu); free(mu);
 
@@ -366,6 +372,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   //free(Ucon); free(Ucov); free(Bcon); free(Bcov);
   free(j_inv); free(alpha_inv); free(rho_inv);
+  free(unpol_inv);
 
   free(prims);
 

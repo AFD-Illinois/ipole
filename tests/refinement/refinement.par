@@ -1,0 +1,37 @@
+# ipole refinement test
+# re-make the standard sample_dump_hi test, adaptively!
+
+# Max refinement level size in x,y
+nx 160
+ny 160
+# Min refinement level size in x,y
+nx_min 20
+ny_min 20
+
+# Refine on either a relative or absolute
+# interpolation error
+refine_rel 1.e-2
+refine_abs 1.e-6
+
+# Only refine in 4-pixel groups with more than
+# this proportion of the average flux
+# (disabled)
+refine_cut 0.0
+
+# Otherwise the same as no_refine.par
+dump ../test-resources/sample_dump_SANE_a+0.94_0900.h5
+
+rcam 1.e4
+thetacam 163
+phicam 0
+
+fovx_dsource 160
+fovy_dsource 160
+
+freqcgs 230.e9
+trat_small 3
+trat_large 3
+
+MBH 6.2e9
+M_unit 3.25e26
+outfile image.h5
