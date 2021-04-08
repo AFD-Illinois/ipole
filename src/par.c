@@ -51,6 +51,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->old_centering = 0;
 
   params->emission_type = 4;
+  params->stokes_floors = 0;
 
   params->isolate_counterjet = 0;
 
@@ -67,6 +68,8 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->dsource = DM87_PC; // or DSGRA_PC
 
   params->restart_int = -1.;
+
+  params->target_nturns = -1;
 
   params->nx_min = -1;
   params->ny_min = -1;
@@ -130,6 +133,7 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "quench_output", &(params->quench_output), TYPE_INT);
   set_by_word_val(word, value, "only_unpolarized", &(params->only_unpolarized), TYPE_INT);
   set_by_word_val(word, value, "emission_type", &(params->emission_type), TYPE_INT);
+  set_by_word_val(word, value, "stokes_floors", &(params->stokes_floors), TYPE_INT);
   set_by_word_val(word, value, "counterjet", &(params->isolate_counterjet), TYPE_INT);
   set_by_word_val(word, value, "old_centering", &(params->old_centering), TYPE_INT);
 
@@ -158,6 +162,8 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "refine_rel", &(params->refine_rel), TYPE_DBL);
   set_by_word_val(word, value, "refine_cut", &(params->refine_cut), TYPE_DBL);
   set_by_word_val(word, value, "use_nearest_neighbor", &(params->nearest_neighbor), TYPE_INT);
+
+  set_by_word_val(word, value, "target_nturns", &(params->target_nturns), TYPE_INT);
 
   set_by_word_val(word, value, "eps", &(params->eps), TYPE_DBL);
   set_by_word_val(word, value, "maxnstep", &(params->maxnstep), TYPE_INT);

@@ -31,11 +31,17 @@ typedef struct params_t {
 
   // Which e- energy distributions/emissivities to use
   int emission_type;
+  // Whether to apply I > 0 "floor" when integrating forward the Stokes parameters
+  // Probably harmless!
+  int stokes_floors;
 
   int isolate_counterjet;
 
   const char dump[STRLEN];
   const char outf[STRLEN];
+
+  // Subrings
+  int target_nturns;
 
   // Adaptive tracing
   int nx_min, ny_min;   // dimensions of lowest resolution image
