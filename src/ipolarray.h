@@ -14,7 +14,7 @@
 #include <complex.h>
 
 // Top-level functions for solving emission
-int integrate_emission(struct of_traj *traj, int nstep,
+int integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
                     double complex N_coord[NDIM][NDIM], Params *params);
 

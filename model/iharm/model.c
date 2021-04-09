@@ -33,7 +33,7 @@ double B_unit;
 double Te_unit;
 
 // MOLECULAR WEIGHTS
-static double Ne_factor = 1.;  // used for, e.g., singly ionized helium
+static double Ne_factor = 1.;  // e.g., used for He with 2 protons+neutrons per 2 electrons
 static double mu_i, mu_e, mu_tot;
 
 // MODEL PARAMETERS: PUBLIC
