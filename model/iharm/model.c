@@ -669,7 +669,7 @@ void init_hamr_grid(char *fnam, int dumpidx)
   dx[2] /= 2;
 
   // set limit for tracking geodesic emission
-  rmax_geo = fmin(rmax_geo, fmin(100., Rout));
+  rmax_geo = fmin(rmax_geo, Rout);
   rmin_geo = fmax(rmin_geo, Rin);
 
   cstartx[0] = 0;
@@ -861,8 +861,8 @@ void init_iharm_grid(char *fnam, int dumpidx)
     }
   }
 
-  // Don't emit beyond specified limit, coordinate limit, or 100M, whichever is *smaller*
-  rmax_geo = fmin(rmax_geo, fmin(100., Rout));
+  // Don't emit beyond specified limit, coordinate limit
+  rmax_geo = fmin(rmax_geo, Rout);
   rmin_geo = fmax(rmin_geo, Rin);
 
   hdf5_set_directory("/");
