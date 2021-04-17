@@ -26,6 +26,12 @@ static double MODEL_MBH = 4.1e6;
 static double MODEL_TP_OVER_TE = 3;
 static double MODEL_GAM = 13./9;
 
+// TODO: duplicated code!
+static double powerlaw_gamma_min = 1e2;
+static double powerlaw_gamma_max = 1e5;
+static double powerlaw_gamma_cut = 1e10;
+static double powerlaw_p = 3.25;
+
 // derived model parameters
 double model_Ne_0 = 1.;
 double model_B_0 = 1.;
@@ -39,6 +45,12 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "gam", &MODEL_GAM, TYPE_DBL);
   set_by_word_val(word, value, "tp_over_te", &MODEL_TP_OVER_TE, TYPE_DBL);
   set_by_word_val(word, value, "MBH", &MODEL_MBH, TYPE_DBL);
+
+  // TODO: figure out how to make consistent with model_radiation.c
+  set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
 }
 
 // used in slow light with real data
@@ -199,7 +211,15 @@ int radiating_region(double X[NDIM])
 
 void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
                              double *gamma_min, double *gamma_max, double *gamma_cut)
-{ assert(1 == 0); }
+{ 
+  // TODO figure out how to make this all consistent
+  //assert(1 == 0); 
+
+  *gamma_min = powerlaw_gamma_min;
+  *gamma_max = powerlaw_gamma_max;
+  *gamma_cut = powerlaw_gamma_cut;
+  *p = powerlaw_p;
+}
 
 // In case we want to mess with emissivities directly
 void get_model_jar(double X[NDIM], double Kcon[NDIM],
