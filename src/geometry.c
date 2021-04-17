@@ -165,6 +165,27 @@ void normalize(double vcon[NDIM], double Gcov[NDIM][NDIM])
   return;
 }
 
+/*
+ * Normalize input vector so that |v . v| = 1
+ * Overwrites input
+ */
+void normalize_to(double vcon[NDIM], double Gcov[NDIM][NDIM], double target)
+{
+  int k, l;
+  double norm;
+
+  norm = 0.;
+  for (k = 0; k < 4; k++)
+    for (l = 0; l < 4; l++)
+      norm += vcon[k] * vcon[l] * Gcov[k][l];
+
+  norm = sqrt(fabs(norm));
+  for (k = 0; k < 4; k++)
+    vcon[k] *= target/norm;
+
+  return;
+}
+
 /* normalize null vector in a tetrad frame */
 void null_normalize(double Kcon[NDIM], double fnorm)
 {

@@ -21,7 +21,7 @@ inline void raise(double *ucov, double Gcon[NDIM][NDIM], double *ucon) {flip_ind
 
 void null_normalize(double Kcon[NDIM], double fnorm);
 void normalize(double *vcon, double gcov[][NDIM]);
-
+void normalize_to(double vcon[NDIM], double Gcov[NDIM][NDIM], double target);
 
 int invert_matrix(double Am[][NDIM], double Aminv[][NDIM]);
 double theta_func(double X[NDIM]);
