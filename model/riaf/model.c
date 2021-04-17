@@ -193,6 +193,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
   double K, ur, ut;
   if (r < Rh) {
     // Inside r_h, none
+    double bl_Ucov[NDIM];
     bl_Ucov[0] = -1;
     bl_Ucov[1] = 0.;
     bl_Ucov[2] = 0.;
@@ -256,9 +257,6 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
     bl_Ucon[2] = 0.;
     bl_Ucon[3] = omega * ut;
   }
-  //normalize(bl_Ucon, bl_gcov);
-  flip_index(bl_Ucon, bl_gcov, bl_Ucov);
-
 
   // Transform to KS coordinates,
   double ks_Ucon[NDIM];
