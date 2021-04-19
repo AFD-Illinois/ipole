@@ -221,7 +221,7 @@ double gdet_zone(int i, int j, int k)
   Xzone[2] = startx[2] + (j+0.5)*dx[2];
   Xzone[3] = startx[3] + (k+0.5)*dx[3];
 
-  if (metric == METRIC_MINKOWSKI) {
+  if (metric == METRIC_MINKOWSKI || metric == METRIC_EMINKOWSKI) {
     double gcov[NDIM][NDIM];
     gcov_func(Xzone, gcov);
     return gdet_func(gcov);

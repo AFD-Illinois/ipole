@@ -66,7 +66,7 @@ void init_model(double *tA, double *tB)
 
   // set metric
   use_eKS_internal = 0;
-  metric = METRIC_MINKOWSKI;
+  metric = METRIC_EMINKOWSKI;
 
   // set units
   double MBH = MODEL_MBH * MSUN;
@@ -149,7 +149,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   Ucon[3] = 0.;
 
   Bcon[0] = 0.;
-  Bcon[1] = model_B_0 * cos(h);
+  Bcon[1] = model_B_0 * cos(h) / r;
   Bcon[2] = - model_B_0 * sin(h) / (r + 1.e-8);
   Bcon[3] = 0.;
 
@@ -227,3 +227,4 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV) {return;}
 void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv) {return;}
+

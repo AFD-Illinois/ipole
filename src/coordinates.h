@@ -15,6 +15,8 @@
 #define METRIC_MKS3 3
 // Spherical coordinates in Minkowski space
 #define METRIC_MINKOWSKI 4
+// Exponential spherical coordinates in Minkowski space
+#define METRIC_EMINKOWSKI 5
 
 // Coordinate parameters.  See 
 extern int use_eKS_internal;
