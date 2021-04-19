@@ -23,6 +23,9 @@ do
       make -f ../../makefile -j8 MODEL=analytic
     elif [[ $folder == *"thin_disk"* ]]; then
       make -f ../../makefile -j8 MODEL=thin_disk
+    elif [[ $folder == *"isothermal_sphere"* ]]; then
+      echo "NOT TESTING ISOTHERMAL SPHERE"
+      continue
     else
       make -f ../../makefile -j8 MODEL=iharm
     fi
