@@ -82,7 +82,9 @@ if __name__ == "__main__":
     Imaskval = np.nanmax(I) / np.power(I.shape[0],5.)
 
     # total intensity
-    im1 = ax1.imshow(I, cmap='afmhot', vmin=0., vmax=1.e-4, origin='lower', extent=extent)
+    vmax = 1.e-4
+    vmax = I.max() / np.sqrt(1.5)
+    im1 = ax1.imshow(I, cmap='afmhot', vmin=0., vmax=vmax, origin='lower', extent=extent)
     colorbar(im1)
 
     # linear polarization fraction
