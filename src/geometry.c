@@ -166,7 +166,7 @@ void normalize(double vcon[NDIM], double Gcov[NDIM][NDIM])
 }
 
 /*
- * Normalize input vector so that |v . v| = 1
+ * Normalize input vector so that |v . v| = target
  * Overwrites input
  */
 void normalize_to(double vcon[NDIM], double Gcov[NDIM][NDIM], double target)

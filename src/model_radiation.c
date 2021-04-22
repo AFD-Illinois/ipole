@@ -233,8 +233,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       *jU *= pol_frac_e;
       *jV *= pol_frac_e;
 #if DEBUG
-      fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n",
-      jP, *jI, pol_frac_e);
+      //fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n",
+      //jP, *jI, pol_frac_e);
 #endif
     }
 

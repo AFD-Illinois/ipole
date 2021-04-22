@@ -210,7 +210,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
     bl_Ucon_isco[2] = 0.0;
     bl_Ucon_isco[3] = omegaK_isco;
     double bl_gcov_isco[NDIM][NDIM];
-    gcov_bl(r, th, bl_gcov_isco);
+    gcov_bl(r_isco, th, bl_gcov_isco);
     normalize(bl_Ucon_isco, bl_gcov_isco);
     flip_index(bl_Ucon_isco, bl_gcov_isco, bl_Ucov_isco);
     double e = bl_Ucov_isco[0];
@@ -267,9 +267,12 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
   // and grab Ucov
   flip_index(Ucon, gcov, Ucov);
 
+
   // Check
 #if DEBUG
-  if (get_fluid_nu(Kcon, Ucov) == 1. || ut == 0.) {
+  double dot_U = Ucon[0]*Ucov[0] + Ucon[1]*Ucov[1] + Ucon[2]*Ucov[2] + Ucon[3]*Ucov[3];
+  double sum_U = Ucon[0]+Ucon[1]+Ucon[2]+Ucon[3];
+  if (get_fluid_nu(Kcon, Ucov) == 1. || fabs(fabs(dot_U) - 1.) > 1e-10 || sum_U < 0.1) {
     double bl_Ucov[NDIM];
     flip_index(bl_Ucon, bl_gcov, bl_Ucov);
     fprintf(stderr, "RIAF model problem at r, th, phi = %g %g %g\n", r, th, X[3]);

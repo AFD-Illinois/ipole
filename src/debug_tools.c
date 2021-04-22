@@ -150,7 +150,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
                      double Ucon[NDIM], double Ucov[NDIM],
                      double Bcon[NDIM], double Bcov[NDIM]);
 
-void dump_at_X(double X[NDIM])
+void dump_at_X(double X[NDIM], double Kcon[NDIM])
 {
   // warning that this does not necessarily print contiguously!    
   double r, h;
@@ -158,7 +158,7 @@ void dump_at_X(double X[NDIM])
   bl_coord(X, &r, &h);
   gcov_func(X, gcov);
   gcon_func(gcov, gcon);
-  get_model_fourv(X, X, ucon, ucov, bcon, bcov);
+  get_model_fourv(X, Kcon, ucon, ucov, bcon, bcov);
   double Ne = get_model_ne(X);
   double Thetae = get_model_thetae(X);
   double B = get_model_b(X);
