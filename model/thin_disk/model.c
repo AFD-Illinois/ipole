@@ -371,9 +371,9 @@ int radiating_region(double X[NDIM]) {return 0;}
 double get_model_thetae(double X[NDIM]) {return 0;}
 double get_model_b(double X[NDIM]) {return 0;}
 double get_model_ne(double X[NDIM]) {return 0;}
+double get_model_sigma(double X[NDIM]) {return 0;}
+double get_model_beta(double X[NDIM]) {return 0;}
 void get_model_primitives(double X[NDIM], double *p) {return;}
-void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
-          double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
 // In case we want to mess with emissivities directly
 void get_model_jar(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,

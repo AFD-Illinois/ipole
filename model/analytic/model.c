@@ -317,8 +317,8 @@ int radiating_region(double X[NDIM])
 // Define these to specify a fluid model: e- density/temperature for
 // synchrotron radiation based on an energy distribution
 double get_model_thetae(double X[NDIM]) {return 0;}
-void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
-          double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
+double get_model_sigma(double X[NDIM]) {return 0;}
+double get_model_beta(double X[NDIM]) {return 0;}
 
 // This is only called for trace file output, and doesn't really apply to analytic models
 void get_model_primitives(double X[NDIM], double *p) {return;}
