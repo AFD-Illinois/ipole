@@ -209,30 +209,47 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
     bl_Ucon_isco[1] = 0.0;
     bl_Ucon_isco[2] = 0.0;
     bl_Ucon_isco[3] = omegaK_isco;
+
     double bl_gcov_isco[NDIM][NDIM];
     gcov_bl(r_isco, th, bl_gcov_isco);
+
     normalize(bl_Ucon_isco, bl_gcov_isco);
     flip_index(bl_Ucon_isco, bl_gcov_isco, bl_Ucov_isco);
     double e = bl_Ucov_isco[0];
     double l = bl_Ucov_isco[3];
+
     // ...then set the infall velocity and find omega
-    bl_Ucov_isco[1] = -sqrt(fmax(0.0,
-                      -(1.0 + bl_gcon[0][0] * e * e + 
-                      2.0 * bl_gcon[0][3] * e * l + 
-                      bl_gcon[3][3] * l * l) / bl_gcov[1][1]));
-    bl_Ucov_isco[2] = 0.0;
-    flip_index(bl_Ucov_isco, bl_gcon, bl_Ucon_isco);
-    omegaK = bl_Ucon_isco[3] / bl_Ucon_isco[0];
+    double bl_Ucon_tmp[NDIM], bl_Ucov_tmp[NDIM];
+    double K_con = bl_gcon[0][0] * e * e + 2.0 * bl_gcon[0][3] * e * l + bl_gcon[3][3] * l * l;
+    double urk_precut = -(1.0 + K_con) / bl_gcon[1][1];
+    double urk = -sqrt(fmax(0.0, urk_precut));
+    bl_Ucov_tmp[0] = e;
+    bl_Ucov_tmp[1] = urk;
+    bl_Ucov_tmp[2] = 0.0;
+    bl_Ucov_tmp[3] = l;
+    flip_index(bl_Ucov_tmp, bl_gcon, bl_Ucon_tmp);
+    omegaK = bl_Ucon_tmp[3] / bl_Ucon_tmp[0];
 
     omegaFF = bl_gcon[0][3] / bl_gcon[0][0];
-
     // Compromise
     omega = omegaK + (1 - keplerian_factor)*(omegaFF - omegaK);
-    // Set infall rate
-    double urFF = -sqrt(fmax(0.0, -(1.0 + bl_gcon[0][0]) * bl_gcon[1][1]));
-    ur = bl_Ucon_isco[1] + infall_factor * (urFF - bl_Ucon_isco[1]);
 
-    // Get the normal observer velocity for Ucon/Ucov, in BL coordinates
+    // Then set the infall rate
+    double urFF = -sqrt(fmax(0.0, -(1.0 + bl_gcon[0][0]) * bl_gcon[1][1]));
+    ur = bl_Ucon_tmp[1] + infall_factor * (urFF - bl_Ucon_tmp[1]);
+
+#if DEBUG
+    if (fabs(ur) < 1e-10) {
+      fprintf(stderr, "Bad ur: ur is %g\n", ur);
+      fprintf(stderr, "Ucon BL: %g %g %g %g\n",
+              bl_Ucon_tmp[0], bl_Ucon_tmp[1], bl_Ucon_tmp[2], bl_Ucon_tmp[3]);
+      fprintf(stderr, "Ucov BL: %g %g %g %g\n",
+              bl_Ucov_tmp[0], bl_Ucov_tmp[1], bl_Ucov_tmp[2], bl_Ucov_tmp[3]);
+      fprintf(stderr, "urk was %g (%g pre-cut), e & l were %g %g\n", urk, urk_precut, e, l);
+    }
+#endif
+
+    // Finally, get Ucon in BL coordinates
     K = bl_gcov[0][0] + 2*omega*bl_gcov[0][3] + omega*omega*bl_gcov[3][3];
     ut = sqrt(fmax(0.0, -(1. + ur*ur*bl_gcov[1][1]) / K));
     bl_Ucon[0] = ut;
@@ -270,10 +287,14 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
 
   // Check
 #if DEBUG
+  //if (r < r_isco) { fprintf(stderr, "ur = %g\n", Ucon[1]); }
+  double bl_Ucov[NDIM];
   double dot_U = Ucon[0]*Ucov[0] + Ucon[1]*Ucov[1] + Ucon[2]*Ucov[2] + Ucon[3]*Ucov[3];
   double sum_U = Ucon[0]+Ucon[1]+Ucon[2]+Ucon[3];
-  if (get_fluid_nu(Kcon, Ucov) == 1. || fabs(fabs(dot_U) - 1.) > 1e-10 || sum_U < 0.1) {
-    double bl_Ucov[NDIM];
+  // Following condition gets handled better above
+  // (r < r_isco && fabs(Ucon[1]) < 1e-10) ||
+  if (get_fluid_nu(Kcon, Ucov) == 1. ||
+      fabs(fabs(dot_U) - 1.) > 1e-10 || sum_U < 0.1) {
     flip_index(bl_Ucon, bl_gcov, bl_Ucov);
     fprintf(stderr, "RIAF model problem at r, th, phi = %g %g %g\n", r, th, X[3]);
     fprintf(stderr, "Omega K: %g FF: %g Final: %g K: %g ur: %g ut: %g\n",
