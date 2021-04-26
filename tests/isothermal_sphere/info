@@ -1,0 +1,6 @@
+# note maxnstep is because the tests were done using regular (non-exponential) KS. 
+
+# #thermal performed on commit a2217b5ff432fa5c10080938af9bd14c79151969
+./ipole --freqcgs={freqcgs} --dsource=8000 --thetacam={inc} --maxnstep=1000000 --nx=80 --ny=80 --fov=1200
+
+# when doing kappa4, add "--emission_type=2 --kappa=4"
