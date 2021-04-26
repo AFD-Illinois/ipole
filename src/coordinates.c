@@ -5,8 +5,8 @@
 #include "decs.h"
 #include "geometry.h"
 
-int use_eKS_internal;
-int metric;
+int use_eKS_internal = 0;
+int metric = -1;
 double a, hslope; // mks
 double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
