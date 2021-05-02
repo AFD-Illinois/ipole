@@ -3,6 +3,7 @@
 #include "coordinates.h"
 
 #include <math.h>
+#include <assert.h>
 
 #define TNY 96
 #define RCYL 30.
@@ -199,4 +200,72 @@ double KORAL_cylindrify(double r, double x2, void *params)
 
   return thout;
 }
+
+
+
+
+void fwd_KORAL_JETCOORDS(double *xJET, double *xKS)
+{
+  // get coordinate system parameters
+  double r0 = mp_koral_jetcoords.mksr0;
+  double rbrk = mp_koral_jetcoords.rbrk;
+  double alpha_1 = mp_koral_jetcoords.alpha_1;
+  double alpha_2 = mp_koral_jetcoords.alpha_2;
+  double fdisk = mp_koral_jetcoords.fdisk;
+  double fjet = mp_koral_jetcoords.fjet;
+  double runi = mp_koral_jetcoords.runi;
+  double rcoll_jet = mp_koral_jetcoords.rcoll_jet;
+  double rcoll_disk = mp_koral_jetcoords.rcoll_disk;
+  double rdecoll_jet = mp_koral_jetcoords.rdecoll_jet;
+  double rdecoll_disk = mp_koral_jetcoords.rdecoll_disk;
+
+  /*
+  double x1in = mp_koral_jetcoords.hypx1in;     // TODO
+  double x1out = mp_koral_jetcoords.hypx1out;   // TODO
+  double x1brk = mp_koral_jetcoords.hypx1brk;   // TODO
+   */
+  double x1in = 0.;
+  double x1out = 0.;
+  double x1brk = 0.;
+
+  // so many parameters, so little time
+  jetcoords_params tpar;
+  tpar.r0 = r0;
+  tpar.rbrk = rbrk;
+  tpar.runi = runi;
+  tpar.rcoll_jet = rcoll_jet;
+  tpar.rcoll_disk = rcoll_disk;
+  tpar.rdecoll_jet = rdecoll_jet;
+  tpar.rdecoll_disk = rdecoll_disk;
+  tpar.alpha_1 = alpha_1;
+  tpar.alpha_2 = alpha_2;
+  tpar.fdisk = fdisk;
+  tpar.fjet = fjet;
+
+  // pass time through
+  xKS[0] = xJET[0];
+
+  // get radial coordinate
+  double x1sc = x1in + xJET[1] * (x1out-x1in);  // scale out of 0-1 range
+  if (x1sc < x1brk) {
+    xKS[1] = exp(x1sc) + r0;
+  } else {
+    // from hyperexp_func
+    double x1brk = log(rbrk - r0);
+    xKS[1] = r0 + exp(xJET[1] + 4. * pow(xJET[1] - x1brk, 4));
+  }
+
+  // get elevation coordinate
+  if (mp_koral_jetcoords.cylindrify) {
+    xKS[2] = KORAL_cylindrify(xKS[1], xJET[2], &tpar);
+  } else {
+    // return theta_diskjet(r, x2, par);
+    assert(1==0);  // WARNING, THIS HAS NOT BEEN VALIDATED BY ITSELF!
+    xKS[2] = KORAL_theta_diskjet(xKS[1], xJET[2], &tpar);
+  }
+
+  // pass phi through
+  xKS[3] = xJET[3];
+}
+
 
