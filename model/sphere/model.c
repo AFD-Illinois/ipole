@@ -14,7 +14,7 @@
 #include <assert.h>
 
 // used by other files
-double rmax_geo;
+double rmin_geo, rmax_geo;
 double L_unit;
 
 // model parameters
@@ -122,6 +122,7 @@ void init_model(double *tA, double *tB)
   MULOOP cstartx[mu] = startx[mu];
   MULOOP cstopx[mu] = stopx[mu];
 
+  rmin_geo = 0;
   rmax_geo = fmax(100., MODEL_R_0);
 
   fprintf(stderr, "Native coordinate start: %g %g %g stop: %g %g %g\n",
