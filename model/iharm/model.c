@@ -13,6 +13,7 @@
 
 #include "debug_tools.h"
 
+#include <assert.h>
 #include <string.h>
 
 #define NVAR (10)
