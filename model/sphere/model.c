@@ -119,6 +119,9 @@ void init_model(double *tA, double *tB)
   stopx[2] = startx[2]+N2*dx[2];
   stopx[3] = startx[3]+N3*dx[3];
 
+  MULOOP cstartx[mu] = startx[mu];
+  MULOOP cstopx[mu] = stopx[mu];
+
   rmax_geo = fmax(100., MODEL_R_0);
 
   fprintf(stderr, "Native coordinate start: %g %g %g stop: %g %g %g\n",

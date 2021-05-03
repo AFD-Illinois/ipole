@@ -22,8 +22,11 @@ extern int use_simcoords;
 extern int simcoords;
 
 // interface
-void load_ks_rh_from_file(const char *fname);
+void load_simcoord_info_from_file(const char *fname);
 void initialize_simgrid(size_t n1, size_t n2, double x1i, double x1f, double x2i, double x2f);
+int simcoord_to_eks(double gridcoord[NDIM], double eKS[NDIM]);
+int simcoordijk_to_eks(int i, int j, int k, double eKS[NDIM]);
+double simcoordijk_to_gdet(int i, int j, int k);
 void eks_to_simcoord(double eKS[NDIM], double gridcoord[NDIM]);
 void finalize_simgrid();
 

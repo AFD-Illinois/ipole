@@ -133,6 +133,8 @@ void set_units()
   stopx[1] = log(Rout);
   stopx[2] = 1.0;
   stopx[3] = 2*M_PI;
+  MULOOP cstartx[mu] = startx[mu];
+  MULOOP cstopx[mu] = stopx[mu];
 }
 
 void output_hdf5()
