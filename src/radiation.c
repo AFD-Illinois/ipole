@@ -40,10 +40,10 @@ double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM])
            * ME * CL * CL / HPL;
 
     if (nu < 0.) {
-      nu = 1.;
 #if DEBUG
-      fprintf(stderr, "Fluid nu < 0: %g !", nu);
+      fprintf(stderr, "Fluid nu < 0: %g!\n", nu);
 #endif
+      nu = 1.;
     }
 
     if (isnan(nu)) {
@@ -77,8 +77,11 @@ double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM], double
     if (fabs(mu) > 1.)
 	    mu /= fabs(mu);
 
-    if (isnan(mu))
+    if (isnan(mu)) {
 	    fprintf(stderr, "isnan get_bk_angle\n");
+      fprintf(stderr, "B = %g, k = %g, mu = %g\n", B, k, mu);
+      fprintf(stderr, "Ucov: %g %g %g %g\n", Ucov[0], Ucov[1], Ucov[2], Ucov[3]);
+    }
 
     return (acos(mu));
 }

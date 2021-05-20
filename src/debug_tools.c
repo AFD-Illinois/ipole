@@ -137,3 +137,40 @@ void check_N(double complex N[NDIM][NDIM],
 
   fprintf(stderr, "leave check_N\n");
 }
+
+// because we don't have proper header files
+void gcov_func(double *X, double gcov[][NDIM]);
+int gcon_func(double gcov[][NDIM], double gcon[][NDIM]);
+void bl_coord(double *X, double *r, double *th);
+double get_model_ne(double X[NDIM]);
+double get_model_thetae(double X[NDIM]);
+double get_model_b(double X[NDIM]);
+void get_model_fourv(double X[NDIM], double Kcon[NDIM],
+                     double Ucon[NDIM], double Ucov[NDIM],
+                     double Bcon[NDIM], double Bcov[NDIM]);
+
+void dump_at_X(double X[NDIM])
+{
+  // warning that this does not necessarily print contiguously!    
+  double r, h;
+  double gcov[4][4], gcon[4][4], ucon[4], ucov[4], bcon[4], bcov[4];
+  bl_coord(X, &r, &h);
+  gcov_func(X, gcov);
+  gcon_func(gcov, gcon);
+  get_model_fourv(X, X, ucon, ucov, bcon, bcov);
+  double Ne = get_model_ne(X);
+  double Thetae = get_model_thetae(X);
+  double B = get_model_b(X);
+  fprintf(stderr, "-----\n");
+  print_vector("X", X);
+  fprintf(stderr, "r, h: %g, %g\n", r, h);
+  print_matrix("gcov", gcov);
+  print_matrix("gcon", gcon);
+  fprintf(stderr, "Ne, Thetae, B: %g, %g, %g\n", Ne, Thetae, B);
+  print_vector("ucon", ucon);
+  print_vector("ucov", ucov);
+  print_vector("bcon", bcon);
+  print_vector("bcov", bcov);
+}
+
+

@@ -1,0 +1,47 @@
+# RIAF model options
+
+outfile image.h5
+
+a 0.9375
+Ne_unit 3e7
+Te_unit 3e11
+
+# Model parameters from Odyssey (proprietary)
+# c.f. Themis src/model/model_image_sed_fitted_riaf.cpp/h
+# Parameters correspond to n_e,th^0, T_e^0, H, -alpha, -gamma in Pu & Broderick '18
+# Note that nth0/Te0 are in terms of Ne_unit & Te_unit, which should be used to set scale
+nth0 1
+Te0 1
+disk_h 0.1
+pow_nth -1.1
+pow_T -0.84
+
+# Inflow parameters for Shearing Inflow model from VRT2,
+# Themis src/VRT2/src/AccretionFlows/afv_shearing_inflow.cpp/h
+keplerian_factor 1.0
+infall_factor 0.0
+
+# RIAF model gives e- Ne/Te, so use Dexter emissivity fits
+emission_type 1
+
+# Camera location
+rcam 1000
+thetacam 85
+phicam 0
+
+# Camera FOV in r_g
+fovx_dsource 200
+fovy_dsource 200
+
+# Image size
+nx 100
+ny 100
+
+# Distance to source in pc
+dsource 8.3e3
+
+# Standard frequency nu_p
+freqcgs 230.e9
+
+# MBH in solar masses
+MBH 4.3e6

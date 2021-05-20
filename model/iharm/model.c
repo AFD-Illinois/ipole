@@ -122,11 +122,12 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
 
+  // TODO: figure out how to make consistent with model_radiation.c
   set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_eta", &trat_large, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_p", &trat_large, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
@@ -672,7 +673,7 @@ void init_hamr_grid(char *fnam, int dumpidx)
   dx[2] /= 2;
 
   // set limit for tracking geodesic emission
-  rmax_geo = fmin(rmax_geo, fmin(100., Rout));
+  rmax_geo = fmin(rmax_geo, Rout);
   rmin_geo = fmax(rmin_geo, Rin);
 
   cstartx[0] = 0;
@@ -864,8 +865,8 @@ void init_iharm_grid(char *fnam, int dumpidx)
     }
   }
 
-  // Don't emit beyond specified limit, coordinate limit, or 100M, whichever is *smaller*
-  rmax_geo = fmin(rmax_geo, fmin(100., Rout));
+  // Don't emit beyond specified limit, coordinate limit
+  rmax_geo = fmin(rmax_geo, Rout);
   rmin_geo = fmax(rmin_geo, Rin);
 
   hdf5_set_directory("/");
