@@ -336,7 +336,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   // Bcon/Bcov to zero.
   if ( X_in_domain(X) == 0 ) {
 
-    Ucov[0] = -1./sqrt(-gcov[0][0]);
+    Ucov[0] = -1./sqrt(-gcon[0][0]);
     Ucov[1] = 0.;
     Ucov[2] = 0.;
     Ucov[3] = 0.;
@@ -353,7 +353,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
       Bcon[mu] = 0.;
       Bcov[mu] = 0.;
     }
-   
+
     return;
   }
 

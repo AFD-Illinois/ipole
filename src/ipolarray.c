@@ -609,11 +609,6 @@ void complex_lower(double complex N[NDIM][NDIM],
 void stokes_to_tensor(double fI, double fQ, double fU, double fV,
     double complex f_tetrad[NDIM][NDIM])
 {
-  int i, j;
-
-  for (i = 0; i < 4; i++)
-  for (j = 0; j < 4; j++)
-  f_tetrad[i][j] = 0. + I * 0.;
   /*notice that I swapped sign of the imaginary part [2][3] in [3][2] - which one is correct? */
   f_tetrad[1][1] = (fI + fQ + 0. * I);
   f_tetrad[1][2] = (fU - I * fV);
