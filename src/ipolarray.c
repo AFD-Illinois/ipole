@@ -19,6 +19,11 @@
 #include "debug_tools.h"
 #include <complex.h>
 
+// These are related mostly to where exp() and 1/x overflow
+// desired accuracy.
+#define CUT_HIGH_ABS 500
+#define CUT_LOW_ABS SMALL
+
 // Sub-functions
 void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
@@ -349,7 +354,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
   double adj = aQ * jQ + aU * jU + aV * jV;
 
-  if (aP*x > 500 || aI*x > 500) {
+  if (aP*x > CUT_HIGH_ABS || aI*x > CUT_HIGH_ABS) {
     // Solution assuming aI ~ aP >> 1, the worst case.
     // This covers the case aI >> aP by sending exp(aP-aI)->0, which is safe for all terms
     double expDiffx = exp((aP-aI) * x)/2;
@@ -380,7 +385,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
             aI / aP2 * (aI * expDiffx + aP * expDiffx))
         + jI * aV / (aP * (aI2 - aP2)) *
         (-aP + (aP * expDiffx + aI * expDiffx)));
-  } else if (aP*x > SMALL) { /* full analytic solution has trouble if polarized absorptivity is small */
+  } else if (aP*x > CUT_LOW_ABS) { /* full analytic solution has trouble if polarized absorptivity is small */
     double expaIx = exp(-aI * x);
     double sinhaPx = sinh(aP * x);
     double coshaPx = cosh(aP * x);
