@@ -349,7 +349,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
   double adj = aQ * jQ + aU * jU + aV * jV;
 
-  if (aP > 500 || aI > 500) {
+  if (aP*x > 500 || aI*x > 500) {
     // Solution assuming aI ~ aP >> 1, the worst case.
     // This covers the case aI >> aP by sending exp(aP-aI)->0, which is safe for all terms
     double expDiffx = exp((aP-aI) * x)/2;
@@ -380,7 +380,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
             aI / aP2 * (aI * expDiffx + aP * expDiffx))
         + jI * aV / (aP * (aI2 - aP2)) *
         (-aP + (aP * expDiffx + aI * expDiffx)));
-  } else if (aP > SMALL) { /* full analytic solution has trouble if polarized absorptivity is small */
+  } else if (aP*x > SMALL) { /* full analytic solution has trouble if polarized absorptivity is small */
     double expaIx = exp(-aI * x);
     double sinhaPx = sinh(aP * x);
     double coshaPx = cosh(aP * x);
@@ -419,19 +419,6 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
                 aP * sinhaPx) * expaIx)
         + jI * aV / (aP * (aI2 - aP2)) *
         (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
-
-#if DEBUG
-    term1 = fabs( SV1 * expaIx );
-    term2 = fabs( ads0 * aV / aP2 * (-1 + coshaPx) * expaIx );
-    term3 = fabs( - aV / aP * SI1 * sinhaPx * expaIx );
-    term4 = fabs( jV * (1 - expaIx) / aI );
-    term5 = fabs( adj * aV / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx -
-                                                    aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
-    term6 = fabs( jI * aV / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
-
-    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SV2) > 1e16)
-      printf("CAT V: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SV2);
-#endif
 
   } else {
     // Still account for aI which may be >> aP, e.g. simulating unpolarized transport
