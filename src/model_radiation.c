@@ -74,6 +74,8 @@ static double powerlaw_gamma_cut = 1e10;
 static double powerlaw_gamma_min = 1e2;
 static double powerlaw_gamma_max = 1e5;
 static double powerlaw_p = 3.25;
+static double max_pol_frac_e = 0.99;
+static double max_pol_frac_a = 0.99;
 
 void try_set_radiation_parameter(const char *word, const char *value)
 {
@@ -83,6 +85,9 @@ void try_set_radiation_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
+
+  set_by_word_val(word, value, "max_pol_frac_e", &powerlaw_p, TYPE_DBL);
+  set_by_word_val(word, value, "max_pol_frac_a", &powerlaw_p, TYPE_DBL);
 }
 
 /**
@@ -245,17 +250,15 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       fprintf(stderr, "Negative total emissivity! Exiting!\n");
       exit(-1);
     }
-    double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
-    if (*jI < jP) {
+    if (*jI * *jI < *jQ * *jQ + *jU * *jU + *jV * *jV) {
       // Transport does not like 100% polarization...
-      double pol_frac_e = *jI / jP - 0.01;
-      //double pol_frac_e = 0.9;
+      double pol_frac_e = *jI / jP * max_pol_frac_e;
       *jQ *= pol_frac_e;
       *jU *= pol_frac_e;
       *jV *= pol_frac_e;
 #if DEBUG
-      //fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n",
-      //jP, *jI, pol_frac_e);
+      fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n",
+      sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV), *jI, pol_frac_e);
 #endif
     }
 
@@ -286,17 +289,15 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
         fprintf(stderr, "Negative total absorptivity! Exiting!\n");
         exit(-1);
       }
-      double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
-      if (*aI < aP) {
+      if (*aI * *aI < *aQ * *aQ + *aU * *aU + *aV * *aV) {
         // Transport does not like 100% polarization...
-        double pol_frac_a = *aI / aP - 0.01;
-        //double pol_frac_a = 0.9;
+        double pol_frac_a = *aI / aP * max_pol_frac_a;
         *aQ *= pol_frac_a;
         *aU *= pol_frac_a;
         *aV *= pol_frac_a;
 #if DEBUG
         fprintf(stderr, "Polarized absorptivities too large:\n %g vs %g, corrected by %g\n",
-        aP, *aI, pol_frac_a);
+        sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV), *aI, pol_frac_a);
 #endif
       }
 
