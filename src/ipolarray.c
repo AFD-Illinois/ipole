@@ -21,8 +21,11 @@
 
 // These are related mostly to where exp() and 1/x overflow
 // desired accuracy.
+#define CUT_INSANE_ABS 2000
 #define CUT_HIGH_ABS 500
 #define CUT_LOW_ABS SMALL
+// Low-rotativity linear limit
+#define CUT_LOW_ROT SMALL
 
 // Sub-functions
 void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
@@ -275,11 +278,9 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double Ucov[NDIM],Bcov[NDIM];
   double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
   double complex N_tetrad[NDIM][NDIM];
-  double B;
   double jI, jQ, jU, jV;
   double aI, aQ, aU, aV;
   double rV, rU, rQ;
-  double rho2, rho, rdS;
   double SI = 0, SQ = 0, SU = 0, SV = 0;
   double SI0, SQ0, SU0, SV0;
   double SI1, SQ1, SU1, SV1;
@@ -302,9 +303,9 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   // Guess B if we *absolutely must*
   // Note get_model_b (rightly) returns 0 outside the domain,
   // but we can cling to the 4-vectors a bit longer
-  B = 0.;
-  MULOOP B += Bcon[mu] * Bcov[mu];
-  if (B <= 0.) {
+  double bsq = 0.;
+  MULOOP bsq += Bcon[mu] * Bcov[mu];
+  if (bsq <= 0.) {
     Bcon[0] = 0.;
     Bcon[1] = 1.;
     Bcon[2] = 1.;
@@ -326,23 +327,22 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   /* apply the Faraday rotation solution for a half step */
   double x = dlam * 0.5;
 
-  rdS = rQ * SQ0 + rU * SU0 + rV * SV0;
-  rho2 = rQ * rQ + rU * rU + rV * rV;
-  rho = sqrt(rho2);
-  double c, s, sh;
-  c = cos(rho * x);
-  s = sin(rho * x);
-  sh = sin(0.5 * rho * x);
-  if (rho2 > 0) {
+  double rho2 = rQ * rQ + rU * rU + rV * rV;
+  double rho = sqrt(rho2);
+  if (rho * x > CUT_LOW_ROT) {
+    double rdS = rQ * SQ0 + rU * SU0 + rV * SV0;
+    double c = cos(rho * x);
+    double s = sin(rho * x);
+    double sh = sin(0.5 * rho * x);
     SI1 = SI0;
     SQ1 = SQ0 * c + 2 * rQ * rdS / rho2 * sh * sh + (rU * SV0 - rV * SU0) / rho * s;
     SU1 = SU0 * c + 2 * rU * rdS / rho2 * sh * sh + (rV * SQ0 - rQ * SV0) / rho * s;
     SV1 = SV0 * c + 2 * rV * rdS / rho2 * sh * sh + (rQ * SU0 - rU * SQ0) / rho * s;
   } else {
     SI1 = SI0;
-    SQ1 = SQ0;
-    SU1 = SU0;
-    SV1 = SV0;
+    SQ1 = SQ0 + (-rV * SU0 + rU * SV0) * x;
+    SU1 = SU0 + ( rV * SQ0 - rQ * SV0) * x;
+    SV1 = SV0 + (-rU * SQ0 + rQ * SU0) * x;
   }
   /* done rotation solution half step */
 
@@ -354,9 +354,24 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
   double adj = aQ * jQ + aU * jU + aV * jV;
 
-  if (aP*x > CUT_HIGH_ABS || aI*x > CUT_HIGH_ABS) {
-    // Solution assuming aI ~ aP >> 1, the worst case.
-    // This covers the case aI >> aP by sending exp(aP-aI)->0, which is safe for all terms
+  // Solutions from large to small absorptivity.
+  // Note we assume that coming from jar_calc, aI > aP
+  // Case 1: So much absorption everything dies
+  // Case 2: So much absorption that doubles become inaccurate
+  // Case 3: normal
+  // Case 4: So little polarized absorption as to be negligible
+  // Case 5: So little absorption as to be negligible
+  if (aI*x > CUT_INSANE_ABS) {
+    // Case 1: Cement wall
+    SI2 = 0;
+    SQ2 = 0;
+    SU2 = 0;
+    SV2 = 0;
+
+  } else if (aI*x > CUT_HIGH_ABS) {
+    // Case 2: High enough aI (and possibly aP) to be a numerical problem
+    // Solution assumes aI ~ aP >> 1, the worst case.
+    // Small aP sends expDiffx = exp(aP-aI)->0, which is safe for all terms
     double expDiffx = exp((aP-aI) * x)/2;
 
     SI2 = (SI1 * expDiffx
@@ -385,7 +400,9 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
             aI / aP2 * (aI * expDiffx + aP * expDiffx))
         + jI * aV / (aP * (aI2 - aP2)) *
         (-aP + (aP * expDiffx + aI * expDiffx)));
-  } else if (aP*x > CUT_LOW_ABS) { /* full analytic solution has trouble if polarized absorptivity is small */
+
+  } else if (aI*x > CUT_LOW_ABS && aP*x > CUT_LOW_ABS) {
+    // Case 3: Normal solution, some absorption but not difficult amounts
     double expaIx = exp(-aI * x);
     double sinhaPx = sinh(aP * x);
     double coshaPx = cosh(aP * x);
@@ -425,35 +442,54 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + jI * aV / (aP * (aI2 - aP2)) *
         (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
 
+  } else if (aI*x > CUT_LOW_ABS) {
+    // Case 4: Account for aI but negligible aP
+    double expaIx = exp(-aI * x);
+    SI2 = SI1*expaIx
+          + jI/aI - jI/aI*expaIx
+          - (aQ*jQ)/aI2 + (aQ*jQ)/aI2*expaIx
+          - (aU*jU)/aI2 + (aU*jU)/aI2*expaIx
+          - (aV*jV)/aI2 + (aV*jV)/aI2*expaIx
+          + (aQ*jQ*x)/aI*expaIx + (aU*jU*x)/aI*expaIx + (aV*jV*x)/aI*expaIx
+          - (aQ*SQ1*x)*expaIx - (aU*SU1*x)*expaIx - (aV*SV1*x)*expaIx;
+
+    SQ2 = -((aQ*jI)/aI2) + (aQ*jI)/aI2*expaIx + jQ/aI - jQ/aI*expaIx +
+          SQ1*expaIx - (aQ*SI1*x)*expaIx + (aQ*jI*x)/aI*expaIx;
+
+    SU2 = -((aU*jI)/aI2) + (aU*jI)/aI2*expaIx + jU/aI - jU/aI*expaIx +
+          SU1*expaIx - (aU*SI1*x)*expaIx + (aU*jI*x)/aI*expaIx;
+
+    SV2 = -((aV * jI) / aI2) + (aV*jI)/aI2*expaIx + jV/aI - jV/aI*expaIx +
+          SV1*expaIx - (aV*SI1*x)*expaIx + (aV*jI*x)/aI*expaIx;
+
   } else {
-    // Still account for aI which may be >> aP, e.g. simulating unpolarized transport
-    // Should still make this an expansion in aP as well
+    // Case 5: Both absorptivities are negligible
     double tau_fake = 0;
-    SI2 = approximate_solve(SI1, jI, aI, jI, aI, x, &tau_fake);
-    SQ2 = approximate_solve(SQ1, jQ, aI, jQ, aI, x, &tau_fake);
-    SU2 = approximate_solve(SU1, jU, aI, jU, aI, x, &tau_fake);
-    SV2 = approximate_solve(SV1, jV, aI, jV, aI, x, &tau_fake);
+    SI2 = SI1 + x * jI;
+    SQ2 = SQ1 + x * jQ;
+    SU2 = SU1 + x * jU;
+    SV2 = SV1 + x * jV;
   }
   /* done absorption/emission full step */
 
   /* apply second rotation half-step */
   x = dlam * 0.5;
-  rdS = rQ * SQ2 + rU * SU2 + rV * SV2;
   rho2 = rQ * rQ + rU * rU + rV * rV;
   rho = sqrt(rho2);
-  c = cos(rho * x);
-  s = sin(rho * x);
-  sh = sin(0.5 * rho * x);
-  if (rho2 > 0) {
+  if (rho*x > CUT_LOW_ROT) {
+    double rdS = rQ * SQ2 + rU * SU2 + rV * SV2;
+    double c = cos(rho * x);
+    double s = sin(rho * x);
+    double sh = sin(0.5 * rho * x);
     SI = SI2;
     SQ = SQ2 * c + 2 * rQ * rdS / rho2 * sh * sh + (rU * SV2 - rV * SU2) / rho * s;
     SU = SU2 * c + 2 * rU * rdS / rho2 * sh * sh + (rV * SQ2 - rQ * SV2) / rho * s;
     SV = SV2 * c + 2 * rV * rdS / rho2 * sh * sh + (rQ * SU2 - rU * SQ2) / rho * s;
   } else {
     SI = SI2;
-    SQ = SQ2;
-    SU = SU2;
-    SV = SV2;
+    SQ = SQ2 + (-rV * SU2 + rU * SV2) * x;
+    SU = SU2 + ( rV * SQ2 - rQ * SV2) * x;
+    SV = SV2 + (-rU * SQ2 + rQ * SU2) * x;
   }
   /* done second rotation half-step */
 
