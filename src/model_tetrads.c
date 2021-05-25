@@ -64,7 +64,8 @@ int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
   //     [0     2/sqrt(5)  ]
   // While there are more complex & faster reorthogonalization methods, simply
   // repeating the orthogonalization exactly once for each vector reaches near
-  // optimal accuracy, see Giraud and Langou 2005 for the analysis and some background
+  // optimal accuracy, see Giraud and Langou 2003 for background and
+  // Giraud et al. '05 for the relevant analysis
 
   // Note we choose the order carefully to preserve ucon == e^0 perfectly,
   // and u^3 ~= Kcon as closely as possible.
