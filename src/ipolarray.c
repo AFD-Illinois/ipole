@@ -19,13 +19,13 @@
 #include "debug_tools.h"
 #include <complex.h>
 
-// These are related mostly to where exp() and 1/x overflow
-// desired accuracy.
-#define CUT_INSANE_ABS 2000
-#define CUT_HIGH_ABS 500
-#define CUT_LOW_ABS SMALL
-// Low-rotativity linear limit
-#define CUT_LOW_ROT SMALL
+// Cuts to use limiting solutions based
+// on optical depth (tau)
+#define CUT_INSANE_ABS 500
+#define CUT_HIGH_ABS 50
+#define CUT_LOW_ABS 1e-10
+// Low-rotativity linear limit (tauF)
+#define CUT_LOW_ROT 1e-10
 
 // Sub-functions
 void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
@@ -464,7 +464,6 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 
   } else {
     // Case 5: Both absorptivities are negligible
-    double tau_fake = 0;
     SI2 = SI1 + x * jI;
     SQ2 = SQ1 + x * jQ;
     SU2 = SU1 + x * jU;
