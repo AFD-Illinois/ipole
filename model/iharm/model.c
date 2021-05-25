@@ -320,12 +320,12 @@ double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
   #endif // SLOW_LIGHT
 }
 
-// Calculate Ucon,Ucov,Bcon,Bcov from primitives at location X using 
+// Calculate ucon,ucov,bcon,bcov from primitives at location X using 
 // interpolation (on the primitives). This has been all wrapped into
 // a single function because some calculations require each other.
 void get_model_fourv(double X[NDIM], double Kcon[NDIM],
-                     double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM])
+                     double ucon[NDIM], double ucov[NDIM],
+                     double bcon[NDIM], double bcov[NDIM])
 {
   double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
 
@@ -333,32 +333,32 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   gcon_func(gcov, gcon);
 
   // If we're outside of the logical domain, default to
-  // normal observer velocity for Ucon/Ucov and default
-  // Bcon/Bcov to zero.
+  // normal observer velocity for ucon/ucov and default
+  // bcon/bcov to zero.
   if ( X_in_domain(X) == 0 ) {
 
-    Ucov[0] = -1./sqrt(-gcov[0][0]);
-    Ucov[1] = 0.;
-    Ucov[2] = 0.;
-    Ucov[3] = 0.;
-    Ucon[0] = 0.;
-    Ucon[1] = 0.;
-    Ucon[2] = 0.;
-    Ucon[3] = 0.;
+    ucov[0] = -1./sqrt(-gcov[0][0]);
+    ucov[1] = 0.;
+    ucov[2] = 0.;
+    ucov[3] = 0.;
+    ucon[0] = 0.;
+    ucon[1] = 0.;
+    ucon[2] = 0.;
+    ucon[3] = 0.;
 
     for (int mu=0; mu<NDIM; ++mu) {
-      Ucon[0] += Ucov[mu] * gcon[0][mu];
-      Ucon[1] += Ucov[mu] * gcon[1][mu];
-      Ucon[2] += Ucov[mu] * gcon[2][mu];
-      Ucon[3] += Ucov[mu] * gcon[3][mu];
-      Bcon[mu] = 0.;
-      Bcov[mu] = 0.;
+      ucon[0] += ucov[mu] * gcon[0][mu];
+      ucon[1] += ucov[mu] * gcon[1][mu];
+      ucon[2] += ucov[mu] * gcon[2][mu];
+      ucon[3] += ucov[mu] * gcon[3][mu];
+      bcon[mu] = 0.;
+      bcov[mu] = 0.;
     }
    
     return;
   }
 
-  // Set Ucon and get Ucov by lowering
+  // Set ucon and get ucov by lowering
 
   // interpolate primitive variables first
   double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
@@ -381,17 +381,17 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
     for (int j = 1; j < NDIM; j++)
       VdotV += gcov[i][j] * Vcon[i] * Vcon[j];
   double Vfac = sqrt(-1. / gcon[0][0] * (1. + fabs(VdotV)));
-  Ucon[0] = -Vfac * gcon[0][0];
+  ucon[0] = -Vfac * gcon[0][0];
   for (int i = 1; i < NDIM; i++)
-    Ucon[i] = Vcon[i] - Vfac * gcon[0][i];
+    ucon[i] = Vcon[i] - Vfac * gcon[0][i];
 
-  // lower (needed for Bcon)
-  lower(Ucon, gcov, Ucov);
+  // lower (needed for bcon)
+  lower(ucon, gcov, ucov);
 
-  // Now set Bcon and get Bcov by lowering
+  // Now set bcon and get bcov by lowering
 
   // interpolate primitive variables first
-  double B1A, B2A, B3A, B1B, B2B, B3B, Bcon1, Bcon2, Bcon3;
+  double B1A, B2A, B3A, B1B, B2B, B3B, bcon1, bcon2, bcon3;
   tfac = set_tinterp_ns(X, &nA, &nB);
   B1A = interp_scalar(X, data[nA]->p[B1]);
   B2A = interp_scalar(X, data[nA]->p[B2]);
@@ -399,18 +399,18 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   B1B = interp_scalar(X, data[nB]->p[B1]);
   B2B = interp_scalar(X, data[nB]->p[B2]);
   B3B = interp_scalar(X, data[nB]->p[B3]);
-  Bcon1 = tfac*B1A + (1. - tfac)*B1B;
-  Bcon2 = tfac*B2A + (1. - tfac)*B2B;
-  Bcon3 = tfac*B3A + (1. - tfac)*B3B;
+  bcon1 = tfac*B1A + (1. - tfac)*B1B;
+  bcon2 = tfac*B2A + (1. - tfac)*B2B;
+  bcon3 = tfac*B3A + (1. - tfac)*B3B;
 
-  // get Bcon
-  Bcon[0] = Bcon1*Ucov[1] + Bcon2*Ucov[2] + Bcon3*Ucov[3];
-  Bcon[1] = (Bcon1 + Ucon[1] * Bcon[0]) / Ucon[0];
-  Bcon[2] = (Bcon2 + Ucon[2] * Bcon[0]) / Ucon[0];
-  Bcon[3] = (Bcon3 + Ucon[3] * Bcon[0]) / Ucon[0];
+  // get bcon
+  bcon[0] = bcon1*ucov[1] + bcon2*ucov[2] + bcon3*ucov[3];
+  bcon[1] = (bcon1 + ucon[1] * bcon[0]) / ucon[0];
+  bcon[2] = (bcon2 + ucon[2] * bcon[0]) / ucon[0];
+  bcon[3] = (bcon3 + ucon[3] * bcon[0]) / ucon[0];
 
   // lower
-  lower(Bcon, gcov, Bcov);
+  lower(bcon, gcov, bcov);
 }
 
 // Get the primitive variables interpolated to a point X,

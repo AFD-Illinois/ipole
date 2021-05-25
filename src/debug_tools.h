@@ -18,7 +18,7 @@ void dump_at_X(double X[NDIM]);
 
 
 void check_ortho(double Econ[NDIM][NDIM], double Ecov[NDIM][NDIM]);
-void check_u(double Ucon[NDIM], double Ucov[NDIM]);
+void check_u(double ucon[NDIM], double ucov[NDIM]);
 
 /*
  Check that the coherency tensor N satisfies certain

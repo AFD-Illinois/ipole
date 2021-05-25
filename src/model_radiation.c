@@ -152,7 +152,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     double *rQ, double *rU, double *rV)
 {
   // Four-vectors needed for most calculations
-  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
+  double ucon[NDIM], ucov[NDIM], bcon[NDIM], bcov[NDIM];
   // Common parameters
   double nu = 0, Ne = 0, B = 0, theta = 0;
   // Other parameters are filled as needed
@@ -181,16 +181,16 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   }
 
   // If we must do work, grab the 4-vectors...
-  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+  get_model_fourv(X, Kcon, ucon, ucov, bcon, bcov);
 #if DEBUG
-  if (isnan(Ucov[0])) {
+  if (isnan(ucov[0])) {
     void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
     int i,j,k;
     double del[4];
     Xtoijk(X, &i,&j,&k, del);
     fprintf(stderr, "UCOV[0] (%d,%d,%d) is nan! thread = %i\n", i,j,k, omp_get_thread_num());
-    print_vector("Ucon", Ucon);
-    print_vector("Ucov", Ucov);
+    print_vector("ucon", ucon);
+    print_vector("ucov", ucov);
     fprintf(stderr, "X[] = %e %e %e %e\n", X[0],X[1],X[2],X[3]);
     fprintf(stderr, "K[] = %e %e %e %e\n", Kcon[0],Kcon[1],Kcon[2],Kcon[3]);
     fprintf(stderr, "Ne = %e\n", Ne);
@@ -198,8 +198,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 #endif
 
   // ...then the parameters needed for all distributions...
-  theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov); // angle between k & b
-  nu = get_fluid_nu(Kcon, Ucov); // freqcgs in Hz
+  theta = get_bk_angle(X, Kcon, ucov, bcon, bcov); // angle between k & b
+  nu = get_fluid_nu(Kcon, ucov); // freqcgs in Hz
   B = get_model_b(X); // field in G
 
   //...and the ones for the specific distribution we'll be evaluating.
@@ -250,7 +250,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       fprintf(stderr, "Negative total emissivity! Exiting!\n");
       exit(-1);
     }
-    if (*jI * *jI < *jQ * *jQ + *jU * *jU + *jV * *jV) {
+    double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
+    if (jP > *jI) {
       // Transport does not like 100% polarization...
       double pol_frac_e = *jI / jP * max_pol_frac_e;
       *jQ *= pol_frac_e;
@@ -258,7 +259,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       *jV *= pol_frac_e;
 #if DEBUG
       fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n",
-      sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV), *jI, pol_frac_e);
+      jP, *jI, pol_frac_e);
 #endif
     }
 
@@ -289,7 +290,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
         fprintf(stderr, "Negative total absorptivity! Exiting!\n");
         exit(-1);
       }
-      if (*aI * *aI < *aQ * *aQ + *aU * *aU + *aV * *aV) {
+      double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
+      if (aP > *aI) {
         // Transport does not like 100% polarization...
         double pol_frac_a = *aI / aP * max_pol_frac_a;
         *aQ *= pol_frac_a;
@@ -297,7 +299,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
         *aV *= pol_frac_a;
 #if DEBUG
         fprintf(stderr, "Polarized absorptivities too large:\n %g vs %g, corrected by %g\n",
-        sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV), *aI, pol_frac_a);
+        aP, *aI, pol_frac_a);
 #endif
       }
 
@@ -521,7 +523,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
     get_model_jk(X, Kcon, jnuinv, knuinv);
   } else {
     double nu, theta, B, Thetae, Ne, Bnuinv;
-    double Ucov[NDIM], Ucon[NDIM], Bcon[NDIM], Bcov[NDIM];
+    double ucov[NDIM], ucon[NDIM], bcon[NDIM], bcov[NDIM];
 
     /* get fluid parameters */
     Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
@@ -532,8 +534,8 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
     }
 
     /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
-    get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
-    theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
+    get_model_fourv(X, Kcon, ucon, ucov, bcon, bcov);
+    theta = get_bk_angle(X, Kcon, ucov, bcon, bcov);	/* angle between k & b */
     // No emission along field
     if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
       *jnuinv = 0.;
@@ -544,7 +546,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
     // Only compute these if we must
     B = get_model_b(X);		/* field in G */
     Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
-    nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
+    nu = get_fluid_nu(Kcon, ucov);	 /* freq in Hz */
 
     // TODO: could be cleaner here
     struct parameters paramsM;

@@ -265,10 +265,10 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *th = calloc(nstep, sizeof(double));
   double *phi = calloc(nstep, sizeof(double));
 
-//  double *Ucon = calloc(NDIM*nstep, sizeof(double));
-//  double *Ucov = calloc(NDIM*nstep, sizeof(double));
-//  double *Bcon = calloc(NDIM*nstep, sizeof(double));
-//  double *Bcov = calloc(NDIM*nstep, sizeof(double));
+//  double *ucon = calloc(NDIM*nstep, sizeof(double));
+//  double *ucov = calloc(NDIM*nstep, sizeof(double));
+//  double *bcon = calloc(NDIM*nstep, sizeof(double));
+//  double *bcov = calloc(NDIM*nstep, sizeof(double));
 
   // TODO NDIM and NSTOKES are not the same thing
   double *j_inv = calloc(NDIM*nstep, sizeof(double));
@@ -278,8 +278,8 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   for (int i=0; i<nstep; i++) {
     get_model_primitives(traj[i].X, &(prims[i*nprims]));
-    double Ucont[NDIM], Ucovt[NDIM], Bcont[NDIM], Bcovt[NDIM];
-    get_model_fourv(traj[i].X, traj[i].Kcon, Ucont, Ucovt, Bcont, Bcovt);
+    double ucont[NDIM], ucovt[NDIM], bcont[NDIM], bcovt[NDIM];
+    get_model_fourv(traj[i].X, traj[i].Kcon, ucont, ucovt, bcont, bcovt);
     jar_calc(traj[i].X, traj[i].Kcon, &(j_inv[i*NDIM]), &(j_inv[i*NDIM+1]), &(j_inv[i*NDIM+2]), &(j_inv[i*NDIM+3]),
              &(alpha_inv[i*NDIM]), &(alpha_inv[i*NDIM+1]), &(alpha_inv[i*NDIM+2]), &(alpha_inv[i*NDIM+3]),
              &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]), params);
@@ -288,8 +288,8 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     b[i] = get_model_b(traj[i].X);
     ne[i] = get_model_ne(traj[i].X);
     thetae[i] = get_model_thetae(traj[i].X);
-    nu[i] = get_fluid_nu(traj[i].Kcon, Ucovt);
-    mu[i] = get_bk_angle(traj[i].X, traj[i].Kcon, Ucovt, Bcont, Bcovt);
+    nu[i] = get_fluid_nu(traj[i].Kcon, ucovt);
+    mu[i] = get_bk_angle(traj[i].X, traj[i].Kcon, ucovt, bcont, bcovt);
 
     dl[i] = traj[i].dl;
     MULOOP {
@@ -347,10 +347,10 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_chunked_array(Kcon, "Kcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 //  hdf5_write_chunked_array(Kcov, "Kcov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-//  hdf5_write_chunked_array(Ucon, "Ucon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-//  hdf5_write_chunked_array(Ucov, "Ucov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-//  hdf5_write_chunked_array(Bcon, "Bcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-//  hdf5_write_chunked_array(Bcov, "Bcov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(ucon, "ucon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(ucov, "ucov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(bcon, "bcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+//  hdf5_write_chunked_array(bcov, "bcov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
   hdf5_write_chunked_array(j_inv, "j_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(alpha_inv, "alpha_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
@@ -370,7 +370,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   //free(Kcon); free(Kcov);
   free(r); free(th); free(phi);
 
-  //free(Ucon); free(Ucov); free(Bcon); free(Bcov);
+  //free(ucon); free(ucov); free(bcon); free(bcov);
   free(j_inv); free(alpha_inv); free(rho_inv);
   free(unpol_inv);
 

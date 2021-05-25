@@ -33,8 +33,8 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
 void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv);
 
 void get_model_fourv(double X[NDIM], double Kcon[NDIM],
-                     double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM]);
+                     double ucon[NDIM], double ucov[NDIM],
+                     double bcon[NDIM], double bcov[NDIM]);
 
 void update_data(double *tA, double *tB);
 void update_data_until(double *tA, double *tB, double tgt);

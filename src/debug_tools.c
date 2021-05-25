@@ -59,9 +59,9 @@ void check_ortho(double Econ[NDIM][NDIM], double Ecov[NDIM][NDIM])
   }
 }
 
-void check_u(double Ucon[NDIM], double Ucov[NDIM]) {
+void check_u(double ucon[NDIM], double ucov[NDIM]) {
   double U = 0;
-  MULOOP U += Ucon[mu] * Ucov[mu];
+  MULOOP U += ucon[mu] * ucov[mu];
   if (isnan(U) || fabs(fabs(U) - 1) > 1e-6) printf("U is wrong: u.u = %f\n", U);
 }
 
@@ -147,8 +147,8 @@ double get_model_ne(double X[NDIM]);
 double get_model_thetae(double X[NDIM]);
 double get_model_b(double X[NDIM]);
 void get_model_fourv(double X[NDIM], double Kcon[NDIM],
-                     double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM]);
+                     double ucon[NDIM], double ucov[NDIM],
+                     double bcon[NDIM], double bcov[NDIM]);
 
 void dump_at_X(double X[NDIM])
 {

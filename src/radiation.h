@@ -13,8 +13,8 @@
 /* radiation */
 double Bnu_inv(double nu, double Thetae);
 double jnu_inv(double nu, double Thetae, double Ne, double B, double theta);
-double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM]);
-double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM],
-              double Bcon[NDIM], double Bcov[NDIM]);
+double get_fluid_nu(double Kcon[NDIM], double ucov[NDIM]);
+double get_bk_angle(double X[NDIM], double Kcon[NDIM], double ucov[NDIM],
+              double bcon[NDIM], double bcov[NDIM]);
 
 #endif /* RADIATION_H */

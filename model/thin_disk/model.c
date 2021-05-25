@@ -147,12 +147,12 @@ void get_model_stokes(double X[NDIM], double Kcon[NDIM], double *SI,
     double T, omega;
     thindisk_vals(r, &T, &omega);
 
-    double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-    get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+    double ucon[NDIM], ucov[NDIM], bcon[NDIM], bcov[NDIM];
+    get_model_fourv(X, Kcon, ucon, ucov, bcon, bcov);
 
     // Recall "B" was set by calc_polvec
-    double mu = fabs(cos(get_bk_angle(X, Kcon, Ucov, Bcon, Bcov)));
-    double nu = get_fluid_nu(Kcon, Ucov);
+    double mu = fabs(cos(get_bk_angle(X, Kcon, ucov, bcon, bcov)));
+    double nu = get_fluid_nu(Kcon, ucov);
 
     fbbpolemis(nu, T, mu, SI, SQ);
 
@@ -186,8 +186,8 @@ int thindisk_region(double Xi[NDIM], double Xf[NDIM])
   //return (fabs(fabs(thf) - M_PI_2) < 0.01);
 }
 
-void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM],
-                       double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM])
+void get_model_fourv(double X[NDIM], double Kcon[NDIM], double ucon[NDIM],
+                       double ucov[NDIM], double bcon[NDIM], double bcov[NDIM])
 {
   double r, th, T, omega;
   double gcov[NDIM][NDIM];
@@ -195,26 +195,26 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM],
   // Get native metric
   gcov_func(X, gcov);
 
-  // Then get some stuff in BL for Ucon
+  // Then get some stuff in BL for ucon
   bl_coord(X, &r, &th);
 
   thindisk_vals(r, &T, &omega);
 
-  // normal observer velocity for Ucon/Ucov
-  Ucon[0] =
+  // normal observer velocity for ucon/ucov
+  ucon[0] =
       sqrt(-1. / (gcov[0][0] + 2. * gcov[0][3] * omega
                   + gcov[3][3] * omega * omega));
-  Ucon[1] = 0.;
-  Ucon[2] = 0.;
-  Ucon[3] = omega * Ucon[0];
+  ucon[1] = 0.;
+  ucon[2] = 0.;
+  ucon[3] = omega * ucon[0];
 
-  flip_index(Ucon, gcov, Ucov);
+  flip_index(ucon, gcov, ucov);
 
   // B is handled in native coordinates here
-  calc_polvec(X, Kcon, a, Bcon);
+  calc_polvec(X, Kcon, a, bcon);
 
   // Flip B
-  flip_index(Bcon, gcov, Bcov);
+  flip_index(bcon, gcov, bcov);
 }
 
 //// SUPPORT: Thin Disk functions ////

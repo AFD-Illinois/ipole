@@ -14,7 +14,7 @@ int make_camera_tetrad(double X[NDIM], double Econ[NDIM][NDIM],
                     double Ecov[NDIM][NDIM]);
 int make_camera_tetrad_old(double X[NDIM], double Econ[NDIM][NDIM],
                         double Ecov[NDIM][NDIM]);
-int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
+int make_plasma_tetrad(double ucon[NDIM], double Kcon[NDIM], double bcon[NDIM],
                     double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM],
                     double Ecov[NDIM][NDIM]);
 

@@ -130,12 +130,12 @@ void init_model(double *tA, double *tB)
   these supply basic model data to ipole
 */
 
-// Calculate Ucon,Ucov,Bcon,Bcov from primitives at location X using 
+// Calculate ucon,ucov,bcon,bcov from primitives at location X using 
 // interpolation (on the primitives). This has been all wrapped into
 // a single function because some calculations require each other.
 void get_model_fourv(double X[NDIM], double Kcon[NDIM],
-                     double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM])
+                     double ucon[NDIM], double ucov[NDIM],
+                     double bcon[NDIM], double bcov[NDIM])
 {
   double r, h;
   bl_coord(X, &r, &h);
@@ -143,18 +143,18 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   double gcov[NDIM][NDIM];
   gcov_func(X, gcov);
 
-  Ucon[0] = 1.;
-  Ucon[1] = 0.;
-  Ucon[2] = 0.;
-  Ucon[3] = 0.;
+  ucon[0] = 1.;
+  ucon[1] = 0.;
+  ucon[2] = 0.;
+  ucon[3] = 0.;
 
-  Bcon[0] = 0.;
-  Bcon[1] = model_B_0 * cos(h) / r;
-  Bcon[2] = - model_B_0 * sin(h) / (r + 1.e-8);
-  Bcon[3] = 0.;
+  bcon[0] = 0.;
+  bcon[1] = model_B_0 * cos(h) / r;
+  bcon[2] = - model_B_0 * sin(h) / (r + 1.e-8);
+  bcon[3] = 0.;
 
-  lower(Ucon, gcov, Ucov);
-  lower(Bcon, gcov, Bcov);
+  lower(ucon, gcov, ucov);
+  lower(bcon, gcov, bcov);
 }
 
 // used in diagnostics IO. not implemented

@@ -32,7 +32,7 @@ double r_isco;
 
 /**
  * This is a template for analytic problems, which consist of prescription:
- * X,K -> 4-vectors Ucon/cov, Bcon/cov
+ * X,K -> 4-vectors ucon/cov, bcon/cov
  * And either:
  * X,K -> emission coefficients jS, alphaS, rhoS
  * or:
@@ -192,9 +192,9 @@ void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knu
   // Emission model defined in Gold et al 2020 section 3
   double n = get_model_ne(X);
 
-  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
-  double nu = get_fluid_nu(Kcon, Ucov);
+  double ucon[NDIM], ucov[NDIM], bcon[NDIM], bcov[NDIM];
+  get_model_fourv(X, Kcon, ucon, ucov, bcon, bcov);
+  double nu = get_fluid_nu(Kcon, ucov);
 
   *jnuinv = fmax( n * pow(nu / freqcgs, -alpha) / pow(nu, 2), 0);
   *knuinv = fmax( (A * n * pow(nu / freqcgs, -(2.5 + alpha)) + 1.e-54) * nu, 0);
@@ -232,8 +232,8 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
   return;
 }
 
-void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM])
+void get_model_fourv(double X[NDIM], double Kcon[NDIM], double ucon[NDIM], double ucov[NDIM],
+                     double bcon[NDIM], double bcov[NDIM])
 {
   double r, th;
   bl_coord(X, &r, &th);
@@ -251,43 +251,43 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
   gcov_func(X, gcov);
   gcon_func(gcov, gcon);
 
-  // Get the normal observer velocity for Ucon/Ucov, in BL coordinates
-  double bl_Ucov[NDIM];
+  // Get the normal observer velocity for ucon/ucov, in BL coordinates
+  double bl_ucov[NDIM];
   double ubar = sqrt(-1. / (bl_gcon[0][0] - 2. * bl_gcon[0][3] * l
                   + bl_gcon[3][3] * l * l));
-  bl_Ucov[0] = -ubar;
-  bl_Ucov[1] = 0.;
-  bl_Ucov[2] = 0.;
-  bl_Ucov[3] = l * ubar;
+  bl_ucov[0] = -ubar;
+  bl_ucov[1] = 0.;
+  bl_ucov[2] = 0.;
+  bl_ucov[3] = l * ubar;
 
-  double bl_Ucon[NDIM];
-  flip_index(bl_Ucov, bl_gcon, bl_Ucon);
+  double bl_ucon[NDIM];
+  flip_index(bl_ucov, bl_gcon, bl_ucon);
 
   // Transform to KS coordinates,
-  double ks_Ucon[NDIM];
-  bl_to_ks(X, bl_Ucon, ks_Ucon);
+  double ks_ucon[NDIM];
+  bl_to_ks(X, bl_ucon, ks_ucon);
   // then to our coordinates,
-  vec_from_ks(X, ks_Ucon, Ucon);
+  vec_from_ks(X, ks_ucon, ucon);
 
-  // and grab Ucov
-  flip_index(Ucon, gcov, Ucov);
+  // and grab ucov
+  flip_index(ucon, gcov, ucov);
 
   // ...or don't do any of that
   // double ubar = sqrt(-1. / (gcon[0][0] - 2. * gcon[0][3] * l
   //                 + gcon[3][3] * l * l));
-  // Ucov[0] = -ubar;
-  // Ucov[1] = 0.;
-  // Ucov[2] = 0.;
-  // Ucov[3] = l * ubar;
-  // flip_index(Ucov, gcon, Ucon);
+  // ucov[0] = -ubar;
+  // ucov[1] = 0.;
+  // ucov[2] = 0.;
+  // ucov[3] = l * ubar;
+  // flip_index(ucov, gcon, ucon);
 
   // This model defines no field in emission, but the field is used for making
   // tetrads so we want it consistent
-  Bcon[0] = 0;
-  Bcon[1] = 0;
-  Bcon[2] = 1;
-  Bcon[3] = 0;
-  flip_index(Bcon, gcov, Bcov);
+  bcon[0] = 0;
+  bcon[1] = 0;
+  bcon[2] = 1;
+  bcon[3] = 0;
+  flip_index(bcon, gcov, bcov);
 }
 
 /**
@@ -297,11 +297,11 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
  */
 double get_model_b(double X[NDIM])
 {
-  double Ucon[NDIM],Bcon[NDIM];
-  double Ucov[NDIM],Bcov[NDIM];
+  double ucon[NDIM],bcon[NDIM];
+  double ucov[NDIM],bcov[NDIM];
   double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
-  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
-  return sqrt(Bcon[0]*Bcov[0] + Bcon[1]*Bcov[1] + Bcon[2]*Bcov[2] + Bcon[3]*Bcov[3]) * B_unit;
+  get_model_fourv(X, Kcon, ucon, ucov, bcon, bcov);
+  return sqrt(bcon[0]*bcov[0] + bcon[1]*bcov[1] + bcon[2]*bcov[2] + bcon[3]*bcov[3]) * B_unit;
 }
 
 int radiating_region(double X[NDIM])

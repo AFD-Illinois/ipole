@@ -33,7 +33,7 @@ double r_isco;
 
 /**
  * This is a template for analytic problems, which consist of prescription:
- * X,K -> 4-vectors Ucon/cov, Bcon/cov
+ * X,K -> 4-vectors ucon/cov, bcon/cov
  * And either:
  * X,K -> emission coefficients jS, alphaS, rhoS
  * or:
@@ -172,8 +172,8 @@ double get_model_thetae(double X[NDIM])
   return Te0 * pow(r, pow_T) * Te_unit * KBOL / (ME*CL*CL); 
 }
 
-void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM])
+void get_model_fourv(double X[NDIM], double Kcon[NDIM], double ucon[NDIM], double ucov[NDIM],
+                     double bcon[NDIM], double bcov[NDIM])
 {
   double r, th;
   bl_coord(X, &r, &th);
@@ -188,47 +188,47 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
   gcon_func(gcov, gcon);
 
   // Get the 4-velocity
-  double bl_Ucon[NDIM];
+  double bl_ucon[NDIM];
   double omegaK, omegaFF, omega;
   double K, ur, ut;
   if (r < Rh) {
     // Inside r_h, none
-    double bl_Ucov[NDIM];
-    bl_Ucov[0] = -1;
-    bl_Ucov[1] = 0.;
-    bl_Ucov[2] = 0.;
-    bl_Ucov[3] = 0.;
-    flip_index(bl_Ucov, bl_gcon, bl_Ucon);
+    double bl_ucov[NDIM];
+    bl_ucov[0] = -1;
+    bl_ucov[1] = 0.;
+    bl_ucov[2] = 0.;
+    bl_ucov[3] = 0.;
+    flip_index(bl_ucov, bl_gcon, bl_ucon);
   } else if (r < r_isco) {
     // Inside r_isco, freefall
     double omegaK_isco = 1. / (pow(r_isco, 3./2) + a);
   
     // Get conserved quantities at the ISCO...
-    double bl_Ucon_isco[NDIM], bl_Ucov_isco[NDIM];
-    bl_Ucon_isco[0] = 1.0;
-    bl_Ucon_isco[1] = 0.0;
-    bl_Ucon_isco[2] = 0.0;
-    bl_Ucon_isco[3] = omegaK_isco;
+    double bl_ucon_isco[NDIM], bl_ucov_isco[NDIM];
+    bl_ucon_isco[0] = 1.0;
+    bl_ucon_isco[1] = 0.0;
+    bl_ucon_isco[2] = 0.0;
+    bl_ucon_isco[3] = omegaK_isco;
 
     double bl_gcov_isco[NDIM][NDIM];
     gcov_bl(r_isco, th, bl_gcov_isco);
 
-    normalize(bl_Ucon_isco, bl_gcov_isco);
-    flip_index(bl_Ucon_isco, bl_gcov_isco, bl_Ucov_isco);
-    double e = bl_Ucov_isco[0];
-    double l = bl_Ucov_isco[3];
+    normalize(bl_ucon_isco, bl_gcov_isco);
+    flip_index(bl_ucon_isco, bl_gcov_isco, bl_ucov_isco);
+    double e = bl_ucov_isco[0];
+    double l = bl_ucov_isco[3];
 
     // ...then set the infall velocity and find omega
-    double bl_Ucon_tmp[NDIM], bl_Ucov_tmp[NDIM];
+    double bl_ucon_tmp[NDIM], bl_ucov_tmp[NDIM];
     double K_con = bl_gcon[0][0] * e * e + 2.0 * bl_gcon[0][3] * e * l + bl_gcon[3][3] * l * l;
     double urk_precut = -(1.0 + K_con) / bl_gcon[1][1];
     double urk = -sqrt(fmax(0.0, urk_precut));
-    bl_Ucov_tmp[0] = e;
-    bl_Ucov_tmp[1] = urk;
-    bl_Ucov_tmp[2] = 0.0;
-    bl_Ucov_tmp[3] = l;
-    flip_index(bl_Ucov_tmp, bl_gcon, bl_Ucon_tmp);
-    omegaK = bl_Ucon_tmp[3] / bl_Ucon_tmp[0];
+    bl_ucov_tmp[0] = e;
+    bl_ucov_tmp[1] = urk;
+    bl_ucov_tmp[2] = 0.0;
+    bl_ucov_tmp[3] = l;
+    flip_index(bl_ucov_tmp, bl_gcon, bl_ucon_tmp);
+    omegaK = bl_ucon_tmp[3] / bl_ucon_tmp[0];
 
     omegaFF = bl_gcon[0][3] / bl_gcon[0][0];
     // Compromise
@@ -236,26 +236,26 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
 
     // Then set the infall rate
     double urFF = -sqrt(fmax(0.0, -(1.0 + bl_gcon[0][0]) * bl_gcon[1][1]));
-    ur = bl_Ucon_tmp[1] + infall_factor * (urFF - bl_Ucon_tmp[1]);
+    ur = bl_ucon_tmp[1] + infall_factor * (urFF - bl_ucon_tmp[1]);
 
 #if DEBUG
     if (fabs(ur) < 1e-10) {
       fprintf(stderr, "Bad ur: ur is %g\n", ur);
-      fprintf(stderr, "Ucon BL: %g %g %g %g\n",
-              bl_Ucon_tmp[0], bl_Ucon_tmp[1], bl_Ucon_tmp[2], bl_Ucon_tmp[3]);
-      fprintf(stderr, "Ucov BL: %g %g %g %g\n",
-              bl_Ucov_tmp[0], bl_Ucov_tmp[1], bl_Ucov_tmp[2], bl_Ucov_tmp[3]);
+      fprintf(stderr, "ucon BL: %g %g %g %g\n",
+              bl_ucon_tmp[0], bl_ucon_tmp[1], bl_ucon_tmp[2], bl_ucon_tmp[3]);
+      fprintf(stderr, "ucov BL: %g %g %g %g\n",
+              bl_ucov_tmp[0], bl_ucov_tmp[1], bl_ucov_tmp[2], bl_ucov_tmp[3]);
       fprintf(stderr, "urk was %g (%g pre-cut), e & l were %g %g\n", urk, urk_precut, e, l);
     }
 #endif
 
-    // Finally, get Ucon in BL coordinates
+    // Finally, get ucon in BL coordinates
     K = bl_gcov[0][0] + 2*omega*bl_gcov[0][3] + omega*omega*bl_gcov[3][3];
     ut = sqrt(fmax(0.0, -(1. + ur*ur*bl_gcov[1][1]) / K));
-    bl_Ucon[0] = ut;
-    bl_Ucon[1] = ur;
-    bl_Ucon[2] = 0.;
-    bl_Ucon[3] = omega * ut;
+    bl_ucon[0] = ut;
+    bl_ucon[1] = ur;
+    bl_ucon[2] = 0.;
+    bl_ucon[3] = omega * ut;
   } else {
     // Outside r_isco, Keplerian
     omegaK = 1. / (pow(r, 3./2) + a);
@@ -266,77 +266,77 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
     // Set infall rate
     ur = infall_factor * -sqrt(fmax(0.0, -(1.0 + bl_gcon[0][0]) * bl_gcon[1][1]));
 
-    // Get the normal observer velocity for Ucon/Ucov, in BL coordinates
+    // Get the normal observer velocity for ucon/ucov, in BL coordinates
     K = bl_gcov[0][0] + 2*omega*bl_gcov[0][3] + omega*omega*bl_gcov[3][3];
     ut = sqrt(fmax(0.0, -(1. + ur*ur*bl_gcov[1][1]) / K));
-    bl_Ucon[0] = ut;
-    bl_Ucon[1] = ur;
-    bl_Ucon[2] = 0.;
-    bl_Ucon[3] = omega * ut;
+    bl_ucon[0] = ut;
+    bl_ucon[1] = ur;
+    bl_ucon[2] = 0.;
+    bl_ucon[3] = omega * ut;
   }
 
   // Transform to KS coordinates,
-  double ks_Ucon[NDIM];
-  bl_to_ks(X, bl_Ucon, ks_Ucon);
+  double ks_ucon[NDIM];
+  bl_to_ks(X, bl_ucon, ks_ucon);
   // then to our coordinates,
-  vec_from_ks(X, ks_Ucon, Ucon);
+  vec_from_ks(X, ks_ucon, ucon);
 
-  // and grab Ucov
-  flip_index(Ucon, gcov, Ucov);
+  // and grab ucov
+  flip_index(ucon, gcov, ucov);
 
 
   // Check
 #if DEBUG
-  //if (r < r_isco) { fprintf(stderr, "ur = %g\n", Ucon[1]); }
-  double bl_Ucov[NDIM];
-  double dot_U = Ucon[0]*Ucov[0] + Ucon[1]*Ucov[1] + Ucon[2]*Ucov[2] + Ucon[3]*Ucov[3];
-  double sum_U = Ucon[0]+Ucon[1]+Ucon[2]+Ucon[3];
+  //if (r < r_isco) { fprintf(stderr, "ur = %g\n", ucon[1]); }
+  double bl_ucov[NDIM];
+  double dot_U = ucon[0]*ucov[0] + ucon[1]*ucov[1] + ucon[2]*ucov[2] + ucon[3]*ucov[3];
+  double sum_U = ucon[0]+ucon[1]+ucon[2]+ucon[3];
   // Following condition gets handled better above
-  // (r < r_isco && fabs(Ucon[1]) < 1e-10) ||
-  if (get_fluid_nu(Kcon, Ucov) == 1. ||
+  // (r < r_isco && fabs(ucon[1]) < 1e-10) ||
+  if (get_fluid_nu(Kcon, ucov) == 1. ||
       fabs(fabs(dot_U) - 1.) > 1e-10 || sum_U < 0.1) {
-    flip_index(bl_Ucon, bl_gcov, bl_Ucov);
+    flip_index(bl_ucon, bl_gcov, bl_ucov);
     fprintf(stderr, "RIAF model problem at r, th, phi = %g %g %g\n", r, th, X[3]);
     fprintf(stderr, "Omega K: %g FF: %g Final: %g K: %g ur: %g ut: %g\n",
             omegaK, omegaFF, omega, K, ur, ut);
     fprintf(stderr, "K1: %g K2: %g K3: %g\n", bl_gcov[0][0], 2*omega*bl_gcov[0][3], omega*omega*bl_gcov[3][3]);
-    fprintf(stderr, "Ucon BL: %g %g %g %g\n", bl_Ucon[0], bl_Ucon[1], bl_Ucon[2], bl_Ucon[3]);
-    fprintf(stderr, "Ucon KS: %g %g %g %g\n", ks_Ucon[0], ks_Ucon[1], ks_Ucon[2], ks_Ucon[3]);
-    fprintf(stderr, "Ucon native: %g %g %g %g\n", Ucon[0], Ucon[1], Ucon[2], Ucon[3]);
-    fprintf(stderr, "Ucov: %g %g %g %g\n", Ucov[0], Ucov[1], Ucov[2], Ucov[3]);
-    fprintf(stderr, "Ubl.Ubl: %g\n", bl_Ucov[0]*bl_Ucon[0]+bl_Ucov[1]*bl_Ucon[1]+
-                                    bl_Ucov[2]*bl_Ucon[2]+bl_Ucov[3]*bl_Ucon[3]);
-    fprintf(stderr, "U.U: %g\n", Ucov[0]*Ucon[0]+Ucov[1]*Ucon[1]+Ucov[2]*Ucon[2]+Ucov[3]*Ucon[3]);
+    fprintf(stderr, "ucon BL: %g %g %g %g\n", bl_ucon[0], bl_ucon[1], bl_ucon[2], bl_ucon[3]);
+    fprintf(stderr, "ucon KS: %g %g %g %g\n", ks_ucon[0], ks_ucon[1], ks_ucon[2], ks_ucon[3]);
+    fprintf(stderr, "ucon native: %g %g %g %g\n", ucon[0], ucon[1], ucon[2], ucon[3]);
+    fprintf(stderr, "ucov: %g %g %g %g\n", ucov[0], ucov[1], ucov[2], ucov[3]);
+    fprintf(stderr, "Ubl.Ubl: %g\n", bl_ucov[0]*bl_ucon[0]+bl_ucov[1]*bl_ucon[1]+
+                                    bl_ucov[2]*bl_ucon[2]+bl_ucov[3]*bl_ucon[3]);
+    fprintf(stderr, "U.U: %g\n", ucov[0]*ucon[0]+ucov[1]*ucon[1]+ucov[2]*ucon[2]+ucov[3]*ucon[3]);
   }
 #endif
 
   // Use pure toroidal field,
   // See Themis src/VRT2/src/AccretionFlows/mf_toroidal_beta.cpp/h
-  double bl_Bcon[NDIM];
-  bl_Bcon[0] = 0.0;
-  bl_Bcon[1] = 0.0;
-  bl_Bcon[2] = 0.0;
-  bl_Bcon[3] = 1.0;
+  double bl_bcon[NDIM];
+  bl_bcon[0] = 0.0;
+  bl_bcon[1] = 0.0;
+  bl_bcon[2] = 0.0;
+  bl_bcon[3] = 1.0;
 
   // Transform to KS coordinates,
-  double ks_Bcon[NDIM];
-  bl_to_ks(X, bl_Bcon, ks_Bcon);
+  double ks_bcon[NDIM];
+  bl_to_ks(X, bl_bcon, ks_bcon);
   // then to our coordinates,
-  vec_from_ks(X, ks_Bcon, Bcon);
-  normalize(Bcon, gcov);
+  vec_from_ks(X, ks_bcon, bcon);
+  normalize(bcon, gcov);
 
   // Compute u.b and subtract it, normalize to get_model_b
-  //project_out(Bcon, Ucon, gcov); ?
+  //project_out(bcon, ucon, gcov); ?
   double BdotU = 0;
-  MULOOP BdotU += Bcon[mu] * Ucov[mu];
-  MULOOP Bcon[mu] += BdotU * Ucon[mu];
-  flip_index(Bcon, gcov, Bcov);
+  MULOOP BdotU += bcon[mu] * ucov[mu];
+  MULOOP bcon[mu] += BdotU * ucon[mu];
+  flip_index(bcon, gcov, bcov);
   double Bsq = 0;
-  MULOOP Bsq += Bcon[mu] * Bcov[mu];
+  MULOOP Bsq += bcon[mu] * bcov[mu];
   double bmag = fmax(get_model_b(X), 1e-10);
-  MULOOP Bcon[mu] *= bmag / sqrt(Bsq);
+  MULOOP bcon[mu] *= bmag / sqrt(Bsq);
 
-  flip_index(Bcon, gcov, Bcov);
+  flip_index(bcon, gcov, bcov);
 }
 
 /**
@@ -346,11 +346,11 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
  */
 double get_model_b(double X[NDIM])
 {
-  // double Ucon[NDIM],Bcon[NDIM];
-  // double Ucov[NDIM],Bcov[NDIM];
+  // double ucon[NDIM],bcon[NDIM];
+  // double ucov[NDIM],bcov[NDIM];
   // double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
-  // get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
-  // return sqrt(Bcon[0]*Bcov[0] + Bcon[1]*Bcov[1] + Bcon[2]*Bcov[2] + Bcon[3]*Bcov[3]) * B_unit;
+  // get_model_fourv(X, Kcon, ucon, ucov, bcon, bcov);
+  // return sqrt(bcon[0]*bcov[0] + bcon[1]*bcov[1] + bcon[2]*bcov[2] + bcon[3]*bcov[3]) * B_unit;
 
   double r, th;
   bl_coord(X, &r, &th);

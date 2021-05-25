@@ -159,31 +159,31 @@ int radiating_region(double X[NDIM])
 // B does NOT affect polarization calculation, since we control the coefficients
 // U, however, would, so we set it to 0
 void get_model_fourv(double X[NDIM], double Kcon[NDIM],
-                     double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM])
+                     double ucon[NDIM], double ucov[NDIM],
+                     double bcon[NDIM], double bcov[NDIM])
 {
   double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
 
   gcov_func(X, gcov);
   gcon_func(gcov, gcon);
 
-  // Normal observer velocity for Ucon/Ucov and default
-  // Bcon/Bcov to zero.
+  // Normal observer velocity for ucon/ucov and default
+  // bcon/bcov to zero.
 
-  Ucov[0] = -1./sqrt(-gcov[0][0]);
-  Ucov[1] = 0.;
-  Ucov[2] = 0.;
-  Ucov[3] = 0.;
+  ucov[0] = -1./sqrt(-gcov[0][0]);
+  ucov[1] = 0.;
+  ucov[2] = 0.;
+  ucov[3] = 0.;
 
-  Bcon[0] = 0.;
-  Bcon[1] = 1.;
-  Bcon[2] = 1.;
-  Bcon[3] = 1.;
+  bcon[0] = 0.;
+  bcon[1] = 1.;
+  bcon[2] = 1.;
+  bcon[3] = 1.;
 
-  MULOOP {Ucon[mu] = 0.; Bcon[mu] = 0.;}
+  MULOOP {ucon[mu] = 0.; bcon[mu] = 0.;}
   MUNULOOP {
-    Ucon[mu] += Ucov[nu] * gcon[mu][nu];
-    Bcov[mu] += Bcon[nu] * gcov[mu][nu];
+    ucon[mu] += ucov[nu] * gcon[mu][nu];
+    bcov[mu] += bcon[nu] * gcov[mu][nu];
   }
 }
 

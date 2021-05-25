@@ -91,10 +91,10 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         // Make a tetrad
         double gcov[NDIM][NDIM];
         gcov_func(tf.X, gcov);
-        double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-        get_model_fourv(tf.X, tf.Kcon, Ucon, Ucov, Bcon, Bcov);
+        double ucon[NDIM], ucov[NDIM], bcon[NDIM], bcov[NDIM];
+        get_model_fourv(tf.X, tf.Kcon, ucon, ucov, bcon, bcov);
         double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
-        sflag |= make_plasma_tetrad(Ucon, tf.Kcon, Bcon, gcov, Econ, Ecov);
+        sflag |= make_plasma_tetrad(ucon, tf.Kcon, bcon, gcov, Econ, Ecov);
 
         // Get the Stokes parameters
         double SI, SQ, SU, SV;
@@ -154,21 +154,19 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       fprintf(stderr, "r,th: %g %g\n", r, th);
       double gcov[NDIM][NDIM];
       gcov_func(tf.X, gcov);
-      double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-      get_model_fourv(tf.X, tf.Kcon, Ucon, Ucov, Bcon, Bcov);
-      print_vector("Ucon", Ucon);
+      double ucon[NDIM], ucov[NDIM], bcon[NDIM], bcov[NDIM];
+      get_model_fourv(tf.X, tf.Kcon, ucon, ucov, bcon, bcov);
+      print_vector("ucon", ucon);
       print_vector("Kcon", tf.Kcon);
-      print_vector("Bcon", Bcon);
+      print_vector("bcon", bcon);
 
-      double ucov[4];
-      flip_index(Ucon, gcov, ucov);
       double bsq = 0., udotu = 0., udotb = 0., kdotu = 0., kdotb = 0.;
       MULOOP {
-        bsq += Bcon[mu] * Bcov[mu];
-        udotu += Ucon[mu] * ucov[mu];
-        udotb += Bcon[mu] * ucov[mu];
+        bsq += bcon[mu] * bcov[mu];
+        udotu += ucon[mu] * ucov[mu];
+        udotb += bcon[mu] * ucov[mu];
         kdotu += tf.Kcon[mu] * ucov[mu];
-        kdotb += tf.Kcon[mu] * Bcov[mu];
+        kdotb += tf.Kcon[mu] * bcov[mu];
       }
       double bsq_reported = get_model_b(tf.X);
       fprintf(stderr, "If all of the following are nonzero, file a bug:\n");
@@ -266,8 +264,8 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 {
   // TODO might be useful to split this into flat-space S->S portion and transformations to/from N
   double gcov[NDIM][NDIM];
-  double Ucon[NDIM],Bcon[NDIM];
-  double Ucov[NDIM],Bcov[NDIM];
+  double ucon[NDIM],bcon[NDIM];
+  double ucov[NDIM],bcov[NDIM];
   double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
   double complex N_tetrad[NDIM][NDIM];
   double B;
@@ -282,7 +280,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   int oddflag = 0;
 
   // get fluid parameters at Xf
-  get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
+  get_model_fourv(Xf, Kconf, ucon, ucov, bcon, bcov);
 
   // evaluate transport coefficients
   jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
@@ -298,17 +296,17 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   // Note get_model_b (rightly) returns 0 outside the domain,
   // but we can cling to the 4-vectors a bit longer
   B = 0.;
-  MULOOP B += Bcon[mu] * Bcov[mu];
+  MULOOP B += bcon[mu] * bcov[mu];
   if (B <= 0.) {
-    Bcon[0] = 0.;
-    Bcon[1] = 1.;
-    Bcon[2] = 1.;
-    Bcon[3] = 1.;
+    bcon[0] = 0.;
+    bcon[1] = 1.;
+    bcon[2] = 1.;
+    bcon[3] = 1.;
   }
 
   // make plasma tetrad
   gcov_func(Xf, gcov);
-  oddflag |= make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
+  oddflag |= make_plasma_tetrad(ucon, Kconf, bcon, gcov, Econ, Ecov);
 
   // TODO If B is 0, just keep guessing
   //int exhausted = 0;

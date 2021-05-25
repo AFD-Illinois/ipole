@@ -30,13 +30,13 @@ double jnu_inv(double nu, double Thetae, double Ne, double B, double theta)
 }
 
 /* get frequency in fluid frame, in Hz */
-double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM])
+double get_fluid_nu(double Kcon[NDIM], double ucov[NDIM])
 {
     double nu;
 
     /* this is the energy in electron rest-mass units */
-    nu = -(Kcon[0] * Ucov[0] + Kcon[1] * Ucov[1] +
-           Kcon[2] * Ucov[2] + Kcon[3] * Ucov[3])
+    nu = -(Kcon[0] * ucov[0] + Kcon[1] * ucov[1] +
+           Kcon[2] * ucov[2] + Kcon[3] * ucov[3])
            * ME * CL * CL / HPL;
 
     if (nu < 0.) {
@@ -50,29 +50,29 @@ double get_fluid_nu(double Kcon[NDIM], double Ucov[NDIM])
       fprintf(stderr, "isnan get_fluid_nu, K: %g %g %g %g\n",
               Kcon[0], Kcon[1], Kcon[2], Kcon[3]);
       fprintf(stderr, "isnan get_fluid_nu, U: %g %g %g %g\n",
-              Ucov[0], Ucov[1], Ucov[2], Ucov[3]);
+              ucov[0], ucov[1], ucov[2], ucov[3]);
     }
 
     return (nu);
 }
 
 /* return angle between magnetic field and wavevector */
-double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM])
+double get_bk_angle(double X[NDIM], double Kcon[NDIM], double ucov[NDIM], double bcon[NDIM], double bcov[NDIM])
 {
     double B, k, mu;
 
     B = sqrt(fabs
-	     (Bcon[0] * Bcov[0] + Bcon[1] * Bcov[1] + Bcon[2] * Bcov[2] +
-	      Bcon[3] * Bcov[3]));
+	     (bcon[0] * bcov[0] + bcon[1] * bcov[1] + bcon[2] * bcov[2] +
+	      bcon[3] * bcov[3]));
 
     if (B == 0.)
     	return (M_PI / 2.);
 
-    k = fabs(Kcon[0] * Ucov[0] + Kcon[1] * Ucov[1] + Kcon[2] * Ucov[2] +
-	     Kcon[3] * Ucov[3]);
+    k = fabs(Kcon[0] * ucov[0] + Kcon[1] * ucov[1] + Kcon[2] * ucov[2] +
+	     Kcon[3] * ucov[3]);
 
-    mu = (Kcon[0] * Bcov[0] + Kcon[1] * Bcov[1] + Kcon[2] * Bcov[2] +
-	  Kcon[3] * Bcov[3]) / (k * B);
+    mu = (Kcon[0] * bcov[0] + Kcon[1] * bcov[1] + Kcon[2] * bcov[2] +
+	  Kcon[3] * bcov[3]) / (k * B);
 
     if (fabs(mu) > 1.)
 	    mu /= fabs(mu);
@@ -80,7 +80,7 @@ double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM], double
     if (isnan(mu)) {
 	    fprintf(stderr, "isnan get_bk_angle\n");
       fprintf(stderr, "B = %g, k = %g, mu = %g\n", B, k, mu);
-      fprintf(stderr, "Ucov: %g %g %g %g\n", Ucov[0], Ucov[1], Ucov[2], Ucov[3]);
+      fprintf(stderr, "ucov: %g %g %g %g\n", ucov[0], ucov[1], ucov[2], ucov[3]);
     }
 
     return (acos(mu));

@@ -32,12 +32,12 @@
  * Returns flag for whether the tetrad is suspicious.
  * Ideally ipole should crash on these errors but there are a lot of corner cases...
  */
-int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
+int make_plasma_tetrad(double ucon[NDIM], double Kcon[NDIM], double bcon[NDIM],
                         double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM],
                         double Ecov[NDIM][NDIM])
 {
   // start w/ time component parallel to U
-  set_Econ_from_trial(Econ[0], 0, Ucon);
+  set_Econ_from_trial(Econ[0], 0, ucon);
   normalize(Econ[0], Gcov);
 
   /*** done w/ basis vector 0 ***/
@@ -54,7 +54,7 @@ int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
   /*** done w/ basis vector 3 ***/
 
   // repeat for x2 unit basis vector
-  set_Econ_from_trial(Econ[2], 2, Bcon);
+  set_Econ_from_trial(Econ[2], 2, bcon);
 
   // project out econ0,3
   project_out(Econ[2], Econ[0], Gcov);
