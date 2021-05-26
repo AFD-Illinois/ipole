@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, params.nx, params.ny, Xcam, params, fovx,fovy, X, Kcon);
+        init_XK(i,j, params.nx, params.ny, Xcam, params, fovx, fovy, X, Kcon);
 
         MULOOP Kcon[mu] *= freq;
 

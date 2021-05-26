@@ -21,7 +21,6 @@
 
 // Cuts to use limiting solutions based
 // on optical depth (tau)
-#define CUT_INSANE_ABS 500
 #define CUT_HIGH_ABS 50
 #define CUT_LOW_ABS 1e-10
 // Low-rotativity linear limit (tauF)
@@ -356,20 +355,12 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 
   // Solutions from large to small absorptivity.
   // Note we assume that coming from jar_calc, aI > aP
-  // Case 1: So much absorption everything dies
-  // Case 2: So much absorption that doubles become inaccurate
-  // Case 3: normal
-  // Case 4: So little polarized absorption as to be negligible
-  // Case 5: So little absorption as to be negligible
-  if (aI*x > CUT_INSANE_ABS) {
-    // Case 1: Cement wall
-    SI2 = 0;
-    SQ2 = 0;
-    SU2 = 0;
-    SV2 = 0;
-
-  } else if (aI*x > CUT_HIGH_ABS) {
-    // Case 2: High enough aI (and possibly aP) to be a numerical problem
+  // Case 1: So much absorption that doubles become inaccurate
+  // Case 2: normal
+  // Case 3: So little polarized absorption as to be negligible
+  // Case 4: So little absorption as to be negligible
+  if (aI*x > CUT_HIGH_ABS) {
+    // Case 1: High enough aI (and possibly aP) to be a numerical problem
     // Solution assumes aI ~ aP >> 1, the worst case.
     // Small aP sends expDiffx = exp(aP-aI)->0, which is safe for all terms
     double expDiffx = exp((aP-aI) * x)/2;
@@ -402,7 +393,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         (-aP + (aP * expDiffx + aI * expDiffx)));
 
   } else if (aI*x > CUT_LOW_ABS && aP*x > CUT_LOW_ABS) {
-    // Case 3: Normal solution, some absorption but not difficult amounts
+    // Case 2: Normal solution, some absorption but not difficult amounts
     double expaIx = exp(-aI * x);
     double sinhaPx = sinh(aP * x);
     double coshaPx = cosh(aP * x);
@@ -443,7 +434,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
 
   } else if (aI*x > CUT_LOW_ABS) {
-    // Case 4: Account for aI but negligible aP
+    // Case 3: Account for aI but negligible aP
     double expaIx = exp(-aI * x);
     SI2 = SI1*expaIx
           + jI/aI - jI/aI*expaIx
@@ -463,7 +454,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
           SV1*expaIx - (aV*SI1*x)*expaIx + (aV*jI*x)/aI*expaIx;
 
   } else {
-    // Case 5: Both absorptivities are negligible
+    // Case 4: Both absorptivities are negligible
     SI2 = SI1 + x * jI;
     SQ2 = SQ1 + x * jQ;
     SU2 = SU1 + x * jU;
