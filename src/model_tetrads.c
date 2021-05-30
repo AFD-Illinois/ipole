@@ -36,37 +36,32 @@ int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
                         double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM],
                         double Ecov[NDIM][NDIM])
 {
-  // start w/ time component parallel to U
+  // Modified Gram-Schmidt to produce e^n orthogonal
   set_Econ_from_trial(Econ[0], 0, Ucon);
   normalize(Econ[0], Gcov);
-
-  /*** done w/ basis vector 0 ***/
-
-  /* now use the trial vector in basis vector 3 */
-  /* cast a suspicious eye on the trial vector... */
-
   set_Econ_from_trial(Econ[3], 3, Kcon);
-
-  /* project out econ0 */
   project_out(Econ[3], Econ[0], Gcov);
   normalize(Econ[3], Gcov);
-
-  /*** done w/ basis vector 3 ***/
-
-  // repeat for x2 unit basis vector
   set_Econ_from_trial(Econ[2], 2, Bcon);
-
-  // project out econ0,3
   project_out(Econ[2], Econ[0], Gcov);
   project_out(Econ[2], Econ[3], Gcov);
   normalize(Econ[2], Gcov);
-
-  /*** done w/ basis vector 2 ***/
-
   // whatever is left is econ1
   for (int k = 0; k < 4; k++) /* trial vector */
     Econ[1][k] = 1.;
-  // project out econ[0-2]
+  project_out(Econ[1], Econ[0], Gcov);
+  project_out(Econ[1], Econ[2], Gcov);
+  project_out(Econ[1], Econ[3], Gcov);
+  normalize(Econ[1], Gcov);
+
+  // Reorthogonalize.  I swear this is a real thing
+  // TODO may not require renormalization
+  normalize(Econ[0], Gcov);
+  project_out(Econ[3], Econ[0], Gcov);
+  normalize(Econ[3], Gcov);
+  project_out(Econ[2], Econ[0], Gcov);
+  project_out(Econ[2], Econ[3], Gcov);
+  normalize(Econ[2], Gcov);
   project_out(Econ[1], Econ[0], Gcov);
   project_out(Econ[1], Econ[2], Gcov);
   project_out(Econ[1], Econ[3], Gcov);

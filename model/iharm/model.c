@@ -340,7 +340,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   // Bcon/Bcov to zero.
   if ( X_in_domain(X) == 0 ) {
 
-    Ucov[0] = -1./sqrt(-gcov[0][0]);
+    Ucov[0] = -1./sqrt(-gcon[0][0]);
     Ucov[1] = 0.;
     Ucov[2] = 0.;
     Ucov[3] = 0.;
@@ -357,7 +357,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
       Bcon[mu] = 0.;
       Bcov[mu] = 0.;
     }
-   
+
     return;
   }
 
@@ -865,7 +865,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
     }
   }
 
-  // Don't emit beyond specified limit, coordinate limit
+  // Don't emit beyond specified limit or coordinate limit
   rmax_geo = fmin(rmax_geo, Rout);
   rmin_geo = fmax(rmin_geo, Rin);
 
