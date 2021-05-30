@@ -67,6 +67,30 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     double *rQ, double *rU, double *rV);
 
 /**
+ * Optionally load radiation model parameters
+ */
+static double model_kappa = 0;
+static double powerlaw_gamma_cut = 1e10;
+static double powerlaw_gamma_min = 1e2;
+static double powerlaw_gamma_max = 1e5;
+static double powerlaw_p = 3.25;
+static double max_pol_frac_e = 0.99;
+static double max_pol_frac_a = 0.99;
+
+void try_set_radiation_parameter(const char *word, const char *value)
+{
+  set_by_word_val(word, value, "kappa", &model_kappa, TYPE_DBL);
+
+  set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
+
+  set_by_word_val(word, value, "max_pol_frac_e", &powerlaw_p, TYPE_DBL);
+  set_by_word_val(word, value, "max_pol_frac_a", &powerlaw_p, TYPE_DBL);
+}
+
+/**
  * Wrapper to call different distributions at different places in the simulation domain
  * See jar_calc_dist for distributions
  * TODO put the general emission zero criteria here
@@ -188,7 +212,9 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   case E_KAPPA:
     setConstParams(&paramsM);
     fit = paramsM.KAPPA_DIST;
-    // TODO get_model_kappa
+    Thetae = get_model_thetae(X);
+    kappa = model_kappa;
+    kappa_width = (kappa - 3.) / kappa * Thetae;
     break;
   case E_POWERLAW:
     setConstParams(&paramsM);
@@ -224,17 +250,15 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       fprintf(stderr, "Negative total emissivity! Exiting!\n");
       exit(-1);
     }
-    double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
-    if (*jI < jP) {
+    if (*jI * *jI < *jQ * *jQ + *jU * *jU + *jV * *jV) {
       // Transport does not like 100% polarization...
-      double pol_frac_e = *jI / jP - 0.01;
-      //double pol_frac_e = 0.9;
+      double pol_frac_e = *jI / jP * max_pol_frac_e;
       *jQ *= pol_frac_e;
       *jU *= pol_frac_e;
       *jV *= pol_frac_e;
 #if DEBUG
       fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n",
-      jP, *jI, pol_frac_e);
+      sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV), *jI, pol_frac_e);
 #endif
     }
 
@@ -265,17 +289,15 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
         fprintf(stderr, "Negative total absorptivity! Exiting!\n");
         exit(-1);
       }
-      double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
-      if (*aI < aP) {
+      if (*aI * *aI < *aQ * *aQ + *aU * *aU + *aV * *aV) {
         // Transport does not like 100% polarization...
-        double pol_frac_a = *aI / aP - 0.01;
-        //double pol_frac_a = 0.9;
+        double pol_frac_a = *aI / aP * max_pol_frac_a;
         *aQ *= pol_frac_a;
         *aU *= pol_frac_a;
         *aV *= pol_frac_a;
 #if DEBUG
         fprintf(stderr, "Polarized absorptivities too large:\n %g vs %g, corrected by %g\n",
-        aP, *aI, pol_frac_a);
+        sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV), *aI, pol_frac_a);
 #endif
       }
 
@@ -524,14 +546,53 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
     Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
     nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
 
-    /* assume emission is thermal */
-    Bnuinv = Bnu_inv(nu, Thetae);
-    *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
+    // TODO: could be cleaner here
+    struct parameters paramsM;
+    int fit;
+    double kappa, kappa_width;
 
-    if (Bnuinv < SMALL)
-      *knuinv = SMALL;
-    else
-      *knuinv = *jnuinv / Bnuinv;
+    if (params->emission_type == E_KAPPA) {
+
+      setConstParams(&paramsM);
+      fit = paramsM.KAPPA_DIST;
+
+      kappa = model_kappa;
+      kappa_width = (kappa - 3.) / kappa * Thetae;
+
+      *jnuinv = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, 
+                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut, 
+                        kappa, kappa_width) / nu/nu;
+      *knuinv = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, 
+                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut, 
+                        kappa, kappa_width) * nu;
+
+    } else if (params->emission_type == E_POWERLAW) {
+
+      setConstParams(&paramsM);
+      fit = paramsM.POWER_LAW;
+
+      get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &powerlaw_gamma_min, &powerlaw_gamma_max, &powerlaw_gamma_cut);
+
+      *jnuinv = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae,
+                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut,
+                        kappa, kappa_width) / nu/nu;
+      *knuinv = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae,
+                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut,
+                        kappa, kappa_width) * nu * exp(-nu / 5.e13); // nu_cutoff = 5.e13
+
+    } else {
+
+      /* assume emission is thermal */
+      Bnuinv = Bnu_inv(nu, Thetae);
+      *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
+
+      if (Bnuinv < SMALL) {
+        *knuinv = SMALL;
+      } else {
+        *knuinv = *jnuinv / Bnuinv;
+      }
+
+    }
 
 #if DEBUG
     if (isnan(*jnuinv) || isnan(*knuinv)) {

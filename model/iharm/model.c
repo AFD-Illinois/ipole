@@ -120,11 +120,12 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
 
+  // TODO: figure out how to make consistent with model_radiation.c
   set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_eta", &trat_large, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_p", &trat_large, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
