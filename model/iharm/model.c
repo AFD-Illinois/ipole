@@ -73,6 +73,7 @@ static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
 
 // Ignore radiation interactions within one degree of polar axis
+static double polar_cut = -1;
 static double th_beg = 0.0174;
 static int nloaded = 0;
 
@@ -119,14 +120,18 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
 
+  // TODO: figure out how to make consistent with model_radiation.c
   set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_eta", &trat_large, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_p", &trat_large, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
+
+  // allow cutting out the spine
+  set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
 
   // for slow light
   set_by_word_val(word, value, "dump_min", &dumpmin, TYPE_INT);
@@ -278,6 +283,15 @@ void init_model(double *tA, double *tB)
 
   // horizon radius
   Rh = 1 + sqrt(1. - a * a);
+
+  // possibly cut around the pole
+  if (polar_cut >= 0) {
+    th_beg = 0.0174 * polar_cut;
+  } else {
+    if (dumpfile_format == FORMAT_HAMR_EKS) {
+      th_beg = 0.0174 * 2;
+    }
+  }
 }
 
 /*
@@ -323,7 +337,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   // Bcon/Bcov to zero.
   if ( X_in_domain(X) == 0 ) {
 
-    Ucov[0] = -1./sqrt(-gcov[0][0]);
+    Ucov[0] = -1./sqrt(-gcon[0][0]);
     Ucov[1] = 0.;
     Ucov[2] = 0.;
     Ucov[3] = 0.;
@@ -340,7 +354,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
       Bcon[mu] = 0.;
       Bcov[mu] = 0.;
     }
-   
+
     return;
   }
 
@@ -656,7 +670,7 @@ void init_hamr_grid(char *fnam, int dumpidx)
   dx[2] /= 2;
 
   // set limit for tracking geodesic emission
-  rmax_geo = fmin(rmax_geo, fmin(100., Rout));
+  rmax_geo = fmin(rmax_geo, Rout);
   rmin_geo = fmax(rmin_geo, Rin);
 
   cstartx[0] = 0;
@@ -848,8 +862,8 @@ void init_iharm_grid(char *fnam, int dumpidx)
     }
   }
 
-  // Don't emit beyond specified limit, coordinate limit, or 100M, whichever is *smaller*
-  rmax_geo = fmin(rmax_geo, fmin(100., Rout));
+  // Don't emit beyond specified limit or coordinate limit
+  rmax_geo = fmin(rmax_geo, Rout);
   rmin_geo = fmax(rmin_geo, Rin);
 
   hdf5_set_directory("/");

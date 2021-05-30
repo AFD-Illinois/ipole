@@ -19,6 +19,11 @@
 #include "debug_tools.h"
 #include <complex.h>
 
+// These are related mostly to where exp() and 1/x overflow
+// desired accuracy.
+#define CUT_HIGH_ABS 500
+#define CUT_LOW_ABS SMALL
+
 // Sub-functions
 void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
@@ -110,11 +115,22 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 #endif
 
     if (radiating_region(tf.X)) {
+
+      int ZERO_EMISSION = 0;
+      if (params->target_nturns >= 0 && ti.nturns != params->target_nturns) {
+        ZERO_EMISSION = 1; 
+      }
+
       // Solve unpolarized transport
       double ji, ki, jf, kf;
       get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
       get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
-      *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+
+      if (ZERO_EMISSION) {
+        *Intensity = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
+      } else {
+        *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+      }
       //fprintf(stderr, "Unpolarized transport\n");
 
       // Solve polarized transport
@@ -122,7 +138,8 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         sflag |= evolve_N(ti.X, ti.Kcon,
                         ti.Xhalf, ti.Kconhalf,
                         tf.X, tf.Kcon,
-                        ti.dl, N_coord, tauF, params);
+                        ti.dl, N_coord, tauF, 
+                        ZERO_EMISSION, params);
         //fprintf(stderr, "Polarized transport\n");
       }
     }
@@ -249,7 +266,8 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double Xhalf[NDIM], double Kconhalf[NDIM],
     double Xf[NDIM], double Kconf[NDIM],
-    double dlam, double complex N_coord[NDIM][NDIM], double *tauF, Params *params)
+    double dlam, double complex N_coord[NDIM][NDIM], double *tauF, 
+    int ZERO_EMISSION, Params *params)
 {
   // TODO might be useful to split this into flat-space S->S portion and transformations to/from N
   double gcov[NDIM][NDIM];
@@ -274,6 +292,12 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   // evaluate transport coefficients
   jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
       &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
+  if (ZERO_EMISSION) {
+    jI = 0.;
+    jQ = 0.;
+    jU = 0.;
+    jV = 0.;
+  }
 
   // Guess B if we *absolutely must*
   // Note get_model_b (rightly) returns 0 outside the domain,
@@ -330,7 +354,38 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
   double adj = aQ * jQ + aU * jU + aV * jV;
 
-  if (aP > SMALL) { /* full analytic solution has trouble if polarized absorptivity is small */
+  if (aP*x > CUT_HIGH_ABS || aI*x > CUT_HIGH_ABS) {
+    // Solution assuming aI ~ aP >> 1, the worst case.
+    // This covers the case aI >> aP by sending exp(aP-aI)->0, which is safe for all terms
+    double expDiffx = exp((aP-aI) * x)/2;
+
+    SI2 = (SI1 * expDiffx
+        - (ads0 / aP) * expDiffx
+        + adj / (aI2 - aP2) * (-1 + (aI * expDiffx + aP * expDiffx) / aP)
+        + aI * jI / (aI2 - aP2) * (1 - (aI * expDiffx + aP * expDiffx) / aI));
+
+    SQ2 = (ads0 * aQ / aP2 * expDiffx
+        - aQ / aP * SI1 * expDiffx
+        + jQ / aI
+        + adj * aQ / (aI * (aI2 - aP2)) *
+        (1 - aI / aP2 * (aI * expDiffx + aP * expDiffx))
+        + jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * expDiffx + aI * expDiffx)));
+
+    SU2 = (ads0 * aU / aP2 * expDiffx
+        - aU / aP * SI1 * expDiffx
+        + jU / aI
+        + adj * aU / (aI * (aI2 - aP2)) *
+        (1 - aI / aP2 * (aI * expDiffx + aP * expDiffx))
+        + jI * aU / (aP * (aI2 - aP2)) * (-aP + (aP * expDiffx + aI * expDiffx)));
+
+    SV2 = (ads0 * aV / aP2 * expDiffx
+        - aV / aP * SI1 * expDiffx
+        + jV / aI
+        + adj * aV / (aI * (aI2 - aP2)) * (1 -
+            aI / aP2 * (aI * expDiffx + aP * expDiffx))
+        + jI * aV / (aP * (aI2 - aP2)) *
+        (-aP + (aP * expDiffx + aI * expDiffx)));
+  } else if (aP*x > CUT_LOW_ABS) { /* full analytic solution has trouble if polarized absorptivity is small */
     double expaIx = exp(-aI * x);
     double sinhaPx = sinh(aP * x);
     double coshaPx = cosh(aP * x);
@@ -340,15 +395,6 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + adj / (aI2 - aP2) * (-1 + (aI * sinhaPx + aP * coshaPx) / aP * expaIx)
         + aI * jI / (aI2 - aP2) * (1 - (aI * coshaPx + aP * sinhaPx) / aI * expaIx));
 
-#if DEBUG
-    double term1 = fabs(SI1 * coshaPx * expaIx);
-    double term2 = fabs( - (ads0 / aP) * sinhaPx * expaIx);
-    double term3 = fabs( adj / (aI2 - aP2) * (-1 + (aI * sinhaPx + aP * coshaPx) / aP * expaIx) );
-    double term4 = fabs( aI * jI / (aI2 - aP2) * (1 - (aI * coshaPx + aP * sinhaPx) / aI * expaIx) );
-    if (fmax(fmax(fmax(term1, term2), term3), term4) / fabs(SI2) > 1e16)
-      printf("CAT I: Term1: %g 2: %g 3: %g 4: %g Total: %g\n", term1, term2, term3, term4, SI2);
-#endif
-
     SQ2 = (SQ1 * expaIx
         + ads0 * aQ / aP2 * (-1 + coshaPx) * expaIx
         - aQ / aP * SI1 * sinhaPx * expaIx
@@ -356,19 +402,6 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + adj * aQ / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx
             - aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx)
         + jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
-
-#if DEBUG
-    term1 = fabs( SQ1 * expaIx );
-    term2 = fabs( ads0 * aQ / aP2 * (-1 + coshaPx) * expaIx );
-    term3 = fabs( - aQ / aP * SI1 * sinhaPx * expaIx );
-    term4 = fabs( jQ * (1 - expaIx) / aI );
-    double term5 = fabs( adj * aQ / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx
-                                              - aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
-    double term6 = fabs( jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
-
-    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SQ2) > 1e16)
-      printf("CAT Q: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SQ2);
-#endif
 
     SU2 = (SU1 * expaIx
         + ads0 * aU / aP2 * (-1 + coshaPx) * expaIx
@@ -381,19 +414,6 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
         + jI * aU / (aP * (aI2 - aP2)) *
         (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
 
-#if DEBUG
-    term1 = fabs( SU1 * expaIx );
-    term2 = fabs( ads0 * aU / aP2 * (-1 + coshaPx) * expaIx );
-    term3 = fabs( - aU / aP * SI1 * sinhaPx * expaIx );
-    term4 = fabs( jU * (1 - expaIx) / aI );
-    term5 = fabs( adj * aU / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx -
-                                                  aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
-    term6 = fabs( jI * aU / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
-
-    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SU2) > 1e16)
-      printf("CAT U: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SU2);
-#endif
-
     SV2 = (SV1 * expaIx
         + ads0 * aV / aP2 * (-1 + coshaPx) * expaIx
         - aV / aP * SI1 * sinhaPx * expaIx
@@ -404,19 +424,6 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
                 aP * sinhaPx) * expaIx)
         + jI * aV / (aP * (aI2 - aP2)) *
         (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
-
-#if DEBUG
-    term1 = fabs( SV1 * expaIx );
-    term2 = fabs( ads0 * aV / aP2 * (-1 + coshaPx) * expaIx );
-    term3 = fabs( - aV / aP * SI1 * sinhaPx * expaIx );
-    term4 = fabs( jV * (1 - expaIx) / aI );
-    term5 = fabs( adj * aV / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx -
-                                                    aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx) );
-    term6 = fabs( jI * aV / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx) );
-
-    if (fmax(fmax(fmax(fmax(fmax(term1, term2), term3), term4), term5), term6) / fabs(SV2) > 1e16)
-      printf("CAT V: Term1: %g 2: %g 3: %g 4: %g 5: %g 6: %g Total: %g\n", term1, term2, term3, term4, term5, term6, SV2);
-#endif
 
   } else {
     // Still account for aI which may be >> aP, e.g. simulating unpolarized transport
@@ -590,11 +597,6 @@ void complex_lower(double complex N[NDIM][NDIM],
 void stokes_to_tensor(double fI, double fQ, double fU, double fV,
     double complex f_tetrad[NDIM][NDIM])
 {
-  int i, j;
-
-  for (i = 0; i < 4; i++)
-  for (j = 0; j < 4; j++)
-  f_tetrad[i][j] = 0. + I * 0.;
   /*notice that I swapped sign of the imaginary part [2][3] in [3][2] - which one is correct? */
   f_tetrad[1][1] = (fI + fQ + 0. * I);
   f_tetrad[1][2] = (fU - I * fV);
