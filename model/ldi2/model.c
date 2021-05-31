@@ -191,3 +191,5 @@ double get_model_thetae(double X[NDIM]) {return 0;}
 double get_model_b(double X[NDIM]) {return 1;}
 double get_model_ne(double X[NDIM]) {return 1;} // Otherwise we trigger the "empty space" emissivity
 void get_model_primitives(double X[NDIM], double *p) {return;}
+void update_data(double *tA, double *tB) {return;}
+void update_data_until(double *tA, double *tB, double tgt) {return;}

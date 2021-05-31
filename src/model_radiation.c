@@ -33,7 +33,7 @@
 #define E_POWERLAW       3
 #define E_DEXTER_THERMAL 4
 #define E_CUSTOM        10
-// Rotation 
+// Rotation
 #define ROT_OLD         11
 #define ROT_PIECEWISE   12
 #define ROT_SHCHERBAKOV 13
@@ -252,13 +252,13 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     }
     if (*jI * *jI < *jQ * *jQ + *jU * *jU + *jV * *jV) {
       // Transport does not like 100% polarization...
+      double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
       double pol_frac_e = *jI / jP * max_pol_frac_e;
       *jQ *= pol_frac_e;
       *jU *= pol_frac_e;
       *jV *= pol_frac_e;
 #if DEBUG
-      fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n",
-      sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV), *jI, pol_frac_e);
+      fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n", jP, *jI, pol_frac_e);
 #endif
     }
 
@@ -291,13 +291,13 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       }
       if (*aI * *aI < *aQ * *aQ + *aU * *aU + *aV * *aV) {
         // Transport does not like 100% polarization...
+        double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
         double pol_frac_a = *aI / aP * max_pol_frac_a;
         *aQ *= pol_frac_a;
         *aU *= pol_frac_a;
         *aV *= pol_frac_a;
 #if DEBUG
-        fprintf(stderr, "Polarized absorptivities too large:\n %g vs %g, corrected by %g\n",
-        sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV), *aI, pol_frac_a);
+        fprintf(stderr, "Polarized absorptivities too large:\n %g vs %g, corrected by %g\n", aP, *aI, pol_frac_a);
 #endif
       }
 
