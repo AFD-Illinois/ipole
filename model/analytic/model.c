@@ -319,6 +319,7 @@ int radiating_region(double X[NDIM])
 double get_model_thetae(double X[NDIM]) {return 0;}
 void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
           double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
-
+void update_data(double *tA, double *tB) {return;}
+void update_data_until(double *tA, double *tB, double tgt) {return;}
 // This is only called for trace file output, and doesn't really apply to analytic models
 void get_model_primitives(double X[NDIM], double *p) {return;}
