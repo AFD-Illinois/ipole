@@ -347,7 +347,6 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   x = dlam;
   double aP2 = aQ * aQ + aU * aU + aV * aV;
   if (aP2 > CUT_PREVENT_NAN) { // If 1/(aP2) will not return NaN...
-    double aI2 = aI * aI;
     double aP = sqrt(aP2);
     double tauP = aP*x;
     double tauI = aI*x;

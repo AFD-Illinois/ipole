@@ -11,7 +11,7 @@
  *
  * Final form courtesy of Angelo Ricarte
  */
-inline double stable_hyp2f1(double a, double b, double c, double z)
+static inline double stable_hyp2f1(double a, double b, double c, double z)
 {
   if (z > -1 && z < 1) {
     return gsl_sf_hyperg_2F1(a, b, c, z);
