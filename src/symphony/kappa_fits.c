@@ -1,5 +1,9 @@
 #include "kappa.h"
 
+#include "stdio.h"
+
+#define SMALL 1e-40
+
 /*kappa_I: fitting formula to the emissivity, in Stokes I, produced by a
  *         kappa distribution of electrons (without any exponential
  *         cutoff).  Uses eq. 29, 35, 36, 37, 38 of [1].
@@ -116,9 +120,10 @@ double kappa_V(struct parameters * params)
 
   double x = 3.*pow(params->kappa, -3./2.);
 
-  double ans = prefactor * Nlow * pow(X_k, 1./3.)
-              * pow(1.+pow(X_k, x * (3.*params->kappa-4.)/6.)
-              * pow(Nlow/Nhigh, x), -1./x);
+  double ans = (Nhigh < SMALL*SMALL) ? 0:
+               prefactor * Nlow * pow(X_k, 1./3.)
+               * pow(1.+pow(X_k, x * (3.*params->kappa-4.)/6.)
+               * pow(Nlow/Nhigh, x), -1./x);
 
   /*The Stokes V absorption coefficient changes sign at observer_angle
     equals 90deg, but this formula does not.  This discrepancy is a 
@@ -130,6 +135,12 @@ double kappa_V(struct parameters * params)
     and Pandya et al. (2016) for Stokes V transfer coefficients
     does not follow the convention the papers describe (IEEE/IAU);
     the sign has been corrected here.*/
+
+//  if (isnan(ans) || isnan(sign_bug_patch)) {
+//    fprintf(stderr, "NaN in kappa. X_k, prefactor, Nlow, Nhigh, x, ans, sign: %g %g %g %g %g %g %g",
+//                     X_k, prefactor, Nlow, Nhigh, x, ans, sign_bug_patch);
+//  }
+
   return -ans * sign_bug_patch;
 
 }
