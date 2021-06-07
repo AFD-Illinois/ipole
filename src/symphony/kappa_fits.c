@@ -1,5 +1,32 @@
 #include "kappa.h"
 
+#include "stdio.h"
+
+#define SMALL 1e-40
+
+/**
+ * Stabilized version of the hypergeometric fn:
+ * Use GSL's version on small domain of validity,
+ * use an extension to maintain stability outside that
+ *
+ * Final form courtesy of Angelo Ricarte
+ */
+static inline double stable_hyp2f1(double a, double b, double c, double z)
+{
+  if (z > -1 && z < 1) {
+    return gsl_sf_hyperg_2F1(a, b, c, z);
+  } else {
+    /*GSL 2F1 only works for |z| < 1; had to apply a hypergeometric function
+    identity because in our case z = -kappa*w, so |z| > 1 */
+    return pow(1.-z, -a) * tgamma(c) * tgamma(b-a)
+                 / (tgamma(b)*tgamma(c-a))
+                 * gsl_sf_hyperg_2F1(a, c-b, a-b+1., 1./(1.-z))
+                 + pow(1.-z, -b) * tgamma(c) * tgamma(a-b)
+                 / (tgamma(a) * tgamma(c-b))
+                 * gsl_sf_hyperg_2F1(b, c-a, b-a+1., 1./(1.-z));
+  }
+}
+
 /*kappa_I: fitting formula to the emissivity, in Stokes I, produced by a
  *         kappa distribution of electrons (without any exponential
  *         cutoff).  Uses eq. 29, 35, 36, 37, 38 of [1].
@@ -116,9 +143,10 @@ double kappa_V(struct parameters * params)
 
   double x = 3.*pow(params->kappa, -3./2.);
 
-  double ans = prefactor * Nlow * pow(X_k, 1./3.)
-              * pow(1.+pow(X_k, x * (3.*params->kappa-4.)/6.)
-              * pow(Nlow/Nhigh, x), -1./x);
+  double ans = (Nhigh < SMALL*SMALL) ? 0:
+               prefactor * Nlow * pow(X_k, 1./3.)
+               * pow(1.+pow(X_k, x * (3.*params->kappa-4.)/6.)
+               * pow(Nlow/Nhigh, x), -1./x);
 
   /*The Stokes V absorption coefficient changes sign at observer_angle
     equals 90deg, but this formula does not.  This discrepancy is a 
@@ -130,6 +158,12 @@ double kappa_V(struct parameters * params)
     and Pandya et al. (2016) for Stokes V transfer coefficients
     does not follow the convention the papers describe (IEEE/IAU);
     the sign has been corrected here.*/
+
+//  if (isnan(ans) || isnan(sign_bug_patch)) {
+//    fprintf(stderr, "NaN in kappa. X_k, prefactor, Nlow, Nhigh, x, ans, sign: %g %g %g %g %g %g %g",
+//                     X_k, prefactor, Nlow, Nhigh, x, ans, sign_bug_patch);
+//  }
+
   return -ans * sign_bug_patch;
 
 }
@@ -161,14 +195,7 @@ double kappa_I_abs(struct parameters * params)
 
   double z = -params->kappa*params->kappa_width;
 
-  /*GSL 2F1 only works for |z| < 1; had to apply a hypergeometric function
-  identity because in our case z = -kappa*w, so |z| > 1 */
-  double hyp2f1 = pow(1.-z, -a) * tgamma(c) * tgamma(b-a) 
-                 / (tgamma(b)*tgamma(c-a)) 
-                 * gsl_sf_hyperg_2F1(a, c-b, a-b+1., 1./(1.-z)) 
-                 + pow(1.-z, -b) * tgamma(c) * tgamma(a-b)
-                 / (tgamma(a) * tgamma(c-b))
-                 * gsl_sf_hyperg_2F1(b, c-a, b-a+1., 1./(1.-z));
+  double hyp2f1 = stable_hyp2f1(a, b, c, z);
 
   double Nlow = pow(3., 1./6.) * (10./41.) * pow(2. * params->pi, 2.)
                / pow(params->kappa_width * params->kappa, 16./3.-params->kappa)
@@ -218,13 +245,8 @@ double kappa_Q_abs(struct parameters * params)
 
   double z = -params->kappa * params->kappa_width;
 
-  /*GSL 2F1 only works for |z| < 1; had to apply a hypergeometric function
-  identity because in our case z = -kappa*w, so |z| > 1 */
-  double hyp2f1 = pow(1.-z, -a) * tgamma(c) * tgamma(b-a) 
-                  / (tgamma(b) * tgamma(c-a))
-                 * gsl_sf_hyperg_2F1(a, c-b, a-b+1., 1./(1.-z))+pow(1.-z, -b)
-                 * tgamma(c) * tgamma(a-b) / (tgamma(a)*tgamma(c-b))
-                 * gsl_sf_hyperg_2F1(b, c - a, b - a + 1., 1./(1. - z));
+  double hyp2f1 = stable_hyp2f1(a, b, c, z);
+
   double Nlow = -(25./48.) * pow(3., 1./6.) * (10./41.) 
                 * pow(2. * params->pi, 2.)
                 / pow(params->kappa_width*params->kappa, 16./3.-params->kappa)
@@ -274,14 +296,7 @@ double kappa_V_abs(struct parameters * params)
 
   double z = -params->kappa * params->kappa_width;
 
-  /*GSL 2F1 only works for |z| < 1; had to apply a hypergeometric function
-  identity because in our case z = -kappa*w, so |z| > 1 */
-  double hyp2f1 = pow(1.-z, -a) * tgamma(c) * tgamma(b-a) 
-                  / (tgamma(b) * tgamma(c-a))
-                  * gsl_sf_hyperg_2F1(a, c-b, a-b+1., 1./(1.-z)) 
-                  + pow(1.-z, -b) * tgamma(c) * tgamma(a-b)
-                  / (tgamma(a) * tgamma(c-b))
-                  * gsl_sf_hyperg_2F1(b, c - a, b - a + 1., 1./(1.-z));
+  double hyp2f1 = stable_hyp2f1(a, b, c, z);
 
   double Nlow = -(77./(100. * params->kappa_width)) 
                 * pow(pow(sin(params->observer_angle), -114./50.)
