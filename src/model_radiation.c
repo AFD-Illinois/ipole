@@ -33,7 +33,7 @@
 #define E_POWERLAW       3
 #define E_DEXTER_THERMAL 4
 #define E_CUSTOM        10
-// Rotation 
+// Rotation
 #define ROT_OLD         11
 #define ROT_PIECEWISE   12
 #define ROT_SHCHERBAKOV 13
@@ -81,6 +81,8 @@ static double powerlaw_gamma_max = 1e5;
 static double powerlaw_p = 3.25;
 static double powerlaw_eta = 0.02;
 static int variable_kappa = 0;
+static double max_pol_frac_e = 0.99;
+static double max_pol_frac_a = 0.99;
 
 void try_set_radiation_parameter(const char *word, const char *value)
 {
@@ -92,6 +94,9 @@ void try_set_radiation_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
+
+  set_by_word_val(word, value, "max_pol_frac_e", &powerlaw_p, TYPE_DBL);
+  set_by_word_val(word, value, "max_pol_frac_a", &powerlaw_p, TYPE_DBL);
 }
 
 /**
@@ -252,17 +257,15 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       fprintf(stderr, "Negative total emissivity! Exiting!\n");
       exit(-1);
     }
-    double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
-    if (*jI < jP) {
+    if (*jI * *jI < *jQ * *jQ + *jU * *jU + *jV * *jV) {
       // Transport does not like 100% polarization...
-      double pol_frac_e = *jI / jP - 0.01;
-      //double pol_frac_e = 0.9;
+      double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
+      double pol_frac_e = *jI / jP * max_pol_frac_e;
       *jQ *= pol_frac_e;
       *jU *= pol_frac_e;
       *jV *= pol_frac_e;
 #if DEBUG
-      //fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n",
-      //jP, *jI, pol_frac_e);
+      fprintf(stderr, "Polarized emissivities too large:\n %g vs %g, corrected by %g\n", jP, *jI, pol_frac_e);
 #endif
     }
 
@@ -293,17 +296,15 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
         fprintf(stderr, "Negative total absorptivity! Exiting!\n");
         exit(-1);
       }
-      double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
-      if (*aI < aP) {
+      if (*aI * *aI < *aQ * *aQ + *aU * *aU + *aV * *aV) {
         // Transport does not like 100% polarization...
-        double pol_frac_a = *aI / aP - 0.01;
-        //double pol_frac_a = 0.9;
+        double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
+        double pol_frac_a = *aI / aP * max_pol_frac_a;
         *aQ *= pol_frac_a;
         *aU *= pol_frac_a;
         *aV *= pol_frac_a;
 #if DEBUG
-        fprintf(stderr, "Polarized absorptivities too large:\n %g vs %g, corrected by %g\n",
-        aP, *aI, pol_frac_a);
+        fprintf(stderr, "Polarized absorptivities too large:\n %g vs %g, corrected by %g\n", aP, *aI, pol_frac_a);
 #endif
       }
 
@@ -481,7 +482,7 @@ void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width) {
   if (variable_kappa) {
     double sigma = get_model_sigma(X);
     double beta = get_model_beta(X);
-    *kappa = model_kappa;
+    *kappa = model_kappa; // INSERT VARIABLE KAPPA HERE
 #if DEBUG
     //fprintf(stderr, "sigma, beta -> kappa %g %g -> %g\n", sigma, beta, *kappa);
 #endif

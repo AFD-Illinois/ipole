@@ -36,37 +36,51 @@ int make_plasma_tetrad(double Ucon[NDIM], double Kcon[NDIM], double Bcon[NDIM],
                         double Gcov[NDIM][NDIM], double Econ[NDIM][NDIM],
                         double Ecov[NDIM][NDIM])
 {
-  // start w/ time component parallel to U
+  // Modified Gram-Schmidt method to produce e^n orthogonal
+  // e^1 is wholly determined by orthonormality
+  double ones[NDIM] = {1., 1., 1., 1.};
   set_Econ_from_trial(Econ[0], 0, Ucon);
-  normalize(Econ[0], Gcov);
-
-  /*** done w/ basis vector 0 ***/
-
-  /* now use the trial vector in basis vector 3 */
-  /* cast a suspicious eye on the trial vector... */
-
+  set_Econ_from_trial(Econ[1], 3, ones);
+  set_Econ_from_trial(Econ[2], 2, Bcon);
   set_Econ_from_trial(Econ[3], 3, Kcon);
 
-  /* project out econ0 */
+  // (Re)orthogonalize
+  // Repeating the orthogonalizations below wouldn't be necessary in
+  // exact math, of course, but what if we have numbers on the order
+  // of machine accuracy (epsilon)? Consider a matrix A:
+  // A = [2 1]
+  //     [d 0]
+  //     [0 d]
+  // where d is O(sqrt(epsilon)), so that generally N + d^2 = N when
+  // represented in double precision.  Say we want an orthogonal form of A,
+  // the matrix Q.
+  // Orthonormalized with Gram-Schmidt and throwing away d^2:
+  // Q2= [1        0     ]
+  //     [d/2  -1/sqrt(5)]
+  //     [0     2/sqrt(5)]
+  // But if we orthogonalize Q2 again, we get:
+  // Q = [1   d/(2 sqrt(5))]
+  //     [d/2  -1/sqrt(5)  ]
+  //     [0     2/sqrt(5)  ]
+  // While there are more complex & faster reorthogonalization methods, simply
+  // repeating the orthogonalization exactly once for each vector reaches near
+  // optimal accuracy, see Giraud and Langou 2003 for background and
+  // Giraud et al. '05 for the relevant analysis
+
+  // Note we choose the order carefully to preserve ucon == e^0 perfectly,
+  // and u^3 ~= Kcon as closely as possible.
+  normalize(Econ[0], Gcov);
+  project_out(Econ[3], Econ[0], Gcov);
   project_out(Econ[3], Econ[0], Gcov);
   normalize(Econ[3], Gcov);
-
-  /*** done w/ basis vector 3 ***/
-
-  // repeat for x2 unit basis vector
-  set_Econ_from_trial(Econ[2], 2, Bcon);
-
-  // project out econ0,3
+  project_out(Econ[2], Econ[0], Gcov);
+  project_out(Econ[2], Econ[3], Gcov);
   project_out(Econ[2], Econ[0], Gcov);
   project_out(Econ[2], Econ[3], Gcov);
   normalize(Econ[2], Gcov);
-
-  /*** done w/ basis vector 2 ***/
-
-  // whatever is left is econ1
-  for (int k = 0; k < 4; k++) /* trial vector */
-    Econ[1][k] = 1.;
-  // project out econ[0-2]
+  project_out(Econ[1], Econ[0], Gcov);
+  project_out(Econ[1], Econ[2], Gcov);
+  project_out(Econ[1], Econ[3], Gcov);
   project_out(Econ[1], Econ[0], Gcov);
   project_out(Econ[1], Econ[2], Gcov);
   project_out(Econ[1], Econ[3], Gcov);
