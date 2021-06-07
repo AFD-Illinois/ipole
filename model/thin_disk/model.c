@@ -374,8 +374,6 @@ double get_model_ne(double X[NDIM]) {return 0;}
 double get_model_sigma(double X[NDIM]) {return 0;}
 double get_model_beta(double X[NDIM]) {return 0;}
 void get_model_primitives(double X[NDIM], double *p) {return;}
-void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
-          double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
 void update_data(double *tA, double *tB) {return;}
 void update_data_until(double *tA, double *tB, double tgt) {return;}
 // In case we want to mess with emissivities directly
