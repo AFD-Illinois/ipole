@@ -47,6 +47,33 @@ double interp_scalar(double X[NDIM], double ***var)
   return interp;
 }
 
+double interp_scalar_2d(double X[NDIM], double **var)
+{
+  double del[NDIM],b1,b2,interp;
+  int i, j, k, ip1, kp1;
+
+  // zone and offset from X
+  Xtoijk(X, &i, &j, &k, del);
+
+  // since we read from data, adjust i,j,k for ghost zones
+  i += 1;
+  k += 1;
+
+  ip1 = i+1;
+  kp1 = k+1;
+
+  b1 = 1.-del[1];
+  b2 = 1.-del[3];
+
+  // interpolate in x1 and x3
+  interp = var[i][k]*b1*b2 +
+    var[i][kp1]*b1*del[2] +
+    var[ip1][k]*del[1]*b2 +
+    var[ip1][kp1]*del[1]*del[2];
+
+  return interp;
+}
+
 /*
  *  returns geodesic coordinates associated with center of zone i,j,k
  */

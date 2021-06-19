@@ -21,6 +21,35 @@ void *malloc_rank1(size_t n1, size_t size)
   return A;
 }
 
+double **malloc_rank2(int n1, int n2)
+{
+  double **A;
+  double *space;
+  int i;
+
+  space = malloc_rank1(n1*n2, sizeof(double));
+  A = malloc_rank1(n1, sizeof(double *));
+  for(i = 0; i < n1; i++){
+    A[i] = &(space[n2*i]);
+  }
+
+  return A;
+}
+
+float **malloc_rank2_float(int n1, int n2)
+{
+  float **A;
+  float *space;
+  int i;
+
+  space = malloc_rank1(n1*n2, sizeof(float));
+  A = malloc_rank1(n1, sizeof(float *));
+  for(i = 0; i < n1; i++){
+    A[i] = &(space[n2*i]);
+  }
+
+  return A;
+}
 
 double ***malloc_rank3(int n1, int n2, int n3)
 {
