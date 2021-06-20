@@ -594,6 +594,13 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
 
     }
 
+    if (*jnuinv < 0) {
+      *jnuinv = 0;
+    }
+    if (*knuinv < 0) {
+      *knuinv = 0;
+    }
+
 #if DEBUG
     if (isnan(*jnuinv) || isnan(*knuinv)) {
       fprintf(stderr, "\nisnan get_jkinv\n");
