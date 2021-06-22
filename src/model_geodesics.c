@@ -18,6 +18,7 @@
 #include "tetrads.h"
 
 #include "debug_tools.h"
+#include "simcoords.h"
 
 // TODO pick one or runtime
 #define STEP_STRICT_MIN 0

@@ -911,7 +911,7 @@ void init_koral_grid(char *fnam, int dumpidx)
   // called at the beginning of the run and sets the static parameters
   // along with setting up the grid
 
-  assert(42==0);
+  // assert(42==0);
   // this version of the code has not been validated to have the
   // right units and four-vector recovery. use at your own peril
   
@@ -971,25 +971,7 @@ void init_koral_grid(char *fnam, int dumpidx)
     hdf5_read_single_val(&(mp_koral_jetcoords.alpha_1), "alpha1", H5T_IEEE_F64LE);
     hdf5_read_single_val(&(mp_koral_jetcoords.alpha_2), "alpha2", H5T_IEEE_F64LE);
     hdf5_read_single_val(&(mp_koral_jetcoords.cylindrify), "cylindrify", H5T_IEEE_F64LE);
-
-
-    /*
-      double mksr0;
-  double rbrk;
-  double rmin;
-  double rphotomax;
-  double fjet;
-  double fdisk;
-  double runi;
-  double rcoll_jet;
-  double rcoll_disk;
-  double rdecoll_jet;
-  double rdecoll_disk;
-  double rcyl;
-  double ncyl; 
-     */
-
-  hdf5_set_directory("/header/geom/");
+    hdf5_set_directory("/header/geom/");
     fprintf(stderr, "KORAL simulation was run with JETCOORDS coordinates.\n");
   } else {
     fprintf(stderr, "! unknown koral metric_run (%s). quitting.\n", metric_run);
@@ -1067,7 +1049,7 @@ void init_koral_grid(char *fnam, int dumpidx)
     } else {
       if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
         fprintf(stderr, "Using mixed tp_over_te with trat_small = %g, trat_large = %g, and beta_crit = %g\n", trat_small, trat_large, beta_crit);
-        // Thetae set in init_physical_quantities(...)
+        ELECTRONS = 2;
       } else {
         fprintf(stderr, "! koral unsupported without native electrons or mixed tp_over_te.\n");
         exit(6);
@@ -1497,7 +1479,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
 
   hdf5_read_array(data[n]->p[B3][0][0], "B3", 3, fdims, fstart, fcount, 
                   mdims, mstart, H5T_IEEE_F64LE); 
-  
+
   if (ELECTRONS == 9) {
     hdf5_read_array(data[n]->p[TFLK][0][0], "te", 3, fdims, fstart, fcount, 
                     mdims, mstart, H5T_IEEE_F64LE); 

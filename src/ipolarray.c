@@ -16,6 +16,7 @@
 #include "model.h"
 #include "model_radiation.h"
 #include "model_tetrads.h"
+#include "simcoords.h"
 #include "debug_tools.h"
 #include <complex.h>
 
@@ -52,7 +53,8 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
  */
 int integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
-                    double complex N_coord[NDIM][NDIM], Params *params)
+                    double complex N_coord[NDIM][NDIM], Params *params,
+                    int print)
 {
   //fprintf(stderr, "Begin integrate emission\n");
   // Initialize
@@ -127,6 +129,14 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
       }
       //fprintf(stderr, "Unpolarized transport\n");
+      
+      if (print) {
+        double Xg[4] = { 0., 0., 0., 0. };
+        eks_to_simcoord(ti.X, Xg);
+        fprintf(stderr, "INTEGRATION %d %d %g %g %g %g %g %g %g %g %g \n", 
+                print, nstep, ti.X[1], ti.X[2], ti.X[3], Xg[1], Xg[2], Xg[3], 
+                ji, *Intensity, ti.dl);
+      }
 
       // Solve polarized transport
       if (!params->only_unpolarized) {
