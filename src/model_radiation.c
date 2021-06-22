@@ -74,7 +74,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 /**
  * Optionally load radiation model parameters
  */
-static double model_kappa = 0;
+static double model_kappa = 3.5;
 static double powerlaw_gamma_cut = 1e10;
 static double powerlaw_gamma_min = 1e2;
 static double powerlaw_gamma_max = 1e5;
@@ -432,6 +432,13 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
       }
 
     }
+    // Enforce j >= 0, k >= 0 just like in polarized emission.
+    if (*jnuinv < 0) {
+      *jnuinv = 0;
+    }
+    if (*knuinv < 0) {
+      *knuinv = 0;
+    }
 
 #if DEBUG
     if (isnan(*jnuinv) || isnan(*knuinv)) {
@@ -441,6 +448,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
     }
 #endif
 
+    // TODO put this outside, in integrate_emission or similar
     if (params->isolate_counterjet == 1) { // Emission from X[2] > midplane only
       if (X[2] < (cstopx[2] - cstartx[2]) / 2) {
         *jnuinv = 0.;
