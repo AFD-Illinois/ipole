@@ -69,7 +69,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 /**
  * Optionally load radiation model parameters
  */
-static double model_kappa = 0;
+static double model_kappa = 3.5;
 static double powerlaw_gamma_cut = 1e10;
 static double powerlaw_gamma_min = 1e2;
 static double powerlaw_gamma_max = 1e5;

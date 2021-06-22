@@ -965,7 +965,7 @@ void populate_boundary_conditions(int n)
   for (int i=0; i<N1+2; ++i) {
     for (int k=1; k<N3+1; ++k) {
       if (N3%2 == 0) {
-        int kflip = ( k + (N3/2) ) % N3;
+        int kflip = ( (k - 1) + (N3/2) ) % N3 + 1;
         for (int l=0; l<NVAR; ++l) {
           data[n]->p[l][i][0][k] = data[n]->p[l][i][1][kflip];
           data[n]->p[l][i][N2+1][k] = data[n]->p[l][i][N2][kflip];
