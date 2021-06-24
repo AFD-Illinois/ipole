@@ -13,8 +13,8 @@ int N1, N2, N3;
 /* return scalar in cgs units */
 double interp_scalar(double X[NDIM], double ***var)
 {
-  double del[NDIM],b1,b2,interp;
-  int i, j, k, ip1, jp1, kp1;
+  double del[NDIM] = {0}, b1 = 0, b2 = 0, interp = 0;
+  int i = 0, j = 0, k = 0, ip1 = 0, jp1 = 0, kp1 = 0;
 
   // zone and offset from X
   Xtoijk(X, &i, &j, &k, del);
@@ -111,8 +111,8 @@ void ijktoX(int i, int j, int k, double X[NDIM])
 void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
 {
   // unless we're reading from data, i,j,k are the normal expected thing
-  double phi;
-  double XG[4];
+  double phi = 0;
+  double XG[4] = {0};
 
   if (use_eKS_internal) {
     // the geodesics are evolved in eKS so invert through KS -> zone coordinates

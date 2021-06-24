@@ -191,7 +191,7 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
 // sets default values for elements of params (if desired) and loads from par file 'fname'
 void load_par(const char *fname, Params *params) {
  
-  char line[256], word[256], value[256];
+  char line[256] = {0}, word[256] = {0}, value[256] = {0};
   FILE *fp = fopen(fname, "r");
 
   if (fp == NULL) {

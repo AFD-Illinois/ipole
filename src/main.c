@@ -452,7 +452,7 @@ int main(int argc, char *argv[])
           }
 
           //fprintf(stderr, "saving image %d at t = %g\n", k, target_times[k]);
-          char dfname[256];
+          char dfname[256] = {0};
           snprintf(dfname, 255, params.outf, target_times[k]);
           dump(image, imageS, taus, dfname, scale, Xcam, fovx, fovy, nx, ny, &params, params.only_unpolarized);
           valid_images[k] = 0;
