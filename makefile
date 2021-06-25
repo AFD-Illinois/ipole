@@ -2,9 +2,9 @@
 MODEL = iharm
 
 # Top directory of HDF5, or blank if using h5pcc
-HDF5_DIR =
+#HDF5_DIR =
 # Top directory of GSL, or blank if installed to system
-GSL_DIR =
+#GSL_DIR =
 # System /lib equivalent (can be /usr/lib, /lib64, /usr/lib64)
 # Can leave this blank if it's included automatically by GCC
 SYSTEM_LIBDIR = /lib64

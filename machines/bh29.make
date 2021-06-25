@@ -1,0 +1,2 @@
+CC=clang
+CFLAGS_CUSTOM=
