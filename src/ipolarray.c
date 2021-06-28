@@ -26,7 +26,7 @@
 #define CUT_SMALL_OPTICAL_DEPTH 1e-5
 
 // Smallest double that prevents NaNs on inverses
-#define CUT_PREVENT_NAN 1e-100
+#define CUT_PREVENT_NAN 1e-80
 
 // Sub-functions
 void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
