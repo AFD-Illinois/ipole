@@ -34,8 +34,8 @@ void read_restart(const char *fname, double *tA, double *tB, double *last_img_ta
   hdf5_read_single_val(nimg, "nimg", H5T_STD_I32LE);
   hdf5_read_single_val(nopenimgs, "nopenimgs", H5T_STD_I32LE);
 
-  int *tint = malloc(s2 * sizeof(*tint));
-  double *tdbl = malloc(s2 * sizeof(*tdbl));
+  int *tint = calloc(s2, sizeof(*tint));
+  double *tdbl = calloc(s2, sizeof(*tdbl));
 
   for (int i=0; i<nconcurrentimgs; ++i) {
     tdbl[i] = target_times[i];
@@ -101,8 +101,8 @@ void write_restart(const char *fname, double tA, double tB, double last_img_targ
   hdf5_make_directory("dimg");
   hdf5_set_directory("/dimg/");
   // save dimg struct
-  int *tint = malloc(s2 * sizeof(*tint));
-  double *tdbl = malloc(s2 * sizeof(*tdbl));
+  int *tint = calloc(s2, sizeof(*tint));
+  double *tdbl = calloc(s2, sizeof(*tdbl));
 
   for (int i=0; i<s2; ++i) tint[i] = dimages[i].nstep;
   hdf5_write_full_array(tint, "nstep", 1, dims, H5T_STD_I32LE);

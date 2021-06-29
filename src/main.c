@@ -257,12 +257,12 @@ int main(int argc, char *argv[])
     // now create data structures for geodesics and light rays
     maxsteplength += 2;
     fprintf(stderr, "geodesic size = %g GB\n", 1. * sizeof(struct of_traj) * nx*ny * maxsteplength / 1024/1024/1024);
-    struct of_traj *dtraj = malloc(sizeof(*dtraj) * nx*ny * maxsteplength);
+    struct of_traj *dtraj = calloc(nx*ny * maxsteplength, sizeof(*dtraj));
 
     // TODO: if DTd is different, we'll have to calcluate this a different way
     int nconcurrentimgs = 2. + 1. * fabs(t0) / params.img_cadence;
     fprintf(stderr, "images size = %g GB\n", 1. * sizeof(struct of_image) * nx*ny * nconcurrentimgs / 1024/1024/1024);
-    struct of_image *dimage = malloc(sizeof(*dimage) * nx*ny * nconcurrentimgs);
+    struct of_image *dimage = calloc(nx*ny * nconcurrentimgs, sizeof(*dimage));
 
     // now populate the geodesic data structures
 #pragma omp parallel for schedule(dynamic,2) collapse(2)
@@ -306,8 +306,8 @@ int main(int argc, char *argv[])
     // initialize state
     int nimg = 0, nopenimgs = 0;
     double last_img_target = tA - tgeof;
-    double *target_times = malloc(sizeof(*target_times) * nconcurrentimgs);
-    int *valid_images = malloc(sizeof(*valid_images) * nconcurrentimgs);
+    double *target_times = calloc(nconcurrentimgs, sizeof(*target_times));
+    int *valid_images = calloc(nconcurrentimgs, sizeof(*valid_images));
     for (int i=0; i<nconcurrentimgs; ++i) valid_images[i] = 0;
 
     fprintf(stderr, "first image will be produced for t = %g\n", last_img_target);

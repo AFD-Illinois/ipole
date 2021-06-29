@@ -1033,7 +1033,7 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   hsize_t fstart[] = { 0 };
   hsize_t fcount[] = { N1 * N2 * N3 };
 
-  double *buffer = malloc(N1*N2*N3 * sizeof(*buffer));
+  double *buffer = calloc(N1*N2*N3, sizeof(*buffer));
 
   hdf5_read_array(buffer, "RHO", 1, fdims, fstart, fcount, fdims, fstart, H5T_IEEE_F64LE);
   remap_hamr(buffer, data[n]->p[KRHO], N1, N2, N3, 1);
