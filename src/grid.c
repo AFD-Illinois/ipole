@@ -47,6 +47,15 @@ double interp_scalar(double X[NDIM], double ***var)
   return interp;
 }
 
+/* return scalar interpolated in time */
+double interp_scalar_time(double X[NDIM], double ***varA, double ***varB, double tfac)
+{
+  double vA = interp_scalar(X, varA);
+  double vB = interp_scalar(X, varB);
+
+  return tfac*vA + (1. - tfac)*vB;
+}
+
 /*
  *  returns geodesic coordinates associated with center of zone i,j,k
  */
