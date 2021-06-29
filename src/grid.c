@@ -51,9 +51,13 @@ double interp_scalar(double X[NDIM], double ***var)
 double interp_scalar_time(double X[NDIM], double ***varA, double ***varB, double tfac)
 {
   double vA = interp_scalar(X, varA);
-  double vB = interp_scalar(X, varB);
 
+#if SLOWLIGHT
+  double vB = interp_scalar(X, varB);
   return tfac*vA + (1. - tfac)*vB;
+#endif
+
+  return vA;
 }
 
 /*
