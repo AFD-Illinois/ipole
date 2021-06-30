@@ -322,10 +322,10 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     piecewise_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
   } else if (dist == ROT_OLD) { // Old incorrect distribution, for compatibility
     old_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-  } else if (dist == E_DEXTER_THERMAL) { // Dexter rQ, Shcherbakov rV
+  } else if (dist == E_DEXTER_THERMAL || dist == E_THERMAL) { // Dexter rQ, Shcherbakov rV
     // TODO All-Dexter default option w/Taylor series, make this compat 
     shcherbakov_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-  } else { // TODO Fix Symphony, these are currently equal to ROT_OLD
+  } else { // TODO Fix Symphony thermal!!!, these are currently equal to ROT_OLD
     *rQ = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     *rU = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     *rV = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
