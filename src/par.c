@@ -48,6 +48,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->qu_conv = 0;
   params->quench_output = 0;
   params->only_unpolarized = 0;
+  params->perform_check = 0;
   params->old_centering = 0;
 
   params->emission_type = 4;
@@ -96,6 +97,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   for (int i=0; i<argc; ++i) {
     if ( strcmp(argv[i], "-quench") == 0 ) params->quench_output = 1;
     else if ( strcmp(argv[i], "-unpol") == 0 ) params->only_unpolarized = 1;
+    else if ( strcmp(argv[i], "-check") == 0 ) params->perform_check = 1;
 
     // read parameter from command line
     if ( strlen(argv[i])>2 && argv[i][0]=='-' && argv[i][1]=='-' ) {

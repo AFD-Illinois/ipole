@@ -28,6 +28,10 @@
 #define DIAG_PX_I -1
 #define DIAG_PX_J -1
 
+// When running in check mode, we downsample the image by
+// some skip amount. Set that skip here.
+#define CHECK_DOWNSAMPLE_SKIP 10
+
 // Some useful blocks of code to re-use
 // Note the difference between "int nx,ny" in get_pixel and "long int nx,ny" in save_pixel
 // explained in parameter parsing.
@@ -35,7 +39,8 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
                double fovx, double fovy, double freq, int only_intensity, double scale,
                double *Intensity, double *Is, double *Qs, double *Us, double *Vs,
                double *Tau, double *tauF);
-void save_pixel(double *image, double *imageS, double *taus, size_t i, size_t j, size_t nx, size_t ny, int only_unpol,
+void save_pixel(double *image, double *imageS, double *taus, size_t i, size_t j, 
+                size_t nx, size_t ny, int only_unpol,
                 double Intensity, double Is, double Qs, double Us, double Vs,
                 double freqcgs, double Tau, double tauF);
 void print_image_stats(double *image, double *imageS, size_t nx, size_t ny, Params params, double scale);
@@ -178,6 +183,10 @@ int main(int argc, char *argv[])
       fprintf(stderr, "Could not allocate image memory!");
       exit(-1);
     }
+  }
+
+  if (params.perform_check) {
+    fprintf(stderr, "Running in check mode...\n");
   }
 
   // slow light
@@ -454,7 +463,7 @@ int main(int argc, char *argv[])
           //fprintf(stderr, "saving image %d at t = %g\n", k, target_times[k]);
           char dfname[256] = {0};
           snprintf(dfname, 255, params.outf, target_times[k]);
-          dump(image, imageS, taus, dfname, scale, Xcam, fovx, fovy, nx, ny, &params, params.only_unpolarized);
+          dump(image, imageS, taus, dfname, scale, Xcam, fovx, fovy, nx, ny, &params);
           valid_images[k] = 0;
           nopenimgs--;
         }
@@ -510,6 +519,12 @@ int main(int argc, char *argv[])
     for (size_t i = 0; i < nx; i += initialspacingx) {
       for (size_t j = 0; j < ny; j += initialspacingy) {
 
+        if (params.perform_check) {
+          if ( i % CHECK_DOWNSAMPLE_SKIP != 0 || j % CHECK_DOWNSAMPLE_SKIP != 0 ) {
+            continue;
+          }
+        }
+
         if (j==0) fprintf(stderr, "%ld ", i);
         size_t thislocation = i / initialspacingy * nymin + j / initialspacingx;
         double Intensity = 0;
@@ -520,8 +535,33 @@ int main(int argc, char *argv[])
                    params.only_unpolarized, scale, &Intensity, &Is, &Qs, &Us, &Vs,
                    &Tau, &tauF);
 
-        save_pixel(image, imageS, taus, i, j, nx, ny, params.only_unpolarized, Intensity, Is, Qs, Us,
-                    Vs, freqcgs, Tau, tauF);
+        if (params.perform_check) {
+
+          save_pixel(image, imageS, taus, i/CHECK_DOWNSAMPLE_SKIP, j/CHECK_DOWNSAMPLE_SKIP, nx, ny, 
+                     params.only_unpolarized, Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
+      
+          int offset = nx % CHECK_DOWNSAMPLE_SKIP;
+          if (offset == 0) offset = CHECK_DOWNSAMPLE_SKIP;
+
+          int i2 = nx - i - offset;
+
+          Intensity = 0;
+          Is = 0; Qs = 0; Us = 0; Vs = 0;
+          Tau = 0; tauF = 0;
+
+          get_pixel(i2, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
+                     params.only_unpolarized, scale, &Intensity, &Is, &Qs, &Us, &Vs,
+                     &Tau, &tauF);
+
+          save_pixel(image, imageS, taus, (int)ceil(nx/CHECK_DOWNSAMPLE_SKIP) + i2/CHECK_DOWNSAMPLE_SKIP, j/CHECK_DOWNSAMPLE_SKIP, nx, ny, 
+                     params.only_unpolarized, Intensity, Is, Qs, Us, Vs, freqcgs, Tau, tauF);
+
+        } else {
+
+          save_pixel(image, imageS, taus, i, j, nx, ny, params.only_unpolarized, Intensity, Is, Qs, Us,
+                      Vs, freqcgs, Tau, tauF);
+
+        }
 
         interp_flag[i*ny+j] = 0;
 
@@ -740,7 +780,11 @@ int main(int argc, char *argv[])
     // like when fitting light curve fluxes
     if (!params.quench_output) {
       // dump result. if specified, also output ppm image
-      dump(image, imageS, taus, params.outf, scale, Xcam, fovx, fovy, nx, ny, &params, params.only_unpolarized);
+      if (params.perform_check) {
+        dump_check(image, imageS, taus, &params, CHECK_DOWNSAMPLE_SKIP);
+      } else {
+        dump(image, imageS, taus, params.outf, scale, Xcam, fovx, fovy, nx, ny, &params);
+      }
       if (params.add_ppm) {
         // TODO respect filename from params?
         make_ppm(image, freq, nx, ny, "ipole_lfnu.ppm");
@@ -749,7 +793,7 @@ int main(int argc, char *argv[])
   } // SLOW_LIGHT
 
   time = omp_get_wtime() - time;
-  printf("Total wallclock time: %g s\n\n", time);
+  fprintf(stderr, "Total wallclock time: %g s\n\n", time);
 
   return 0;
 }
