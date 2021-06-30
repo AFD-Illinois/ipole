@@ -189,6 +189,8 @@ int main(int argc, char *argv[])
     fprintf(stderr, "Running in check mode...\n");
   }
 
+  double initialization_time = omp_get_wtime() - time;
+
   // slow light
   if (SLOW_LIGHT) {
 
@@ -431,7 +433,7 @@ int main(int argc, char *argv[])
 
           }
         }
-
+    
         if (do_output) {
 
           // image, imageS, taus
@@ -793,7 +795,7 @@ int main(int argc, char *argv[])
   } // SLOW_LIGHT
 
   time = omp_get_wtime() - time;
-  fprintf(stderr, "Total wallclock time: %g s\n\n", time);
+  fprintf(stderr, "Total wallclock time: %g s (%g s)\n\n", time, initialization_time);
 
   return 0;
 }
