@@ -500,6 +500,11 @@ void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width) {
 
   double Thetae = get_model_thetae(X);
   *kappa_width = (*kappa - 3.) / *kappa * Thetae;
+#if DEBUG
+  if (isnan(*kappa_width) || isnan(*kappa)) {
+    fprintf(stderr, "NaN kappa val! kappa, kappa_width, Thetae: %g %g %g\n", *kappa, *kappa_width, Thetae);
+  }
+#endif
 }
 
 

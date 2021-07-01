@@ -15,8 +15,11 @@
 static inline double stable_hyp2f1(double a, double b, double c, double z)
 {
   if (z > -1 && z < 1) {
+    //fprintf(stderr, "GSL hyperg_u: %g %g %g %g\n", a, b, c, z);
     return gsl_sf_hyperg_2F1(a, b, c, z);
   } else {
+    //fprintf(stderr, "GSL hyperg_p1: %g %g %g %g %g\n", a, c-b, a-b+1., 1./(1.-z), z);
+    //fprintf(stderr, "GSL hyperg_p2: %g %g %g %g %g\n", b, c-a, b-a+1., 1./(1.-z), z);
     /*GSL 2F1 only works for |z| < 1; had to apply a hypergeometric function
     identity because in our case z = -kappa*w, so |z| > 1 */
     return pow(1.-z, -a) * tgamma(c) * tgamma(b-a)
@@ -54,8 +57,10 @@ double kappa_I(struct parameters * params)
 
   double Nhigh = (1./4.) * pow(3., (params->kappa-1.)/2.) 
                  * (params->kappa-2.) * (params->kappa-1.)
+		             * tgamma(params->kappa/4.-1./3.) 
 		 * tgamma(params->kappa/4.-1./3.) 
-                 * tgamma(params->kappa/4.+4./3.);
+		             * tgamma(params->kappa/4.-1./3.) 
+                 * tgamma(params->kappa/4.+4./3.) + SMALL;
 
   double x = 3. * pow(params->kappa, -3./2.);
 
@@ -94,7 +99,7 @@ double kappa_Q(struct parameters * params)
   double Nhigh = -(pow(4./5., 2)+params->kappa/50.) * (1./4.) 
                  * pow(3., (params->kappa-1.)/2.) * (params->kappa-2.) 
                  * (params->kappa-1.) * tgamma(params->kappa/4.-1./3.)
-                 * tgamma(params->kappa/4.+4./3.);
+                 * tgamma(params->kappa/4.+4./3.) + SMALL;
  
   double x = (37./10.)*pow(params->kappa, -8./5.);
 
@@ -140,7 +145,7 @@ double kappa_V(struct parameters * params)
                  * pow(X_k, -1./2.) * (1./4.) * pow(3., (params->kappa-1.)/2.) 
                  * (params->kappa-2.) * (params->kappa-1.) 
                  * tgamma(params->kappa/4.-1./3.) 
-                 * tgamma(params->kappa/4.+4./3.);
+                 * tgamma(params->kappa/4.+4./3.) + SMALL;
 
   double x = 3.*pow(params->kappa, -3./2.);
 
@@ -208,7 +213,7 @@ double kappa_I_abs(struct parameters * params)
                  / pow(params->kappa_width * params->kappa, 5.) 
                  * (2 * tgamma(2. + params->kappa/2.)
                  / (2.+params->kappa)-1.) 
-                 * (pow(3./params->kappa, 19./4.) + 3./5.);
+                 * (pow(3./params->kappa, 19./4.) + 3./5.) + SMALL;;
 
   double x = pow(-7./4. + 8. * params->kappa/5., -43./50.);
 
@@ -259,7 +264,7 @@ double kappa_Q_abs(struct parameters * params)
                  * (params->kappa-1.) * params->kappa 
                  / pow(params->kappa_width * params->kappa, 5.) 
                  * (2 * tgamma(2. + params->kappa/2.)
-                 / (2. + params->kappa)-1.);
+                 / (2. + params->kappa)-1.) + SMALL;
 
   double x = (7./5.) * pow(params->kappa, -23./20.);
 
@@ -318,7 +323,7 @@ double kappa_V_abs(struct parameters * params)
                  * (params->kappa-2.) * (params->kappa-1.) * params->kappa 
                  / pow(params->kappa_width*params->kappa, 5.)
                  * (2 * tgamma(2. + params->kappa/2.)
-                 / (2. + params->kappa) - 1.);
+                 / (2. + params->kappa) - 1.) + SMALL;
 
   double x = (61./50.)*pow(params->kappa, -142./125.)+7./1000.;
 

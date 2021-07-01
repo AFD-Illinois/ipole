@@ -409,11 +409,14 @@ double get_model_thetae(double X[NDIM])
   double tfac = set_tinterp_ns(X, &nA, &nB);
   double thetae = interp_scalar_time(X, data[nA]->thetae, data[nB]->thetae, tfac);
 
-  if (thetae < 0.) {
-    printf("thetae negative!\n");
+  if (thetae < 0. || isnan(thetae)) {
+    printf("thetae negative or NaN!\n");
     printf("X[] = %g %g %g %g\n", X[0], X[1], X[2], X[3]);
     printf("t = %e %e %e\n", data[0]->t, data[1]->t, data[2]->t);
-    printf("thetae = %e\n", thetae);
+    double thetaeA = interp_scalar(X, data[nA]->thetae);
+    double thetaeB = interp_scalar(X, data[nB]->thetae);
+    printf("thetaeA, thetaeB = ", thetaeA, thetaeB);
+    printf("thetae, tfac = %e %e\n", thetae, tfac);
   }
 
   return thetae;
@@ -497,7 +500,16 @@ void init_physical_quantities(int n)
 
         double sigma_m = bsq/data[n]->p[KRHO][i][j][k];
         double beta_m = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-
+#if DEBUG
+        if(isnan(sigma_m)) {
+          sigma_m = 0;
+          fprintf(stderr, "Setting zero sigma!\n");
+        }
+        if(isnan(beta_m)) {
+          beta_m = INFINITY;
+          fprintf(stderr, "Setting INF beta!\n");
+        }
+#endif
         if (ELECTRONS == 1) {
           data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
         } else if (ELECTRONS == 2) {
@@ -511,6 +523,15 @@ void init_physical_quantities(int n)
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
         data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
+#if DEBUG
+        if(isnan(data[n]->thetae[i][j][k])) {
+          data[n]->thetae[i][j][k] = 0.0;
+          fprintf(stderr, "\nZero Thetae!  Prims %g %g %g %g %g %g %g %g\n", data[n]->p[KRHO][i][j][k], data[n]->p[UU][i][j][k],
+                  data[n]->p[U1][i][j][k], data[n]->p[U2][i][j][k], data[n]->p[U3][i][j][k], data[n]->p[B1][i][j][k],
+                  data[n]->p[B2][i][j][k], data[n]->p[B3][i][j][k]);
+          fprintf(stderr, "Setting zero temp!\n");
+        }
+#endif
 
         // Preserve sigma for cutting along geodesics, and for variable-kappa model
         data[n]->sigma[i][j][k] = sigma_m;
