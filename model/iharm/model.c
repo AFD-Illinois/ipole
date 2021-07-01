@@ -409,6 +409,7 @@ double get_model_thetae(double X[NDIM])
   double tfac = set_tinterp_ns(X, &nA, &nB);
   double thetae = interp_scalar_time(X, data[nA]->thetae, data[nB]->thetae, tfac);
 
+#if DEBUG
   if (thetae < 0. || isnan(thetae)) {
     printf("thetae negative or NaN!\n");
     printf("X[] = %g %g %g %g\n", X[0], X[1], X[2], X[3]);
@@ -418,6 +419,7 @@ double get_model_thetae(double X[NDIM])
     printf("thetaeA, thetaeB = ", thetaeA, thetaeB);
     printf("thetae, tfac = %e %e\n", thetae, tfac);
   }
+#endif
 
   return thetae;
 }
