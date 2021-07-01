@@ -1,7 +1,7 @@
 # example.par -- ipole example parameter file for iharm problem
 
 # Common
-dump /home/bprather/Analysis/samples/iharm3d/SANE_a+0.94_288_0900_MKS.h5
+dump tests/test-resources/sample_dump_SANE_a+0.94_MKS_0900.h5
 outfile image.h5
 nx 160
 ny 160
