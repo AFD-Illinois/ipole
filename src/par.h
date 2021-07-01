@@ -28,6 +28,7 @@ typedef struct params_t {
   int qu_conv;          // Convention for Stokes Q,U.  0 (default) -> East of North (observer).  1 -> North of West
   int quench_output;    // Quench output, i.e. "quench" argument
   int only_unpolarized; // Unpolarized transport only
+  int perform_check;    // Output check & recheck images
 
   // Which e- energy distributions/emissivities to use
   int emission_type;

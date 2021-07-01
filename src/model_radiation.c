@@ -16,6 +16,7 @@
 #include "radiation.h"
 #include "coordinates.h"
 #include "geometry.h"
+#include "grid.h"
 #include "debug_tools.h"
 #include "par.h"
 #include "decs.h"
@@ -184,9 +185,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
 #if DEBUG
   if (isnan(Ucov[0])) {
-    void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
-    int i,j,k;
-    double del[4];
+    int i = 0, j = 0, k = 0;
+    double del[4] = {0};
     Xtoijk(X, &i,&j,&k, del);
     fprintf(stderr, "UCOV[0] (%d,%d,%d) is nan! thread = %i\n", i,j,k, omp_get_thread_num());
     print_vector("Ucon", Ucon);
