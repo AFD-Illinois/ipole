@@ -266,7 +266,7 @@ void init_model(double *tA, double *tB)
   update_data(tA, tB);
   tf = get_dump_t(fnam, dumpmax) - 1.e-5;
   #else // FAST LIGHT
-  data[2]->t =10000.;
+  data[2]->t = 10000.;
   #endif // SLOW_LIGHT
 
   // horizon radius
@@ -349,19 +349,12 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   // Set Ucon and get Ucov by lowering
 
   // interpolate primitive variables first
-  double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
   double Vcon[NDIM];
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  U1A = interp_scalar(X, data[nA]->p[U1]);
-  U2A = interp_scalar(X, data[nA]->p[U2]);
-  U3A = interp_scalar(X, data[nA]->p[U3]);
-  U1B = interp_scalar(X, data[nB]->p[U1]);
-  U2B = interp_scalar(X, data[nB]->p[U2]);
-  U3B = interp_scalar(X, data[nB]->p[U3]);
-  Vcon[1] = tfac*U1A + (1. - tfac)*U1B;
-  Vcon[2] = tfac*U2A + (1. - tfac)*U2B;
-  Vcon[3] = tfac*U3A + (1. - tfac)*U3B;
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+  Vcon[1] = interp_scalar_time(X, data[nA]->p[U1], data[nB]->p[U1], tfac);
+  Vcon[2] = interp_scalar_time(X, data[nA]->p[U2], data[nB]->p[U2], tfac);
+  Vcon[3] = interp_scalar_time(X, data[nA]->p[U3], data[nB]->p[U3], tfac);
 
   // translate to four velocity
   double VdotV = 0.;
@@ -379,17 +372,9 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   // Now set Bcon and get Bcov by lowering
 
   // interpolate primitive variables first
-  double B1A, B2A, B3A, B1B, B2B, B3B, Bcon1, Bcon2, Bcon3;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  B1A = interp_scalar(X, data[nA]->p[B1]);
-  B2A = interp_scalar(X, data[nA]->p[B2]);
-  B3A = interp_scalar(X, data[nA]->p[B3]);
-  B1B = interp_scalar(X, data[nB]->p[B1]);
-  B2B = interp_scalar(X, data[nB]->p[B2]);
-  B3B = interp_scalar(X, data[nB]->p[B3]);
-  Bcon1 = tfac*B1A + (1. - tfac)*B1B;
-  Bcon2 = tfac*B2A + (1. - tfac)*B2B;
-  Bcon3 = tfac*B3A + (1. - tfac)*B3B;
+  double Bcon1 = interp_scalar_time(X, data[nA]->p[B1], data[nB]->p[B1], tfac);
+  double Bcon2 = interp_scalar_time(X, data[nA]->p[B2], data[nB]->p[B2], tfac);
+  double Bcon3 = interp_scalar_time(X, data[nA]->p[B3], data[nB]->p[B3], tfac);
 
   // get Bcon
   Bcon[0] = Bcon1*Ucov[1] + Bcon2*Ucov[2] + Bcon3*Ucov[3];
@@ -408,14 +393,11 @@ void get_model_primitives(double X[NDIM], double *p)
 {
   if ( X_in_domain(X) == 0 ) return;
 
-  double bA, bB, tfac;
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
+  double tfac = set_tinterp_ns(X, &nA, &nB);
 
   for (int np=0; np<8; np++) {
-    bA = interp_scalar(X, data[nA]->p[np]);
-    bB = interp_scalar(X, data[nB]->p[np]);
-    p[np] = tfac*bA + (1. - tfac)*bB;
+    p[np] = interp_scalar_time(X, data[nA]->p[np], data[nA]->p[np], tfac);
   }
 }
 
@@ -423,24 +405,18 @@ double get_model_thetae(double X[NDIM])
 {
   if ( X_in_domain(X) == 0 ) return 0.;
   
-  double thetaeA, thetaeB, tfac;
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  thetaeA = interp_scalar(X, data[nA]->thetae);
-  thetaeB = interp_scalar(X, data[nB]->thetae);
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+  double thetae = interp_scalar_time(X, data[nA]->thetae, data[nB]->thetae, tfac);
 
-  double thetae = tfac*thetaeA + (1. - tfac)*thetaeB;
   if (thetae < 0.) {
     printf("thetae negative!\n");
     printf("X[] = %g %g %g %g\n", X[0], X[1], X[2], X[3]);
     printf("t = %e %e %e\n", data[0]->t, data[1]->t, data[2]->t);
-    printf("thetae = %e tfac = %e thetaeA = %e thetaeB = %e nA = %i nB = %i\n",
-    thetae, tfac, thetaeA, thetaeB, nA, nB);
+    printf("thetae = %e\n", thetae);
   }
 
-  if (thetaeA < 0 || thetaeB < 0) fprintf(stderr, "TETE %g %g\n", thetaeA, thetaeB);
-
-  return tfac*thetaeA + (1. - tfac)*thetaeB;
+  return thetae;
 }
 
 //b field strength in Gauss
@@ -449,25 +425,20 @@ double get_model_b(double X[NDIM])
   // TODO how *should* we handle exiting the domain consistently?
   if ( X_in_domain(X) == 0 ) return 0.;
   
-  double bA, bB, tfac;
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  bA = interp_scalar(X, data[nA]->b);
-  bB = interp_scalar(X, data[nB]->b);
+  double tfac = set_tinterp_ns(X, &nA, &nB);
 
-  return tfac*bA + (1. - tfac)*bB;
+  return interp_scalar_time(X, data[nA]->b, data[nB]->b, tfac);
 }
 
 double get_model_sigma(double X[NDIM]) 
 {
   if ( X_in_domain(X) == 0 ) return 0.;
 
-  double sigmaA, sigmaB, tfac;
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  sigmaA = interp_scalar(X, data[nA]->sigma);
-  sigmaB = interp_scalar(X, data[nB]->sigma);
-  return tfac*sigmaA + (1. - tfac)*sigmaB;
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+
+  return interp_scalar_time(X, data[nA]->sigma, data[nB]->sigma, tfac);
 }
 
 double get_model_beta(double X[NDIM]) 
@@ -491,12 +462,10 @@ double get_model_ne(double X[NDIM])
   if (sigma > sigma_cut) return 0.;
 #endif
 
-  double neA, neB, tfac;
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  neA = interp_scalar(X, data[nA]->ne);
-  neB = interp_scalar(X, data[nB]->ne);
-  return tfac*neA + (1. - tfac)*neB;
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+
+  return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac);
 }
 
 void set_units()
@@ -1040,7 +1009,7 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   hsize_t fstart[] = { 0 };
   hsize_t fcount[] = { N1 * N2 * N3 };
 
-  double *buffer = malloc(N1*N2*N3 * sizeof(*buffer));
+  double *buffer = calloc(N1*N2*N3, sizeof(*buffer));
 
   hdf5_read_array(buffer, "RHO", 1, fdims, fstart, fcount, fdims, fstart, H5T_IEEE_F64LE);
   remap_hamr(buffer, data[n]->p[KRHO], N1, N2, N3, 1);
