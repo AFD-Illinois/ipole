@@ -416,7 +416,7 @@ double get_model_thetae(double X[NDIM])
     printf("t = %e %e %e\n", data[0]->t, data[1]->t, data[2]->t);
     double thetaeA = interp_scalar(X, data[nA]->thetae);
     double thetaeB = interp_scalar(X, data[nB]->thetae);
-    printf("thetaeA, thetaeB = ", thetaeA, thetaeB);
+    printf("thetaeA, thetaeB = %e %e", thetaeA, thetaeB);
     printf("thetae, tfac = %e %e\n", thetae, tfac);
   }
 #endif
