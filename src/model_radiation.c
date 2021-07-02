@@ -250,9 +250,9 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       fprintf(stderr, "Negative total emissivity! Exiting!\n");
       exit(-1);
     }
-    if (*jI * *jI < *jQ * *jQ + *jU * *jU + *jV * *jV) {
+    double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
+    if (*jI  < jP/max_pol_frac_e) {
       // Transport does not like 100% polarization...
-      double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
       double pol_frac_e = *jI / jP * max_pol_frac_e;
       *jQ *= pol_frac_e;
       *jU *= pol_frac_e;
@@ -289,9 +289,9 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
         fprintf(stderr, "Negative total absorptivity! Exiting!\n");
         exit(-1);
       }
-      if (*aI * *aI < *aQ * *aQ + *aU * *aU + *aV * *aV) {
+      double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
+      if (*aI < aP/max_pol_frac_a) {
         // Transport does not like 100% polarization...
-        double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
         double pol_frac_a = *aI / aP * max_pol_frac_a;
         *aQ *= pol_frac_a;
         *aU *= pol_frac_a;
