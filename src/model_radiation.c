@@ -16,6 +16,7 @@
 #include "radiation.h"
 #include "coordinates.h"
 #include "geometry.h"
+#include "grid.h"
 #include "debug_tools.h"
 #include "par.h"
 #include "decs.h"
@@ -39,6 +40,11 @@
 #define ROT_SHCHERBAKOV 13
 // Debugging
 #define E_UNPOL         15
+
+// Local functions for declaring different kappa/powerlaw distributions
+void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
+                             double *gamma_min, double *gamma_max, double *gamma_cut);
+void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width);
 
 // Declarations of local fitting functions, for Dexter fits and old rotativities
 void dexter_j_fit_thermal(double Ne, double nu, double Thetae, double B, double theta,
@@ -69,22 +75,26 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 /**
  * Optionally load radiation model parameters
  */
-static double model_kappa = 0;
+static double model_kappa = 3.5;
 static double powerlaw_gamma_cut = 1e10;
 static double powerlaw_gamma_min = 1e2;
 static double powerlaw_gamma_max = 1e5;
 static double powerlaw_p = 3.25;
+static double powerlaw_eta = 0.02;
+static int variable_kappa = 0;
 static double max_pol_frac_e = 0.99;
 static double max_pol_frac_a = 0.99;
 
 void try_set_radiation_parameter(const char *word, const char *value)
 {
   set_by_word_val(word, value, "kappa", &model_kappa, TYPE_DBL);
+  set_by_word_val(word, value, "variable_kappa", &variable_kappa, TYPE_INT);
 
   set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
+  set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
 
   set_by_word_val(word, value, "max_pol_frac_e", &powerlaw_p, TYPE_DBL);
   set_by_word_val(word, value, "max_pol_frac_a", &powerlaw_p, TYPE_DBL);
@@ -144,7 +154,6 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
  * 10. Pass through model-determined values. Currently used for constant-coefficient testing.
  * 11. Emulate original ipole, with Dexter 2016 emissivities and rotativities based on Bessel fits
  * 12. Emulate the old ipole temporary fix, with Dexter 2016 emissivities and rotativities patched into the constant limit
- * 
  */
 void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
@@ -184,9 +193,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
 #if DEBUG
   if (isnan(Ucov[0])) {
-    void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
-    int i,j,k;
-    double del[4];
+    int i = 0, j = 0, k = 0;
+    double del[4] = {0};
     Xtoijk(X, &i,&j,&k, del);
     fprintf(stderr, "UCOV[0] (%d,%d,%d) is nan! thread = %i\n", i,j,k, omp_get_thread_num());
     print_vector("Ucon", Ucon);
@@ -213,8 +221,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     setConstParams(&paramsM);
     fit = paramsM.KAPPA_DIST;
     Thetae = get_model_thetae(X);
-    kappa = model_kappa;
-    kappa_width = (kappa - 3.) / kappa * Thetae;
+    get_model_kappa(X, &kappa, &kappa_width);
     break;
   case E_POWERLAW:
     setConstParams(&paramsM);
@@ -315,10 +322,10 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
     piecewise_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
   } else if (dist == ROT_OLD) { // Old incorrect distribution, for compatibility
     old_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-  } else if (dist == E_DEXTER_THERMAL) { // Dexter rQ, Shcherbakov rV
+  } else if (dist == E_DEXTER_THERMAL || dist == E_THERMAL) { // Dexter rQ, Shcherbakov rV
     // TODO All-Dexter default option w/Taylor series, make this compat 
     shcherbakov_rho_fit(Ne, nu, Thetae, B, theta, rQ, rU, rV);
-  } else { // TODO Fix Symphony, these are currently equal to ROT_OLD
+  } else { // TODO Fix Symphony thermal!!!, these are currently equal to ROT_OLD
     *rQ = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_Q, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     *rU = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_U, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
     *rV = rho_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_V, Thetae, powerlaw_p, gamma_min, gamma_max, gamma_cut, kappa, kappa_width);
@@ -344,6 +351,165 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   }
 #endif
 }
+
+/*
+ * get the invariant emissivity and opacity at a given position for a given wavevector
+ */
+void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv, Params *params)
+{
+  if (params->emission_type == E_CUSTOM) {
+    get_model_jk(X, Kcon, jnuinv, knuinv);
+  } else {
+    double nu, theta, B, Thetae, Ne, Bnuinv;
+    double Ucov[NDIM], Ucon[NDIM], Bcon[NDIM], Bcov[NDIM];
+
+    /* get fluid parameters */
+    Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
+    if (Ne == 0.) {
+      *jnuinv = 0.;
+      *knuinv = 0.;
+      return;
+    }
+
+    /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
+    get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+    theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
+    // No emission along field
+    if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
+      *jnuinv = 0.;
+      *knuinv = 0.;
+      return;
+    }
+
+    // Only compute these if we must
+    B = get_model_b(X);		/* field in G */
+    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
+    nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
+
+    // TODO: could be cleaner here
+    struct parameters paramsM;
+    int fit;
+    double kappa, kappa_width;
+
+    if (params->emission_type == E_KAPPA) {
+
+      setConstParams(&paramsM);
+      fit = paramsM.KAPPA_DIST;
+
+      get_model_kappa(X, &kappa, &kappa_width);
+
+      *jnuinv = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, 
+                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut, 
+                        kappa, kappa_width) / nu/nu;
+      *knuinv = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, 
+                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut, 
+                        kappa, kappa_width) * nu;
+
+    } else if (params->emission_type == E_POWERLAW) {
+
+      setConstParams(&paramsM);
+      fit = paramsM.POWER_LAW;
+
+      get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &powerlaw_gamma_min, &powerlaw_gamma_max, &powerlaw_gamma_cut);
+
+      *jnuinv = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae,
+                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut,
+                        kappa, kappa_width) / nu/nu;
+      *knuinv = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae,
+                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut,
+                        kappa, kappa_width) * nu * exp(-nu / 5.e13); // nu_cutoff = 5.e13
+
+    } else {
+
+      /* assume emission is thermal */
+      Bnuinv = Bnu_inv(nu, Thetae);
+      *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
+
+      if (Bnuinv < SMALL) {
+        *knuinv = SMALL;
+      } else {
+        *knuinv = *jnuinv / Bnuinv;
+      }
+
+    }
+    // Enforce j >= 0, k >= 0 just like in polarized emission.
+    if (*jnuinv < 0) {
+      *jnuinv = 0;
+    }
+    if (*knuinv < 0) {
+      *knuinv = 0;
+    }
+
+#if DEBUG
+    if (isnan(*jnuinv) || isnan(*knuinv)) {
+      fprintf(stderr, "\nisnan get_jkinv\n");
+      fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
+          Ne, theta, nu, B, Thetae, Bnuinv);
+    }
+#endif
+
+    // TODO put this outside, in integrate_emission or similar
+    if (params->isolate_counterjet == 1) { // Emission from X[2] > midplane only
+      if (X[2] < (cstopx[2] - cstartx[2]) / 2) {
+        *jnuinv = 0.;
+      }
+    } else if (params->isolate_counterjet == 2) { // Emission from X[2] < midplane only
+      if (X[2] > (cstopx[2] - cstartx[2]) / 2) {
+        *jnuinv = 0.;
+      }
+    }
+  }
+}
+
+// SUPPORTING FUNCTIONS
+
+/*
+ * Get values for the powerlaw distribution:
+ * power & cutoffs from parameters, plus number density of nonthermals
+ */
+void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
+                             double *gamma_min, double *gamma_max, double *gamma_cut)
+{
+  *gamma_min = powerlaw_gamma_min;
+  *gamma_max = powerlaw_gamma_max;
+  *gamma_cut = powerlaw_gamma_cut;
+  *p = powerlaw_p;
+
+  double b = get_model_b(X);
+  double u_nth = powerlaw_eta*b*b/2;
+  // Number density of nonthermals
+  *n = u_nth * (*p - 2)/(*p - 1) * 1/(ME * CL*CL * *gamma_min);
+}
+
+/*
+ * Get values kappa, kappa_width for the kappa distribution emissivities
+ * Optionally variable over the domain based on sigma and beta
+ */
+void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width) {
+
+  if (variable_kappa) {
+    double sigma = get_model_sigma(X);
+    double beta = get_model_beta(X);
+    *kappa = model_kappa; // INSERT VARIABLE KAPPA HERE
+#if DEBUG
+    //fprintf(stderr, "sigma, beta -> kappa %g %g -> %g\n", sigma, beta, *kappa);
+#endif
+  } else {
+    *kappa = model_kappa;
+  }
+
+  double Thetae = get_model_thetae(X);
+  *kappa_width = (*kappa - 3.) / *kappa * Thetae;
+#if DEBUG
+  if (isnan(*kappa_width) || isnan(*kappa)) {
+    fprintf(stderr, "NaN kappa val! kappa, kappa_width, Thetae: %g %g %g\n", *kappa, *kappa_width, Thetae);
+  }
+#endif
+}
+
+
+
+// POLARIZED FITS
 
 /*
  * emissivity functions and functions used for Faraday conversion and rotation
@@ -510,109 +676,7 @@ double besselk_asym(int n, double x)
   exit(1);
 }
 
-// UNPOLARIZED VERSIONS
-
-/*
- * get the invariant emissivity and opacity at a given position for a given wavevector
- */
-void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv, Params *params)
-{
-  if (params->emission_type == E_CUSTOM) {
-    get_model_jk(X, Kcon, jnuinv, knuinv);
-  } else {
-    double nu, theta, B, Thetae, Ne, Bnuinv;
-    double Ucov[NDIM], Ucon[NDIM], Bcon[NDIM], Bcov[NDIM];
-
-    /* get fluid parameters */
-    Ne = get_model_ne(X);	/* check to see if we're outside fluid model */
-    if (Ne == 0.) {
-      *jnuinv = 0.;
-      *knuinv = 0.;
-      return;
-    }
-
-    /* get covariant four-velocity of fluid for use in get_bk_angle and get_fluid_nu */
-    get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
-    theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);	/* angle between k & b */
-    // No emission along field
-    if (theta <= 0. || theta >= M_PI) {	/* no emission along field */
-      *jnuinv = 0.;
-      *knuinv = 0.;
-      return;
-    }
-
-    // Only compute these if we must
-    B = get_model_b(X);		/* field in G */
-    Thetae = get_model_thetae(X);	/* temp in e rest-mass units */
-    nu = get_fluid_nu(Kcon, Ucov);	 /* freq in Hz */
-
-    // TODO: could be cleaner here
-    struct parameters paramsM;
-    int fit;
-    double kappa, kappa_width;
-
-    if (params->emission_type == E_KAPPA) {
-
-      setConstParams(&paramsM);
-      fit = paramsM.KAPPA_DIST;
-
-      kappa = model_kappa;
-      kappa_width = (kappa - 3.) / kappa * Thetae;
-
-      *jnuinv = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, 
-                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut, 
-                        kappa, kappa_width) / nu/nu;
-      *knuinv = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae, 
-                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut, 
-                        kappa, kappa_width) * nu;
-
-    } else if (params->emission_type == E_POWERLAW) {
-
-      setConstParams(&paramsM);
-      fit = paramsM.POWER_LAW;
-
-      get_model_powerlaw_vals(X, &powerlaw_p, &Ne, &powerlaw_gamma_min, &powerlaw_gamma_max, &powerlaw_gamma_cut);
-
-      *jnuinv = j_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae,
-                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut,
-                        kappa, kappa_width) / nu/nu;
-      *knuinv = alpha_nu_fit(nu, B, Ne, theta, fit, paramsM.STOKES_I, Thetae,
-                        powerlaw_p, powerlaw_gamma_min, powerlaw_gamma_max, powerlaw_gamma_cut,
-                        kappa, kappa_width) * nu * exp(-nu / 5.e13); // nu_cutoff = 5.e13
-
-    } else {
-
-      /* assume emission is thermal */
-      Bnuinv = Bnu_inv(nu, Thetae);
-      *jnuinv = jnu_inv(nu, Thetae, Ne, B, theta);
-
-      if (Bnuinv < SMALL) {
-        *knuinv = SMALL;
-      } else {
-        *knuinv = *jnuinv / Bnuinv;
-      }
-
-    }
-
-#if DEBUG
-    if (isnan(*jnuinv) || isnan(*knuinv)) {
-      fprintf(stderr, "\nisnan get_jkinv\n");
-      fprintf(stderr, ">> %g %g %g %g %g %g %g %g\n", *jnuinv, *knuinv,
-          Ne, theta, nu, B, Thetae, Bnuinv);
-    }
-#endif
-
-    if (params->isolate_counterjet == 1) { // Emission from X[2] > midplane only
-      if (X[2] < (cstopx[2] - cstartx[2]) / 2) {
-        *jnuinv = 0.;
-      }
-    } else if (params->isolate_counterjet == 2) { // Emission from X[2] < midplane only
-      if (X[2] > (cstopx[2] - cstartx[2]) / 2) {
-        *jnuinv = 0.;
-      }
-    }
-  }
-}
+// UNPOLARIZED FITS
 
 /*
  * thermal synchrotron emissivity

@@ -46,12 +46,6 @@ static double tp_over_te = 3.;
 static double trat_small = 1.;
 static double trat_large = 40.;
 
-static double powerlaw_gamma_min = 1e2;
-static double powerlaw_gamma_max = 1e5;
-static double powerlaw_gamma_cut = 1e10;
-static double powerlaw_eta = 0.02;
-static double powerlaw_p = 3.25;
-
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
 static double MBH_solar = 6.2e9;
@@ -89,6 +83,7 @@ struct of_data {
   double ***thetae;
   double ***b;
   double ***sigma;
+  double ***beta;
 };
 static struct of_data dataA, dataB, dataC;
 static struct of_data *data[NSUP];
@@ -121,13 +116,6 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
-
-  // TODO: figure out how to make consistent with model_radiation.c
-  set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
@@ -281,7 +269,7 @@ void init_model(double *tA, double *tB)
   update_data(tA, tB);
   tf = get_dump_t(fnam, dumpmax) - 1.e-5;
   #else // FAST LIGHT
-  data[2]->t =10000.;
+  data[2]->t = 10000.;
   #endif // SLOW_LIGHT
 
   // horizon radius
@@ -364,19 +352,12 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   // Set Ucon and get Ucov by lowering
 
   // interpolate primitive variables first
-  double U1A, U2A, U3A, U1B, U2B, U3B, tfac;
   double Vcon[NDIM];
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  U1A = interp_scalar(X, data[nA]->p[U1]);
-  U2A = interp_scalar(X, data[nA]->p[U2]);
-  U3A = interp_scalar(X, data[nA]->p[U3]);
-  U1B = interp_scalar(X, data[nB]->p[U1]);
-  U2B = interp_scalar(X, data[nB]->p[U2]);
-  U3B = interp_scalar(X, data[nB]->p[U3]);
-  Vcon[1] = tfac*U1A + (1. - tfac)*U1B;
-  Vcon[2] = tfac*U2A + (1. - tfac)*U2B;
-  Vcon[3] = tfac*U3A + (1. - tfac)*U3B;
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+  Vcon[1] = interp_scalar_time(X, data[nA]->p[U1], data[nB]->p[U1], tfac);
+  Vcon[2] = interp_scalar_time(X, data[nA]->p[U2], data[nB]->p[U2], tfac);
+  Vcon[3] = interp_scalar_time(X, data[nA]->p[U3], data[nB]->p[U3], tfac);
 
   // translate to four velocity
   double VdotV = 0.;
@@ -394,17 +375,9 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   // Now set Bcon and get Bcov by lowering
 
   // interpolate primitive variables first
-  double B1A, B2A, B3A, B1B, B2B, B3B, Bcon1, Bcon2, Bcon3;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  B1A = interp_scalar(X, data[nA]->p[B1]);
-  B2A = interp_scalar(X, data[nA]->p[B2]);
-  B3A = interp_scalar(X, data[nA]->p[B3]);
-  B1B = interp_scalar(X, data[nB]->p[B1]);
-  B2B = interp_scalar(X, data[nB]->p[B2]);
-  B3B = interp_scalar(X, data[nB]->p[B3]);
-  Bcon1 = tfac*B1A + (1. - tfac)*B1B;
-  Bcon2 = tfac*B2A + (1. - tfac)*B2B;
-  Bcon3 = tfac*B3A + (1. - tfac)*B3B;
+  double Bcon1 = interp_scalar_time(X, data[nA]->p[B1], data[nB]->p[B1], tfac);
+  double Bcon2 = interp_scalar_time(X, data[nA]->p[B2], data[nB]->p[B2], tfac);
+  double Bcon3 = interp_scalar_time(X, data[nA]->p[B3], data[nB]->p[B3], tfac);
 
   // get Bcon
   Bcon[0] = Bcon1*Ucov[1] + Bcon2*Ucov[2] + Bcon3*Ucov[3];
@@ -423,14 +396,11 @@ void get_model_primitives(double X[NDIM], double *p)
 {
   if ( X_in_domain(X) == 0 ) return;
 
-  double bA, bB, tfac;
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
+  double tfac = set_tinterp_ns(X, &nA, &nB);
 
   for (int np=0; np<8; np++) {
-    bA = interp_scalar(X, data[nA]->p[np]);
-    bB = interp_scalar(X, data[nB]->p[np]);
-    p[np] = tfac*bA + (1. - tfac)*bB;
+    p[np] = interp_scalar_time(X, data[nA]->p[np], data[nA]->p[np], tfac);
   }
 }
 
@@ -438,24 +408,23 @@ double get_model_thetae(double X[NDIM])
 {
   if ( X_in_domain(X) == 0 ) return 0.;
   
-  double thetaeA, thetaeB, tfac;
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  thetaeA = interp_scalar(X, data[nA]->thetae);
-  thetaeB = interp_scalar(X, data[nB]->thetae);
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+  double thetae = interp_scalar_time(X, data[nA]->thetae, data[nB]->thetae, tfac);
 
-  double thetae = tfac*thetaeA + (1. - tfac)*thetaeB;
-  if (thetae < 0.) {
-    printf("thetae negative!\n");
+#if DEBUG
+  if (thetae < 0. || isnan(thetae)) {
+    printf("thetae negative or NaN!\n");
     printf("X[] = %g %g %g %g\n", X[0], X[1], X[2], X[3]);
     printf("t = %e %e %e\n", data[0]->t, data[1]->t, data[2]->t);
-    printf("thetae = %e tfac = %e thetaeA = %e thetaeB = %e nA = %i nB = %i\n",
-    thetae, tfac, thetaeA, thetaeB, nA, nB);
+    double thetaeA = interp_scalar(X, data[nA]->thetae);
+    double thetaeB = interp_scalar(X, data[nB]->thetae);
+    printf("thetaeA, thetaeB = %e %e", thetaeA, thetaeB);
+    printf("thetae, tfac = %e %e\n", thetae, tfac);
   }
+#endif
 
-  if (thetaeA < 0 || thetaeB < 0) fprintf(stderr, "TETE %g %g\n", thetaeA, thetaeB);
-
-  return tfac*thetaeA + (1. - tfac)*thetaeB;
+  return thetae;
 }
 
 //b field strength in Gauss
@@ -464,25 +433,32 @@ double get_model_b(double X[NDIM])
   // TODO how *should* we handle exiting the domain consistently?
   if ( X_in_domain(X) == 0 ) return 0.;
   
-  double bA, bB, tfac;
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  bA = interp_scalar(X, data[nA]->b);
-  bB = interp_scalar(X, data[nB]->b);
+  double tfac = set_tinterp_ns(X, &nA, &nB);
 
-  return tfac*bA + (1. - tfac)*bB;
+  return interp_scalar_time(X, data[nA]->b, data[nB]->b, tfac);
 }
 
 double get_model_sigma(double X[NDIM]) 
 {
   if ( X_in_domain(X) == 0 ) return 0.;
 
-  double sigmaA, sigmaB, tfac;
+  int nA, nB;
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+
+  return interp_scalar_time(X, data[nA]->sigma, data[nB]->sigma, tfac);
+}
+
+double get_model_beta(double X[NDIM]) 
+{
+  if ( X_in_domain(X) == 0 ) return 0.;  // TODO inf?
+
+  double betaA, betaB, tfac;
   int nA, nB;
   tfac = set_tinterp_ns(X, &nA, &nB);
-  sigmaA = interp_scalar(X, data[nA]->sigma);
-  sigmaB = interp_scalar(X, data[nB]->sigma);
-  return tfac*sigmaA + (1. - tfac)*sigmaB;
+  betaA = interp_scalar(X, data[nA]->beta);
+  betaB = interp_scalar(X, data[nB]->beta);
+  return tfac*betaA + (1. - tfac)*betaB;
 }
 
 double get_model_ne(double X[NDIM])
@@ -494,12 +470,10 @@ double get_model_ne(double X[NDIM])
   if (sigma > sigma_cut) return 0.;
 #endif
 
-  double neA, neB, tfac;
   int nA, nB;
-  tfac = set_tinterp_ns(X, &nA, &nB);
-  neA = interp_scalar(X, data[nA]->ne);
-  neB = interp_scalar(X, data[nB]->ne);
-  return tfac*neA + (1. - tfac)*neB;
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+
+  return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac);
 }
 
 void set_units()
@@ -530,12 +504,21 @@ void init_physical_quantities(int n)
         bsq = bsq*bsq;
 
         double sigma_m = bsq/data[n]->p[KRHO][i][j][k];
-
+        double beta_m = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
+#if DEBUG
+        if(isnan(sigma_m)) {
+          sigma_m = 0;
+          fprintf(stderr, "Setting zero sigma!\n");
+        }
+        if(isnan(beta_m)) {
+          beta_m = INFINITY;
+          fprintf(stderr, "Setting INF beta!\n");
+        }
+#endif
         if (ELECTRONS == 1) {
           data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
         } else if (ELECTRONS == 2) {
-          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-          double betasq = beta*beta / beta_crit/beta_crit;
+          double betasq = beta_m*beta_m / beta_crit/beta_crit;
           double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
           //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
           // see, e.g., Eq. 8 of the EHT GRRT formula list
@@ -545,9 +528,23 @@ void init_physical_quantities(int n)
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
         data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
+#if DEBUG
+        if(isnan(data[n]->thetae[i][j][k])) {
+          data[n]->thetae[i][j][k] = 0.0;
+          fprintf(stderr, "\nZero Thetae!  Prims %g %g %g %g %g %g %g %g\n", data[n]->p[KRHO][i][j][k], data[n]->p[UU][i][j][k],
+                  data[n]->p[U1][i][j][k], data[n]->p[U2][i][j][k], data[n]->p[U3][i][j][k], data[n]->p[B1][i][j][k],
+                  data[n]->p[B2][i][j][k], data[n]->p[B3][i][j][k]);
+          fprintf(stderr, "Setting zero temp!\n");
+        }
+#endif
 
-        //strongly magnetized = empty, no shiny spine
-        data[n]->sigma[i][j][k] = sigma_m;  // allow sigma cut per geodesic step
+        // Preserve sigma for cutting along geodesics, and for variable-kappa model
+        data[n]->sigma[i][j][k] = sigma_m;
+        // Also record beta, for variable-kappa model
+        data[n]->beta[i][j][k] = beta_m;
+
+        // Cut Ne (i.e. emission) based on sigma, if we're not doing so along each geodesic
+        // Strongly magnetized = empty, no shiny spine
         if (sigma_m > sigma_cut && !USE_GEODESIC_SIGMACUT) {
           data[n]->b[i][j][k]=0.0;
           data[n]->ne[i][j][k]=0.0;
@@ -568,6 +565,7 @@ void init_storage(void)
     data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->b = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->sigma = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->beta = malloc_rank3(N1+2,N2+2,N3+2);
   }
 }
 
@@ -968,7 +966,7 @@ void populate_boundary_conditions(int n)
   for (int i=0; i<N1+2; ++i) {
     for (int k=1; k<N3+1; ++k) {
       if (N3%2 == 0) {
-        int kflip = ( k + (N3/2) ) % N3;
+        int kflip = ( (k - 1) + (N3/2) ) % N3 + 1;
         for (int l=0; l<NVAR; ++l) {
           data[n]->p[l][i][0][k] = data[n]->p[l][i][1][kflip];
           data[n]->p[l][i][N2+1][k] = data[n]->p[l][i][N2][kflip];
@@ -1037,7 +1035,7 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   hsize_t fstart[] = { 0 };
   hsize_t fcount[] = { N1 * N2 * N3 };
 
-  double *buffer = malloc(N1*N2*N3 * sizeof(*buffer));
+  double *buffer = calloc(N1*N2*N3, sizeof(*buffer));
 
   hdf5_read_array(buffer, "RHO", 1, fdims, fstart, fcount, fdims, fstart, H5T_IEEE_F64LE);
   remap_hamr(buffer, data[n]->p[KRHO], N1, N2, N3, 1);
@@ -1423,20 +1421,6 @@ int radiating_region(double X[NDIM])
   double r, th;
   bl_coord(X, &r, &th);
   return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg));
-}
-
-void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
-                             double *gamma_min, double *gamma_max, double *gamma_cut)
-{
-  *gamma_min = powerlaw_gamma_min;
-  *gamma_max = powerlaw_gamma_max;
-  *gamma_cut = powerlaw_gamma_cut;
-  *p = powerlaw_p;
-
-  double b = get_model_b(X);
-  double u_nth = powerlaw_eta*b*b/2;
-  // Number density of nonthermals
-  *n = u_nth * (*p - 2)/(*p - 1) * 1/(ME * CL*CL * *gamma_min);
 }
 
 // In case we want to mess with emissivities directly

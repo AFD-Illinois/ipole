@@ -37,8 +37,8 @@ void read_restart(const char *fname, double *tA, double *tB, double *last_img_ta
   hdf5_read_single_val(nimg, "nimg", H5T_STD_I32LE);
   hdf5_read_single_val(nopenimgs, "nopenimgs", H5T_STD_I32LE);
 
-  int *tint = malloc(s2 * sizeof(*tint));
-  double *tdbl = malloc(s2 * sizeof(*tdbl));
+  int *tint = calloc(s2, sizeof(*tint));
+  double *tdbl = calloc(s2, sizeof(*tdbl));
 
   for (int i=0; i<nconcurrentimgs; ++i) {
     tdbl[i] = target_times[i];
@@ -104,8 +104,8 @@ void write_restart(const char *fname, double tA, double tB, double last_img_targ
   hdf5_make_directory("dimg");
   hdf5_set_directory("/dimg/");
   // save dimg struct
-  int *tint = malloc(s2 * sizeof(*tint));
-  double *tdbl = malloc(s2 * sizeof(*tdbl));
+  int *tint = calloc(s2, sizeof(*tint));
+  double *tdbl = calloc(s2, sizeof(*tdbl));
 
   for (int i=0; i<s2; ++i) tint[i] = dimages[i].nstep;
   hdf5_write_full_array(tint, "nstep", 1, dims, H5T_STD_I32LE);
@@ -189,10 +189,48 @@ void write_header(double scale, double cam[NDIM],
   output_hdf5();
 }
 
+void dump_check(double image[], double imageS[], double taus[], Params *params, int skip)
+{
+  int unpol = params->only_unpolarized;
+
+  size_t nx = params->nx;
+  size_t ny = params->ny;
+
+  if (access(params->outf, F_OK) != -1) {
+    hdf5_append(params->outf);
+  } else {
+    fprintf(stderr, "oh no :(\nno file to check.\n\n");
+    return;
+  }
+
+  hsize_t unpol_mdim[2] = {nx, ny};
+  hsize_t pol_mdim[3] = {nx, ny, NIMG};
+  hsize_t unpol_fdim[2] = { (int)ceil(nx/skip), (int)ceil(ny/skip) };
+  hsize_t pol_fdim[3] = { (int)ceil(nx/skip), (int)ceil(ny/skip), NIMG };
+  hsize_t unpol_start[2] = {0, 0};
+  hsize_t pol_start[3] = {0, 0, 0};
+
+  hdf5_write_array(image, "unpol_check", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_start, H5T_IEEE_F64LE);
+  hdf5_write_array(taus, "tau_check", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_start, H5T_IEEE_F64LE);
+  if (!unpol) hdf5_write_array(imageS, "pol_check", 3, pol_fdim, pol_start, pol_fdim, pol_mdim, pol_start, H5T_IEEE_F64LE);
+
+  hsize_t unpol_mstart[2] = { (int)ceil(nx/skip), 0 };
+  hsize_t pol_mstart[3] = { unpol_mstart[0], 0, 0 };
+
+  hdf5_write_array(image, "unpol_recheck", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_mstart, H5T_IEEE_F64LE);
+  hdf5_write_array(taus, "tau_recheck", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_mstart, H5T_IEEE_F64LE);
+  if (!unpol) hdf5_write_array(imageS, "pol_recheck", 3, pol_fdim, pol_start, pol_fdim, pol_mdim, pol_mstart, H5T_IEEE_F64LE);
+
+  // housekeeping
+  hdf5_close();
+}
+
 void dump(double image[], double imageS[], double taus[],
     const char *fname, double scale, double cam[NDIM],
-    double fovx, double fovy, size_t nx, size_t ny, Params *params, int nopol)
+    double fovx, double fovy, size_t nx, size_t ny, Params *params)
 {
+  int unpol = params->only_unpolarized;
+
   hdf5_create(fname);
 
   write_header(scale, cam, fovx, fovy, params);
@@ -205,14 +243,14 @@ void dump(double image[], double imageS[], double taus[],
   for (int i=0; i < params->nx; ++i) {
     for (int j=0; j < params->ny; ++j) {
       Ftot_unpol += image[i*ny+j] * scale;
-      if (!nopol) Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
+      if (!unpol) Ftot += imageS[(i*ny+j)*NIMG+0] * scale;
     }
   }
 
   hdf5_set_directory("/");
   // output stuff
   hdf5_write_single_val(&Ftot_unpol, "Ftot_unpol", H5T_IEEE_F64LE);
-  if (!nopol) hdf5_write_single_val(&Ftot, "Ftot", H5T_IEEE_F64LE);
+  if (!unpol) hdf5_write_single_val(&Ftot, "Ftot", H5T_IEEE_F64LE);
   double nuLnu = 4. * M_PI * Ftot * dsource * dsource * JY * freqcgs;
   hdf5_write_single_val(&nuLnu, "nuLnu", H5T_IEEE_F64LE);
   nuLnu = 4. * M_PI * Ftot_unpol * dsource * dsource * JY * freqcgs;
@@ -227,7 +265,7 @@ void dump(double image[], double imageS[], double taus[],
 
   hdf5_write_array(image, "unpol", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_start, H5T_IEEE_F64LE);
   hdf5_write_array(taus, "tau", 2, unpol_fdim, unpol_start, unpol_fdim, unpol_mdim, unpol_start, H5T_IEEE_F64LE);
-  if (!nopol) hdf5_write_array(imageS, "pol", 3, pol_fdim, pol_start, pol_fdim, pol_mdim, pol_start, H5T_IEEE_F64LE);
+  if (!unpol) hdf5_write_array(imageS, "pol", 3, pol_fdim, pol_start, pol_fdim, pol_mdim, pol_start, H5T_IEEE_F64LE);
 
   // housekeeping
   hdf5_close();
