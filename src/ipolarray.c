@@ -454,7 +454,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   x = dlam * 0.5;
   rho2 = rQ * rQ + rU * rU + rV * rV;
   if (rho2 > CUT_PREVENT_NAN) {
-    double rdS = rQ * SQ0 + rU * SU0 + rV * SV0;
+    double rdS = rQ * SQ2 + rU * SU2 + rV * SV2;
     double rho = sqrt(rho2);
     double c = cos(rho * x);
     double s = sin(rho * x);
