@@ -19,10 +19,14 @@
 #include "debug_tools.h"
 #include <complex.h>
 
-// These are related mostly to where exp() and 1/x overflow
-// desired accuracy.
-#define CUT_HIGH_ABS 500
-#define CUT_LOW_ABS SMALL
+
+// Define where to switch from 1-exp() to
+// Taylor-expanded quantities in the optical
+// depth
+#define CUT_SMALL_OPTICAL_DEPTH 1e-5
+
+// Smallest double that prevents NaNs on inverses
+#define CUT_PREVENT_NAN 1e-80
 
 // Sub-functions
 void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
@@ -148,7 +152,6 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     oddflag |= sflag;
 
 
-
     // Cry immediately on bad tetrads, even if we're not debugging
     if (sflag & 1) {
       fprintf(stderr, "that's odd: no orthonormal tetrad found at\n");
@@ -215,7 +218,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
   }
 
   //fprintf(stderr, "End integrate emission\n");
-  // Otherwise propagate the full flag so caller can yell or record
+  // Otherwise propagate the full flag so caller can handle it
   return oddflag;
 }
 
@@ -275,15 +278,16 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   double Ucov[NDIM],Bcov[NDIM];
   double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
   double complex N_tetrad[NDIM][NDIM];
-  double B;
+
   double jI, jQ, jU, jV;
   double aI, aQ, aU, aV;
   double rV, rU, rQ;
-  double rho2, rho, rdS;
-  double SI = 0, SQ = 0, SU = 0, SV = 0;
+
   double SI0, SQ0, SU0, SV0;
   double SI1, SQ1, SU1, SV1;
   double SI2, SQ2, SU2, SV2;
+  double SI, SQ, SU, SV;
+
   int oddflag = 0;
 
   // get fluid parameters at Xf
@@ -302,9 +306,9 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   // Guess B if we *absolutely must*
   // Note get_model_b (rightly) returns 0 outside the domain,
   // but we can cling to the 4-vectors a bit longer
-  B = 0.;
-  MULOOP B += Bcon[mu] * Bcov[mu];
-  if (B <= 0.) {
+  double bsq = 0.;
+  MULOOP bsq += Bcon[mu] * Bcov[mu];
+  if (bsq <= 0.) {
     Bcon[0] = 0.;
     Bcon[1] = 1.;
     Bcon[2] = 1.;
@@ -315,154 +319,150 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   gcov_func(Xf, gcov);
   oddflag |= make_plasma_tetrad(Ucon, Kconf, Bcon, gcov, Econ, Ecov);
 
-  // TODO If B is 0, just keep guessing
-  //int exhausted = 0;
-  //while (oddflag && B <= 0. && !exhausted) { etc }
-
-  /* convert N to Stokes */
+  // Convert N to Stokes parameters
   complex_coord_to_tetrad_rank2(N_coord, Ecov, N_tetrad);
   tensor_to_stokes(N_tetrad, &SI0, &SQ0, &SU0, &SV0);
 
-  /* apply the Faraday rotation solution for a half step */
+  // Apply the Faraday rotation solution for a half step
   double x = dlam * 0.5;
-
-  rdS = rQ * SQ0 + rU * SU0 + rV * SV0;
-  rho2 = rQ * rQ + rU * rU + rV * rV;
-  rho = sqrt(rho2);
-  double c, s, sh;
-  c = cos(rho * x);
-  s = sin(rho * x);
-  sh = sin(0.5 * rho * x);
-  if (rho2 > 0) {
+  double rho2 = rQ * rQ + rU * rU + rV * rV;
+  if (rho2 > CUT_PREVENT_NAN) {
+    double rho = sqrt(rho2);
+    double rdS = rQ * SQ0 + rU * SU0 + rV * SV0;
+    double c = cos(rho * x);
+    double s = sin(rho * x);
+    double sh = sin(0.5 * rho * x);
     SI1 = SI0;
     SQ1 = SQ0 * c + 2 * rQ * rdS / rho2 * sh * sh + (rU * SV0 - rV * SU0) / rho * s;
     SU1 = SU0 * c + 2 * rU * rdS / rho2 * sh * sh + (rV * SQ0 - rQ * SV0) / rho * s;
     SV1 = SV0 * c + 2 * rV * rdS / rho2 * sh * sh + (rQ * SU0 - rU * SQ0) / rho * s;
   } else {
     SI1 = SI0;
-    SQ1 = SQ0;
-    SU1 = SU0;
-    SV1 = SV0;
+    SQ1 = SQ0 + (-rV * SU0 + rU * SV0) * x;
+    SU1 = SU0 + ( rV * SQ0 - rQ * SV0) * x;
+    SV1 = SV0 + (-rU * SQ0 + rQ * SU0) * x;
   }
-  /* done rotation solution half step */
 
-  /* apply full absorption/emission step */
+  // Apply full absorption/emission step
   x = dlam;
-  double aI2 = aI * aI;
   double aP2 = aQ * aQ + aU * aU + aV * aV;
-  double aP = sqrt(aP2);
-  double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
-  double adj = aQ * jQ + aU * jU + aV * jV;
+  if (aP2 > CUT_PREVENT_NAN) { // If 1/(aP2) will not return NaN...
+    double aP = sqrt(aP2);
+    double tauP = aP*x;
+    double tauI = aI*x;
+    double ads0 = aQ * SQ1 + aU * SU1 + aV * SV1;
+    double adj = aQ * jQ + aU * jU + aV * jV;
+    // appearance of factor 1/(aI2 - aP2) suggests that polarized and unpolarized
+    // transfer will differ by O(aP2/aI2)
+    double efacm = exp(-tauI + tauP);
+    double efacp = exp(-tauI - tauP);
+    double efac = exp(-tauI);
 
-  if (aP*x > CUT_HIGH_ABS || aI*x > CUT_HIGH_ABS) {
-    // Solution assuming aI ~ aP >> 1, the worst case.
-    // This covers the case aI >> aP by sending exp(aP-aI)->0, which is safe for all terms
-    double expDiffx = exp((aP-aI) * x)/2;
+    /* The formal solution for polarized transfer with emission and absorption
+    * but no faraday rotation has 3 distinct eigenvalues (the first is degenerate):
+    * aI, aI+aP, and aI-aP, see Moscibrodzka & Gammie 2017 appendix A2.
+    *
+    *  The general solution contains terms like (1 - exp(-\lambda/\lambda_i)),
+    *  which can suffer loss of precision for small lambda.
+    */
 
-    SI2 = (SI1 * expDiffx
-        - (ads0 / aP) * expDiffx
-        + adj / (aI2 - aP2) * (-1 + (aI * expDiffx + aP * expDiffx) / aP)
-        + aI * jI / (aI2 - aP2) * (1 - (aI * expDiffx + aP * expDiffx) / aI));
+    /* this is the piece that captures effect of absorption on initial stokes vector,
+    * safe for all optical depths
+    *
+    * These expressions assume that aP < aI and all jS, aS > 0
+    */
+    SI2 = efacm*(SI1/2. - ads0/(2.*aP)) +
+          efacp*(SI1/2. + ads0/(2.*aP));
 
-    SQ2 = (ads0 * aQ / aP2 * expDiffx
-        - aQ / aP * SI1 * expDiffx
-        + jQ / aI
-        + adj * aQ / (aI * (aI2 - aP2)) *
-        (1 - aI / aP2 * (aI * expDiffx + aP * expDiffx))
-        + jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * expDiffx + aI * expDiffx)));
+    SQ2 = efacm*(-SI1*aQ*aP + ads0*aQ)/(2.*aP2) +
+          efacp*(SI1*aQ*aP + ads0*aQ)/(2.*aP2) +
+          efac*(SQ1 - ads0*aQ/(aP2));
 
-    SU2 = (ads0 * aU / aP2 * expDiffx
-        - aU / aP * SI1 * expDiffx
-        + jU / aI
-        + adj * aU / (aI * (aI2 - aP2)) *
-        (1 - aI / aP2 * (aI * expDiffx + aP * expDiffx))
-        + jI * aU / (aP * (aI2 - aP2)) * (-aP + (aP * expDiffx + aI * expDiffx)));
+    SU2 = efacm*(-SI1*aU*aP + ads0*aU)/(2.*aP2) +
+          efacp*(SI1*aU*aP + ads0*aU)/(2.*aP2) +
+          efac*(SU1 - ads0*aU/(aP2));
 
-    SV2 = (ads0 * aV / aP2 * expDiffx
-        - aV / aP * SI1 * expDiffx
-        + jV / aI
-        + adj * aV / (aI * (aI2 - aP2)) * (1 -
-            aI / aP2 * (aI * expDiffx + aP * expDiffx))
-        + jI * aV / (aP * (aI2 - aP2)) *
-        (-aP + (aP * expDiffx + aI * expDiffx)));
-  } else if (aP*x > CUT_LOW_ABS) { /* full analytic solution has trouble if polarized absorptivity is small */
-    double expaIx = exp(-aI * x);
-    double sinhaPx = sinh(aP * x);
-    double coshaPx = cosh(aP * x);
+    SV2 = efacm*(-SI1*aV*aP + ads0*aV)/(2.*aP2) +
+          efacp*(SI1*aV*aP + ads0*aV)/(2.*aP2) +
+          efac*(SV1 - ads0*aV/(aP2));
 
-    SI2 = (SI1 * coshaPx * expaIx
-        - (ads0 / aP) * sinhaPx * expaIx
-        + adj / (aI2 - aP2) * (-1 + (aI * sinhaPx + aP * coshaPx) / aP * expaIx)
-        + aI * jI / (aI2 - aP2) * (1 - (aI * coshaPx + aP * sinhaPx) / aI * expaIx));
+    /* In the limit of large optical depth Kirchoff's law is satisfied
+    * for thermal transfer coefficients, i.e. the solution reduces to
+    * {I,Q,U,V} = {B_\nu, 0, 0, 0}, provided j_S = a_S B_\nu (S = IQUV)
+    * Notice that there is a potential loss of precision since the Q,U,V
+    * terms vanish for thermal eDFs.
+    */
 
-    SQ2 = (SQ1 * expaIx
-        + ads0 * aQ / aP2 * (-1 + coshaPx) * expaIx
-        - aQ / aP * SI1 * sinhaPx * expaIx
-        + jQ * (1 - expaIx) / aI
-        + adj * aQ / (aI * (aI2 - aP2)) * (1 - (1 - aI2 / aP2) * expaIx
-            - aI / aP2 * (aI * coshaPx + aP * sinhaPx) * expaIx)
-        + jI * aQ / (aP * (aI2 - aP2)) * (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
+    // Taylor series expansion at small optical depth to avoid loss of precision
+    double afacm = 1. - efacm;
+    double afac  = 1. - efac;
+    double afacp = 1. - efacp;
+    // Try to be clever by nesting the conditions.  Of questionable use.
+    if (tauI - tauP <= CUT_SMALL_OPTICAL_DEPTH) {
+      double e = tauI - tauP;
+      afacm = e*(1. - (e/2.)*(1. - e/3.));
 
-    SU2 = (SU1 * expaIx
-        + ads0 * aU / aP2 * (-1 + coshaPx) * expaIx
-        - aU / aP * SI1 * sinhaPx * expaIx
-        + jU * (1 - expaIx) / aI
-        + adj * aU / (aI * (aI2 - aP2)) *
-        (1 - (1 - aI2 / aP2) * expaIx -
-            aI / aP2 * (aI * coshaPx +
-                aP * sinhaPx) * expaIx)
-        + jI * aU / (aP * (aI2 - aP2)) *
-        (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
+      if (tauI <= CUT_SMALL_OPTICAL_DEPTH) {
+        e = tauI;
+        afac = e*(1. - (e/2.)*(1. - e/3.));
 
-    SV2 = (SV1 * expaIx
-        + ads0 * aV / aP2 * (-1 + coshaPx) * expaIx
-        - aV / aP * SI1 * sinhaPx * expaIx
-        + jV * (1 - expaIx) / aI
-        + adj * aV / (aI * (aI2 - aP2)) * (1 -
-            (1 - aI2 / aP2) * expaIx -
-            aI / aP2 * (aI * coshaPx +
-                aP * sinhaPx) * expaIx)
-        + jI * aV / (aP * (aI2 - aP2)) *
-        (-aP + (aP * coshaPx + aI * sinhaPx) * expaIx));
-
+        if (tauI + tauP <= CUT_SMALL_OPTICAL_DEPTH) {
+          e = tauI + tauP;
+          afacp = e*(1. - (e/2.)*(1. - e/3.));
+        }
+      }
+    }
+    // piece proportional to afac
+    SQ2 += afac*(jQ/aI - aQ*adj/(aI*aP2));
+    SU2 += afac*(jU/aI - aU*adj/(aI*aP2));
+    SV2 += afac*(jV/aI - aV*adj/(aI*aP2));
+    // pieces proportional to afacm
+    SI2 += afacm*(aP*jI - adj)/(2.*aP*(aI - aP));
+    SQ2 += afacm*aQ*(-aP*jI + adj)/(2.*aP2*(aI - aP));
+    SU2 += afacm*aU*(-aP*jI + adj)/(2.*aP2*(aI - aP));
+    SV2 += afacm*aV*(-aP*jI + adj)/(2.*aP2*(aI - aP));
+    // pieces proportional to afacp
+    SI2 += afacp*(aP*jI + adj)/(2.*aP*(aI + aP));
+    SQ2 += afacp*aQ*(aP*jI + adj)/(2.*aP2*(aI + aP));
+    SU2 += afacp*aU*(aP*jI + adj)/(2.*aP2*(aI + aP));
+    SV2 += afacp*aV*(aP*jI + adj)/(2.*aP2*(aI + aP));
   } else {
-    // Still account for aI which may be >> aP, e.g. simulating unpolarized transport
-    // Should still make this an expansion in aP as well
+    // Since we can now rely on aP==0, this is less questionable
     double tau_fake = 0;
     SI2 = approximate_solve(SI1, jI, aI, jI, aI, x, &tau_fake);
     SQ2 = approximate_solve(SQ1, jQ, aI, jQ, aI, x, &tau_fake);
     SU2 = approximate_solve(SU1, jU, aI, jU, aI, x, &tau_fake);
     SV2 = approximate_solve(SV1, jV, aI, jV, aI, x, &tau_fake);
   }
-  /* done absorption/emission full step */
 
-  /* apply second rotation half-step */
+  // Apply the second rotation half-step
   x = dlam * 0.5;
-  rdS = rQ * SQ2 + rU * SU2 + rV * SV2;
   rho2 = rQ * rQ + rU * rU + rV * rV;
-  rho = sqrt(rho2);
-  c = cos(rho * x);
-  s = sin(rho * x);
-  sh = sin(0.5 * rho * x);
-  if (rho2 > 0) {
+  if (rho2 > CUT_PREVENT_NAN) {
+    double rdS = rQ * SQ2 + rU * SU2 + rV * SV2;
+    double rho = sqrt(rho2);
+    double c = cos(rho * x);
+    double s = sin(rho * x);
+    double sh = sin(0.5 * rho * x);
     SI = SI2;
     SQ = SQ2 * c + 2 * rQ * rdS / rho2 * sh * sh + (rU * SV2 - rV * SU2) / rho * s;
     SU = SU2 * c + 2 * rU * rdS / rho2 * sh * sh + (rV * SQ2 - rQ * SV2) / rho * s;
     SV = SV2 * c + 2 * rV * rdS / rho2 * sh * sh + (rQ * SU2 - rU * SQ2) / rho * s;
   } else {
     SI = SI2;
-    SQ = SQ2;
-    SU = SU2;
-    SV = SV2;
+    SQ = SQ2 + (-rV * SU2 + rU * SV2) * x;
+    SU = SU2 + ( rV * SQ2 - rQ * SV2) * x;
+    SV = SV2 + (-rU * SQ2 + rQ * SU2) * x;
   }
-  /* done second rotation half-step */
 
-  *tauF += dlam*fabs(rV); //*sqrt(SQ*SQ + SU*SU);
+  *tauF += dlam*fabs(rV);
 
   if (params->stokes_floors) {
-    // Correct the resulting Stokes parameters to guarantee:
+    // Optionally correct the resulting Stokes parameters to guarantee:
     // 1. I > 0
     // 2. sqrt(Q^2 + U^2 + V^2) < I
+    // This is ensured of the emissivities by default,
+    // but can be additionally enforced here.
     if (SI < 0) {
       SI = 0;
       SQ = 0;
@@ -478,7 +478,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     }
   }
 
-  /* re-pack the Stokes parameters into N */
+  // Re-pack the Stokes parameters into N
   stokes_to_tensor(SI, SQ, SU, SV, N_tetrad);
   complex_tetrad_to_coord_rank2(N_tetrad, Econ, N_coord);
 
@@ -493,8 +493,6 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   // Flag if something is wrong
   if (*tauF > 1.e100 || *tauF < -1.e100 || isnan(*tauF)) oddflag |= 2;
   if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) oddflag |= 4;
-
-  /* SOURCE STEP DONE */
   return oddflag;
 }
 

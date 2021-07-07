@@ -16,6 +16,7 @@
 #include "radiation.h"
 #include "coordinates.h"
 #include "geometry.h"
+#include "grid.h"
 #include "debug_tools.h"
 #include "par.h"
 #include "decs.h"
@@ -76,7 +77,7 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 /**
  * Optionally load radiation model parameters
  */
-static double model_kappa = 0;
+static double model_kappa = 3.5;
 static double powerlaw_gamma_cut = 1e10;
 static double powerlaw_gamma_min = 1e2;
 static double powerlaw_gamma_max = 1e5;
@@ -204,9 +205,8 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
   get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
 #if DEBUG
   if (isnan(Ucov[0])) {
-    void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
-    int i,j,k;
-    double del[4];
+    int i = 0, j = 0, k = 0;
+    double del[4] = {0};
     Xtoijk(X, &i,&j,&k, del);
     fprintf(stderr, "UCOV[0] (%d,%d,%d) is nan! thread = %i\n", i,j,k, omp_get_thread_num());
     print_vector("Ucon", Ucon);
@@ -270,9 +270,9 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
       fprintf(stderr, "Negative total emissivity! Exiting!\n");
       exit(-1);
     }
-    if (*jI * *jI < *jQ * *jQ + *jU * *jU + *jV * *jV) {
+    double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
+    if (*jI  < jP/max_pol_frac_e) {
       // Transport does not like 100% polarization...
-      double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
       double pol_frac_e = *jI / jP * max_pol_frac_e;
       *jQ *= pol_frac_e;
       *jU *= pol_frac_e;
@@ -309,9 +309,9 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
         fprintf(stderr, "Negative total absorptivity! Exiting!\n");
         exit(-1);
       }
-      if (*aI * *aI < *aQ * *aQ + *aU * *aU + *aV * *aV) {
+      double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
+      if (*aI < aP/max_pol_frac_a) {
         // Transport does not like 100% polarization...
-        double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
         double pol_frac_a = *aI / aP * max_pol_frac_a;
         *aQ *= pol_frac_a;
         *aU *= pol_frac_a;
@@ -645,6 +645,13 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv
         *knuinv = *jnuinv / Bnuinv;
       }
 
+    }
+
+    if (*jnuinv < 0) {
+      *jnuinv = 0;
+    }
+    if (*knuinv < 0) {
+      *knuinv = 0;
     }
 
 #if DEBUG
