@@ -26,9 +26,12 @@ static double MBH_solar = 4.3e6;
 
 static double MBH;
 
-// e.g. parameterization from GRRT paper
+double gam = 4./3;
+// Require all these
 double nth0, Te0, disk_h, pow_nth, pow_T;
-double keplerian_factor, infall_factor;
+// Default fully keplerian, no infall velocity
+double keplerian_factor = 1.;
+double infall_factor = 0.;
 double r_isco;
 
 /**
@@ -65,6 +68,8 @@ void try_set_model_parameter(const char *word, const char *value)
 
   // Geometry parameters
   set_by_word_val(word, value, "a", &a, TYPE_DBL);
+  // Fluid parameter (only used for pressure calculation for beta)
+  set_by_word_val(word, value, "gam", &gam, TYPE_DBL);
   // RIAF model parameters, from Odyssey.
   // Note nth0,Te0 are *different* as they are unitless!
   set_by_word_val(word, value, "nth0", &nth0, TYPE_DBL);
@@ -171,6 +176,27 @@ double get_model_thetae(double X[NDIM])
   bl_coord(X, &r, &th);
   return Te0 * pow(r, pow_T) * Te_unit * KBOL / (ME*CL*CL); 
 }
+
+double get_model_b(double X[NDIM])
+{
+  // double Ucon[NDIM],Bcon[NDIM];
+  // double Ucov[NDIM],Bcov[NDIM];
+  // double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
+  // get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+  // return sqrt(Bcon[0]*Bcov[0] + Bcon[1]*Bcov[1] + Bcon[2]*Bcov[2] + Bcon[3]*Bcov[3]) * B_unit;
+
+  double r, th;
+  bl_coord(X, &r, &th);
+  double nth = get_model_ne(X);
+  // Get local field strength
+  double eps = 0.1;
+  double b = sqrt(8. * M_PI * eps * nth * MP * CL * CL / 6. / r);
+  if (b == 0) b = 1.e-6;
+  return b;
+}
+// TODO?
+double get_model_sigma(double X[NDIM]) {return 0.;}
+double get_model_beta(double X[NDIM]) {return 0.;}
 
 void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], double Ucov[NDIM],
                      double Bcon[NDIM], double Bcov[NDIM])
@@ -339,29 +365,6 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
   flip_index(Bcon, gcov, Bcov);
 }
 
-/**
- * This problem defines no field in emission, but we want to control ipole's worst
- * tendencies when making tetrads.  This will return a correct value even for a
- * possible fluid/field model later, too.
- */
-double get_model_b(double X[NDIM])
-{
-  // double Ucon[NDIM],Bcon[NDIM];
-  // double Ucov[NDIM],Bcov[NDIM];
-  // double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
-  // get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
-  // return sqrt(Bcon[0]*Bcov[0] + Bcon[1]*Bcov[1] + Bcon[2]*Bcov[2] + Bcon[3]*Bcov[3]) * B_unit;
-
-  double r, th;
-  bl_coord(X, &r, &th);
-  double nth = get_model_ne(X);
-  // Get local field strength
-  double eps = 0.1;
-  double b = sqrt(8. * M_PI * eps * nth * MP * CL * CL / 6. / r);
-  if (b == 0) b = 1.e-6;
-  return b;
-}
-
 int radiating_region(double X[NDIM])
 {
   // If you don't want conditionals in get_model_jar, 
@@ -374,8 +377,6 @@ int radiating_region(double X[NDIM])
 //// STUBS: Functions for normal models which we don't use ////
 // Define these to specify a fluid model: e- density/temperature for
 // synchrotron radiation based on an energy distribution
-void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
-          double *gamma_min, double *gamma_max, double *gamma_cut) {return;}
 void update_data(double *tA, double *tB) {return;}
 void update_data_until(double *tA, double *tB, double tgt) {return;}
 // This is only called for trace file output, and doesn't really apply to analytic models

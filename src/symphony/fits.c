@@ -1,7 +1,7 @@
 #include "fits.h"
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /*Wrappers for the fitting formulae*/
 
@@ -52,8 +52,9 @@ double j_nu_fit(double nu,
   params.kappa              = kappa;
   params.kappa_width        = kappa_width;
 
-
-//  check_for_errors(&params);
+#if DEBUG
+  check_for_errors(&params);
+#endif
   
   if(params.distribution == params.MAXWELL_JUETTNER)
   {
@@ -73,10 +74,33 @@ double j_nu_fit(double nu,
 
   else if(params.distribution == params.KAPPA_DIST)
   {
-    if     (params.polarization == params.STOKES_I) return kappa_I(&params);
-    else if(params.polarization == params.STOKES_Q) return kappa_Q(&params);
-    else if(params.polarization == params.STOKES_U) return 0.;
-    else if(params.polarization == params.STOKES_V) return kappa_V(&params);
+    if     (params.polarization == params.STOKES_I) {
+      if (kappa < 7.5) {
+        return kappa_I(&params);
+      } else if (kappa >= 7.5 && kappa < 15) {
+        return ((15 - params.kappa) * maxwell_juettner_I(&params) + (params.kappa - 7.5) * kappa_I(&params)) / 7.5;
+      } else {
+        return maxwell_juettner_I(&params);
+      }
+    } else if(params.polarization == params.STOKES_Q) {
+      if (kappa < 7.5) {
+        return kappa_Q(&params);
+      } else if (kappa >= 7.5 && kappa < 15) {
+        return ((15 - params.kappa) * maxwell_juettner_Q(&params) + (params.kappa - 7.5) * kappa_Q(&params)) / 7.5;
+      } else {
+        return maxwell_juettner_Q(&params);
+      }
+    } else if(params.polarization == params.STOKES_U) {
+      return 0.;
+    } else if(params.polarization == params.STOKES_V) {
+      if (kappa < 7.5) {
+        return kappa_V(&params);
+      } else if (kappa >= 7.5 && kappa < 15) {
+        return ((15 - params.kappa) * maxwell_juettner_V(&params) + (params.kappa - 7.5) * kappa_V(&params)) / 7.5;
+      } else {
+        return maxwell_juettner_V(&params);
+      }
+    }
   }
 
   return 0.;
@@ -130,6 +154,9 @@ double alpha_nu_fit(double nu,
   params.kappa              = kappa;
   params.kappa_width        = kappa_width;
 
+#if DEBUG
+  check_for_errors(&params);
+#endif
 
   if(params.distribution == params.MAXWELL_JUETTNER)
   {
@@ -149,10 +176,33 @@ double alpha_nu_fit(double nu,
 
   else if(params.distribution == params.KAPPA_DIST)
   {
-    if     (params.polarization == params.STOKES_I) return kappa_I_abs(&params);
-    else if(params.polarization == params.STOKES_Q) return kappa_Q_abs(&params);
-    else if(params.polarization == params.STOKES_U) return 0.;
-    else if(params.polarization == params.STOKES_V) return kappa_V_abs(&params);
+    if     (params.polarization == params.STOKES_I) {
+      if (kappa < 7.5) {
+        return kappa_I_abs(&params);
+      } else if (kappa >= 7.5 && kappa < 15) {
+        return ((15 - params.kappa) * maxwell_juettner_I_abs(&params) + (params.kappa - 7.5) * kappa_I_abs(&params)) / 7.5;
+      } else {
+        return maxwell_juettner_I_abs(&params);
+      }
+    } else if(params.polarization == params.STOKES_Q) {
+      if (kappa < 7.5) {
+        return kappa_Q_abs(&params);
+      } else if (kappa >= 7.5 && kappa < 15) {
+        return ((15 - params.kappa) * maxwell_juettner_Q_abs(&params) + (params.kappa - 7.5) * kappa_Q_abs(&params)) / 7.5;
+      } else {
+        return maxwell_juettner_Q_abs(&params);
+      }
+    } else if(params.polarization == params.STOKES_U) {
+      return 0.;
+    } else if(params.polarization == params.STOKES_V) {
+      if (kappa < 7.5) {
+        return kappa_V_abs(&params);
+      } else if (kappa >= 7.5 && kappa < 15) {
+        return ((15 - params.kappa) * maxwell_juettner_V_abs(&params) + (params.kappa - 7.5) * kappa_V_abs(&params)) / 7.5;
+      } else {
+        return maxwell_juettner_V_abs(&params);
+      }
+    }
   }
 
   return 0.;
@@ -201,13 +251,14 @@ double rho_nu_fit(double nu,
   params.kappa              = kappa;
   params.kappa_width        = kappa_width;
 
-//  check_for_errors(&params);
-
+#if DEBUG
+  check_for_errors(&params);
   if(params.polarization == params.STOKES_I)
   {
     printf("No Faraday rotation of total intensity");
     return 0.;
   }
+#endif
 
   if(params.distribution == params.MAXWELL_JUETTNER)
   {
@@ -215,20 +266,55 @@ double rho_nu_fit(double nu,
     else if(params.polarization == params.STOKES_U) return 0.;
     else if(params.polarization == params.STOKES_V) return maxwell_juettner_rho_V(&params);
   }
+  
+  if(params.distribution == params.KAPPA_DIST)
+  {
+#if DEBUG
+    if(params.nu/(2.8e6 * params.magnetic_field) < 100 || 
+       params.nu/(pow(params.kappa_width * params.kappa, 2.) * (2.8e6 * params.magnetic_field) * sin(params.observer_angle)) < 0.1)
+    {
+      printf("\n WARNING: nu and/or X_kappa low; rho kappa fits may be inaccurate \n");
+    }
+#endif
+    if (params.polarization == params.STOKES_Q)
+    {
+      if (params.kappa < 3.5)
+        return kappa35_rho_Q(&params);
+      else if (params.kappa >= 3.5 && params.kappa < 4.0)
+        return ((4.0 - params.kappa) * kappa35_rho_Q(&params) + (params.kappa - 3.5) * kappa4_rho_Q(&params)) / 0.5;
+      else if (params.kappa >= 4.0 && params.kappa < 4.5)
+        return ((4.5 - params.kappa) * kappa4_rho_Q(&params) + (params.kappa - 4.0) * kappa45_rho_Q(&params)) / 0.5;
+      else if (params.kappa >= 4.5 && params.kappa < 5.0)
+        return ((5.0 - params.kappa) * kappa45_rho_Q(&params) + (params.kappa - 4.5) * kappa5_rho_Q(&params)) / 0.5;
+      else if (params.kappa >= 5.0 && params.kappa <= 10.0)
+        return ((10.0 - params.kappa) * kappa5_rho_Q(&params) + (params.kappa - 5.0) * maxwell_juettner_rho_Q(&params)) / 5.0;
+      else if (params.kappa > 10.0)
+        return maxwell_juettner_rho_Q(&params);
+    }
+    else if(params.polarization == params.STOKES_U) return 0.;
+    else if(params.polarization == params.STOKES_V)
+    {
+      if(params.kappa < 3.5)
+        return kappa35_rho_V(&params);
+      else if(params.kappa >= 3.5 && params.kappa < 4.0)
+        return ((4.0 - params.kappa) * kappa35_rho_V(&params) + (params.kappa - 3.5) * kappa4_rho_V(&params)) / 0.5;
+      else if(params.kappa >= 4.0 && params.kappa < 4.5)
+        return ((4.5 - params.kappa) * kappa4_rho_V(&params) + (params.kappa - 4.0) * kappa45_rho_V(&params)) / 0.5;
+      else if(params.kappa >= 4.5 && params.kappa <= 5.0)
+        return ((5.0 - params.kappa) * kappa45_rho_V(&params) + (params.kappa - 4.5) * kappa5_rho_V(&params)) / 0.5;
+      else if (params.kappa >= 5.0 && params.kappa <= 10.0)
+        return ((10.0 - params.kappa) * kappa5_rho_V(&params) + (params.kappa - 5.0) * maxwell_juettner_rho_V(&params)) / 5.0;
+      else if (params.kappa > 10.0)
+        return maxwell_juettner_rho_V(&params);
+    }
+  }
 
-/*Faraday rotation coefficients for Power-law and Kappa distributions will be added later*/
+/*Faraday rotation coefficients for Power-law distribution will be added later*/
 //  else if(params.distribution == params.POWER_LAW)
 //  {
 //    if     (params.polarization == params.STOKES_Q) return power_law_rho_Q(&params);
 //    else if(params.polarization == params.STOKES_U) return 0.;
 //    else if(params.polarization == params.STOKES_V) return power_law_rho_V(&params);
-//  }
-//
-//  else if(params.distribution == params.KAPPA_DIST)
-//  {
-//    if     (params.polarization == params.STOKES_Q) return kappa_rho_Q(&params);
-//    else if(params.polarization == params.STOKES_U) return 0.;
-//    else if(params.polarization == params.STOKES_V) return kappa_rho_V(&params);
 //  }
 
   return 0.;
@@ -243,7 +329,7 @@ double rho_nu_fit(double nu,
  *@returns: prints error messages or quits if disallowed values
  *          (such as magnitude of magnetic field < 0) are entered.
  */
-double check_for_errors(struct parameters * params)
+void check_for_errors(struct parameters * params)
 {
 
   double nu_c = get_nu_c(*params);
@@ -265,24 +351,27 @@ double check_for_errors(struct parameters * params)
     printf("\n ERROR: cannot have negative electron number density \n");
     exit(0);
   }
-  if(params->kappa < 2.5 || params->kappa > 7.5)
-  {
-    printf("\n WARNING: kappa out of range of fitting formula \n");
+  if(params->distribution == params->KAPPA_DIST) {
+    if(params->kappa < 2.5 || params->kappa > 7.5)
+    {
+      printf("\n WARNING: kappa out of range of fitting formula \n");
+    }
+    //if(params->kappa_width < 3 || 
+    if (params->kappa_width > 200)
+    {
+      printf("\n WARNING: w out of range; fitting formula may be inaccurate\n");
+    }
   }
-  if(params->kappa_width < 3 || params->kappa_width > 200)
-  {
-    printf("\n WARNING: w out of range; fitting formula may be inaccurate\n");
+  if(params->distribution == params->POWER_LAW) {
+    if(params->gamma_min < 1)
+    {
+      printf("\n ERROR: gamma_min < 1\n");
+      exit(0);
+    }
   }
-  if(params->gamma_min < 1)
-  {
-    printf("\n ERROR: gamma_min < 1\n");
-    exit(0);
-  }
-  if(params->observer_angle < 5.*(params->pi)/180. 
-     || params->observer_angle == 90.*(params->pi)/180.)
-  {
-    printf("\n WARNING: theta out of range; fitting formula may be inaccurate \n");
-  }
-
-  return 0.;
+  // if(params->observer_angle < 5.*(params->pi)/180. 
+  //   || params->observer_angle == 90.*(params->pi)/180.)
+  // {
+  //   printf("\n WARNING: theta out of range; fitting formula may be inaccurate \n");
+  // }
 }

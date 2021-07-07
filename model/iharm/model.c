@@ -46,12 +46,6 @@ static double tp_over_te = 3.;
 static double trat_small = 1.;
 static double trat_large = 40.;
 
-static double powerlaw_gamma_min = 1e2;
-static double powerlaw_gamma_max = 1e5;
-static double powerlaw_gamma_cut = 1e10;
-static double powerlaw_eta = 0.02;
-static double powerlaw_p = 3.25;
-
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
 static double MBH_solar = 6.2e9;
@@ -59,6 +53,8 @@ static double MBH; // Set from previous
 static double Mdot_dump;
 static double MdotEdd_dump;
 static double Ladv_dump;
+
+static int reverse_field = 0;
 
 // MAYBES
 //static double t0;
@@ -87,6 +83,7 @@ struct of_data {
   double ***thetae;
   double ***b;
   double ***sigma;
+  double ***beta;
 };
 static struct of_data dataA, dataB, dataC;
 static struct of_data *data[NSUP];
@@ -120,16 +117,10 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
 
-  // TODO: figure out how to make consistent with model_radiation.c
-  set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
-
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
+  set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
   // allow cutting out the spine
   set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
 
@@ -244,7 +235,7 @@ void get_dumpfile_type(char *fnam, int dumpidx)
     dumpfile_format = FORMAT_IHARM_v1;
     fprintf(stderr, "iharm!\n");
   } else {
-    // note this will return -1 if the "header" group does not exists
+    // note this will return -1 if the "header" group does not exist
     dumpfile_format = FORMAT_HAMR_EKS;
     fprintf(stderr, "hamr!\n");
   }
@@ -421,12 +412,17 @@ double get_model_thetae(double X[NDIM])
   double tfac = set_tinterp_ns(X, &nA, &nB);
   double thetae = interp_scalar_time(X, data[nA]->thetae, data[nB]->thetae, tfac);
 
-  if (thetae < 0.) {
-    printf("thetae negative!\n");
+#if DEBUG
+  if (thetae < 0. || isnan(thetae)) {
+    printf("thetae negative or NaN!\n");
     printf("X[] = %g %g %g %g\n", X[0], X[1], X[2], X[3]);
     printf("t = %e %e %e\n", data[0]->t, data[1]->t, data[2]->t);
-    printf("thetae = %e\n", thetae);
+    double thetaeA = interp_scalar(X, data[nA]->thetae);
+    double thetaeB = interp_scalar(X, data[nB]->thetae);
+    printf("thetaeA, thetaeB = %e %e", thetaeA, thetaeB);
+    printf("thetae, tfac = %e %e\n", thetae, tfac);
   }
+#endif
 
   return thetae;
 }
@@ -451,6 +447,18 @@ double get_model_sigma(double X[NDIM])
   double tfac = set_tinterp_ns(X, &nA, &nB);
 
   return interp_scalar_time(X, data[nA]->sigma, data[nB]->sigma, tfac);
+}
+
+double get_model_beta(double X[NDIM]) 
+{
+  if ( X_in_domain(X) == 0 ) return 0.;  // TODO inf?
+
+  double betaA, betaB, tfac;
+  int nA, nB;
+  tfac = set_tinterp_ns(X, &nA, &nB);
+  betaA = interp_scalar(X, data[nA]->beta);
+  betaB = interp_scalar(X, data[nB]->beta);
+  return tfac*betaA + (1. - tfac)*betaB;
 }
 
 double get_model_ne(double X[NDIM])
@@ -496,12 +504,21 @@ void init_physical_quantities(int n)
         bsq = bsq*bsq;
 
         double sigma_m = bsq/data[n]->p[KRHO][i][j][k];
-
+        double beta_m = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
+#if DEBUG
+        if(isnan(sigma_m)) {
+          sigma_m = 0;
+          fprintf(stderr, "Setting zero sigma!\n");
+        }
+        if(isnan(beta_m)) {
+          beta_m = INFINITY;
+          fprintf(stderr, "Setting INF beta!\n");
+        }
+#endif
         if (ELECTRONS == 1) {
           data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
         } else if (ELECTRONS == 2) {
-          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-          double betasq = beta*beta / beta_crit/beta_crit;
+          double betasq = beta_m*beta_m / beta_crit/beta_crit;
           double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
           //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
           // see, e.g., Eq. 8 of the EHT GRRT formula list
@@ -511,9 +528,23 @@ void init_physical_quantities(int n)
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
         data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
+#if DEBUG
+        if(isnan(data[n]->thetae[i][j][k])) {
+          data[n]->thetae[i][j][k] = 0.0;
+          fprintf(stderr, "\nZero Thetae!  Prims %g %g %g %g %g %g %g %g\n", data[n]->p[KRHO][i][j][k], data[n]->p[UU][i][j][k],
+                  data[n]->p[U1][i][j][k], data[n]->p[U2][i][j][k], data[n]->p[U3][i][j][k], data[n]->p[B1][i][j][k],
+                  data[n]->p[B2][i][j][k], data[n]->p[B3][i][j][k]);
+          fprintf(stderr, "Setting zero temp!\n");
+        }
+#endif
 
-        //strongly magnetized = empty, no shiny spine
-        data[n]->sigma[i][j][k] = sigma_m;  // allow sigma cut per geodesic step
+        // Preserve sigma for cutting along geodesics, and for variable-kappa model
+        data[n]->sigma[i][j][k] = sigma_m;
+        // Also record beta, for variable-kappa model
+        data[n]->beta[i][j][k] = beta_m;
+
+        // Cut Ne (i.e. emission) based on sigma, if we're not doing so along each geodesic
+        // Strongly magnetized = empty, no shiny spine
         if (sigma_m > sigma_cut && !USE_GEODESIC_SIGMACUT) {
           data[n]->b[i][j][k]=0.0;
           data[n]->ne[i][j][k]=0.0;
@@ -534,6 +565,7 @@ void init_storage(void)
     data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->b = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->sigma = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->beta = malloc_rank3(N1+2,N2+2,N3+2);
   }
 }
 
@@ -1268,7 +1300,21 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
     hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 
-  hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
+  //Reversing B Field
+  if(reverse_field) {
+    double multiplier = -1.0;
+    for(int i=0;i<N1;i++){
+      for(int j=0;j<N2;j++){
+        for(int k=0;k<N3;k++){ 
+          data[n]->p[B1][i][j][k] = multiplier*data[n]->p[B1][i][j][k];
+          data[n]->p[B2][i][j][k] = multiplier*data[n]->p[B2][i][j][k];
+          data[n]->p[B3][i][j][k] = multiplier*data[n]->p[B3][i][j][k];
+        }
+      }
+    }
+  }                                                                                           
+	
+	hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
 
   hdf5_close();
 
@@ -1375,20 +1421,6 @@ int radiating_region(double X[NDIM])
   double r, th;
   bl_coord(X, &r, &th);
   return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg));
-}
-
-void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
-                             double *gamma_min, double *gamma_max, double *gamma_cut)
-{
-  *gamma_min = powerlaw_gamma_min;
-  *gamma_max = powerlaw_gamma_max;
-  *gamma_cut = powerlaw_gamma_cut;
-  *p = powerlaw_p;
-
-  double b = get_model_b(X);
-  double u_nth = powerlaw_eta*b*b/2;
-  // Number density of nonthermals
-  *n = u_nth * (*p - 2)/(*p - 1) * 1/(ME * CL*CL * *gamma_min);
 }
 
 // In case we want to mess with emissivities directly
