@@ -1476,8 +1476,6 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
     double r, th;
     bl_coord(X, &r, &th);
 
-    fprintf(stderr, "%g %g\n", r, r_eh);
-
     if (r < r_eh) {
       for (int i=1; i<N1+1; ++i) {
         ijktoX(i, N2_by_2, 0, X);
