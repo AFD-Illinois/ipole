@@ -336,11 +336,14 @@ void jar_calc_dist(int dist, double X[NDIM], double Kcon[NDIM],
 
 #if DEBUG
   // Spot check for NaN coefficients
+  if (isnan(*rQ) || *rQ > 1.e100 || *rQ < -1.e100) {
+    fprintf(stderr, "\nUnstable RQ! rQ = %e nu = %e Ne = %e Thetae = %e\n", *rQ, nu, Ne, Thetae);
+  }
   if (isnan(*rV) || *rV > 1.e100 || *rV < -1.e100) {
-    fprintf(stderr, "\nNAN RV! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
+    fprintf(stderr, "\nUnstable RV! rV = %e nu = %e Ne = %e Thetae = %e\n", *rV, nu, Ne, Thetae);
   }
   if (isnan(*jV) || *jV > 1.e100 || *jV < -1.e100) {
-    fprintf(stderr, "\nNAN jV! jV = %e nu = %e Ne = %e Thetae = %e B = %e theta = %e\n", *jV, nu, Ne, Thetae, B, theta);
+    fprintf(stderr, "\nUnstable jV! jV = %e nu = %e Ne = %e Thetae = %e B = %e theta = %e\n", *jV, nu, Ne, Thetae, B, theta);
   }
 #endif
 }
