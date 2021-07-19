@@ -26,11 +26,10 @@ double get_model_beta(double X[NDIM]);
 double get_model_ne(double X[NDIM]);
 
 // For exotic or custom distributions
-void get_model_jar(double X[NDIM], double Kcon[NDIM],
+void get_model_jar(double X[NDIM], double nu, double thetae,
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV);
-void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv);
 
 void get_model_fourv(double X[NDIM], double Kcon[NDIM],
                      double Ucon[NDIM], double Ucov[NDIM],

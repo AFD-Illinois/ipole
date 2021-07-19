@@ -382,7 +382,7 @@ void update_data_until(double *tA, double *tB, double tgt) {return;}
 // This is only called for trace file output, and doesn't really apply to analytic models
 void get_model_primitives(double X[NDIM], double *p) {return;}
 void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv) {return;}
-void get_model_jar(double X[NDIM], double Kcon[NDIM],
+void get_model_jar(double X[NDIM], double nu, double thetae,
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV) {return;}
