@@ -4,8 +4,11 @@
  * Printing and sanity checks for tetrads
  */
 
-#include "geometry.h"
 #include "decs.h"
+
+#include "coordinates.h"
+#include "geometry.h"
+#include "model.h"
 
 // The world needed these
 // Maybe not in this form
@@ -138,17 +141,6 @@ void check_N(double complex N[NDIM][NDIM],
 
   fprintf(stderr, "leave check_N\n");
 }
-
-// because we don't have proper header files
-void gcov_func(double *X, double gcov[][NDIM]);
-int gcon_func(double gcov[][NDIM], double gcon[][NDIM]);
-void bl_coord(double *X, double *r, double *th);
-double get_model_ne(double X[NDIM]);
-double get_model_thetae(double X[NDIM]);
-double get_model_b(double X[NDIM]);
-void get_model_fourv(double X[NDIM], double Kcon[NDIM],
-                     double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM]);
 
 void dump_at_X(double X[NDIM])
 {

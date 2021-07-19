@@ -18,12 +18,12 @@
  MM 11 July 17
  */
 
-int invert_matrix(double Am[][NDIM], double Aminv[][NDIM]);
-int LU_decompose(double A[][NDIM], int permute[]);
-void LU_substitution(double A[][NDIM], double B[], int permute[]);
+int invert_matrix(double Am[NDIM][NDIM], double Aminv[NDIM][NDIM]);
+int LU_decompose(double A[NDIM][NDIM], int permute[NDIM]);
+void LU_substitution(double A[NDIM][NDIM], double B[NDIM], int permute[NDIM]);
 
 /* assumes gcov has been set first; returns sqrt{|g|} */
-double gdet_func(double gcov[][NDIM])
+double gdet_func(double gcov[NDIM][NDIM])
 {
   int i, j;
   int permute[NDIM];
@@ -51,7 +51,7 @@ double gdet_func(double gcov[][NDIM])
 }
 
 /* invert gcov to get gcon */
-int gcon_func(double gcov[][NDIM], double gcon[][NDIM])
+int gcon_func(double gcov[NDIM][NDIM], double gcon[NDIM][NDIM])
 {
   int sing = invert_matrix(gcov, gcon);
 #if DEBUG
@@ -249,7 +249,7 @@ double theta_func(double X[NDIM])
 
  Returns (1) if a singular matrix is found,  (0) otherwise.
  */
-int invert_matrix(double Am[][NDIM], double Aminv[][NDIM])
+int invert_matrix(double Am[NDIM][NDIM], double Aminv[NDIM][NDIM])
 {
 
   int i, j;
@@ -301,7 +301,7 @@ int invert_matrix(double Am[][NDIM], double Aminv[][NDIM])
 
  Returns (1) if a singular matrix is found,  (0) otherwise.
 */
-int LU_decompose(double A[][NDIM], int permute[])
+int LU_decompose(double A[NDIM][NDIM], int permute[NDIM])
 {
 
   const double absmin = 1.e-30; /* Value used instead of 0 for singular matrices */
@@ -468,7 +468,7 @@ int LU_decompose(double A[][NDIM], int permute[])
 
  Upon exit, B[] contains the solution x[], A[][] is left unchanged.
 */
-void LU_substitution(double A[][NDIM], double B[], int permute[])
+void LU_substitution(double A[NDIM][NDIM], double B[NDIM], int permute[NDIM])
 {
   int i, j;
   int n = NDIM;
