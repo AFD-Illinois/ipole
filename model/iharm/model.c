@@ -54,6 +54,8 @@ static double Mdot_dump;
 static double MdotEdd_dump;
 static double Ladv_dump;
 
+static int reverse_field = 0;
+
 // MAYBES
 //static double t0;
 
@@ -118,6 +120,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
+  set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
   // allow cutting out the spine
   set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
 
@@ -232,7 +235,7 @@ void get_dumpfile_type(char *fnam, int dumpidx)
     dumpfile_format = FORMAT_IHARM_v1;
     fprintf(stderr, "iharm!\n");
   } else {
-    // note this will return -1 if the "header" group does not exists
+    // note this will return -1 if the "header" group does not exist
     dumpfile_format = FORMAT_HAMR_EKS;
     fprintf(stderr, "hamr!\n");
   }
@@ -1297,7 +1300,21 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
     hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 
-  hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
+  //Reversing B Field
+  if(reverse_field) {
+    double multiplier = -1.0;
+    for(int i=0;i<N1;i++){
+      for(int j=0;j<N2;j++){
+        for(int k=0;k<N3;k++){ 
+          data[n]->p[B1][i][j][k] = multiplier*data[n]->p[B1][i][j][k];
+          data[n]->p[B2][i][j][k] = multiplier*data[n]->p[B2][i][j][k];
+          data[n]->p[B3][i][j][k] = multiplier*data[n]->p[B3][i][j][k];
+        }
+      }
+    }
+  }                                                                                           
+	
+	hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
 
   hdf5_close();
 

@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
 {
   // motd
   fprintf(stderr, "%s. githash: %s\n", VERSION_STRING, xstr(VERSION));
+	fprintf(stderr,"\nWARNING. iharm/model.c CONTAINS A CODE BLOCK TO REVERSE B FIELD. CHECK BEFORE RUNNING\n");
   fprintf(stderr, "notes: %s\n\n", xstr(NOTES));
 
   // initialization
@@ -810,8 +811,11 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
                double *Intensity, double *Is, double *Qs, double *Us, double *Vs,
                double *Tau, double *tauF)
 {
-  double X[NDIM], Kcon[NDIM];
-  double complex N_coord[NDIM][NDIM];
+  double X[NDIM] = {0.}, Kcon[NDIM] = {0.};
+  double complex N_coord[NDIM][NDIM] = {{0.}};
+  *Intensity = 0.;
+  *Tau = 0.;
+  *tauF = 0.;
 
   // Integrate backward to find geodesic trajectory
   init_XK(i,j, params.nx, params.ny, Xcam, params, fovx, fovy, X, Kcon);
@@ -827,7 +831,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
     exit(-10);
   }
 
-  // Integrate emission forward along trajectory
+  // Integrate emission all the way forward along trajectory
   int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params);
 
   if (!only_intensity) {
