@@ -193,11 +193,13 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double nu, double theta,
 
   // If performing unpolarized transport, calculate only what we need
   if (!pol || dist == E_UNPOL) {
-    *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / (nu * nu);
     if (dist == E_THERMAL || dist == E_DEXTER_THERMAL || dist > 10){
+      paramsM.dexter_fit = 2; // Signal symphony fits to use Leung+
+      *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / (nu * nu);
       double Bnuinv = Bnu_inv(nu, paramsM.theta_e); // Planck function
       *aI = *jI / Bnuinv;
     } else {
+      *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / (nu * nu);
       *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
     }
   } else {
@@ -254,7 +256,7 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double nu, double theta,
 
 
       // ROTATIVITIES
-      paramsM.dexter_fit = 0;  // TODO find a parameter to bring this back separately
+      paramsM.dexter_fit = 0;  // Don't use the Dexter rhoV, as it's unstable at low temperature
       *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
       *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
       *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
