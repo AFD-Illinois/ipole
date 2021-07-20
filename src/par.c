@@ -2,6 +2,7 @@
 #include "par.h"
 #include "decs.h"
 #include "model.h"
+#include "model_radiation.h"
 
 #include <stdio.h>
 #include <errno.h>
@@ -48,6 +49,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->qu_conv = 0;
   params->quench_output = 0;
   params->only_unpolarized = 0;
+  params->perform_check = 0;
   params->old_centering = 0;
 
   params->emission_type = 4;
@@ -96,6 +98,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   for (int i=0; i<argc; ++i) {
     if ( strcmp(argv[i], "-quench") == 0 ) params->quench_output = 1;
     else if ( strcmp(argv[i], "-unpol") == 0 ) params->only_unpolarized = 1;
+    else if ( strcmp(argv[i], "-check") == 0 ) params->perform_check = 1;
 
     // read parameter from command line
     if ( strlen(argv[i])>2 && argv[i][0]=='-' && argv[i][1]=='-' ) {
@@ -186,12 +189,15 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
 
   // Let models add/parse their own parameters we don't understand
   try_set_model_parameter(word, value);
+
+  // Let radiation model load its own parameters
+  try_set_radiation_parameter(word, value);
 }
 
 // sets default values for elements of params (if desired) and loads from par file 'fname'
 void load_par(const char *fname, Params *params) {
  
-  char line[256], word[256], value[256];
+  char line[256] = {0}, word[256] = {0}, value[256] = {0};
   FILE *fp = fopen(fname, "r");
 
   if (fp == NULL) {
