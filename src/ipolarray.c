@@ -507,7 +507,19 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 
   // Flag if something is wrong
   if (*tauF > 1.e100 || *tauF < -1.e100 || isnan(*tauF)) oddflag |= 2;
+#if DEBUG
+  if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) {
+    oddflag |= 4;
+    fprintf(stderr, "Stokes S0: [%e %e %e %e]\n", SI0, SQ0, SU0, SV0);
+    fprintf(stderr, "Stokes S1: [%e %e %e %e]\n", SI0, SQ0, SU0, SV0);
+    fprintf(stderr, "Stokes S2: [%e %e %e %e]\n", SI0, SQ0, SU0, SV0);
+    fprintf(stderr, "Stokes S: [%e %e %e %e] dlam: %e\n", SI, SQ, SU, SV, dlam);
+    fprintf(stderr, "Coefficients: j: [%e %e %e %e] a: [%e %e %e %e] rho: [%e %e %e]\n", jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+    MUNULOOP fprintf(stderr, "Econ[%i][%i] = %e Ncoord = %e Ntet = %e\n", mu, nu, Econ[mu][nu], creal(N_coord[mu][nu]), creal(N_tetrad[mu][nu]));
+  }
+#else
   if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) oddflag |= 4;
+#endif
   return oddflag;
 }
 
