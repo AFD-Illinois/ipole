@@ -1,11 +1,7 @@
 # ipole
 Polarized covariant radiative transfer in C, for imaging black hole accretion systems such as those being imaged by the Event Horizon Telescope. `ipole` is described in Moscibrodzka and Gammie [2018](https://ui.adsabs.harvard.edu/abs/2018MNRAS.475...43M/abstract).
 
-# Before you use ipole for science
-
-ipole is a powerful tool, but not a general-purpose imaging code. It is limited in scope and testing to black hole accretion systems, specifically modeling only synchrotron emission from one of a number of electron energy distributions, without scattering. While it may work for your application, you should understand the transfer coefficient fitting functions we use (Dexter [2016](https://ui.adsabs.harvard.edu/abs/2016MNRAS.462..115D/abstract) , Pandya [2016](https://ui.adsabs.harvard.edu/abs/2016ApJ...822...34P/abstract), Pandya [2018](https://ui.adsabs.harvard.edu/abs/2018ApJ...868...13P/abstract)), and also have a passing understanding of the algorithm itself, described in (Moscibrodzka and Gammie [2018](https://ui.adsabs.harvard.edu/abs/2018MNRAS.475...43M/abstract)). If you are imaging GRMHD simulations, you should also understand common easy mistakes to make in analyzing GRMHD and how the simulation and analysis pipeline fits together (e.g. Wong et al 2021, in prep).  When used outside these parameters, ipole may crash, or worse, produce subtly or arbitrarily incorrect results.
-
-To reiterate: when used incorrectly, ipole can (like any tool) produce bad science. It is provided to the community in the hope it will be useful, and we (the AFD Group at Illinois) are happy to answer questions and provide usage advice; however, development support in adapting the code for new use cases cannot be guaranteed.
+This file details how to use ipole, along with a note about when it might (or might not) be appropriate for your project.
 
 # Prerequisites
 
@@ -138,6 +134,14 @@ Converters are available to translate output into FITS images, or into the old
 
 The ipole output format for traces is documented
 [here](https://github.com/AFD-Illinois/docs/wiki/Trace-File-Output-Format)
+
+# Before you use ipole for science
+
+ipole is a powerful tool, but not a general-purpose imaging code. It is primarily designed to image RIAF accretion systems like M87* and SgrA*, specifically modeling only synchrotron emission from one of a number of electron energy distributions, without scattering. While it may work for your application, when used outside this domain (e.g. for very low temperatures, high optical depths, etc.) ipole may crash, or worse, produce arbitrarily incorrect results.
+
+As a part of producing scientifically valid images, you should understand the domains of validity of the transfer coefficient fitting functions we use (Dexter [2016](https://ui.adsabs.harvard.edu/abs/2016MNRAS.462..115D/abstract) , Pandya et al. [2016](https://ui.adsabs.harvard.edu/abs/2016ApJ...822...34P/abstract), Pandya et al. [2018](https://ui.adsabs.harvard.edu/abs/2018ApJ...868...13P/abstract), Marszewski et al. 2021, submitted).  You should also have a passing understanding of the algorithm itself, described in (Moscibrodzka and Gammie [2018](https://ui.adsabs.harvard.edu/abs/2018MNRAS.475...43M/abstract)). If you are imaging GRMHD simulations, you should also understand the easy mistakes to make in imaging GRMHD results, and how the simulation and analysis pipeline fits together (e.g. Wong et al 2021, in prep).
+
+ipole is provided to the community as-is, in the hope it will be useful.  We (the AFD Group at Illinois) are happy to answer questions and provide usage advice; however, development support in adapting the code for new use cases cannot be guaranteed.
 
 # Contributing
 
