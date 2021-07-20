@@ -89,12 +89,12 @@ void try_set_radiation_parameter(const char *word, const char *value)
  * This is a wrapper to jar_calc_dist, see implementation there
  * Also checks for NaN coefficients when built with DEBUG, for quicker debugging
  */
-void jar_calc(double X[NDIM], double nu, double theta,
+void jar_calc(double X[NDIM], Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV, Params *params)
 {
-  jar_calc_dist(params->emission_type, 1, X, nu, theta, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+  jar_calc_dist(params->emission_type, 1, X, Kcon[NDIM], jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
 
   // This wrapper can be used to call jar_calc_dist differently in e.g. funnel vs jet, or
   // depending on local fluid parameters, whatever
@@ -107,13 +107,7 @@ void jar_calc(double X[NDIM], double nu, double theta,
 void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jI, double *aI, Params *params)
 {
   double jQ, jU, jV, aQ, aU, aV, rQ, rU, rV;
-  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-
-  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
-  double nu = get_fluid_nu(Kcon, Ucov);
-  double theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);
-
-  jar_calc_dist(params->emission_type, 0, X, nu, theta, jI, &jQ, &jU, &jV, aI, &aQ, &aU, &aV, &rQ, &rU, &rV);
+  jar_calc_dist(params->emission_type, 0, X, Kcon[NDIM], jI, &jQ, &jU, &jV, aI, &aQ, &aU, &aV, &rQ, &rU, &rV);
 }
 
 /**
@@ -136,7 +130,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jI, double *aI, Params
  * 
  * 
  */
-void jar_calc_dist(int dist, int pol, double X[NDIM], double nu, double theta,
+void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV)
@@ -155,17 +149,19 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double nu, double theta,
 
   // Call through to the model if it's responsible for this job
   if (dist == E_CUSTOM) {
-    get_model_jar(X, nu, theta, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+    get_model_jar(X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
     return;
   }
 
   struct parameters paramsM;
   setConstParams(&paramsM);
   // Set the parameters common to all distributions...
-  paramsM.magnetic_field = get_model_b(X);
+  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
+  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
   paramsM.electron_density = Ne;
-  paramsM.nu                 = nu;
-  paramsM.observer_angle     = theta;
+  paramsM.magnetic_field   = get_model_b(X);
+  paramsM.nu               = get_fluid_nu(Kcon, Ucov);
+  paramsM.observer_angle   = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);
 
   // ...and then the specific distribution and its parameters.
   switch (dist) {
@@ -203,7 +199,6 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double nu, double theta,
       *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
     }
   } else {
-
     // Avoid issues directly along field lines
     if (theta <= 0 || theta >= M_PI) {
       *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;

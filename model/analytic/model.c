@@ -187,20 +187,21 @@ double get_model_ne(double X[NDIM])
   return ( n_exp < 200 ) ? RHO_unit * exp(-n_exp) : 0;
 }
 
-void get_model_jk(double X[NDIM], double nu, double theta, double *jnuinv, double *knuinv)
+void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv)
 {
   // Emission model defined in Gold et al 2020 section 3
   double n = get_model_ne(X);
 
-  // double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-  // double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
-  // get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+  double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
+  double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
+  get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+  double nu = get_fluid_nu(Kcon, Ucov);
 
   *jnuinv = fmax( n * pow(nu / freqcgs, -alpha) / pow(nu, 2), 0);
   *knuinv = fmax( (A * n * pow(nu / freqcgs, -(2.5 + alpha)) + 1.e-54) * nu, 0);
 }
 
-void get_model_jar(double X[NDIM], double nu, double theta,
+void get_model_jar(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV)
@@ -213,7 +214,7 @@ void get_model_jar(double X[NDIM], double nu, double theta,
   // and set the rest to zero
   // Of course, you can be more elaborate
   double j, k;
-  get_model_jk(X, nu, theta, &j, &k);
+  get_model_jk(X, Kcon, &j, &k);
 
   *jI = j;
   *jQ = 0;

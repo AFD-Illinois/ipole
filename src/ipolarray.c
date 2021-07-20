@@ -322,13 +322,8 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 
   int oddflag = 0;
 
-  // get fluid parameters at Xf
-  get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
-
   // evaluate transport coefficients
-  double nu = get_fluid_nu(Kconf, Ucov);
-  double theta = get_bk_angle(Xf, Kconf, Ucov, Bcon, Bcov);
-  jar_calc(Xf, nu, theta,
+  jar_calc(Xf, Kconf,
       &jI, &jQ, &jU, &jV,
       &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
   if (zero_emission) {
@@ -337,6 +332,9 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     jU = 0.;
     jV = 0.;
   }
+
+  // get fluid parameters at Xf
+  get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
 
   // Guess B if we *absolutely must*
   // Note get_model_b (rightly) returns 0 outside the domain,

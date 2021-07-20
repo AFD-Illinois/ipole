@@ -123,7 +123,7 @@ void record_stokes_parameters(double SI, double SQ, double SU, double SV, double
   ++nstep;
 }
 
-void get_model_jar(double X[NDIM], double nu, double theta,
+void get_model_jar(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV)
