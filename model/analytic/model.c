@@ -193,7 +193,6 @@ void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knu
   double n = get_model_ne(X);
 
   double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-  double Kcon[NDIM] = {0}; // TODO interface change if we ever need a real one here
   get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
   double nu = get_fluid_nu(Kcon, Ucov);
 
