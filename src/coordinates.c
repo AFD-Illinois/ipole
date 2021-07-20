@@ -40,6 +40,9 @@ void bl_coord(double X[NDIM], double *r, double *th)
   } else {
     double y, thG, thJ;
     switch (metric) {
+      case METRIC_EKS:
+        *th = X[2];
+        break;
       case METRIC_MKS:
         *th = M_PI * X[2] + ((1. - hslope) / 2.) * sin(2. * M_PI * X[2]);
         break;
@@ -212,6 +215,8 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
     dxdX[2][2] = M_PI;
   } else {
     switch (metric) {
+      case METRIC_EKS:
+        break;
       case METRIC_MKS:
         dxdX[2][2] = M_PI + (1 - hslope) * M_PI * cos(2. * M_PI * X[2]);
         break;

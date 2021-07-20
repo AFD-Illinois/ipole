@@ -168,6 +168,7 @@ void dump_at_X(double X[NDIM])
   print_matrix("gcov", gcov);
   print_matrix("gcon", gcon);
   fprintf(stderr, "Ne, Thetae, B: %g, %g, %g\n", Ne, Thetae, B);
+  // if pure hydrogen, sigma = B*B/Ne / (4.*M_PI * CL*CL * (MP+ME))
   print_vector("ucon", ucon);
   print_vector("ucov", ucov);
   print_vector("bcon", bcon);
