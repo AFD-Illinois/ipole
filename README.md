@@ -1,5 +1,11 @@
 # ipole
-Polarized covariant radiative transfer in C.
+Polarized covariant radiative transfer in C, for imaging black hole accretion systems such as those being imaged by the Event Horizon Telescope. `ipole` is described in Moscibrodzka and Gammie [2018](https://ui.adsabs.harvard.edu/abs/2018MNRAS.475...43M/abstract).
+
+# Before you use ipole for science
+
+ipole is a powerful tool, but not a general-purpose imaging code. It is limited in scope and testing to black hole accretion systems, specifically modeling only synchrotron emission from one of a number of electron energy distributions, without scattering. While it may work for your application, you should understand the transfer coefficient fitting functions we use (Dexter [2016](https://ui.adsabs.harvard.edu/abs/2016MNRAS.462..115D/abstract) , Pandya [2016](https://ui.adsabs.harvard.edu/abs/2016ApJ...822...34P/abstract), Pandya [2018](https://ui.adsabs.harvard.edu/abs/2018ApJ...868...13P/abstract)), and also have a passing understanding of the algorithm itself, described in (Moscibrodzka and Gammie [2018](https://ui.adsabs.harvard.edu/abs/2018MNRAS.475...43M/abstract)). If you are imaging GRMHD simulations, you should also understand common easy mistakes to make in analyzing GRMHD and how the simulation and analysis pipeline fits together (e.g. Wong et al 2021, in prep).  When used outside these parameters, ipole may crash, or worse, produce subtly or arbitrarily incorrect results.
+
+To reiterate: when used incorrectly, ipole can (like any tool) produce bad science. It is provided to the community in the hope it will be useful, and we (the AFD Group at Illinois) are happy to answer questions and provide usage advice; however, development support in adapting the code for new use cases cannot be guaranteed.
 
 # Prerequisites
 
@@ -11,10 +17,15 @@ On Illinois BH cluster, this means loading the modules
 $ module load gnu hdf5
 ```
 
-On Linux machines, these can be installed to the system with
+On Linux machines, if you have root access these can be installed to the system with
 ```bash
-$ sudo things
+$ sudo apt install libhdf5-dev libgsl-dev
 ```
+or
+```bash
+$ sudo dnf install hdf5-devel hdf5-static gsl-devel
+```
+they are each straightforward to compile from source as well.
 
 The native macOS version of ```clang``` does not support OpenMP parallelization.  So,
 on macOS with ```brew```, install
@@ -35,18 +46,21 @@ make ```ipole``` into any destination directory by going there, and then
 specifying the location of the makefile with ```-f```.  Note, though, that
 ```ipole``` does not support building in directories which contain spaces.
 
-Alternatively, if you are building your own parallel version of HDF5, ensure that
-```h5pcc``` is in your path, and run
+If you are using your own version of HDF5, you can specify where to find it with
+```bash
+$ make CC=/path/to/h5cc
+```
+
+Or compile with parallel HDF5:
 
 ```bash
-$ make CC=h5pcc
+$ make CC=/path/to/h5pcc
 ```
 
 A particular fluid model or data format can be specified with
-```MODEL=model_name```. For all fluid data produced from Illinois codes after
-September 2018, the ```iharm``` model should be used -- this is the default if
-no model is specified.  After building a model, be sure to run
-```make clean``` before building a different one.
+```MODEL=model_name```. For nearly all GRMHD fluid data, the ```iharm``` model
+should be used -- this is the default if no model is specified.  After building
+a model, be sure to run ```make clean``` before building a different one.
 
 The optional argument ```NOTES=``` can be any string containing no spaces.
 This string will be "baked-in" to the executable and printed out whenever the
@@ -124,3 +138,10 @@ Converters are available to translate output into FITS images, or into the old
 
 The ipole output format for traces is documented
 [here](https://github.com/AFD-Illinois/docs/wiki/Trace-File-Output-Format)
+
+# Contributing
+
+We welcome contributions and pull requests from the community implementing new features or issue fixes, and we'll do our best to review and incorporate changes into the main version, to keep as many features and fixes available to as many people as possible.  Not every new application fits ipole's scope, however, and we reserve some discretion in choosing which features to incorporate (and consequently support).
+
+Feel free to file issues in this repository where ipole doesn't work for your use case for any reason, or to ask questions which might be of general interest. Please keep in mind that while bugs will likely be given attention quickly, new uses and extensions must be supported on a best-effort basis.
+
