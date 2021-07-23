@@ -378,15 +378,20 @@ void shcherbakov_rho_fit(double Ne, double nu, double Thetae, double B, double t
   double Xe = Thetae * sqrt(sqrt(2) * sin(theta) * (1.e3 * omega0 / 2. / M_PI / nu));
 
   // These are the Dexter (2016) fit actually
+  double k1 = gsl_sf_bessel_Kn(1, Thetaer);
+  double k2 = gsl_sf_bessel_Kn(2, Thetaer);
+  double k_ratio = (k2 > 0) ? k1/k2 : 1;
   *rQ = 2. * M_PI * nu / 2. / CL * wp2 * omega0 * omega0 / pow(2 * M_PI * nu, 4) *
-        jffunc(Xe) * (gsl_sf_bessel_Kn(1, Thetaer) / gsl_sf_bessel_Kn(2, Thetaer) +
-                      6. * Thetae) * sin(theta) * sin(theta);
+        jffunc(Xe) * (k_ratio + 6. * Thetae) * sin(theta) * sin(theta);
+
   *rU = 0.0;
 
   // Shcherbakov fit for rV.  Possibly questionable at very low frequency
   // Note the real bessel functions. Slow?
+  double k0 = gsl_sf_bessel_Kn(1, Thetaer);
+  k_ratio = (k2 > 0) ? k0/k2 : 1;
   *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
-        gsl_sf_bessel_Kn(0, Thetaer) / (gsl_sf_bessel_Kn(2, Thetaer)+SMALL) * g(Xe) * cos(theta);
+        k_ratio * g(Xe) * cos(theta);
 }
 
 void piecewise_rho_fit(double Ne, double nu, double Thetae, double B, double theta,

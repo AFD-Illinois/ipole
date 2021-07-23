@@ -194,11 +194,13 @@ double maxwell_juettner_rho_Q(struct parameters * params)
   double jffunc = 2.011 * exp(-pow(x, 1.035)/4.7) - cos(x/2.) 
                   * exp(-pow(x, 1.2)/2.73) - .011 * exp(-x / 47.2) + extraterm;
 
+  double k1 = gsl_sf_bessel_Kn(1, 1./params->theta_e);
+  double k2 = gsl_sf_bessel_Kn(2, 1./params->theta_e);
+  double k_ratio = (k2 > 0) ? k1/k2 : 1;
+
   double eps11m22 = jffunc * wp2 * pow(omega0, 2.) 
                     / pow(2.*params->pi * params->nu, 4.)
-                    * (gsl_sf_bessel_Kn(1, 1./params->theta_e) 
-                       / gsl_sf_bessel_Kn(2, 1./params->theta_e)
-                       + 6. * params->theta_e) 
+                    * (k_ratio + 6. * params->theta_e)
                     * pow(sin(params->observer_angle), 2.);
 
   double rhoq = 2. * params->pi * params->nu /(2. * params->speed_light) 
@@ -241,14 +243,15 @@ double maxwell_juettner_rho_V(struct parameters * params)
   /* There are several fits of rho_V phrased as functions of x */
   // TODO add straight Bessel-approx -> constant extrapolation?
   double fit_factor = 0;
-  if (params->dexter_fit) {
+  if (params->dexter_fit && k2 > 0) { // TODO Further limit the usage here to match grtrans
     // Jason Dexter (2016) fits using the modified difference factor g(X)
     double shgmfunc = 0.43793091 * log(1. + 0.00185777 * pow(x, 1.50316886));
     fit_factor = (k0 - shgmfunc) / k2;
   } else {
     // Shcherbakov fits.  Good to the smallest Thetae at high freq but questionable for low frequencies
     double shgmfunc = 1 - 0.11*log(1 + 0.035*x);
-    fit_factor = k0 / k2 * shgmfunc;
+    double k_ratio = (k2 > 0) ? k0/k2 : 1;
+    fit_factor = k_ratio * shgmfunc;
   }
 
   double eps12 = wp2 * omega0 / pow((2. * params->pi * params->nu), 3.)
