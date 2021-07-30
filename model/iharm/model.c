@@ -957,19 +957,6 @@ void load_data(int n, char *fnam, int dumpidx, int verbose)
   } else if (dumpfile_format == FORMAT_HAMR_EKS) {
     load_hamr_data(n, fnam, dumpidx, verbose);
   }
-
-  // FIXME
-  if (1==1) {
-    double X[4];
-    ijktoX(140, 50, 70, X);
-    dump_at_X(X);
-  }
-
-  for (int k=1; k<N3+1; ++k) {
-    // all indices + 1 since ipole has "ghost zones" for interpolation
-    double bsq = data[n]->b[141][65][k];
-    fprintf(stderr, "%d %g\n", k, bsq);
-  }
 }
 
 void populate_boundary_conditions(int n)

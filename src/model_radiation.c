@@ -388,7 +388,7 @@ void shcherbakov_rho_fit(double Ne, double nu, double Thetae, double B, double t
 
   // Shcherbakov fit for rV.  Possibly questionable at very low frequency
   // Note the real bessel functions. Slow?
-  double k0 = gsl_sf_bessel_Kn(1, Thetaer);
+  double k0 = gsl_sf_bessel_Kn(0, Thetaer);
   k_ratio = (k2 > 0) ? k0/k2 : 1;
   *rV = 2.0 * M_PI * nu / CL * wp2 * omega0 / pow(2. * M_PI * nu, 3) *
         k_ratio * g(Xe) * cos(theta);
