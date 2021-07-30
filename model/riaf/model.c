@@ -19,9 +19,9 @@ double Te_unit = 1e11;
 double Ne_unit = 5e6;
 
 // Model parameters: public
+double rmin_geo = 0;
 double rmax_geo = 1000.0;
 // Model parameters: private
-static double rmin_geo = 0;
 static double MBH_solar = 4.3e6;
 
 static double MBH;
@@ -138,6 +138,8 @@ void set_units()
   stopx[1] = log(Rout);
   stopx[2] = 1.0;
   stopx[3] = 2*M_PI;
+  MULOOP cstartx[mu] = startx[mu];
+  MULOOP cstopx[mu] = stopx[mu];
 }
 
 void output_hdf5()

@@ -342,11 +342,11 @@ double root_find(double X[NDIM])
   Xc[3] = Xa[3];
 
   if (X[2] < M_PI / 2.) {
-    Xa[2] = startx[2];
-    Xb[2] = (stopx[2] - startx[2])/2 + SMALL;
+    Xa[2] = cstartx[2];
+    Xb[2] = (cstopx[2] - cstartx[2])/2 + SMALL;
   } else {
-    Xa[2] = (stopx[2] - startx[2])/2 - SMALL;
-    Xb[2] = stopx[2];
+    Xa[2] = (cstopx[2] - cstartx[2])/2 - SMALL;
+    Xb[2] = cstopx[2];
   }
 
   double tol = 1.e-9;

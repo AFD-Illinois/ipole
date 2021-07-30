@@ -14,9 +14,10 @@
 #define B3   7
 #define KEL  8
 #define KTOT 9
+#define TFLK 8  // temperature of fluid in Kelvin
 
 extern double DTd;
 extern double sigma_cut;
-extern double rmax_geo;
+extern double rmin_geo, rmax_geo;
 
 #endif // MODEL_PARAMS_H

@@ -831,8 +831,8 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
     exit(-10);
   }
 
-  // Integrate emission all the way forward along trajectory
-  int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params);
+  // Integrate emission forward along trajectory
+  int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params, 0);
 
   if (!only_intensity) {
     project_N(X, Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);
