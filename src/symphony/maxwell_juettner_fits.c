@@ -2,6 +2,8 @@
 
 #include "constants.h"
 
+#include <stdio.h>
+
 // Local functions for dispatched fits
 double I_I(double x);
 double I_Q(double x);
@@ -360,7 +362,7 @@ double maxwell_juettner_leung_I(struct parameters *params)
   double B = params->magnetic_field;
   double theta = params->observer_angle;
 
-  double K2 = gsl_sf_bessel_Kn(2,1./Thetae);
+  double K2 = fmax(gsl_sf_bessel_Kn(2,1./Thetae), SMALL);
 
   double nuc = EE*B/(2.*M_PI*ME*CL);
   double nus = (2./9.)*nuc*Thetae*Thetae*sin(theta);
@@ -371,6 +373,12 @@ double maxwell_juettner_leung_I(struct parameters *params)
   double x = nu/nus ;
   double f = pow( pow(x,1./2.) + pow(2.,11./12.)*pow(x,1./6.), 2 );
   double j = (sqrt(2.)*M_PI*EE*EE*Ne*nus/(3.*CL*K2)) * f * exp(-pow(x,1./3.));
+
+#if DEBUG
+  if (isnan(j) || isinf(j)) {
+    fprintf(stderr, "j nan in Leung fit: j %g f %g x %g nu %g nus %g nuc %g K2 %g Thetae %g\n", j, f, x, nu, nus, nuc, K2, Thetae);
+  }
+#endif
 
   return j;
 }

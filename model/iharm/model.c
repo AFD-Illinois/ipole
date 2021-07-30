@@ -965,6 +965,16 @@ void init_koral_grid(char *fnam, int dumpidx)
     hdf5_read_single_val(&(mp_koral_mks3.my2), "mksmy2", H5T_IEEE_F64LE);
     hdf5_read_single_val(&(mp_koral_mks3.mp0), "mksmp0", H5T_IEEE_F64LE);
     fprintf(stderr, "KORAL simulation was run with MKS3 coordinates.\n");
+  } else if (strcmp(metric_run, "MKS2") == 0) {
+    simcoords = SIMCOORDS_KORAL_MKS3;
+    hdf5_read_single_val(&a, "bhspin", H5T_IEEE_F64LE);
+    hdf5_set_directory("/header/geom/mks2/");
+    hdf5_read_single_val(&(mp_koral_mks3.r0), "mksr0", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&(mp_koral_mks3.h0), "mksh0", H5T_IEEE_F64LE);
+    mp_koral_mks3.my1 = 0;
+    mp_koral_mks3.my2 = 0;
+    mp_koral_mks3.mp0 = 0;
+    fprintf(stderr, "KORAL simulation was run with MKS2 coordinates.\n");
   } else if (strcmp(metric_run, "JETCOORDS") == 0) {
     simcoords = SIMCOORDS_KORAL_JETCOORDS;
     hdf5_read_single_val(&a, "bhspin", H5T_IEEE_F64LE);

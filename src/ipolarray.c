@@ -250,6 +250,12 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
   double dl = dlam / (L_unit * HPL / (ME * CL * CL));
 #endif
 
+  if (Xm[0] == 0 && Xm[1] == 0 && Xm[2] == 0 && Xm[3] == 0)
+  {
+    fprintf(stderr, "Called push_polar at origin! You are probably trying to trace something unsupported.\n");
+    exit(-1);
+  }
+
   /* find the connection */
   double lconn[NDIM][NDIM][NDIM];
   get_connection(Xm, lconn);
@@ -274,7 +280,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 
 Parallel Transport a real vector over dl
 (see push_polar above)
-
+TODO should probably go in io.c
 */
 void parallel_transport_vector(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     double Ki[NDIM], double Km[NDIM], double Kf[NDIM],

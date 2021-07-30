@@ -176,10 +176,7 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   case E_KAPPA: // Kappa fits (Pandya + Marszewski)
     paramsM.distribution = paramsM.KAPPA_DIST;
     paramsM.theta_e = get_model_thetae(X);
-    double kappa, kappa_width;
-    get_model_kappa(X, &kappa, &kappa_width);
-    paramsM.kappa = kappa;
-    paramsM.kappa_width = kappa_width;
+    get_model_kappa(X, &(paramsM.kappa), &(paramsM.kappa_width));
     break;
   case E_POWERLAW: // Powerlaw fits (Pandya, no rotativities!)
     paramsM.distribution = paramsM.POWER_LAW;
