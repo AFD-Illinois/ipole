@@ -124,17 +124,59 @@ Converters are available to translate output into FITS images, or into the old
 The ipole output format for traces is documented
 [here](https://github.com/AFD-Illinois/docs/wiki/Trace-File-Output-Format)
 
-# Before you use ipole for science
+# ipole limitations
 
-`ipole` is a powerful tool, but it is not a general-purpose imaging code. It is designed to image RIAF accretion systems like M87* and SgrA*, and it only models synchrotron emission and absorption using transfer coefficients from a particular electron distribution function. `ipole` does not treat scattering. While `ipole` may work for your use case, when used outside this domain (e.g., for very low temperatures, high optical depths, etc.) `ipole` may crash or produce misleading results.
+ipole is not a general-purpose imaging code. It has been designed, tested for,
+and used for modeling of Event Horizon Telescope sources.  It may crash or
+produce incorrect results in other use cases.  We strongly recommend you test
+the code in an appropriate regime before you use it.
 
-As a part of producing scientifically valid images, you should understand the domains of validity of the transfer coefficient fitting functions that we use (Dexter [2016](https://ui.adsabs.harvard.edu/abs/2016MNRAS.462..115D/abstract), Pandya et al. [2016](https://ui.adsabs.harvard.edu/abs/2016ApJ...822...34P/abstract), Pandya et al. [2018](https://ui.adsabs.harvard.edu/abs/2018ApJ...868...13P/abstract), Marszewski et al. 2021, submitted).  You should also have a passing understanding of the polarized transfer algorithm, which is described in (Moscibrodzka and Gammie [2018](https://ui.adsabs.harvard.edu/abs/2018MNRAS.475...43M/abstract)). If you are imaging GRMHD simulations, you should also understand the easy mistakes to make in imaging GRMHD results and how the simulation and analysis pipeline fits together (e.g., Wong et al 2021, in prep).
+The ipole algorithm is described in Moscibrodzka and Gammie 
+[2018](https://ui.adsabs.harvard.edu/abs/2018MNRAS.475...43M/abstract).  The
+original version can be found here (https://github.com/moscibrodzka/ipole).
+Each radiative transfer step is based on an analytic solution to the
+polarized transfer equation assuming constant coefficients. This
+is intended to produce sensible results even when absorption or Faraday rotation
+and conversion are large in a single step.  A comparison of
+polarized relativistic radiative transport schemes can be found in
+Prather (2021, in prep).
 
-`ipole` is provided to the community as-is, in the hope it will be useful.  Although the AFD Group at Illinois, who maintain this respository, are happy to answer questions and provide usage advice, development support in adapting the code for new use cases cannot be guaranteed.
+If you are imaging GRMHD simulations, you will find guidance on how a GRMHD
+simulation and analysis pipeline fits together in the PATOKA pipeline paper,
+Wong (2021, in prep).
 
-# Contributing
+ipole treats synchrotron emission and absorption but not bremsstrahlung or Compton
+scattering.  The transfer coefficients (emissivities, absorptivities, and rotativities)
+are drawn from analytic fits presented
+in Dexter [2016](https://ui.adsabs.harvard.edu/abs/2016MNRAS.462..115D/abstract) , Pandya 
+[2016](https://ui.adsabs.harvard.edu/abs/2016ApJ...822...34P/abstract), Pandya 
+[2018](https://ui.adsabs.harvard.edu/abs/2018ApJ...868...13P/abstract), and
+Marszewski (2021, submitted), with a summary in the latter.  All coefficients assume that
+the electron distribution function is isotropic and that the frequency is large compared
+to the plasma frequency and cyclotron frequency. ipole implements fits for several electron
+distribution, including a thermal (Maxwell-Juttner) distribution, a power-law distribution,
+and a kappa distribution.
 
-We welcome contributions and pull requests from the community implementing new features or issue fixes, and we will do our best to review and merge modifications so that the new features and fixes are available to as many people as possible.  Not every new application fits the `ipole` scope, however, and we reserve the right to choose which features to support.
+# Support and Contributing
 
-You are welcome to file issues in this repository to ask questions of general interest and report when `ipole` doesn't work for you. Please keep in mind that while bugs related to the `ipole`'s primary purpose will likely be given attention quickly, new uses and extensions will only be supported on a best-effort basis.
+We welcome contributions and pull requests from the community implementing new features or
+issue fixes.  Not every new application fits the `ipole` scope, however, and we reserve
+the right to choose which features to support.
+
+You are welcome to file issues in this repository to ask questions of general interest and
+report when `ipole` doesn't work for you. Please keep in mind that while bugs related to
+`ipole`'s primary purpose will likely be given attention quickly, new uses and extensions
+can only be supported on a best-effort basis.
+
+ipole is an open source, community code that originated in the AFD group at Illinois
+and in the Astrophysics group at Radboud.  Unfortunately we are not funded to provide support for all
+users, so you may need to do some detective work yourself.  We will prioritize
+fixing problems that are manifestly bugs, rather than problems encountered in
+extending ipole into new parameter regimes.
+
+# Funding
+
+Funding for the development of ipole at Illinois was provided by the National
+Science Foundation under multiple grants, including NSF AST 17-16327,
+NSF OISE 17-43747, NSF AST 20-07936, and NSF AST 20-34306.
 
