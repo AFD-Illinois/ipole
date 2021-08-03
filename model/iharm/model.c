@@ -50,6 +50,10 @@ static char fnam[STRLEN] = "dump.h5";
 static double tp_over_te = 3.;
 static double trat_small = 1.;
 static double trat_large = 40.;
+// Minimum number of dynamical times the cooling time must
+// undershoot to be considered "small"
+// lower values -> higher max T_e, higher values are restrictive
+static double cooling_dynamical_times = 1.;
 
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
@@ -123,6 +127,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
+  set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
@@ -509,6 +514,10 @@ void set_units()
 
 void init_physical_quantities(int n)
 {
+#if DEBUG
+  int ceilings = 0;
+#endif
+
   // cover everything, even ghost zones
 #pragma omp parallel for collapse(3)
   for (int i = 0; i < N1+2; i++) {
@@ -548,16 +557,36 @@ void init_physical_quantities(int n)
         } else {
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
-        data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
 #if DEBUG
         if(isnan(data[n]->thetae[i][j][k])) {
           data[n]->thetae[i][j][k] = 0.0;
-          fprintf(stderr, "\nZero Thetae!  Prims %g %g %g %g %g %g %g %g\n", data[n]->p[KRHO][i][j][k], data[n]->p[UU][i][j][k],
+          fprintf(stderr, "\nNaN Thetae!  Prims %g %g %g %g %g %g %g %g\n", data[n]->p[KRHO][i][j][k], data[n]->p[UU][i][j][k],
                   data[n]->p[U1][i][j][k], data[n]->p[U2][i][j][k], data[n]->p[U3][i][j][k], data[n]->p[B1][i][j][k],
                   data[n]->p[B2][i][j][k], data[n]->p[B3][i][j][k]);
-          fprintf(stderr, "Setting zero temp!\n");
+          fprintf(stderr, "Setting floor temp!\n");
         }
 #endif
+
+        // Enforce a max on Thetae based on cooling time == dynamical time
+        if (cooling_dynamical_times > 1e-20) {
+          double X[NDIM];
+          ijktoX(i, j, k, X);
+          double r, th;
+          bl_coord(X, &r, &th);
+          // Calculate thetae_max based on matching the cooling time w/dynamical time
+          // Makes sure to use b w/units, but r has already been rescaled
+          double Thetae_max_dynamical =  1 / cooling_dynamical_times * 7.71232e46 / 2 / MBH * pow(data[n]->b[i][j][k], -2) * pow(r * sin(th), -1.5);
+#if DEBUG
+          if (Thetae_max_dynamical < data[n]->thetae[i][j][k]) {
+            if (r > 2) fprintf(stderr, "Ceiling on temp! %g < %g, r, th %g %g\n", Thetae_max_dynamical, data[n]->thetae[i][j][k], r, th);
+            ceilings++;
+          }
+#endif
+          data[n]->thetae[i][j][k] = fmin(data[n]->thetae[i][j][k], Thetae_max_dynamical);
+        }
+
+        // Apply floor last in case the above is a very restrictive ceiling
+        data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
 
         // Preserve sigma for cutting along geodesics, and for variable-kappa model
         data[n]->sigma[i][j][k] = sigma_m;
@@ -574,7 +603,9 @@ void init_physical_quantities(int n)
       }
     }
   }
-
+#if DEBUG
+  fprintf(stderr, "TOTAL TEMPERATURE CEILING ZONES: %d of %d\n", ceilings, (N1+2)*(N2+2)*(N3+2));
+#endif
 }
 
 void init_storage(void)
