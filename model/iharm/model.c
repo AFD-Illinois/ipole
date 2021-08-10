@@ -1091,7 +1091,10 @@ void init_koral_grid(char *fnam, int dumpidx)
   stopx[1] = startx[1]+N1*dx[1];
   stopx[2] = startx[2]+N2*dx[2];
   stopx[3] = startx[3]+N3*dx[3];
+  MULOOP cstartx[mu] = startx[mu];
+  MULOOP cstopx[mu] = stopx[mu];
 
+  fprintf(stderr, "KORAL coordinates dx: %g %g %g\n", dx[1], dx[2], dx[3]);
   fprintf(stderr, "Native coordinate start: %g %g %g stop: %g %g %g\n",
                   cstartx[1], cstartx[2], cstartx[3], cstopx[1], cstopx[2], cstopx[3]);
   fprintf(stderr, "Grid start: %g %g %g stop: %g %g %g\n",

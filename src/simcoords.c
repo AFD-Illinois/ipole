@@ -131,7 +131,7 @@ void initialize_simgrid(size_t n1, size_t n2, double x1i, double x1f, double x2i
   rmax_geo = fmin(rmax_geo, Rout);
   rmin_geo = fmax(rmin_geo, Rin);
 
-  fprintf(stderr, "Rin Rmax %g %g %g %g  %g\n", rmax_geo, rmax_geo, Rin, Rout,  1. + sqrt(1.-a*a));
+  fprintf(stderr, "Rin Rmax %g %g %g %g  %g\n", rmin_geo, rmax_geo, Rin, Rout,  1. + sqrt(1.-a*a));
 
   x1i_oob = x1f + 1.;
   er0 = log(Rin);
