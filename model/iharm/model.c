@@ -2,6 +2,7 @@
 
 #include "decs.h"
 #include "hdf5_utils.h"
+#include "debug_tools.h"
 
 #include "coordinates.h"
 #include "geometry.h"
@@ -36,6 +37,10 @@ double RHO_unit;
 double U_unit;
 double B_unit;
 double Te_unit;
+
+// MOLECULAR WEIGHTS
+static double Ne_factor = 1.;  // e.g., used for He with 2 protons+neutrons per 2 electrons
+static double mu_i, mu_e, mu_tot;
 
 // MODEL PARAMETERS: PUBLIC
 double DTd;
@@ -72,7 +77,10 @@ static int reverse_field = 0;
 //    0 : constant TP_OVER_TE
 //    1 : use dump file model (kawazura?)
 //    2 : use mixed TP_OVER_TE (beta model)
+//    3 : use mixed TP_OVER_TE (beta model) with fluid temperature
 //    9 : load Te (in Kelvin) from dump file (KORAL etc.)
+// TODO the way this is selected is horrid.  Make it a parameter.
+#define ELECTRONS_TFLUID (3)
 static int RADIATION, ELECTRONS;
 static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
@@ -283,7 +291,8 @@ void init_model(double *tA, double *tB)
 
   // read fluid data
   fprintf(stderr, "Reading data...\n");
-  load_data(0, fnam, dumpidx, dumpmin);
+  load_data(0, fnam, dumpidx, 2);  
+  // replaced dumpmin -> 2 because apparently that argument was just .. removed
   dumpidx += dumpskip;
   #if SLOW_LIGHT
   update_data(tA, tB);
@@ -523,7 +532,7 @@ void init_physical_quantities(int n)
   for (int i = 0; i < N1+2; i++) {
     for (int j = 0; j < N2+2; j++) {
       for (int k = 0; k < N3+2; k++) {
-        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
+        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) * Ne_factor;
 
         double bsq = data[n]->b[i][j][k] / B_unit;
         bsq = bsq*bsq;
@@ -554,6 +563,12 @@ void init_physical_quantities(int n)
         } else if (ELECTRONS == 9) {
           // convert Kelvin -> Thetae
           data[n]->thetae[i][j][k] = data[n]->p[TFLK][i][j][k] * KBOL / ME / CL / CL;
+        } else if (ELECTRONS == ELECTRONS_TFLUID) {
+          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
+          double betasq = beta*beta / beta_crit/beta_crit;
+          double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
+          double dfactor = mu_tot / mu_e + mu_tot / mu_i * trat;
+          data[n]->thetae[i][j][k] = data[n]->p[THF][i][j][k] / dfactor;
         } else {
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
@@ -768,6 +783,17 @@ void init_iharm_grid(char *fnam, int dumpidx)
     exit(-3);
   }
 
+  if ( hdf5_exists("weights") ) {
+    hdf5_set_directory("/header/weights/");
+    hdf5_read_single_val(&mu_i, "mu_i", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mu_e, "mu_e", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mu_tot, "mu_tot", H5T_IEEE_F64LE);
+    fprintf(stderr, "Loaded molecular weights (mu_i, mu_e, mu_tot): %g %g %g\n", mu_i, mu_e, mu_tot);
+    Ne_factor = 1. / mu_e;
+    hdf5_set_directory("/header/");
+    ELECTRONS = ELECTRONS_TFLUID;
+  }
+
   char metric_name[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric_name, "metric", HDF5_STR_TYPE);
@@ -790,6 +816,9 @@ void init_iharm_grid(char *fnam, int dumpidx)
     use_eKS_internal = 1;
     metric = METRIC_MKS3;
     cstopx[2] = 1.0;
+  } else if ( strncmp(metric_name, "EKS", 19) == 0 ) {
+    metric = METRIC_EKS;
+    cstopx[2] = M_PI;
   } else {
     fprintf(stderr, "File is in unknown metric %s.  Cannot continue.\n", metric_name);
     exit(-1);
@@ -817,6 +846,9 @@ void init_iharm_grid(char *fnam, int dumpidx)
     }
     ELECTRONS = 1;
     Thetae_unit = MP/ME;
+  } else if (ELECTRONS == ELECTRONS_TFLUID) {
+    fprintf(stderr, "Using Ressler/Athena electrons with mixed tp_over_te and\n");
+    fprintf(stderr, "trat_small = %g, trat_large = %g, and beta_crit = %g\n", trat_small, trat_large, beta_crit);
   } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
     ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
     fprintf(stderr, "Using fixed tp_over_te ratio = %g\n", tp_over_te);
@@ -877,6 +909,10 @@ void init_iharm_grid(char *fnam, int dumpidx)
       fprintf(stderr, "Using logarithmic KS coordinates internally\n");
       fprintf(stderr, "Converting from KORAL-style Modified Kerr-Schild coordinates MKS3\n");
       break;
+    case METRIC_EKS:
+      hdf5_set_directory("/header/geom/eks/");
+      fprintf(stderr, "Using Kerr-Schild coordinates with exponential radial coordiante\n");
+      break;
   }
   
   if ( metric == METRIC_MKS3 ) {
@@ -887,6 +923,12 @@ void init_iharm_grid(char *fnam, int dumpidx)
     hdf5_read_single_val(&mks3MY2, "MY2", H5T_IEEE_F64LE);
     hdf5_read_single_val(&mks3MP0, "MP0", H5T_IEEE_F64LE);
     Rout = 100.; 
+  } else if ( metric == METRIC_EKS ) {
+    hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rin, "r_in", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rout, "r_out", H5T_IEEE_F64LE);
+    fprintf(stderr, "eKS parameters a: %f Rin: %f Rout: %f\n", a, Rin, Rout);
+    
   } else { // Some brand of MKS.  All have the same parameters
     hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
     hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
@@ -1141,6 +1183,10 @@ void output_hdf5()
     hdf5_write_single_val(&trat_small, "rlow", H5T_IEEE_F64LE);
     hdf5_write_single_val(&trat_large, "rhigh", H5T_IEEE_F64LE);
     hdf5_write_single_val(&beta_crit, "beta_crit", H5T_IEEE_F64LE);
+  } else if (ELECTRONS == ELECTRONS_TFLUID) {
+    hdf5_write_single_val(&mu_i, "mu_i", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&mu_e, "mu_e", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&mu_tot, "mu_tot", H5T_IEEE_F64LE);
   }
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
 
@@ -1653,6 +1699,49 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   init_physical_quantities(n);
 }
 
+// get dMact in the i'th radial zone (0 = 0 of the dump, so ignore ghost zones)
+double get_code_dMact(int i, int n)
+{
+  i += 1;
+  double dMact = 0;
+#pragma omp parallel for collapse(1) reduction(+:dMact)
+  for (int j=1; j<N2+1; ++j) {
+    double X[NDIM] = { 0. };
+    double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+    double g, r, th;
+
+    // this assumes axisymmetry in the coordinates
+    ijktoX(i-1,j-1,0, X);
+    gcov_func(X, gcov);
+    gcon_func(gcov, gcon);
+    g = gdet_zone(i-1,j-1,0);
+    bl_coord(X, &r, &th);
+
+    for (int k=1; k<N3+1; ++k) {
+      ijktoX(i-1,j-1,k,X);
+      double UdotU = 0;
+
+      for(int l = 1; l < NDIM; l++)
+        for(int m = 1; m < NDIM; m++)
+          UdotU += gcov[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
+      double ufac = sqrt(-1./gcon[0][0]*(1 + fabs(UdotU)));
+
+      double ucon[NDIM] = { 0. };
+      ucon[0] = -ufac * gcon[0][0];
+
+      for(int l = 1; l < NDIM; l++)
+        ucon[l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon[0][l];
+
+      double ucov[NDIM] = { 0. };
+      flip_index(ucon, gcov, ucov);
+
+      dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1];
+    }
+
+  }
+  return dMact;
+}
+
 void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
 {
   // loads relevant information from fluid dump file stored at fname
@@ -1722,6 +1811,11 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
 	
 	hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
 
+  if (ELECTRONS == ELECTRONS_TFLUID) {
+    fstart[3] = 8;
+    hdf5_read_array(data[n]->p[THF][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+  }
+
   hdf5_close();
 
   dMact = Ladv = 0.;
@@ -1789,6 +1883,31 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         if(i >= 21 && i < 41 && 0) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
         if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
 
+      }
+    }
+  }
+
+  // check if 21st zone (i.e., 20th without ghost zones) is beyond r_eh
+  // otherwise recompute
+  if (1==1) {
+    double r_eh = 1. + sqrt(1. - a*a);
+    int N2_by_2 = (int)(N2/2);
+
+    double X[NDIM] = { 0. };
+    ijktoX(20, N2_by_2, 0, X);
+
+    double r, th;
+    bl_coord(X, &r, &th);
+
+    if (r < r_eh) {
+      for (int i=1; i<N1+1; ++i) {
+        ijktoX(i, N2_by_2, 0, X);
+        bl_coord(X, &r, &th);
+        if (r >= r_eh) {
+          fprintf(stderr, "r_eh is beyond regular zones. recomputing at %g...\n", r);
+          dMact = get_code_dMact(i, n) * 21;
+          break;
+        }
       }
     }
   }
