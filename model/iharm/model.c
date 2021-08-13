@@ -44,8 +44,6 @@ static double mu_i, mu_e, mu_tot;
 
 // MODEL PARAMETERS: PUBLIC
 double DTd;
-double rmax_geo = 100.;
-double rmin_geo = 1.;
 double sigma_cut = 1.0;
 double beta_crit = 1.0;
 

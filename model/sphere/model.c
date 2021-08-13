@@ -14,7 +14,6 @@
 #include <assert.h>
 
 // used by other files
-double rmin_geo, rmax_geo;
 double L_unit;
 
 // model parameters

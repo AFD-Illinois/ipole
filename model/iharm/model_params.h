@@ -21,6 +21,5 @@
 
 extern double DTd;
 extern double sigma_cut;
-extern double rmin_geo, rmax_geo;
 
 #endif // MODEL_PARAMS_H

@@ -16,9 +16,6 @@ double Te_unit;
 // This one is useful
 double RHO_unit;
 
-// Model parameters: public
-double rmin_geo = 0;
-double rmax_geo = 1000.0;
 // Model parameters: private
 static double MBH_solar = 4.e6;
 static double RHO_unit_in = 0;
@@ -58,7 +55,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "model", &model, TYPE_INT);
   set_by_word_val(word, value, "MBH", &MBH_solar, TYPE_DBL);
   set_by_word_val(word, value, "rho_unit", &RHO_unit_in, TYPE_DBL);
-  // TODO NEED to move this into main parameters
+  // TODO move these calls into the main parameters
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
@@ -137,7 +134,8 @@ void set_units()
   Rh = 1 + sqrt(1. - a * a);
   Rin = Rh;
   Rout = 1000.0;
-  // Limit rmax_geo?
+  rmin_geo = 1.;
+  rmax_geo = 10000.;
 
   double z1 = 1. + pow(1. - a * a, 1. / 3.) * (pow(1. + a, 1. / 3.) + pow(1. - a, 1. / 3.));
   double z2 = sqrt(3. * a * a + z1 * z1);

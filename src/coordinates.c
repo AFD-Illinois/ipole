@@ -10,9 +10,14 @@ int metric = -1;
 double a, hslope; // mks
 double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
+
+// Coordinate parameters
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double cstartx[NDIM], cstopx[NDIM];
 double R0, Rin, Rout, Rh;
+// Tracing parameters we need independent of model
+double rmax_geo = 100.;
+double rmin_geo = 1.;
 
 /*
  * Despite the name, this returns r, th coordinates for a KS or BL

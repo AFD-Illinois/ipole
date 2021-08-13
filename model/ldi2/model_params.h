@@ -11,7 +11,6 @@
 #define INTEGRATOR_TEST (1)
 
 // Model parameters (TODO eliminate if we can these are unused)
-extern double rmax_geo;
 extern double model_dl;
 
 void record_stokes_parameters(double SI, double SQ, double SU, double SV, double lam);

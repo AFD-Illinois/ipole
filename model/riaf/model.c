@@ -18,9 +18,6 @@ double RHO_unit;
 double Te_unit = 1e11;
 double Ne_unit = 5e6;
 
-// Model parameters: public
-double rmin_geo = 0;
-double rmax_geo = 1000.0;
 // Model parameters: private
 static double MBH_solar = 4.3e6;
 
