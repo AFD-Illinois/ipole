@@ -58,7 +58,7 @@ static double trat_large = 40.;
 // Minimum number of dynamical times the cooling time must
 // undershoot to be considered "small"
 // lower values -> higher max T_e, higher values are restrictive
-static double cooling_dynamical_times = 1.;
+static double cooling_dynamical_times = 1.e-20;
 
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
@@ -251,18 +251,23 @@ void get_dumpfile_type(char *fnam, int dumpidx)
   int hamr_attr_exists = hdf5_attr_exists("", "dscale");
 
   if (!hamr_attr_exists) {
-
-    char harmversion[256];
-    hdf5_read_single_val(harmversion, "header/version", hdf5_make_str_type(255));
-
-    if ( strcmp(harmversion, "KORALv2") == 0 ) {
-      dumpfile_format = FORMAT_KORAL_v2;
-      fprintf(stderr, "koral!\n");
-    } else {
+    if (!hdf5_exists("header/version")) {
+      // Converted BHAC dumps and very old iharm3d output do not include a version
+      // BHAC output requires nothing special from ipole so we mark it "iharm_v1"
       dumpfile_format = FORMAT_IHARM_v1;
-      fprintf(stderr, "iharm!\n");
-    }
+      fprintf(stderr, "bhac! (or old iharm)\n");
+    } else {
+      char harmversion[256];
+      hdf5_read_single_val(harmversion, "header/version", hdf5_make_str_type(255));
 
+      if ( strcmp(harmversion, "KORALv2") == 0 ) {
+        dumpfile_format = FORMAT_KORAL_v2;
+        fprintf(stderr, "koral!\n");
+      } else {
+        dumpfile_format = FORMAT_IHARM_v1;
+        fprintf(stderr, "iharm!\n");
+      }
+    }
   } else {
     // note this will return -1 if the "header" group does not exist
     dumpfile_format = FORMAT_HAMR_EKS;
