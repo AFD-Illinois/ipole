@@ -1813,9 +1813,8 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         }
       }
     }
-  }                                                                                           
-	
-	hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
+  }
+  hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
 
   if (ELECTRONS == ELECTRONS_TFLUID) {
     fstart[3] = 8;
@@ -1847,7 +1846,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
 
         ijktoX(i-1,j-1,k,X);
         double UdotU = 0.;
-        
+
         // the four-vector reconstruction should have gcov and gcon and gdet using the modified coordinates
         // interpolating the four vectors to the zone center !!!!
         for(int l = 1; l < NDIM; l++) 
@@ -1867,11 +1866,11 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
 
         // reconstruct the magnetic field three vectors
         double udotB = 0.;
-        
+
         for (int l = 1; l < NDIM; l++) {
           udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
         }
-      
+
         double bcon[NDIM] = { 0. };
         double bcov[NDIM] = { 0. };
 
