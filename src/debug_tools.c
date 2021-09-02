@@ -4,8 +4,12 @@
  * Printing and sanity checks for tetrads
  */
 
-#include "geometry.h"
 #include "decs.h"
+
+#include "coordinates.h"
+#include "geometry.h"
+#include "ipolarray.h"
+#include "model.h"
 
 // The world needed these
 // Maybe not in this form
@@ -105,9 +109,6 @@ void check_N(double complex N[NDIM][NDIM],
 
   /* check invariants */
   double complex Nud[NDIM][NDIM];
-  void complex_lower(double complex N[NDIM][NDIM],
-      double gcov[NDIM][NDIM], int low1, int low2,
-      double complex Nl[NDIM][NDIM]);
   complex_lower(N, gcov, 0, 1, Nud);
   for (i = 0; i < 4; i++)
   fprintf(stderr, "N: %d %g + i %g\n", i, creal(N[i][i]),
@@ -138,17 +139,6 @@ void check_N(double complex N[NDIM][NDIM],
 
   fprintf(stderr, "leave check_N\n");
 }
-
-// because we don't have proper header files
-void gcov_func(double *X, double gcov[][NDIM]);
-int gcon_func(double gcov[][NDIM], double gcon[][NDIM]);
-void bl_coord(double *X, double *r, double *th);
-double get_model_ne(double X[NDIM]);
-double get_model_thetae(double X[NDIM]);
-double get_model_b(double X[NDIM]);
-void get_model_fourv(double X[NDIM], double Kcon[NDIM],
-                     double Ucon[NDIM], double Ucov[NDIM],
-                     double Bcon[NDIM], double Bcov[NDIM]);
 
 void dump_at_X(double X[NDIM])
 {

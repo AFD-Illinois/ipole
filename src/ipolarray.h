@@ -31,5 +31,26 @@ double approximate_solve (double Ii, double ji, double ki, double jf, double kf,
 void project_N(double X[NDIM],double Kcon[NDIM],
     double complex Ncon[NDIM][NDIM],
     double *Stokes_I, double *Stokes_Q,double *Stokes_U,double *Stokes_V, double rotcam);
+void parallel_transport_vector(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
+    double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
+    double Ni[NDIM],
+    double Nm[NDIM],
+    double Nf[NDIM], double dl);
+
+/* tensor tools */
+void complex_lower(double complex N[NDIM][NDIM], double gcov[NDIM][NDIM],
+    int low1, int low2, double complex Nl[NDIM][NDIM]);
+void stokes_to_tensor(double fI, double fQ, double fU, double fV,
+    double complex f_tetrad[NDIM][NDIM]);
+void tensor_to_stokes(double complex f_tetrad[NDIM][NDIM], double *fI,
+    double *fQ, double *fU, double *fV);
+void any_tensor_to_stokes(double complex f_any[NDIM][NDIM], double gcov[NDIM][NDIM],
+    double *fI, double *fQ, double *fU, double *fV);
+void complex_coord_to_tetrad_rank2(double complex T_coord[NDIM][NDIM],
+    double Ecov[NDIM][NDIM],
+    double complex T_tetrad[NDIM][NDIM]);
+void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
+    double Econ[NDIM][NDIM],
+    double complex T_coord[NDIM][NDIM]);
 
 #endif /* IPOLARRAY_H */

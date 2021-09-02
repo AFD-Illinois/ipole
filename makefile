@@ -45,7 +45,7 @@ ifneq (,$(findstring stampede2,$(HOST)))
 	-include $(MAKEFILE_PATH)/machines/stampede2.make
 endif
 ifneq (,$(findstring frontera,$(HOST)))
-        -include $(MAKEFILE_PATH)/machines/frontera.make
+	-include $(MAKEFILE_PATH)/machines/frontera.make
 endif
 # Hack to check only whether host begins with bh*
 ifneq (,$(findstring beginsbh,begins$(HOST)))
