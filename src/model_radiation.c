@@ -24,6 +24,7 @@
 // Symphony
 #include "fits.h"
 #include "params.h"
+#include "bremss_fits.h"
 
 #include <omp.h>
 #include <gsl/gsl_sf_bessel.h>
@@ -67,6 +68,8 @@ static double powerlaw_eta = 0.02;
 static int variable_kappa = 0;
 static double max_pol_frac_e = 0.99;
 static double max_pol_frac_a = 0.99;
+static int do_bremss = 0;
+static int bremss_type = 2;
 
 void try_set_radiation_parameter(const char *word, const char *value)
 {
@@ -78,6 +81,9 @@ void try_set_radiation_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
+
+  set_by_word_val(word, value, "bremss", &do_bremss, TYPE_INT);
+  set_by_word_val(word, value, "bremss_type", &bremss_type, TYPE_INT);
 
   set_by_word_val(word, value, "max_pol_frac_e", &powerlaw_p, TYPE_DBL);
   set_by_word_val(word, value, "max_pol_frac_a", &powerlaw_p, TYPE_DBL);
@@ -159,6 +165,7 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
   get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
   double nu    = get_fluid_nu(Kcon, Ucov);
+  double nusq = nu*nu;
   double theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);
   paramsM.electron_density = Ne;
   paramsM.nu               = nu;
@@ -190,11 +197,13 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   if (!pol || dist == E_UNPOL) {
     if (dist == E_THERMAL || dist == E_DEXTER_THERMAL || dist > 10){
       paramsM.dexter_fit = 2; // Signal symphony fits to use Leung+
-      *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / (nu * nu);
+      *jI = j_nu_fit(&paramsM, paramsM.STOKES_I);
+      if(do_bremss) *jI += bremss_I(&paramsM, bremss_type);
+      *jI /= nusq; // Avoids loss of precision in small numbers
       double Bnuinv = Bnu_inv(nu, paramsM.theta_e); // Planck function
       *aI = *jI / Bnuinv;
     } else {
-      *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / (nu * nu);
+      *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / nusq;
       *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
     }
   } else {
@@ -206,8 +215,9 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
       *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
     } else {
       // EMISSIVITIES
-      double nusq = nu*nu;
-      *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / nusq;
+      *jI = j_nu_fit(&paramsM, paramsM.STOKES_I);
+      if(do_bremss) *jI += bremss_I(&paramsM, bremss_type);
+      *jI /= nusq; // Avoids loss of precision in small numbers
       *jQ = -j_nu_fit(&paramsM, paramsM.STOKES_Q) / nusq;
       *jU = -j_nu_fit(&paramsM, paramsM.STOKES_U) / nusq;
       *jV = j_nu_fit(&paramsM, paramsM.STOKES_V) / nusq;
@@ -233,6 +243,7 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
         *aV = *jV / Bnuinv;
       } else {
         *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
+        // Note Bremss emission is available for thermal dists *only*
         *aQ = -alpha_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
         *aU = -alpha_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
         *aV = alpha_nu_fit(&paramsM, paramsM.STOKES_V) * nu;

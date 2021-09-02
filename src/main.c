@@ -5,6 +5,7 @@
 #include "model_radiation.h"
 #include "model_tetrads.h"
 
+#include "bremss_fits.h"
 #include "radiation.h"
 #include "coordinates.h"
 #include "debug_tools.h"
@@ -87,6 +88,9 @@ int main(int argc, char *argv[])
   // now that we've loaded all parameters, tell our model about
   // them and use init_model to load the first dump
   init_model(&tA, &tB);
+
+  // If we're using Bremsstrahlung emission, precalculate a spline
+  init_bremss_spline();
 
   // Adaptive resolution option
   // nx, ny are the resolution at maximum refinement level
