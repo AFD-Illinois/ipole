@@ -10,6 +10,7 @@
 
 #include "ipolarray.h"
 
+#include "debug_tools.h"
 #include "decs.h"
 
 #include "coordinates.h"
@@ -21,6 +22,8 @@
 #include "model_radiation.h"
 #include "model_tetrads.h"
 
+#include "simcoords.h"
+#include "debug_tools.h"
 #include <complex.h>
 
 
@@ -46,17 +49,28 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
  * Return arguments of intensity, total optical depth, total Faraday depth, and complex polarized emission tensor N^alpha^beta
  * 
  * Returns flag indicating at least one step either used a questionable tetrad, or produced a NaN value
+ * 
+ * TODO: add stop condidion not based on nsteps, for slow light
  */
 int integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
-                    double complex N_coord[NDIM][NDIM], Params *params)
+                    double complex N_coord[NDIM][NDIM], Params *params,
+                    int print)
 {
-  //fprintf(stderr, "Begin integrate emission\n");
-
-  // Initialize error flag
+  *tauF = 0.;
+  // Unpolarized
+  *Intensity = 0.;
+  *Tau = 0.;
+  double js = 0.;
+  double ks;
+  // Error flag
   int oddflag = 0;
 
-  // Integrate the transfer equation (& parallel transport) forwards along trajectory
+  // Initialize the running cached coefficients js, ks
+  get_jkinv(traj[nsteps].X, traj[nsteps].Kcon, &js, &ks, params);
+
+  // Integrate the polarized & unpolarized transfer equations (& parallel transport)
+  // 
   for (int nstep=nsteps; nstep > 0; --nstep) {
     int sflag = 0;
     struct of_traj ti = traj[nstep];
@@ -72,7 +86,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 
 #if THIN_DISK
     if (thindisk_region(ti.X, tf.X)) {
-      // The thin disk problem emits nowhere but uses a boundary condition region defined by thindisk_region
+      // A thin disk problem emits nowhere but uses a boundary condition region defined by thindisk_region
       // There we just get a starting value for intensity with get_model_i
       get_model_i(ti.X, ti.Kcon, Intensity);
 
@@ -102,23 +116,46 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 #endif
 
     if (radiating_region(tf.X)) {
-
-      int ZERO_EMISSION = 0;
+      // Conditions to zero just the emission, not all radiative transport
+      int zero_emission = 0;
       if (params->target_nturns >= 0 && ti.nturns != params->target_nturns) {
-        ZERO_EMISSION = 1; 
+        zero_emission = 1; 
+      }
+      if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
+        if (tf.X[2] < (cstopx[2] - cstartx[2]) / 2) {
+          zero_emission = 1;
+        }
+      } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
+        if (tf.X[2] > (cstopx[2] - cstartx[2]) / 2) {
+          zero_emission = 1;
+        }
       }
 
       // Solve unpolarized transport
-      double ji, ki, jf, kf;
-      get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
+      // Cached starting coefficients
+      double ji = js, ki = ks;
+      double jf, kf;
+      //get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
       get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
+      // End coefficients are next starting coefficients
+      js = jf;
+      ks = kf;
 
-      if (ZERO_EMISSION) {
+      if (zero_emission) {
         *Intensity = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
       } else {
         *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
       }
+
       //fprintf(stderr, "Unpolarized transport\n");
+      
+      if (print) {
+        double Xg[4] = { 0., 0., 0., 0. };
+        eks_to_simcoord(ti.X, Xg);
+        fprintf(stderr, "INTEGRATION %d %d %g %g %g %g %g %g %g %g %g \n", 
+                print, nstep, ti.X[1], ti.X[2], ti.X[3], Xg[1], Xg[2], Xg[3], 
+                ji, *Intensity, ti.dl);
+      }
 
       // Solve polarized transport
       if (!params->only_unpolarized) {
@@ -126,15 +163,13 @@ int integrate_emission(struct of_traj *traj, int nsteps,
                         ti.Xhalf, ti.Kconhalf,
                         tf.X, tf.Kcon,
                         ti.dl, N_coord, tauF, 
-                        ZERO_EMISSION, params);
-        //fprintf(stderr, "Polarized transport\n");
+                        zero_emission, params);
       }
     }
 
-    // smoosh together all the flags we hit along a geodesic
-    oddflag |= sflag;
-
-    // Cry immediately on bad tetrads, even if we're not debugging
+#if DEBUG
+    // If we're debugging, print errors immediately
+    // Error for bad tetrads
     if (sflag & 1) {
       fprintf(stderr, "that's odd: no orthonormal tetrad found at\n");
       fprintf(stderr, "nstep: %d\n", nstep);
@@ -166,22 +201,17 @@ int integrate_emission(struct of_traj *traj, int nsteps,
                       bsq, bsq_reported, udotu, udotb, kdotu, kdotb);
       // exit(-1);
     }
-    // Same if there was something in gcov
+    // Bad gcov
     if (sflag & 16) {
       fprintf(stderr, "Matrix inversion failed in tetrad check, step %d:\n", nstep);
-      // TODO print more stuff here
     }
-
-    // TODO pull more relevant stuff back out here
-#if DEBUG
-    // Cry on bad tauF
+    // Bad tauF
     if (sflag & 2) {
       printf("tauF = %e dlam = %e\n", *tauF, ti.dl);
       fprintf(stderr, "nstep: %d\n", nstep);
       exit(-1);
     }
-
-    // Cry on bad N
+    // Bad N
     if (sflag & 4) {
       fprintf(stderr, "\nNaN in N00!\n");
       fprintf(stderr, "nstep: %d\n", nstep);
@@ -195,12 +225,12 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       //MUNULOOP printf("Econ[%i][%i] = %e Ncoord = %e Ntet = %e\n", mu, nu, Econ[mu][nu], creal(N_coord[mu][nu]), creal(N_tetrad[mu][nu]));
       exit(-1);
     }
+#else
+    // Otherwise, smoosh together all the flags we hit along a geodesic
+    oddflag |= sflag;
 #endif
-  //fprintf(stderr, "End Loop\n");
   }
-
-  //fprintf(stderr, "End integrate emission\n");
-  // Otherwise propagate the full flag so caller can handle it
+  // Return the final flag so caller can print
   return oddflag;
 }
 
@@ -219,6 +249,12 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 #else
   double dl = dlam / (L_unit * HPL / (ME * CL * CL));
 #endif
+
+  if (Xm[0] == 0 && Xm[1] == 0 && Xm[2] == 0 && Xm[3] == 0)
+  {
+    fprintf(stderr, "Called push_polar at origin! You are probably trying to trace something unsupported.\n");
+    exit(-1);
+  }
 
   /* find the connection */
   double lconn[NDIM][NDIM][NDIM];
@@ -244,7 +280,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 
 Parallel Transport a real vector over dl
 (see push_polar above)
-
+TODO should probably go in io.c
 */
 void parallel_transport_vector(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
@@ -285,7 +321,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double Xhalf[NDIM], double Kconhalf[NDIM],
     double Xf[NDIM], double Kconf[NDIM],
     double dlam, double complex N_coord[NDIM][NDIM], double *tauF, 
-    int ZERO_EMISSION, Params *params)
+    int zero_emission, Params *params)
 {
   // TODO might be useful to split this into flat-space S->S portion and transformations to/from N
   double gcov[NDIM][NDIM];
@@ -305,18 +341,19 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 
   int oddflag = 0;
 
-  // get fluid parameters at Xf
-  get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
-
   // evaluate transport coefficients
-  jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
+  jar_calc(Xf, Kconf,
+      &jI, &jQ, &jU, &jV,
       &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
-  if (ZERO_EMISSION) {
+  if (zero_emission) {
     jI = 0.;
     jQ = 0.;
     jU = 0.;
     jV = 0.;
   }
+
+  // get fluid parameters at Xf
+  get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
 
   // Guess B if we *absolutely must*
   // Note get_model_b (rightly) returns 0 outside the domain,
@@ -508,6 +545,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   // Flag if something is wrong
   if (*tauF > 1.e100 || *tauF < -1.e100 || isnan(*tauF)) oddflag |= 2;
 #if DEBUG
+  // Unless it's a NaN and we're debugging, then print the details
   if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) {
     oddflag |= 4;
     fprintf(stderr, "Stokes S0: [%e %e %e %e]\n", SI0, SQ0, SU0, SV0);
@@ -520,6 +558,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 #else
   if (isnan(creal(N_tetrad[0][0])) || isnan(creal(N_coord[0][0]))) oddflag |= 4;
 #endif
+  if (isnan(Ucov[0])) oddflag |= 8;
   return oddflag;
 }
 

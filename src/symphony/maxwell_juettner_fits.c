@@ -1,5 +1,20 @@
 #include "maxwell_juettner.h"
 
+#include "constants.h"
+
+#include <stdio.h>
+
+// Local functions for dispatched fits
+double I_I(double x);
+double I_Q(double x);
+double I_V(double x);
+double maxwell_juettner_dexter_I(struct parameters *params);
+double maxwell_juettner_dexter_Q(struct parameters *params);
+double maxwell_juettner_dexter_V(struct parameters *params);
+double maxwell_juettner_leung_I(struct parameters *params);
+
+/********* PANDYA FITS *********/
+
 /*maxwell_juettner_I: fitting formula for the emissivity (polarized in Stokes I)
  *                    produced by a Maxwell-Juettner (relativistic thermal) 
  *                    distribution of electrons. (Eq. 29, 31 of [1])
@@ -8,8 +23,13 @@
  *@returns: fit to the emissivity, polarized in Stokes I, for the given 
  *          parameters for a Maxwell-Juettner distribution.
  */
-double maxwell_juettner_I(struct parameters * params)
+double maxwell_juettner_I(struct parameters *params)
 {
+  if (params->dexter_fit == 2) {
+    return maxwell_juettner_leung_I(params);
+  } else if (params->dexter_fit) {
+    return maxwell_juettner_dexter_I(params);
+  }
   double nu_c = get_nu_c(*params);
 
   double nu_s = (2./9.)*nu_c*sin(params->observer_angle)*params->theta_e
@@ -40,8 +60,11 @@ double maxwell_juettner_I(struct parameters * params)
  *@returns: fit to the emissivity, polarized in Stokes Q, for the given 
  *          parameters for a Maxwell-Juettner distribution.
  */
-double maxwell_juettner_Q(struct parameters * params)
+double maxwell_juettner_Q(struct parameters *params)
 {
+  if (params->dexter_fit) {
+    return maxwell_juettner_dexter_Q(params);
+  }
   double nu_c = get_nu_c(*params);
 
   double nu_s = (2./9.)*nu_c*sin(params->observer_angle)
@@ -73,8 +96,11 @@ double maxwell_juettner_Q(struct parameters * params)
  *@returns: fit to the emissivity, polarized in Stokes V, for the given 
  *          parameters for a Maxwell-Juettner distribution.
  */
-double maxwell_juettner_V(struct parameters * params)
+double maxwell_juettner_V(struct parameters *params)
 {
+  if (params->dexter_fit) {
+    return maxwell_juettner_dexter_V(params);
+  }
   double nu_c = get_nu_c(*params);
 
   double nu_s = (2./9.)*nu_c*sin(params->observer_angle)*params->theta_e
@@ -109,7 +135,7 @@ double maxwell_juettner_V(struct parameters * params)
  *@params: struct of parameters params
  *@returns: Planck function evaluated for the supplied parameters
  */
-double planck_func(struct parameters * params)
+double planck_func(struct parameters *params)
 {
   double term1 = (2.*params->plancks_constant*pow(params->nu, 3.))
                 /pow(params->speed_light, 2.);
@@ -131,7 +157,7 @@ double planck_func(struct parameters * params)
  *@returns: fitting formula to the absorptivity, in Stokes I, for a Maxwell-
  *          Juettner distribution of electrons.
  */
-double maxwell_juettner_I_abs(struct parameters * params)
+double maxwell_juettner_I_abs(struct parameters *params)
 {
   double ans = maxwell_juettner_I(params)/planck_func(params);
   return ans;
@@ -145,7 +171,7 @@ double maxwell_juettner_I_abs(struct parameters * params)
  *@returns: fitting formula to the absorptivity, in Stokes Q, for a Maxwell-
  *          Juettner distribution of electrons.
  */
-double maxwell_juettner_Q_abs(struct parameters * params)
+double maxwell_juettner_Q_abs(struct parameters *params)
 {
   double ans = maxwell_juettner_Q(params)/planck_func(params);
   return ans;
@@ -159,7 +185,7 @@ double maxwell_juettner_Q_abs(struct parameters * params)
  *@returns: fitting formula to the absorptivity, in Stokes V, for a Maxwell-
  *          Juettner distribution of electrons.
  */
-double maxwell_juettner_V_abs(struct parameters * params)
+double maxwell_juettner_V_abs(struct parameters *params)
 {
   double ans = maxwell_juettner_V(params)/planck_func(params);
   return ans;
@@ -174,7 +200,7 @@ double maxwell_juettner_V_abs(struct parameters * params)
  *@returns: fitting formula to the Faraday conversion coefficient
  *          for a Maxwell-Juettner distribution of electrons. 
  */
-double maxwell_juettner_rho_Q(struct parameters * params)
+double maxwell_juettner_rho_Q(struct parameters *params)
 {
   double omega0 = params->electron_charge*params->magnetic_field
                   / (params->mass_electron*params->speed_light);
@@ -223,22 +249,15 @@ double maxwell_juettner_rho_V(struct parameters * params)
   double omega0 = params->electron_charge*params->magnetic_field
                   / (params->mass_electron*params->speed_light);
 
-  double wp2 = 4. * params->pi * params->electron_density 
+  double wp2 = 4. * params->pi * params->electron_density
                   * pow(params->electron_charge, 2.) / params->mass_electron;
 
   /* argument for function g(X) (called shgmfunc) below */
   double x = params->theta_e * sqrt(sqrt(2.) * sin(params->observer_angle)
                  * (1.e3*omega0 / (2. * params->pi * params->nu)));
 
-  /* Approximate the Bessel functions if allowed */
-  double k2=0, k0=0;
-  if (params->approximate && params->theta_e > 5) {
-    k0 = -log(1 / (2. * params->theta_e)) - 0.5772;
-    k2 = 2. * params->theta_e * params->theta_e;
-  } else {
-    k0 = gsl_sf_bessel_Kn(0, 1./params->theta_e);
-    k2 = gsl_sf_bessel_Kn(2, 1./params->theta_e);
-  }
+  double k0 = gsl_sf_bessel_Kn(0, 1./params->theta_e);
+  double k2 = gsl_sf_bessel_Kn(2, 1./params->theta_e);
 
   /* There are several fits of rho_V phrased as functions of x */
   // TODO add straight Bessel-approx -> constant extrapolation?
@@ -246,7 +265,7 @@ double maxwell_juettner_rho_V(struct parameters * params)
   if (params->dexter_fit && k2 > 0) { // TODO Further limit the usage here to match grtrans
     // Jason Dexter (2016) fits using the modified difference factor g(X)
     double shgmfunc = 0.43793091 * log(1. + 0.00185777 * pow(x, 1.50316886));
-    fit_factor = (k0 - shgmfunc) / k2;
+    fit_factor = (k0 - shgmfunc) / k2;  // TODO might be unstable way to phrase
   } else {
     // Shcherbakov fits.  Good to the smallest Thetae at high freq but questionable for low frequencies
     double shgmfunc = 1 - 0.11*log(1 + 0.035*x);
@@ -258,4 +277,108 @@ double maxwell_juettner_rho_V(struct parameters * params)
                      * fit_factor * cos(params->observer_angle);
 
   return 2. * params->pi * params->nu / params->speed_light * eps12;
+}
+
+/********* DEXTER FITS *********/
+double maxwell_juettner_dexter_I(struct parameters *params)
+{
+  double Ne = params->electron_density;
+  double nu = params->nu;
+  double Thetae = params->theta_e;
+  double B = params->magnetic_field;
+  double theta = params->observer_angle;
+  // Synchrotron emissivity
+  double nus = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
+  double x = nu / nus;
+
+  return Ne * EE * EE * nu / 2. / sqrt(3) / CL / Thetae / Thetae * I_I(x); // [g/s^2/cm = ergs/s/cm^3]
+}
+
+double maxwell_juettner_dexter_Q(struct parameters *params)
+{
+  double Ne = params->electron_density;
+  double nu = params->nu;
+  double Thetae = params->theta_e;
+  double B = params->magnetic_field;
+  double theta = params->observer_angle;
+  double nus = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
+  double x = nu / nus;
+  return -Ne * EE * EE * nu / 2. / sqrt(3) / CL / Thetae / Thetae * I_Q(x); // Translate to Symphony convention
+}
+
+double maxwell_juettner_dexter_V(struct parameters *params)
+{
+  double Ne = params->electron_density;
+  double nu = params->nu;
+  double Thetae = params->theta_e;
+  double B = params->magnetic_field;
+  double theta = params->observer_angle;
+  double nus = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
+  double x = nu / nus;
+  return 2. * Ne * EE * EE * nu / tan(theta) / 3. / sqrt(3) / CL / Thetae / Thetae / Thetae * I_V(x);
+}
+
+// Supporting functions
+
+double I_I(double x)
+{
+  return 2.5651 * (1 + 1.92 * pow(x, -1. / 3.) +
+      0.9977 * pow(x, -2. / 3.)) * exp(-1.8899 * pow(x,
+        1. /
+        3.));
+}
+
+double I_Q(double x)
+{
+  return 2.5651 * (1 + 0.93193 * pow(x, -1. / 3.) +
+      0.499873 * pow(x, -2. / 3.)) * exp(-1.8899 * pow(x,
+        1. /
+        3.));
+}
+
+double I_V(double x)
+{
+  return (1.81348 / x + 3.42319 * pow(x, -2. / 3.) +
+      0.0292545 * pow(x, -0.5) + 2.03773 * pow(x,
+        -1. / 3.)) *
+    exp(-1.8899 * pow(x, 1. / 3.));
+}
+
+/********* LEUNG FIT *********/
+
+/*
+ * thermal synchrotron emissivity
+ *
+ * Interpolates between Petrosian limit and
+ * classical thermal synchrotron limit
+ * Good for Thetae >~ 1
+ * See Leung+ 2011, restated Pandya+ 2016
+ */
+double maxwell_juettner_leung_I(struct parameters *params)
+{
+  double Ne = params->electron_density;
+  double nu = params->nu;
+  double Thetae = params->theta_e;
+  double B = params->magnetic_field;
+  double theta = params->observer_angle;
+
+  double K2 = fmax(gsl_sf_bessel_Kn(2,1./Thetae), SMALL);
+
+  double nuc = EE*B/(2.*M_PI*ME*CL);
+  double nus = (2./9.)*nuc*Thetae*Thetae*sin(theta);
+
+  if(nu > 1.e12*nus)
+    return 0.;
+
+  double x = nu/nus ;
+  double f = pow( pow(x,1./2.) + pow(2.,11./12.)*pow(x,1./6.), 2 );
+  double j = (sqrt(2.)*M_PI*EE*EE*Ne*nus/(3.*CL*K2)) * f * exp(-pow(x,1./3.));
+
+#if DEBUG
+  if (isnan(j) || isinf(j)) {
+    fprintf(stderr, "j nan in Leung fit: j %g f %g x %g nu %g nus %g nuc %g K2 %g Thetae %g\n", j, f, x, nu, nus, nuc, K2, Thetae);
+  }
+#endif
+
+  return j;
 }

@@ -14,6 +14,7 @@
 #define SIG				(5.670400e-5		) /* Stefan-Boltzmann constant */
 #define RGAS			        (8.3143e7		)	/* erg K^-1 mole^-1: ideal gas const */
 #define EV				(1.60217653e-12		) /* electron volt in erg */
+#define RE              (EE*EE/ME/CL/CL   ) /* classical electron radius */
 #define SIGMA_THOMSON	                (0.665245873e-24	) /* Thomson cross section in cm^2 */
 #define JY				(1.e-23			) /* Jansky (flux/freq. unit) in cgs */
 #define MUAS_PER_RAD    (2.06265e11     ) /* Micro-arcseconds in 1 radian */

@@ -5,6 +5,7 @@
 #include "model_radiation.h"
 #include "model_tetrads.h"
 
+#include "bremss_fits.h"
 #include "radiation.h"
 #include "coordinates.h"
 #include "debug_tools.h"
@@ -87,6 +88,9 @@ int main(int argc, char *argv[])
   // now that we've loaded all parameters, tell our model about
   // them and use init_model to load the first dump
   init_model(&tA, &tB);
+
+  // If we're using Bremsstrahlung emission, precalculate a spline
+  init_bremss_spline();
 
   // Adaptive resolution option
   // nx, ny are the resolution at maximum refinement level
@@ -830,8 +834,8 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
     exit(-10);
   }
 
-  // Integrate emission all the way forward along trajectory
-  int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params);
+  // Integrate emission forward along trajectory
+  int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params, 0);
 
   if (!only_intensity) {
     project_N(X, Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);

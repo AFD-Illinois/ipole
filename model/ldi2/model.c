@@ -18,8 +18,6 @@ double U_unit;
 double B_unit;
 double Te_unit;
 
-// TODO get rid of these in ipole proper to get rid of them here
-double rmax_geo = 1e30;
 double model_dl;
 // TODO this default needs to be kept in sync with maxnstep,
 // to avoid difficulties

@@ -30,6 +30,7 @@ extern double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 extern double startx[NDIM], stopx[NDIM], dx[NDIM];
 extern double cstartx[NDIM], cstopx[NDIM];
 extern double R0, Rin, Rout, Rh;
+extern double rmin_geo, rmax_geo;
 
 void bl_coord(double X[NDIM], double *r, double *th);
 void bl_to_ks(double X[NDIM], double ucon_bl[NDIM], double ucon_ks[NDIM]);

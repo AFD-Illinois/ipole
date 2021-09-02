@@ -3,6 +3,4 @@
 
 #define SLOW_LIGHT (0)
 
-extern double rmax_geo;
-
 #endif // MODEL_PARAMS_H

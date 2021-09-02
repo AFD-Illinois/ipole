@@ -9,7 +9,4 @@
 
 #define THIN_DISK (0)
 
-// Necessary model parameters, can be used or not
-extern double rmax_geo;
-
 #endif /* MODEL_PARAMS_H */

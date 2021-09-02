@@ -298,6 +298,9 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *nu = calloc(nsteps, sizeof(double));
   double *mu = calloc(nsteps, sizeof(double));
 
+  double *sigma = calloc(nsteps, sizeof(double));
+  double *beta = calloc(nsteps, sizeof(double));
+
   double *dl = calloc(nsteps, sizeof(double));
   double *X = calloc(NDIM*nsteps, sizeof(double));
   // Vectors aren't really needed.  Put back in behind flag if it comes up
@@ -345,25 +348,29 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *e2Transported = calloc(NDIM*nsteps,sizeof(double));
   double *e2TransportedCov = calloc(NDIM*nsteps,sizeof(double));
 
-  for (int i=nstep; i > 0; --i) {
+  for (int i=nstep-1; i > 0; --i) {
     // Record ambient variables
     get_model_primitives(traj[i].X, &(prims[i*nprims]));
     double Ucont[NDIM], Ucovt[NDIM], Bcont[NDIM], Bcovt[NDIM];
     //variables for parallel transport
     double e2Mid[NDIM], e2Final[NDIM], e2Cov[NDIM];
     get_model_fourv(traj[i].X, traj[i].Kcon, Ucont, Ucovt, Bcont, Bcovt);
-    jar_calc(traj[i].X, traj[i].Kcon, &(j_inv[i*NDIM]), &(j_inv[i*NDIM+1]), &(j_inv[i*NDIM+2]), &(j_inv[i*NDIM+3]),
-             &(alpha_inv[i*NDIM]), &(alpha_inv[i*NDIM+1]), &(alpha_inv[i*NDIM+2]), &(alpha_inv[i*NDIM+3]),
-             &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]), params);
-    get_jkinv(traj[i].X, traj[i].Kcon, &(j_unpol[i]), &(k_unpol[i]), params);
 
+    // Record scaled values
     b[i] = get_model_b(traj[i].X);
     ne[i] = get_model_ne(traj[i].X);
     thetae[i] = get_model_thetae(traj[i].X);
     nu[i] = get_fluid_nu(traj[i].Kcon, Ucovt);
     mu[i] = get_bk_angle(traj[i].X, traj[i].Kcon, Ucovt, Bcont, Bcovt);
+    sigma[i] = get_model_sigma(traj[i].X);
+    beta[i] = get_model_beta(traj[i].X);
 
-    // Record trajectory
+    // Record emission coefficients
+    jar_calc(traj[i].X, traj[i].Kcon, &(j_inv[i*NDIM]), &(j_inv[i*NDIM+1]), &(j_inv[i*NDIM+2]), &(j_inv[i*NDIM+3]),
+             &(alpha_inv[i*NDIM]), &(alpha_inv[i*NDIM+1]), &(alpha_inv[i*NDIM+2]), &(alpha_inv[i*NDIM+3]),
+             &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]), params);
+    get_jkinv(traj[i].X, traj[i].Kcon, &(j_unpol[i]), &(k_unpol[i]), params);
+
     dl[i] = traj[i].dl;
     MULOOP {
       X[i*NDIM+mu] = traj[i].X[mu];
@@ -415,7 +422,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
               &(stokes_coordinate[i*NDIM+2]), &(stokes_coordinate[i*NDIM+3]), rotcam);
 
     // Integrate and record results
-    int flag = integrate_emission(&(traj[i]), 1, &Intensity, &Tau, &tauF, N_coord, params);
+    int flag = integrate_emission(&(traj[i]), 1, &Intensity, &Tau, &tauF, N_coord, params, 0);
     I_unpol[i] = Intensity;
     // project_N(traj[i-1].X, traj[i-1].Kcon, N_coord, &(stokes[i*NDIM]), &(stokes[i*NDIM+1]), &(stokes[i*NDIM+2]), &(stokes[i*NDIM+3]),0;
     // any_tensor_to_stokes(N_coord, Gcov, &(stokes_coordinate[i*NDIM]), &(stokes_coordinate[i*NDIM+1]), &(stokes_coordinate[i*NDIM+2]), &(stokes_coordinate[i*NDIM+3]));
@@ -450,6 +457,8 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_chunked_array(thetae, "thetae", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(nu, "nu", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(mu, "b_k_angle", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(sigma, "sigma", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(beta, "beta", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
 
   hdf5_write_chunked_array(dl, "dl", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(r, "r", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
@@ -492,7 +501,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 8;
   hdf5_write_chunked_array(prims, "prims", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-  // TENSORS: Anything with N values per geodesic step
+  // TENSORS: Anything with NxN values per geodesic step
   hsize_t fdims_t[] = { nx, ny, params->maxnstep, 4, 4 };
   hsize_t chunk_t[] =  { 1, 1, 200, 4, 4 };
   hsize_t fstart_t[] = { i, j, 0, 0, 0 };
@@ -512,6 +521,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   free(dl);
   free(r); free(th); free(phi);
   free(j_unpol); free(k_unpol); free(I_unpol);
+  free(sigma); free(beta);
 
   // Vectors
   free(X);

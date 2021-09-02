@@ -10,9 +10,14 @@ int metric = -1;
 double a, hslope; // mks
 double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
+
+// Coordinate parameters
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double cstartx[NDIM], cstopx[NDIM];
 double R0, Rin, Rout, Rh;
+// Tracing parameters we need independent of model
+double rmax_geo = 100.;
+double rmin_geo = 1.;
 
 /*
  * Despite the name, this returns r, th coordinates for a KS or BL
@@ -347,11 +352,11 @@ double root_find(double X[NDIM])
   Xc[3] = Xa[3];
 
   if (X[2] < M_PI / 2.) {
-    Xa[2] = startx[2];
-    Xb[2] = (stopx[2] - startx[2])/2 + SMALL;
+    Xa[2] = cstartx[2];
+    Xb[2] = (cstopx[2] - cstartx[2])/2 + SMALL;
   } else {
-    Xa[2] = (stopx[2] - startx[2])/2 - SMALL;
-    Xb[2] = stopx[2];
+    Xa[2] = (cstopx[2] - cstartx[2])/2 - SMALL;
+    Xb[2] = cstopx[2];
   }
 
   double tol = 1.e-9;
