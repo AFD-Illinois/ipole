@@ -68,6 +68,8 @@ static double Ladv_dump;
 
 static int reverse_field = 0;
 
+double tf;
+
 // MAYBES
 //static double t0;
 
@@ -607,9 +609,9 @@ void init_physical_quantities(int n)
         data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
 
         // Preserve sigma for cutting along geodesics, and for variable-kappa model
-        data[n]->sigma[i][j][k] = sigma_m;
+        data[n]->sigma[i][j][k] = fmax(sigma_m, SMALL);
         // Also record beta, for variable-kappa model
-        data[n]->beta[i][j][k] = beta_m;
+        data[n]->beta[i][j][k] = fmax(beta_m, SMALL);
 
         // Cut Ne (i.e. emission) based on sigma, if we're not doing so along each geodesic
         // Strongly magnetized = empty, no shiny spine

@@ -324,7 +324,19 @@ void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width) {
   if (variable_kappa) {
     double sigma = get_model_sigma(X);
     double beta = get_model_beta(X);
-    *kappa = model_kappa; // INSERT VARIABLE KAPPA HERE
+
+    *kappa = 2.8 + 0.7/sqrt(sigma) + 3.7 * (1.0/pow(sigma, 0.19)) * tanh(23.4 * pow(sigma, 0.26) * beta);
+
+    if (isnan(*kappa)) {
+      double B = get_model_b(X);
+      fprintf(stderr, "kappa, sigma, beta, B: %g %g %g %g \n", *kappa, sigma, beta, B);
+    }
+    // Limit kappa
+    // This is already a bit generous with the fits' domain of validity,
+    // tread cautiously
+    if (*kappa < 3.1) *kappa = 3.1;
+    if (*kappa > 10.0) *kappa = 10.0;
+
     //fprintf(stderr, "sigma, beta -> kappa %g %g -> %g\n", sigma, beta, *kappa);
   } else {
     *kappa = model_kappa;
