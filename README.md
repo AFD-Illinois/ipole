@@ -5,7 +5,7 @@ This file details how to use `ipole` and includes a note about when it might not
 
 # Prerequisites
 
-The only prerequisites are the GNU Scientific Library (GSL), and HDF5. Specifically, the executable ```h5cc``` should be in your ```PATH```.
+The only prerequisites are the GNU Scientific Library (GSL) and HDF5. Specifically, the executable ```h5cc``` should be in your ```PATH```.
 
 On Illinois EHT/BH cluster, this means loading the modules
 ```bash
@@ -126,14 +126,14 @@ The ipole output format for traces is documented
 
 # ipole limitations
 
-ipole is not a general-purpose imaging code. It has been designed, tested for,
-and used for modeling of Event Horizon Telescope sources.  It may crash or
+```ipole``` is not a general-purpose imaging code. It has been designed, tested for,
+and used for modeling of particular sources.  It may crash or
 produce incorrect results in other use cases.  We strongly recommend you test
 the code in an appropriate regime before you use it.
 
 The ipole algorithm is described in Moscibrodzka and Gammie 
 [2018](https://ui.adsabs.harvard.edu/abs/2018MNRAS.475...43M/abstract).  The
-original version can be found here (https://github.com/moscibrodzka/ipole).
+original version can be found [here](https://github.com/moscibrodzka/ipole).
 Each radiative transfer step is based on an analytic solution to the
 polarized transfer equation assuming constant coefficients. This
 is intended to produce sensible results even when absorption or Faraday rotation
@@ -145,17 +145,17 @@ If you are imaging GRMHD simulations, you will find guidance on how a GRMHD
 simulation and analysis pipeline fits together in the PATOKA pipeline paper,
 Wong (2021, in prep).
 
-ipole treats synchrotron emission and absorption but not bremsstrahlung or Compton
+```ipole``` treats synchrotron emission and absorption but not bremsstrahlung or Compton
 scattering.  The transfer coefficients (emissivities, absorptivities, and rotativities)
 are drawn from analytic fits presented
 in Dexter [2016](https://ui.adsabs.harvard.edu/abs/2016MNRAS.462..115D/abstract) , Pandya 
 [2016](https://ui.adsabs.harvard.edu/abs/2016ApJ...822...34P/abstract), Pandya 
 [2018](https://ui.adsabs.harvard.edu/abs/2018ApJ...868...13P/abstract), and
-Marszewski (2021, submitted), with a summary in the latter.  All coefficients assume that
-the electron distribution function is isotropic and that the frequency is large compared
-to the plasma frequency and cyclotron frequency. ipole implements fits for several electron
-distribution, including a thermal (Maxwell-Juttner) distribution, a power-law distribution,
-and a kappa distribution.
+Marszewski [2021](https://arxiv.org/abs/2108.10359), with a summary in the latter.  All 
+coefficients assume that the electron distribution function is isotropic and that the frequency 
+is large compared to the plasma frequency and cyclotron frequency. ipole implements fits for 
+several electron distribution, including a thermal (Maxwell-Juttner) distribution, a power-law 
+distribution, and a kappa distribution.
 
 # Support and Contributing
 
