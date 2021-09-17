@@ -42,28 +42,34 @@ double j_nu_fit(struct parameters *params, int polarization)
   else if(params->distribution == params->KAPPA_DIST)
   {
     if (params->polarization == params->STOKES_I) {
-      if (params->kappa < 7.5) {
+      if (params->kappa < params->kappa_interp_begin) {
         return kappa_I(params);
-      } else if (params->kappa >= 7.5 && params->kappa < 15) {
-        return ((15 - params->kappa) * maxwell_juettner_I(params) + (params->kappa - 7.5) * kappa_I(params)) / 7.5;
+      } else if (params->kappa >= params->kappa_interp_begin && params->kappa < params->kappa_interp_end) {
+        return ((params->kappa_interp_end - params->kappa) * maxwell_juettner_I(params) +
+                (params->kappa - params->kappa_interp_begin) * kappa_I(params)) /
+                (params->kappa_interp_end - params->kappa_interp_begin);
       } else {
         return maxwell_juettner_I(params);
       }
     } else if (params->polarization == params->STOKES_Q) {
-      if (params->kappa < 7.5) {
+      if (params->kappa < params->kappa_interp_begin) {
         return kappa_Q(params);
-      } else if (params->kappa >= 7.5 && params->kappa < 15) {
-        return ((15 - params->kappa) * maxwell_juettner_Q(params) + (params->kappa - 7.5) * kappa_Q(params)) / 7.5;
+      } else if (params->kappa >= params->kappa_interp_begin && params->kappa < params->kappa_interp_end) {
+        return ((params->kappa_interp_end - params->kappa) * maxwell_juettner_Q(params) +
+                (params->kappa - params->kappa_interp_begin) * kappa_Q(params)) /
+                (params->kappa_interp_end - params->kappa_interp_begin);
       } else {
         return maxwell_juettner_Q(params);
       }
     } else if (params->polarization == params->STOKES_U) {
       return 0.;
     } else if (params->polarization == params->STOKES_V) {
-      if (params->kappa < 7.5) {
+      if (params->kappa < params->kappa_interp_begin) {
         return kappa_V(params);
-      } else if (params->kappa >= 7.5 && params->kappa < 15) {
-        return ((15 - params->kappa) * maxwell_juettner_V(params) + (params->kappa - 7.5) * kappa_V(params)) / 7.5;
+      } else if (params->kappa >= params->kappa_interp_begin && params->kappa < params->kappa_interp_end) {
+        return ((params->kappa_interp_end - params->kappa) * maxwell_juettner_V(params) +
+                (params->kappa - params->kappa_interp_begin) * kappa_V(params)) /
+                (params->kappa_interp_end - params->kappa_interp_begin);
       } else {
         return maxwell_juettner_V(params);
       }
@@ -111,28 +117,34 @@ double alpha_nu_fit(struct parameters *params, int polarization)
   else if(params->distribution == params->KAPPA_DIST)
   {
     if     (params->polarization == params->STOKES_I) {
-      if (params->kappa < 7.5) {
+      if (params->kappa < params->kappa_interp_begin) {
         return kappa_I_abs(params);
-      } else if (params->kappa >= 7.5 && params->kappa < 15) {
-        return ((15 - params->kappa) * maxwell_juettner_I_abs(params) + (params->kappa - 7.5) * kappa_I_abs(params)) / 7.5;
+      } else if (params->kappa >= params->kappa_interp_begin && params->kappa < params->kappa_interp_end) {
+        return ((15 - params->kappa) * maxwell_juettner_I_abs(params) +
+                (params->kappa - params->kappa_interp_begin) * kappa_I_abs(params)) /
+                (params->kappa_interp_end - params->kappa_interp_begin);
       } else {
         return maxwell_juettner_I_abs(params);
       }
     } else if(params->polarization == params->STOKES_Q) {
-      if (params->kappa < 7.5) {
+      if (params->kappa < params->kappa_interp_begin) {
         return kappa_Q_abs(params);
-      } else if (params->kappa >= 7.5 && params->kappa < 15) {
-        return ((15 - params->kappa) * maxwell_juettner_Q_abs(params) + (params->kappa - 7.5) * kappa_Q_abs(params)) / 7.5;
+      } else if (params->kappa >= params->kappa_interp_begin && params->kappa < params->kappa_interp_end) {
+        return ((params->kappa_interp_end - params->kappa) * maxwell_juettner_Q_abs(params) +
+                (params->kappa - params->kappa_interp_begin) * kappa_Q_abs(params)) /
+                (params->kappa_interp_end - params->kappa_interp_begin);
       } else {
         return maxwell_juettner_Q_abs(params);
       }
     } else if(params->polarization == params->STOKES_U) {
       return 0.;
     } else if(params->polarization == params->STOKES_V) {
-      if (params->kappa < 7.5) {
+      if (params->kappa < params->kappa_interp_begin) {
         return kappa_V_abs(params);
-      } else if (params->kappa >= 7.5 && params->kappa < 15) {
-        return ((15 - params->kappa) * maxwell_juettner_V_abs(params) + (params->kappa - 7.5) * kappa_V_abs(params)) / 7.5;
+      } else if (params->kappa >= params->kappa_interp_begin && params->kappa < params->kappa_interp_end) {
+        return ((params->kappa_interp_end - params->kappa) * maxwell_juettner_V_abs(params) +
+                (params->kappa - params->kappa_interp_begin) * kappa_V_abs(params)) /
+                (params->kappa_interp_end - params->kappa_interp_begin);
       } else {
         return maxwell_juettner_V_abs(params);
       }
@@ -191,9 +203,9 @@ double rho_nu_fit(struct parameters *params, int polarization)
       return ((4.5 - params->kappa) * kappa4_rho_Q(params) + (params->kappa - 4.0) * kappa45_rho_Q(params)) / 0.5;
     else if (params->kappa >= 4.5 && params->kappa < 5.0)
       return ((5.0 - params->kappa) * kappa45_rho_Q(params) + (params->kappa - 4.5) * kappa5_rho_Q(params)) / 0.5;
-    else if (params->kappa >= 5.0 && params->kappa <= 10.0)
-      return ((10.0 - params->kappa) * kappa5_rho_Q(params) + (params->kappa - 5.0) * maxwell_juettner_rho_Q(params)) / 5.0;
-    else if (params->kappa > 10.0)
+    else if (params->kappa >= 5.0 && params->kappa <= 8.0)
+      return ((8.0 - params->kappa) * kappa5_rho_Q(params) + (params->kappa - 5.0) * maxwell_juettner_rho_Q(params)) / 5.0;
+    else if (params->kappa > 8.0)
       return maxwell_juettner_rho_Q(params);
   }
   else if(params->polarization == params->STOKES_U) return 0.;
@@ -207,9 +219,9 @@ double rho_nu_fit(struct parameters *params, int polarization)
       return ((4.5 - params->kappa) * kappa4_rho_V(params) + (params->kappa - 4.0) * kappa45_rho_V(params)) / 0.5;
     else if(params->kappa >= 4.5 && params->kappa <= 5.0)
       return ((5.0 - params->kappa) * kappa45_rho_V(params) + (params->kappa - 4.5) * kappa5_rho_V(params)) / 0.5;
-    else if (params->kappa >= 5.0 && params->kappa <= 10.0)
-      return ((10.0 - params->kappa) * kappa5_rho_V(params) + (params->kappa - 5.0) * maxwell_juettner_rho_V(params)) / 5.0;
-    else if (params->kappa > 10.0)
+    else if (params->kappa >= 5.0 && params->kappa <= 8.0)
+      return ((8.0 - params->kappa) * kappa5_rho_V(params) + (params->kappa - 5.0) * maxwell_juettner_rho_V(params)) / 5.0;
+    else if (params->kappa > 8.0)
       return maxwell_juettner_rho_V(params);
   }
 } else if(params->distribution == params->POWER_LAW) {

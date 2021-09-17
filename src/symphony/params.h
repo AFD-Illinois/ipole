@@ -54,6 +54,8 @@ struct parameters
   /*kappa distribution parameters*/
   double kappa;
   double kappa_width;
+  double kappa_interp_begin;
+  double kappa_interp_end;
 
   /*Choose if n-space peak is known, or if it must be found adaptively */
   int use_n_peak;

@@ -66,6 +66,9 @@ static double powerlaw_gamma_max = 1e5;
 static double powerlaw_p = 3.25;
 static double powerlaw_eta = 0.02;
 static int variable_kappa = 0;
+static double variable_kappa_min = 3.1;
+static double variable_kappa_interp_start = 1e20;
+static double variable_kappa_max = 7.0;
 static double max_pol_frac_e = 0.99;
 static double max_pol_frac_a = 0.99;
 static int do_bremss = 0;
@@ -75,6 +78,9 @@ void try_set_radiation_parameter(const char *word, const char *value)
 {
   set_by_word_val(word, value, "kappa", &model_kappa, TYPE_DBL);
   set_by_word_val(word, value, "variable_kappa", &variable_kappa, TYPE_INT);
+  set_by_word_val(word, value, "variable_kappa_min", &variable_kappa_min, TYPE_DBL);
+  set_by_word_val(word, value, "variable_kappa_interp_start", &variable_kappa_interp_start, TYPE_DBL);
+  set_by_word_val(word, value, "variable_kappa_max", &variable_kappa_max, TYPE_DBL);
 
   set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
@@ -182,6 +188,8 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     break;
   case E_KAPPA: // Kappa fits (Pandya + Marszewski)
     paramsM.distribution = paramsM.KAPPA_DIST;
+    paramsM.kappa_interp_begin = fmin(variable_kappa_interp_start, variable_kappa_max);
+    paramsM.kappa_interp_end = variable_kappa_max;
     paramsM.theta_e = get_model_thetae(X);
     get_model_kappa(X, &(paramsM.kappa), &(paramsM.kappa_width));
     break;
@@ -331,11 +339,8 @@ void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width) {
       double B = get_model_b(X);
       fprintf(stderr, "kappa, sigma, beta, B: %g %g %g %g \n", *kappa, sigma, beta, B);
     }
-    // Limit kappa
-    // This is already a bit generous with the fits' domain of validity,
-    // tread cautiously
-    if (*kappa < 3.1) *kappa = 3.1;
-    if (*kappa > 10.0) *kappa = 10.0;
+    // Lower limit for kappa.  Upper limit switches away from kappa fit entirely -> thermal
+    if (*kappa < variable_kappa_min) *kappa = variable_kappa_min;
 
     //fprintf(stderr, "sigma, beta -> kappa %g %g -> %g\n", sigma, beta, *kappa);
   } else {
