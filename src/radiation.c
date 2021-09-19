@@ -11,7 +11,7 @@ radiation-related utilities.
 
 #include "decs.h"
 
-double Bnu_inv (double nu, double Thetae)
+double Bnu_inv(double nu, double Thetae)
 {
   double x = HPL * nu / (ME * CL * CL * Thetae);
 

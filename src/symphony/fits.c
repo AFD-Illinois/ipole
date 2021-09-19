@@ -264,10 +264,11 @@ void check_for_errors(struct parameters *params)
     exit(0);
   }
   if(params->distribution == params->KAPPA_DIST) {
-    if(params->kappa < 2.5 || params->kappa > 7.5)
-    {
-      printf("\n WARNING: kappa out of range of fitting formula \n");
-    }
+    // This is taken care of by switching fits, see above
+    // if(params->kappa < 2.5 || params->kappa > 7.5)
+    // {
+    //   printf("\n WARNING: kappa out of range of fitting formula \n");
+    // }
     //if(params->kappa_width < 3 || 
     if (params->kappa_width > 200)
     {

@@ -1,6 +1,7 @@
 #include "maxwell_juettner.h"
 
 #include "constants.h"
+#include "radiation.h"
 
 #include <stdio.h>
 
@@ -137,16 +138,7 @@ double maxwell_juettner_V(struct parameters *params)
  */
 double planck_func(struct parameters *params)
 {
-  double term1 = (2.*params->plancks_constant*pow(params->nu, 3.))
-                /pow(params->speed_light, 2.);
-
-  double term2 = (exp(params->plancks_constant*params->nu
-                  /(params->theta_e*params->mass_electron
-                    *pow(params->speed_light, 2.)))-1.);
-
-  double ans = term1 / term2;
-
-  return ans;
+  return Bnu_inv(params->nu, params->theta_e) * pow(params->nu, 3);
 }
 
 /*maxwell_juettner_I_abs: Fitting formula for the absorptivity, polarized in
@@ -315,7 +307,14 @@ double maxwell_juettner_dexter_V(struct parameters *params)
   double theta = params->observer_angle;
   double nus = 3.0 * EE * B * sin(theta) / 4.0 / M_PI / ME / CL * Thetae * Thetae + 1.0;
   double x = nu / nus;
-  return 2. * Ne * EE * EE * nu / tan(theta) / 3. / sqrt(3) / CL / Thetae / Thetae / Thetae * I_V(x);
+  double ans = 2. * Ne * EE * EE * nu / tan(theta) / 3. / sqrt(3) / CL / Thetae / Thetae / Thetae * I_V(x);
+#if DEBUG
+  if (isnan(ans)) {
+    fprintf(stderr, "NaN in Dexter jV. Ne, nu, Thetae, B, theta, nus, x: %g %g %g %g %g %g %g\n",
+                    Ne, nu, Thetae, B, theta, nus, x);
+  }
+#endif
+  return ans;
 }
 
 // Supporting functions

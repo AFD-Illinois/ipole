@@ -180,14 +180,10 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
 
   // ...and then the specific distribution and its parameters.
   switch (dist) {
-  case E_DEXTER_THERMAL: // Dexter thermal fits (default)
-    paramsM.dexter_fit = 1;
-  case E_THERMAL: // Otherwise Pandya thermal fits
-    paramsM.distribution = paramsM.MAXWELL_JUETTNER;
-    paramsM.theta_e = get_model_thetae(X);
-    break;
   case E_KAPPA: // Kappa fits (Pandya + Marszewski)
     paramsM.distribution = paramsM.KAPPA_DIST;
+    // Fall back to Dexter starting at kappa > kappa_interp_start, completely at kappa_max
+    paramsM.dexter_fit = 1; // This only affects choice of thermal fallback
     paramsM.kappa_interp_begin = fmin(variable_kappa_interp_start, variable_kappa_max);
     paramsM.kappa_interp_end = variable_kappa_max;
     paramsM.theta_e = get_model_thetae(X);
@@ -199,11 +195,36 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     get_model_powerlaw_vals(X, &(paramsM.power_law_p), &(paramsM.electron_density),
                             &(paramsM.gamma_min), &(paramsM.gamma_max), &(paramsM.gamma_cutoff));
     break;
+  case E_THERMAL: // Pandya thermal fits
+    paramsM.distribution = paramsM.MAXWELL_JUETTNER;
+    paramsM.theta_e = get_model_thetae(X);
+    break;
+  case E_DEXTER_THERMAL: // Dexter thermal fits (default)
+  default:
+    paramsM.dexter_fit = 1;
+    paramsM.distribution = paramsM.MAXWELL_JUETTNER;
+    paramsM.theta_e = get_model_thetae(X);
+    break;
   }
 
-  // If performing unpolarized transport, calculate only what we need
+  // First, enforce no emission/absorption along field lines,
+  // but allow Faraday rotation in polarized context
+  // TODO this skips any rho_V NaN/other checks
+  if (theta <= 0.0 || theta >= M_PI) {
+    *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
+    *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
+    *rQ = 0.0; *rU = 0.0;
+    if (pol && !(dist == E_UNPOL)) {
+      *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
+    } else {
+      *rV = 0.0;
+    }
+    return;
+  }
+
+  // Then, if performing unpolarized transport, calculate only what we need
   if (!pol || dist == E_UNPOL) {
-    if (dist == E_THERMAL || dist == E_DEXTER_THERMAL || dist > 10){
+    if (paramsM.distribution == paramsM.MAXWELL_JUETTNER) {
       paramsM.dexter_fit = 2; // Signal symphony fits to use Leung+
       *jI = j_nu_fit(&paramsM, paramsM.STOKES_I);
       if(do_bremss) *jI += bremss_I(&paramsM, bremss_type);
@@ -211,69 +232,65 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
       double Bnuinv = Bnu_inv(nu, paramsM.theta_e); // Planck function
       *aI = *jI / Bnuinv;
     } else {
+      paramsM.dexter_fit = 2; // Signal symphony fits to use Leung+ as fallback
       *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / nusq;
       *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
     }
-  } else {
-    // Avoid issues directly along field lines
-    if (theta <= 0 || theta >= M_PI) {
-      *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
-      *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
-      *rQ = 0.0; *rU = 0.0;
-      *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
-    } else {
-      // EMISSIVITIES
-      *jI = j_nu_fit(&paramsM, paramsM.STOKES_I);
-      if(do_bremss) *jI += bremss_I(&paramsM, bremss_type);
-      *jI /= nusq; // Avoids loss of precision in small numbers
-      *jQ = -j_nu_fit(&paramsM, paramsM.STOKES_Q) / nusq;
-      *jU = -j_nu_fit(&paramsM, paramsM.STOKES_U) / nusq;
-      *jV = j_nu_fit(&paramsM, paramsM.STOKES_V) / nusq;
-      // Check basic relationships
-      double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
-      if (*jI  < jP/max_pol_frac_e) {
-        // Transport does not like 100% polarization...
-        double pol_frac_e = *jI / jP * max_pol_frac_e;
-        *jQ *= pol_frac_e;
-        *jU *= pol_frac_e;
-        *jV *= pol_frac_e;
-      }
+  } else { // Finally, calculate all coefficients normally
+    // EMISSIVITIES
+    *jI = j_nu_fit(&paramsM, paramsM.STOKES_I);
+    // Bremsstrahlung is computed only for thermal;
+    // silently drop Bremss+other dists, as absorptivities will be wrong
+    if(paramsM.distribution == paramsM.MAXWELL_JUETTNER && do_bremss)
+      *jI += bremss_I(&paramsM, bremss_type);
+    *jI /= nusq; // Avoids loss of precision in small numbers
 
-      // ABSORPTIVITIES
-      if (dist == E_THERMAL || dist == E_DEXTER_THERMAL || dist > 10) { // Thermal distributions
-        // Get absorptivities via Kirchoff's law
-        // Already invariant, guaranteed to respect aI > aP
-        // Faster than calling Symphony code since we know jS, Bnu
-        double Bnuinv = Bnu_inv(nu, paramsM.theta_e); // Planck function
-        *aI = *jI / Bnuinv;
-        *aQ = *jQ / Bnuinv;
-        *aU = *jU / Bnuinv;
-        *aV = *jV / Bnuinv;
-      } else {
-        *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
-        // Note Bremss emission is available for thermal dists *only*
-        *aQ = -alpha_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
-        *aU = -alpha_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
-        *aV = alpha_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
-
-        // Check basic relationships
-        double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
-        if (*aI < aP/max_pol_frac_a) {
-          // Transport does not like 100% polarization...
-          double pol_frac_a = *aI / aP * max_pol_frac_a;
-          *aQ *= pol_frac_a;
-          *aU *= pol_frac_a;
-          *aV *= pol_frac_a;
-        }
-      }
-
-
-      // ROTATIVITIES
-      paramsM.dexter_fit = 0;  // Don't use the Dexter rhoV, as it's unstable at low temperature
-      *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
-      *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
-      *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
+    *jQ = -j_nu_fit(&paramsM, paramsM.STOKES_Q) / nusq;
+    *jU = -j_nu_fit(&paramsM, paramsM.STOKES_U) / nusq;
+    *jV = j_nu_fit(&paramsM, paramsM.STOKES_V) / nusq;
+    // Check basic relationships
+    double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
+    if (*jI  < jP/max_pol_frac_e) {
+      // Transport does not like 100% polarization...
+      double pol_frac_e = *jI / jP * max_pol_frac_e;
+      *jQ *= pol_frac_e;
+      *jU *= pol_frac_e;
+      *jV *= pol_frac_e;
     }
+
+    // ABSORPTIVITIES
+    if (paramsM.distribution == paramsM.MAXWELL_JUETTNER) { // Thermal distributions
+      // Get absorptivities via Kirchoff's law
+      // Already invariant, guaranteed to respect aI > aP
+      // Faster than calling Symphony code since we know jS, Bnu
+      double Bnuinv = Bnu_inv(nu, paramsM.theta_e); // Planck function
+      *aI = *jI / Bnuinv;
+      *aQ = *jQ / Bnuinv;
+      *aU = *jU / Bnuinv;
+      *aV = *jV / Bnuinv;
+    } else {
+      *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
+      // Note Bremss emission is available for thermal dists *only*
+      *aQ = -alpha_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
+      *aU = -alpha_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
+      *aV = alpha_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
+
+      // Check basic relationships
+      double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
+      if (*aI < aP/max_pol_frac_a) {
+        // Transport does not like 100% polarization...
+        double pol_frac_a = *aI / aP * max_pol_frac_a;
+        *aQ *= pol_frac_a;
+        *aU *= pol_frac_a;
+        *aV *= pol_frac_a;
+      }
+    }
+
+    // ROTATIVITIES
+    paramsM.dexter_fit = 0;  // Don't use the Dexter rhoV, as it's unstable at low temperature
+    *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
+    *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
+    *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
   }
 
 #if DEBUG
