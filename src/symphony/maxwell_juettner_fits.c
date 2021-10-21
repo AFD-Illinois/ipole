@@ -151,7 +151,11 @@ double planck_func(struct parameters *params)
  */
 double maxwell_juettner_I_abs(struct parameters *params)
 {
-  double ans = maxwell_juettner_I(params)/planck_func(params);
+  double Bnu = planck_func(params);
+  double ans = 0.;
+  if (Bnu > 0.) {
+    ans = maxwell_juettner_I(params)/Bnu;
+  }
   return ans;
 }
 
@@ -165,7 +169,11 @@ double maxwell_juettner_I_abs(struct parameters *params)
  */
 double maxwell_juettner_Q_abs(struct parameters *params)
 {
-  double ans = maxwell_juettner_Q(params)/planck_func(params);
+  double Bnu = planck_func(params);
+  double ans = 0.;
+  if (Bnu > 0.) {
+    ans = maxwell_juettner_Q(params)/Bnu;
+  }
   return ans;
 }
 
@@ -179,7 +187,11 @@ double maxwell_juettner_Q_abs(struct parameters *params)
  */
 double maxwell_juettner_V_abs(struct parameters *params)
 {
-  double ans = maxwell_juettner_V(params)/planck_func(params);
+  double Bnu = planck_func(params);
+  double ans = 0.;
+  if (Bnu > 0.) {
+    ans = maxwell_juettner_V(params)/Bnu;
+  }
   return ans;
 }
 

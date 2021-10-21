@@ -264,10 +264,17 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
       // Already invariant, guaranteed to respect aI > aP
       // Faster than calling Symphony code since we know jS, Bnu
       double Bnuinv = Bnu_inv(nu, paramsM.theta_e); // Planck function
-      *aI = *jI / Bnuinv;
-      *aQ = *jQ / Bnuinv;
-      *aU = *jU / Bnuinv;
-      *aV = *jV / Bnuinv;
+      if (Bnuinv > 0) {
+        *aI = *jI / Bnuinv;
+        *aQ = *jQ / Bnuinv;
+        *aU = *jU / Bnuinv;
+        *aV = *jV / Bnuinv;
+      } else {
+        *aI = 0.;
+        *aQ = 0.;
+        *aU = 0.;
+        *aV = 0.;
+      }
     } else {
       *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
       // Note Bremss emission is available for thermal dists *only*
