@@ -90,6 +90,8 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->trace_i = -1;
   params->trace_j = -1;
 
+  params->keln = 9; // Kawazura
+  
   // I'm not sure there's still any advantage to "const" if we do this,
   // but hey, no warnings
   sscanf("trace.h5", "%s", (char *) (void *) params->trace_outf);
@@ -186,6 +188,8 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "trace_i", &(params->trace_i), TYPE_INT);
   set_by_word_val(word, value, "trace_j", &(params->trace_j), TYPE_INT);
   set_by_word_val(word, value, "trace_outf", (void *)(params->trace_outf), TYPE_STR);
+
+  set_by_word_val(word, value, "keln", &(params->keln), TYPE_INT);
 
   // Let models add/parse their own parameters we don't understand
   try_set_model_parameter(word, value);

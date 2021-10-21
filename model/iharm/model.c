@@ -19,7 +19,7 @@
 
 #define NVAR (10)
 #define USE_FIXED_TPTE (0)
-#define USE_MIXED_TPTE (1)
+#define USE_MIXED_TPTE (0) // KEL models are actually used
 #define NSUP (3)
 
 #define USE_GEODESIC_SIGMACUT (1)
@@ -37,6 +37,7 @@ double RHO_unit;
 double U_unit;
 double B_unit;
 double Te_unit;
+int keln;
 
 // MOLECULAR WEIGHTS
 static double Ne_factor = 1.;  // e.g., used for He with 2 protons+neutrons per 2 electrons
@@ -149,6 +150,9 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "dump_max", &dumpmax, TYPE_INT);
   set_by_word_val(word, value, "dump_skip", &dumpskip, TYPE_INT);
   dumpidx = dumpmin;
+
+  // for selecting electron model
+  set_by_word_val(word, value, "keln", &keln, TYPE_INT);
 }
 
 // Advance through dumps until we are closer to the next set
@@ -524,6 +528,7 @@ void set_units()
   fprintf(stderr,"MBH: %g [Msun]\n",MBH/MSUN);
   fprintf(stderr,"L,T,M units: %g [cm] %g [s] %g [g]\n",L_unit,T_unit,M_unit) ;
   fprintf(stderr,"rho,u,B units: %g [g cm^-3] %g [g cm^-1 s^-2] %g [G] \n",RHO_unit,U_unit,B_unit) ;
+  fprintf(stderr,"Model is: %d \n", keln) ;
 }
 
 void init_physical_quantities(int n)
@@ -1205,6 +1210,7 @@ void output_hdf5()
   hdf5_write_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
   hdf5_write_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
   hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&keln, "keln", H5T_IEEE_F64LE);
 
   hdf5_set_directory("/");
 
@@ -1797,9 +1803,9 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_read_array(data[n]->p[B3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE); 
 
   if (ELECTRONS == 1) {
-    fstart[3] = 8;
+    fstart[3] = keln; // This is what actually selects what is taken from h5 file.
     hdf5_read_array(data[n]->p[KEL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-    fstart[3] = 9;
+    fstart[3] = 8; 
     hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 

@@ -62,6 +62,8 @@ typedef struct params_t {
   int trace_stride;
   int trace_i, trace_j;
   const char trace_outf[STRLEN];
+
+  int keln;
 } Params;
 
 // modify this to set default values
