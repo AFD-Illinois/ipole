@@ -230,7 +230,11 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
       if(do_bremss) *jI += bremss_I(&paramsM, bremss_type);
       *jI /= nusq; // Avoids loss of precision in small numbers
       double Bnuinv = Bnu_inv(nu, paramsM.theta_e); // Planck function
-      *aI = *jI / Bnuinv;
+      if (Bnuinv > 0) {
+        *aI = *jI / Bnuinv;
+      } else {
+        *aI = 0;
+      }
     } else {
       paramsM.dexter_fit = 2; // Signal symphony fits to use Leung+ as fallback
       *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / nusq;
