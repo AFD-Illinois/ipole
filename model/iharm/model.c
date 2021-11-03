@@ -37,7 +37,6 @@ double RHO_unit;
 double U_unit;
 double B_unit;
 double Te_unit;
-int keln;
 
 // MOLECULAR WEIGHTS
 static double Ne_factor = 1.;  // e.g., used for He with 2 protons+neutrons per 2 electrons
@@ -83,6 +82,7 @@ double tf;
 // TODO the way this is selected is horrid.  Make it a parameter.
 #define ELECTRONS_TFLUID (3)
 static int RADIATION, ELECTRONS;
+static int keln;
 static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
 
@@ -1202,6 +1202,7 @@ void output_hdf5()
     hdf5_write_single_val(&mu_tot, "mu_tot", H5T_IEEE_F64LE);
   }
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
+  hdf5_write_single_val(&keln, "keln", H5T_STD_I32LE);
 
   hdf5_set_directory("/header/");
   hdf5_make_directory("units");
@@ -1210,7 +1211,6 @@ void output_hdf5()
   hdf5_write_single_val(&M_unit, "M_unit", H5T_IEEE_F64LE);
   hdf5_write_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
   hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&keln, "keln", H5T_IEEE_F64LE);
 
   hdf5_set_directory("/");
 
