@@ -64,6 +64,7 @@ typedef struct params_t {
   const char trace_outf[STRLEN];
 
   int keln;
+  int rhigh_model;
 } Params;
 
 // modify this to set default values
