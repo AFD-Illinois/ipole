@@ -12,8 +12,8 @@
 #define B1   5
 #define B2   6
 #define B3   7
-#define KEL  8
-#define KTOT 9
+#define KTOT 8
+#define KEL  9
 // These two will never be used simultaneously,
 // and never with KEL.
 #define TFLK 8  // temperature of fluid in Kelvin

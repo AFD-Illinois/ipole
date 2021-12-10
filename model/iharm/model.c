@@ -19,7 +19,7 @@
 
 #define NVAR (10)
 #define USE_FIXED_TPTE (0)
-#define USE_MIXED_TPTE (1)
+// #define USE_MIXED_TPTE (1) // Now rhigh_model
 #define NSUP (3)
 
 #define USE_GEODESIC_SIGMACUT (1)
@@ -82,6 +82,8 @@ double tf;
 // TODO the way this is selected is horrid.  Make it a parameter.
 #define ELECTRONS_TFLUID (3)
 static int RADIATION, ELECTRONS;
+static int keln;
+static int rhigh_model;
 static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
 
@@ -149,6 +151,10 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "dump_max", &dumpmax, TYPE_INT);
   set_by_word_val(word, value, "dump_skip", &dumpskip, TYPE_INT);
   dumpidx = dumpmin;
+
+  // for selecting electron model
+  set_by_word_val(word, value, "keln", &keln, TYPE_INT);
+  set_by_word_val(word, value, "rhigh_model", &rhigh_model, TYPE_INT);
 }
 
 // Advance through dumps until we are closer to the next set
@@ -524,6 +530,11 @@ void set_units()
   fprintf(stderr,"MBH: %g [Msun]\n",MBH/MSUN);
   fprintf(stderr,"L,T,M units: %g [cm] %g [s] %g [g]\n",L_unit,T_unit,M_unit) ;
   fprintf(stderr,"rho,u,B units: %g [g cm^-3] %g [g cm^-1 s^-2] %g [G] \n",RHO_unit,U_unit,B_unit) ;
+  if (rhigh_model == 1) {
+    fprintf(stderr,"Rhigh model is used \n") ;
+  } else {
+    fprintf(stderr,"Electron Model #%d is used\n", keln) ;
+  }
 }
 
 void init_physical_quantities(int n)
@@ -682,17 +693,17 @@ void init_hamr_grid(char *fnam, int dumpidx)
   // we can override which electron model to use here. print results if we're
   // overriding anything. ELECTRONS should only be nonzero if we need to make
   // use of extra variables (instead of just UU and RHO) for thetae
-  if (!USE_FIXED_TPTE && !USE_MIXED_TPTE) {
+  if (!USE_FIXED_TPTE && !rhigh_model) {
     fprintf(stderr, "! no electron temperature model specified in model/iharm.c\n");
     exit(-3);
-  } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
+  } else if (USE_FIXED_TPTE && !rhigh_model) {
     ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
     fprintf(stderr, "using fixed tp_over_te ratio = %g\n", tp_over_te);
     //Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
     // see, e.g., Eq. 8 of the EHT GRRT formula list.
     // this formula assumes game = 4./3 and gamp = 5./3
     Thetae_unit = 2./3. * MP/ME / (2. + tp_over_te);
-  } else if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
+  } else if (rhigh_model && !USE_FIXED_TPTE) {
     ELECTRONS = 2;
     fprintf(stderr, "using mixed tp_over_te with trat_small = %g, trat_large = %g, and beta_crit = %g\n",
       trat_small, trat_large, beta_crit);
@@ -844,7 +855,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
   // we can override which electron model to use here. print results if we're
   // overriding anything. ELECTRONS should only be nonzero if we need to make
   // use of extra variables (instead of just UU and RHO) for thetae
-  if (!USE_FIXED_TPTE && !USE_MIXED_TPTE) {
+  if (!USE_FIXED_TPTE && !rhigh_model) {
     if (ELECTRONS != 1) {
       fprintf(stderr, "! no electron temperature model specified! Cannot continue\n");
       exit(-3);
@@ -854,14 +865,14 @@ void init_iharm_grid(char *fnam, int dumpidx)
   } else if (ELECTRONS == ELECTRONS_TFLUID) {
     fprintf(stderr, "Using Ressler/Athena electrons with mixed tp_over_te and\n");
     fprintf(stderr, "trat_small = %g, trat_large = %g, and beta_crit = %g\n", trat_small, trat_large, beta_crit);
-  } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
+  } else if (USE_FIXED_TPTE && !rhigh_model) {
     ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
     fprintf(stderr, "Using fixed tp_over_te ratio = %g\n", tp_over_te);
     //Thetae_unit = MP/ME*(gam-1.)*1./(1. + tp_over_te);
     // see, e.g., Eq. 8 of the EHT GRRT formula list. 
     // this formula assumes game = 4./3 and gamp = 5./3
     Thetae_unit = 2./3. * MP/ME / (2. + tp_over_te);
-  } else if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
+  } else if (rhigh_model && !USE_FIXED_TPTE) {
     ELECTRONS = 2;
     fprintf(stderr, "Using mixed tp_over_te with trat_small = %g, trat_large = %g, and beta_crit = %g\n", 
       trat_small, trat_large, beta_crit);
@@ -1139,7 +1150,7 @@ void init_koral_grid(char *fnam, int dumpidx)
       fprintf(stderr, "koral dump has native electron temperature. forcing Thetae...\n");
       ELECTRONS = 9;
     } else {
-      if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
+      if (rhigh_model && !USE_FIXED_TPTE) {
         fprintf(stderr, "Using mixed tp_over_te with trat_small = %g, trat_large = %g, and beta_crit = %g\n", trat_small, trat_large, beta_crit);
         ELECTRONS = 2;
       } else {
@@ -1197,6 +1208,8 @@ void output_hdf5()
     hdf5_write_single_val(&mu_tot, "mu_tot", H5T_IEEE_F64LE);
   }
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
+  hdf5_write_single_val(&keln, "keln", H5T_STD_I32LE);
+  hdf5_write_single_val(&rhigh_model, "rhigh_model", H5T_STD_I32LE);
 
   hdf5_set_directory("/header/");
   hdf5_make_directory("units");
@@ -1797,9 +1810,9 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_read_array(data[n]->p[B3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE); 
 
   if (ELECTRONS == 1) {
-    fstart[3] = 8;
+    fstart[3] = keln; // This is what actually selects what is taken from h5 file.
     hdf5_read_array(data[n]->p[KEL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-    fstart[3] = 9;
+    fstart[3] = 8; 
     hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 
