@@ -1,5 +1,6 @@
 # 9 Kawazura, 10 Werner, 11 Rowan, 12 Sharma, default is 9
 keln 10
+rhigh_model 0
 
 # example.par -- ipole example parameter file for iharm problem
 
