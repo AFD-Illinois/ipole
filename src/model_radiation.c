@@ -43,7 +43,7 @@
 // Debugging/internal
 #define E_UNPOL         15
 
-#define OVERFLOW 1e100
+#define RAD_OVERFLOW 1e100
 
 // Local functions for declaring different kappa/powerlaw distributions
 void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
@@ -306,17 +306,17 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
 
 #if DEBUG
   // Check for NaN coefficients
-  if (isnan(*jI) || *jI > OVERFLOW || *jI < -OVERFLOW ||
-      isnan(*jQ) || *jQ > OVERFLOW || *jQ < -OVERFLOW ||
-      isnan(*jU) || *jU > OVERFLOW || *jU < -OVERFLOW ||
-      isnan(*jV) || *jV > OVERFLOW || *jV < -OVERFLOW ||
-      isnan(*aI) || *aI > OVERFLOW || *aI < -OVERFLOW ||
-      isnan(*aQ) || *aQ > OVERFLOW || *aQ < -OVERFLOW ||
-      isnan(*aU) || *aU > OVERFLOW || *aU < -OVERFLOW ||
-      isnan(*aV) || *aV > OVERFLOW || *aV < -OVERFLOW ||
-      isnan(*rQ) || *rQ > OVERFLOW || *rQ < -OVERFLOW ||
-      isnan(*rU) || *rU > OVERFLOW || *rU < -OVERFLOW ||
-      isnan(*rV) || *rV > OVERFLOW || *rV < -OVERFLOW) {
+  if (isnan(*jI) || *jI > RAD_OVERFLOW || *jI < -RAD_OVERFLOW ||
+      isnan(*jQ) || *jQ > RAD_OVERFLOW || *jQ < -RAD_OVERFLOW ||
+      isnan(*jU) || *jU > RAD_OVERFLOW || *jU < -RAD_OVERFLOW ||
+      isnan(*jV) || *jV > RAD_OVERFLOW || *jV < -RAD_OVERFLOW ||
+      isnan(*aI) || *aI > RAD_OVERFLOW || *aI < -RAD_OVERFLOW ||
+      isnan(*aQ) || *aQ > RAD_OVERFLOW || *aQ < -RAD_OVERFLOW ||
+      isnan(*aU) || *aU > RAD_OVERFLOW || *aU < -RAD_OVERFLOW ||
+      isnan(*aV) || *aV > RAD_OVERFLOW || *aV < -RAD_OVERFLOW ||
+      isnan(*rQ) || *rQ > RAD_OVERFLOW || *rQ < -RAD_OVERFLOW ||
+      isnan(*rU) || *rU > RAD_OVERFLOW || *rU < -RAD_OVERFLOW ||
+      isnan(*rV) || *rV > RAD_OVERFLOW || *rV < -RAD_OVERFLOW) {
 #pragma omp critical
     {
       fprintf(stderr, "\nNAN in emissivities!\n");
