@@ -349,7 +349,7 @@ double I_Q(double x)
 
 double I_V(double x)
 {
-  return (1.81348 / x + 3.42319 * pow(x, -2. / 3.) +
+  return (1.81384 / x + 3.42319 * pow(x, -2. / 3.) +
       0.0292545 * pow(x, -0.5) + 2.03773 * pow(x,
         -1. / 3.)) *
     exp(-1.8899 * pow(x, 1. / 3.));
