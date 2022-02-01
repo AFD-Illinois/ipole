@@ -46,6 +46,7 @@ static double mu_i, mu_e, mu_tot;
 double DTd;
 double sigma_cut = 1.0;
 double beta_crit = 1.0;
+double sigma_cut_high = -1.0;
 
 // MODEL PARAMETERS: PRIVATE
 static char fnam[STRLEN] = "dump.h5";
@@ -134,6 +135,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "trat_small", &trat_small, TYPE_DBL);
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
+  set_by_word_val(word, value, "sigma_cut_high", &sigma_cut_high, TYPE_DBL);
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
   set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
 
@@ -496,19 +498,32 @@ double get_model_beta(double X[NDIM])
   return tfac*betaA + (1. - tfac)*betaB;
 }
 
+double get_sigma_smoothfac(double sigma)
+{
+  double sigma_above = sigma_cut;
+  if (sigma_cut_high > 0) sigma_above = sigma_cut_high;
+  if (sigma < sigma_cut) return 1;
+  if (sigma >= sigma_above) return 0;
+  double dsig = sigma_above - sigma_cut;
+  return cos(M_PI / 2. / dsig * (sigma - sigma_cut));
+}
+
 double get_model_ne(double X[NDIM])
 {
   if ( X_in_domain(X) == 0 ) return 0.;
 
+  double sigma_smoothfac = 1;
+
 #if USE_GEODESIC_SIGMACUT
   double sigma = get_model_sigma(X);
   if (sigma > sigma_cut) return 0.;
+  sigma_smoothfac = get_sigma_smoothfac(sigma);
 #endif
 
   int nA, nB;
   double tfac = set_tinterp_ns(X, &nA, &nB);
 
-  return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac);
+  return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac) * sigma_smoothfac;
 }
 
 void set_units()
