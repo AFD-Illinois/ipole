@@ -38,6 +38,8 @@ double U_unit;
 double B_unit;
 double Te_unit;
 
+double target_mdot = 0.0;  // if this value > 0, use to renormalize M_unit &c.
+
 // MOLECULAR WEIGHTS
 static double Ne_factor = 1.;  // e.g., used for He with 2 protons+neutrons per 2 electrons
 static double mu_i, mu_e, mu_tot;
@@ -128,6 +130,7 @@ void try_set_model_parameter(const char *word, const char *value)
   // assume params is populated
   set_by_word_val(word, value, "MBH", &MBH_solar, TYPE_DBL);
   set_by_word_val(word, value, "M_unit", &M_unit, TYPE_DBL);
+  set_by_word_val(word, value, "mdot", &target_mdot, TYPE_DBL);
 
   set_by_word_val(word, value, "dump", (void *)fnam, TYPE_STR);
 
@@ -1521,6 +1524,20 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   MdotEdd_dump = Mdotedd;
   Ladv_dump =  Ladv;
 
+  if (target_mdot > 0) {
+    fprintf(stderr, "resetting M_unit to match target_mdot = %g\n", target_mdot);
+
+    double current_mdot = Mdot_dump/MdotEdd_dump;
+    fprintf(stderr, "was %g is now %g\n", M_unit, M_unit * fabs(target_mdot / current_mdot));
+    M_unit *= fabs(target_mdot / current_mdot);
+
+    set_units();
+  }
+
+  Mdot_dump = -dMact*M_unit/T_unit;
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
   if (verbose == 2) {
     fprintf(stderr,"dMact: %g [code]\n",dMact);
     fprintf(stderr,"Ladv: %g [code]\n",Ladv_dump);
@@ -1700,6 +1717,20 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   dMact /= 21. ;
   Ladv *= dx[3]*dx[2] ;
   Ladv /= 21. ;
+
+  Mdot_dump = -dMact*M_unit/T_unit;
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
+  if (target_mdot > 0) {
+    fprintf(stderr, "resetting M_unit to match target_mdot = %g\n", target_mdot);
+
+    double current_mdot = Mdot_dump/MdotEdd_dump;
+    fprintf(stderr, "was %g is now %g\n", M_unit, M_unit * fabs(target_mdot / current_mdot));
+    M_unit *= fabs(target_mdot / current_mdot);
+
+    set_units();
+  }
 
   Mdot_dump = -dMact*M_unit/T_unit;
   MdotEdd_dump = Mdotedd;
@@ -1941,6 +1972,20 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   dMact /= 21. ;
   Ladv *= dx[3]*dx[2] ;
   Ladv /= 21. ;
+
+  Mdot_dump = -dMact*M_unit/T_unit;
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
+  if (target_mdot > 0) {
+    fprintf(stderr, "resetting M_unit to match target_mdot = %g\n", target_mdot);
+
+    double current_mdot = Mdot_dump/MdotEdd_dump;
+    fprintf(stderr, "was %g is now %g\n", M_unit, M_unit * fabs(target_mdot / current_mdot));
+    M_unit *= fabs(target_mdot / current_mdot);
+
+    set_units();
+  }
 
   Mdot_dump = -dMact*M_unit/T_unit;
   MdotEdd_dump = Mdotedd;
