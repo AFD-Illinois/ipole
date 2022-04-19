@@ -154,6 +154,11 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "dump_max", &dumpmax, TYPE_INT);
   set_by_word_val(word, value, "dump_skip", &dumpskip, TYPE_INT);
   dumpidx = dumpmin;
+
+  // override parameters based on input
+  if (target_mdot > 0.) {
+    M_unit = 1.;
+  }
 }
 
 // Advance through dumps until we are closer to the next set
@@ -1525,10 +1530,10 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   Ladv_dump =  Ladv;
 
   if (target_mdot > 0) {
-    fprintf(stderr, "resetting M_unit to match target_mdot = %g\n", target_mdot);
+    fprintf(stderr, "Resetting M_unit to match target_mdot = %g ", target_mdot);
 
     double current_mdot = Mdot_dump/MdotEdd_dump;
-    fprintf(stderr, "was %g is now %g\n", M_unit, M_unit * fabs(target_mdot / current_mdot));
+    fprintf(stderr, "... is now %g\n", M_unit * fabs(target_mdot / current_mdot));
     M_unit *= fabs(target_mdot / current_mdot);
 
     set_units();
@@ -1723,10 +1728,10 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   Ladv_dump =  Ladv;
 
   if (target_mdot > 0) {
-    fprintf(stderr, "resetting M_unit to match target_mdot = %g\n", target_mdot);
+    fprintf(stderr, "Resetting M_unit to match target_mdot = %g ", target_mdot);
 
     double current_mdot = Mdot_dump/MdotEdd_dump;
-    fprintf(stderr, "was %g is now %g\n", M_unit, M_unit * fabs(target_mdot / current_mdot));
+    fprintf(stderr, "... is now %g\n", M_unit * fabs(target_mdot / current_mdot));
     M_unit *= fabs(target_mdot / current_mdot);
 
     set_units();
@@ -1932,7 +1937,8 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
 
-        if(i <= 21) { dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1];; }
+
+        if(i <= 21) { dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1]; }
         if(i >= 21 && i < 41 && 0) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
         if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
 
@@ -1978,10 +1984,10 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   Ladv_dump =  Ladv;
 
   if (target_mdot > 0) {
-    fprintf(stderr, "resetting M_unit to match target_mdot = %g\n", target_mdot);
+    fprintf(stderr, "Resetting M_unit to match target_mdot = %g ", target_mdot);
 
     double current_mdot = Mdot_dump/MdotEdd_dump;
-    fprintf(stderr, "was %g is now %g\n", M_unit, M_unit * fabs(target_mdot / current_mdot));
+    fprintf(stderr, "... is now %g\n",M_unit * fabs(target_mdot / current_mdot));
     M_unit *= fabs(target_mdot / current_mdot);
 
     set_units();
