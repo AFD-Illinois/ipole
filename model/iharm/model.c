@@ -119,7 +119,7 @@ void init_grid(char *fnam, int dumpidx);
 void init_iharm_grid(char *fnam, int dumpidx);
 void init_koral_grid(char *fnam, int dumpidx);
 void init_hamr_grid(char *fnam, int dumpidx);
-void init_physical_quantities(int n);
+void init_physical_quantities(int n, double rescale_factor);
 void init_storage(void);
 
 void try_set_model_parameter(const char *word, const char *value)
@@ -549,11 +549,13 @@ void set_units()
   fprintf(stderr,"rho,u,B units: %g [g cm^-3] %g [g cm^-1 s^-2] %g [G] \n",RHO_unit,U_unit,B_unit) ;
 }
 
-void init_physical_quantities(int n)
+void init_physical_quantities(int n, double rescale_factor)
 {
 #if DEBUG
   int ceilings = 0;
 #endif
+
+  rescale_factor = sqrt(rescale_factor);
 
   // cover everything, even ghost zones
 #pragma omp parallel for collapse(3)
@@ -561,6 +563,8 @@ void init_physical_quantities(int n)
     for (int j = 0; j < N2+2; j++) {
       for (int k = 0; k < N3+2; k++) {
         data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) * Ne_factor;
+
+        data[n]->b[i][j][k] *= rescale_factor;
 
         double bsq = data[n]->b[i][j][k] / B_unit;
         bsq = bsq*bsq;
@@ -649,6 +653,7 @@ void init_physical_quantities(int n)
 #if DEBUG
   fprintf(stderr, "TOTAL TEMPERATURE CEILING ZONES: %d of %d\n", ceilings, (N1+2)*(N2+2)*(N3+2));
 #endif
+
 }
 
 void init_storage(void)
@@ -1529,12 +1534,15 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   MdotEdd_dump = Mdotedd;
   Ladv_dump =  Ladv;
 
+  double rescale_factor = 1.;
+
   if (target_mdot > 0) {
     fprintf(stderr, "Resetting M_unit to match target_mdot = %g ", target_mdot);
 
     double current_mdot = Mdot_dump/MdotEdd_dump;
     fprintf(stderr, "... is now %g\n", M_unit * fabs(target_mdot / current_mdot));
-    M_unit *= fabs(target_mdot / current_mdot);
+    rescale_factor = fabs(target_mdot / current_mdot);
+    M_unit *= rescale_factor;
 
     set_units();
   }
@@ -1557,7 +1565,7 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
-  init_physical_quantities(n);
+  init_physical_quantities(n, rescale_factor);
 }
 
 void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
@@ -1727,12 +1735,15 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   MdotEdd_dump = Mdotedd;
   Ladv_dump =  Ladv;
 
+  double rescale_factor = 1.;
+
   if (target_mdot > 0) {
     fprintf(stderr, "Resetting M_unit to match target_mdot = %g ", target_mdot);
 
     double current_mdot = Mdot_dump/MdotEdd_dump;
     fprintf(stderr, "... is now %g\n", M_unit * fabs(target_mdot / current_mdot));
-    M_unit *= fabs(target_mdot / current_mdot);
+    rescale_factor = fabs(target_mdot / current_mdot);
+    M_unit *= rescale_factor;
 
     set_units();
   }
@@ -1755,7 +1766,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
-  init_physical_quantities(n);
+  init_physical_quantities(n, rescale_factor);
 }
 
 // get dMact in the i'th radial zone (0 = 0 of the dump, so ignore ghost zones)
@@ -1983,12 +1994,15 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   MdotEdd_dump = Mdotedd;
   Ladv_dump =  Ladv;
 
+  double rescale_factor = 1.;
+
   if (target_mdot > 0) {
     fprintf(stderr, "Resetting M_unit to match target_mdot = %g ", target_mdot);
 
     double current_mdot = Mdot_dump/MdotEdd_dump;
-    fprintf(stderr, "... is now %g\n",M_unit * fabs(target_mdot / current_mdot));
-    M_unit *= fabs(target_mdot / current_mdot);
+    fprintf(stderr, "... is now %g\n", M_unit * fabs(target_mdot / current_mdot));
+    rescale_factor = fabs(target_mdot / current_mdot);
+    M_unit *= rescale_factor;
 
     set_units();
   }
@@ -2011,7 +2025,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
-  init_physical_quantities(n);
+  init_physical_quantities(n, rescale_factor);
 }
 
 
