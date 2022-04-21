@@ -174,7 +174,8 @@ double gffei(double Te, double nu)
 
   logu = log10(HPL * nu / KBOL / Te);
 
-  gffeival = gsl_spline2d_eval(bremss_spline,logu,loggammasq,bremss_xacc,bremss_yacc);
+  //gffeival = gsl_spline2d_eval(bremss_spline,logu,loggammasq,bremss_xacc,bremss_yacc);
+  gffeival = -100; // ANDREW GSL ERROR
   return gffeival;
 
 }
