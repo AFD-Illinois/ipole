@@ -61,8 +61,9 @@ static double trat_large = 40.;
 // lower values -> higher max T_e, higher values are restrictive
 static double cooling_dynamical_times = 1.e-20;
 //ANDREW added more control on KORAL electron model
-static int koral_use_electrons=0;
 
+static int koral_use_electrons=1; // use koral electrons in file if present
+static int koral_use_munit=1; // use koral munit in file if present
 
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
@@ -146,6 +147,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
 
   set_by_word_val(word, value, "koral_use_electrons", &koral_use_electrons, TYPE_INT);
+  set_by_word_val(word, value, "koral_use_munit", &koral_use_munit, TYPE_INT);
   
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
@@ -1150,7 +1152,7 @@ void init_koral_grid(char *fnam, int dumpidx)
   hdf5_set_directory("/header/");
   if ( hdf5_exists("has_radiation") ) {
     hdf5_read_single_val(&RADIATION, "has_radiation", H5T_STD_I32LE);
-    if (RADIATION) {
+    if (RADIATION && koral_use_munit) {
       // Note set_units(...) get called AFTER this function returns
       fprintf(stderr, "koral dump file was from radiation run. loading units...\n");
       hdf5_set_directory("/header/units/");
