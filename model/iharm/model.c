@@ -1868,9 +1868,9 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   //Reversing B Field
   if(reverse_field) {
     double multiplier = -1.0;
-    for(int i=0;i<N1;i++){
-      for(int j=0;j<N2;j++){
-        for(int k=0;k<N3;k++){ 
+    for(int i=0;i<N1+2;i++){
+      for(int j=0;j<N2+2;j++){
+        for(int k=0;k<N3+2;k++){ 
           data[n]->p[B1][i][j][k] = multiplier*data[n]->p[B1][i][j][k];
           data[n]->p[B2][i][j][k] = multiplier*data[n]->p[B2][i][j][k];
           data[n]->p[B3][i][j][k] = multiplier*data[n]->p[B3][i][j][k];
