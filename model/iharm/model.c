@@ -71,6 +71,10 @@ static double Ladv_dump;
 
 static int reverse_field = 0;
 
+// allow emission only within theta_mask + theta_mask_width angle if theta_mask>0; 
+static double theta_mask=0.0;
+static double theta_mask_width=5.0;
+
 double tf;
 
 // MAYBES
@@ -148,6 +152,10 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
   // allow cutting out the spine
   set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
+
+  // setting theta_mask variables)
+  set_by_word_val(word, value, "theta_mask", &theta_mask, TYPE_DBL);
+  set_by_word_val(word, value, "theta_mask_width", &theta_mask_width, TYPE_DBL);
 
   // for slow light
   set_by_word_val(word, value, "dump_min", &dumpmin, TYPE_INT);
@@ -2033,6 +2041,9 @@ int radiating_region(double X[NDIM])
 {
   double r, th;
   bl_coord(X, &r, &th);
+  if(theta_mask>0.0){
+    return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg) && th>(theta_mask/180.*M_PI) && th<((theta_mask+theta_mask_width)/180.*M_PI));
+  }
   return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg));
 }
 
