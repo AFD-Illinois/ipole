@@ -2042,7 +2042,7 @@ int radiating_region(double X[NDIM])
   double r, th;
   bl_coord(X, &r, &th);
   if(theta_mask>0.0){
-    return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg) && th>(theta_mask/180.*M_PI) && th<((theta_mask+theta_mask_width)/180.*M_PI));
+    return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg) && th>=(theta_mask/180.*M_PI) && th<((theta_mask+theta_mask_width)/180.*M_PI));
   }
   return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg));
 }
