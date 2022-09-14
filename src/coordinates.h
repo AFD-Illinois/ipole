@@ -15,6 +15,11 @@
 #define METRIC_MKS3 3
 // Spherical coordinates in Minkowski space
 #define METRIC_MINKOWSKI 4
+// Exponential spherical coordinates in Minkowski space
+#define METRIC_EMINKOWSKI 5
+// eKS exponential radial coordinate; KS otherwise. note not the same 
+// as eKS_internal, which has X2 in [0, 1]
+#define METRIC_EKS 6
 
 // Coordinate parameters.  See 
 extern int use_eKS_internal;
@@ -25,11 +30,12 @@ extern double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 extern double startx[NDIM], stopx[NDIM], dx[NDIM];
 extern double cstartx[NDIM], cstopx[NDIM];
 extern double R0, Rin, Rout, Rh;
+extern double rmin_geo, rmax_geo;
 
-void bl_coord(double *X, double *r, double *th);
+void bl_coord(double X[NDIM], double *r, double *th);
 void bl_to_ks(double X[NDIM], double ucon_bl[NDIM], double ucon_ks[NDIM]);
 void ks_to_bl(double X[NDIM], double ucon_ks[NDIM], double ucon_bl[NDIM]);
-void gcov_func(double *X, double gcov[][NDIM]);
+void gcov_func(double X[NDIM], double gcov[NDIM][NDIM]);
 // TODO privatize these, why are they needed in models?
 void gcov_ks(double r, double th, double gcov[NDIM][NDIM]);
 void gcov_bl(double r, double th, double gcov[NDIM][NDIM]);

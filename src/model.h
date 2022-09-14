@@ -21,16 +21,15 @@ int radiating_region(double X[NDIM]);
 
 double get_model_thetae(double X[NDIM]);
 double get_model_b(double X[NDIM]);
+double get_model_sigma(double X[NDIM]);
+double get_model_beta(double X[NDIM]);
 double get_model_ne(double X[NDIM]);
 
 // For exotic or custom distributions
-void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
-                             double *gamma_min, double *gamma_max, double *gamma_cut);
 void get_model_jar(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV);
-void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv);
 
 void get_model_fourv(double X[NDIM], double Kcon[NDIM],
                      double Ucon[NDIM], double Ucov[NDIM],

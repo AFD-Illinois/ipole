@@ -18,8 +18,6 @@ double U_unit;
 double B_unit;
 double Te_unit;
 
-// TODO get rid of these in ipole proper to get rid of them here
-double rmax_geo = 1e30;
 double model_dl;
 // TODO this default needs to be kept in sync with maxnstep,
 // to avoid difficulties
@@ -191,3 +189,5 @@ double get_model_thetae(double X[NDIM]) {return 0;}
 double get_model_b(double X[NDIM]) {return 1;}
 double get_model_ne(double X[NDIM]) {return 1;} // Otherwise we trigger the "empty space" emissivity
 void get_model_primitives(double X[NDIM], double *p) {return;}
+void update_data(double *tA, double *tB) {return;}
+void update_data_until(double *tA, double *tB, double tgt) {return;}

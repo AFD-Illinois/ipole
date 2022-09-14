@@ -1,6 +1,7 @@
 
 #include "grid.h"
 #include "coordinates.h"
+#include "simcoords.h"
 #include "geometry.h"
 #include <math.h>
 
@@ -13,8 +14,8 @@ int N1, N2, N3;
 /* return scalar in cgs units */
 double interp_scalar(double X[NDIM], double ***var)
 {
-  double del[NDIM],b1,b2,interp;
-  int i, j, k, ip1, jp1, kp1;
+  double del[NDIM] = {0}, b1 = 0, b2 = 0, interp = 0;
+  int i = 0, j = 0, k = 0, ip1 = 0, jp1 = 0, kp1 = 0;
 
   // zone and offset from X
   Xtoijk(X, &i, &j, &k, del);
@@ -47,11 +48,31 @@ double interp_scalar(double X[NDIM], double ***var)
   return interp;
 }
 
+/* return scalar interpolated in time */
+double interp_scalar_time(double X[NDIM], double ***varA, double ***varB, double tfac)
+{
+  double vA = interp_scalar(X, varA);
+
+#if SLOWLIGHT
+  double vB = interp_scalar(X, varB);
+  return tfac*vA + (1. - tfac)*vB;
+#endif
+
+  return vA;
+}
+
 /*
  *  returns geodesic coordinates associated with center of zone i,j,k
  */
 void ijktoX(int i, int j, int k, double X[NDIM])
 {
+  // possibly deal with simcoords
+  if (use_simcoords) {
+    // this call to simcoordsijk assumes i,j,k valid
+    simcoordijk_to_eks(i, j, k, X);
+    return;
+  }
+
   // first do the naive thing
   X[1] = startx[1] + (i+0.5)*dx[1];
   X[2] = startx[2] + (j+0.5)*dx[2];
@@ -111,8 +132,8 @@ void ijktoX(int i, int j, int k, double X[NDIM])
 void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
 {
   // unless we're reading from data, i,j,k are the normal expected thing
-  double phi;
-  double XG[4];
+  double phi = 0;
+  double XG[4] = {0};
 
   if (use_eKS_internal) {
     // the geodesics are evolved in eKS so invert through KS -> zone coordinates
@@ -131,6 +152,9 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
           pow(2.,1. + MP0)*MY2)*M_PI);
       XG[3] = Xks[3];
     }
+  } else if (use_simcoords) {
+    // the geodesics are in eKS, so invert through simcoords -> zone coordinates
+    eks_to_simcoord(X, XG);
   } else {
     MULOOP XG[mu] = X[mu];
   }
@@ -173,6 +197,18 @@ int X_in_domain(double X[NDIM]) {
   // checks different sets of coordinates depending on
   // specified grid coordinates
 
+  if (use_simcoords) {
+    double gridcoord[NDIM];
+    eks_to_simcoord(X, gridcoord);
+    if (gridcoord[1] < startx[1] ||
+        gridcoord[1] >= stopx[1] ||
+        gridcoord[2] < startx[2] ||
+        gridcoord[2] >= stopx[2]) {
+      return 0;
+    }
+    return 1;
+  }
+
   if (use_eKS_internal) {
     double XG[4] = { 0 };
     double r, th;
@@ -192,14 +228,14 @@ int X_in_domain(double X[NDIM]) {
           pow(2,1 + MP0)*MY2)*M_PI);
       XG[3] = Xks[3];
 
-      if (XG[1] < startx[1] || XG[1] > stopx[1]) return 0;
+      if (XG[1] < startx[1] || XG[1] >= stopx[1]) return 0;
     }
 
   } else {
     if(X[1] < startx[1] ||
-       X[1] > stopx[1]  ||
+       X[1] >= stopx[1] ||
        X[2] < startx[2] ||
-       X[2] > stopx[2]) {
+       X[2] >= stopx[2]) {
       return 0;
     }
   }
@@ -212,6 +248,11 @@ int X_in_domain(double X[NDIM]) {
  */
 double gdet_zone(int i, int j, int k)
 {
+  if (use_simcoords) {
+    // we assume i, j, k is valid here. otherwise, this function returns zero.
+    return simcoordijk_to_gdet(i, j, k);
+  }
+
   // get the X for the zone (in geodesic coordinates for bl_coord)
   // and in zone coordinates (for set_dxdX)
   double X[NDIM], Xzone[NDIM];
@@ -220,6 +261,12 @@ double gdet_zone(int i, int j, int k)
   Xzone[1] = startx[1] + (i+0.5)*dx[1];
   Xzone[2] = startx[2] + (j+0.5)*dx[2];
   Xzone[3] = startx[3] + (k+0.5)*dx[3];
+
+  if (metric == METRIC_MINKOWSKI || metric == METRIC_EMINKOWSKI) {
+    double gcov[NDIM][NDIM];
+    gcov_func(Xzone, gcov);
+    return gdet_func(gcov);
+  }
 
   // then get gcov for the zone (in zone coordinates)
   double gcovKS[NDIM][NDIM], gcov[NDIM][NDIM];

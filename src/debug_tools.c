@@ -4,8 +4,12 @@
  * Printing and sanity checks for tetrads
  */
 
-#include "geometry.h"
 #include "decs.h"
+
+#include "coordinates.h"
+#include "geometry.h"
+#include "ipolarray.h"
+#include "model.h"
 
 // The world needed these
 // Maybe not in this form
@@ -105,9 +109,6 @@ void check_N(double complex N[NDIM][NDIM],
 
   /* check invariants */
   double complex Nud[NDIM][NDIM];
-  void complex_lower(double complex N[NDIM][NDIM],
-      double gcov[NDIM][NDIM], int low1, int low2,
-      double complex Nl[NDIM][NDIM]);
   complex_lower(N, gcov, 0, 1, Nud);
   for (i = 0; i < 4; i++)
   fprintf(stderr, "N: %d %g + i %g\n", i, creal(N[i][i]),
@@ -138,3 +139,30 @@ void check_N(double complex N[NDIM][NDIM],
 
   fprintf(stderr, "leave check_N\n");
 }
+
+void dump_at_X(double X[NDIM])
+{
+  // warning that this does not necessarily print contiguously!    
+  double r, h;
+  double gcov[4][4], gcon[4][4], ucon[4], ucov[4], bcon[4], bcov[4];
+  bl_coord(X, &r, &h);
+  gcov_func(X, gcov);
+  gcon_func(gcov, gcon);
+  get_model_fourv(X, X, ucon, ucov, bcon, bcov);
+  double Ne = get_model_ne(X);
+  double Thetae = get_model_thetae(X);
+  double B = get_model_b(X);
+  fprintf(stderr, "-----\n");
+  print_vector("X", X);
+  fprintf(stderr, "r, h: %g, %g\n", r, h);
+  print_matrix("gcov", gcov);
+  print_matrix("gcon", gcon);
+  fprintf(stderr, "Ne, Thetae, B: %g, %g, %g\n", Ne, Thetae, B);
+  // if pure hydrogen, sigma = B*B/Ne / (4.*M_PI * CL*CL * (MP+ME))
+  print_vector("ucon", ucon);
+  print_vector("ucov", ucov);
+  print_vector("bcon", bcon);
+  print_vector("bcov", bcov);
+}
+
+
