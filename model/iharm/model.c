@@ -1227,6 +1227,7 @@ void output_hdf5()
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
 
   hdf5_set_directory("/header/");
+  hdf5_write_single_val(&reverse_field,"field_config",H5T_STD_I32LE);
   hdf5_make_directory("units");
   hdf5_set_directory("/header/units/");
   hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
