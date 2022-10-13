@@ -14,9 +14,12 @@
 #define B3   7
 #define KEL  8
 #define KTOT 9
+// These two will never be used simultaneously,
+// and never with KEL.
+#define TFLK 8  // temperature of fluid in Kelvin
+#define THF  8  // fluid temperature in me c^2
 
 extern double DTd;
 extern double sigma_cut;
-extern double rmax_geo;
 
 #endif // MODEL_PARAMS_H

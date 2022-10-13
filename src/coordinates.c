@@ -5,14 +5,19 @@
 #include "decs.h"
 #include "geometry.h"
 
-int use_eKS_internal;
-int metric;
+int use_eKS_internal = 0;
+int metric = -1;
 double a, hslope; // mks
 double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
+
+// Coordinate parameters
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double cstartx[NDIM], cstopx[NDIM];
 double R0, Rin, Rout, Rh;
+// Tracing parameters we need independent of model
+double rmax_geo = 100.;
+double rmin_geo = 1.;
 
 /*
  * Despite the name, this returns r, th coordinates for a KS or BL
@@ -24,9 +29,13 @@ void bl_coord(double X[NDIM], double *r, double *th)
 {
 
   if (metric == METRIC_MINKOWSKI) {
-      *r = X[1];
-      *th = X[2];
-      return;
+    *r = X[1];
+    *th = X[2];
+    return;
+  } else if (metric == METRIC_EMINKOWSKI) {
+    *r = exp(X[1]);
+    *th = X[2];
+    return;
   }
 
   *r = exp(X[1]);
@@ -36,6 +45,9 @@ void bl_coord(double X[NDIM], double *r, double *th)
   } else {
     double y, thG, thJ;
     switch (metric) {
+      case METRIC_EKS:
+        *th = X[2];
+        break;
       case METRIC_MKS:
         *th = M_PI * X[2] + ((1. - hslope) / 2.) * sin(2. * M_PI * X[2]);
         break;
@@ -113,12 +125,19 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
   bl_coord(X, &r, &th);
 
   if (metric == METRIC_MINKOWSKI) {
-      MUNULOOP gcov[mu][nu] = 0;
-      gcov[0][0] = -1;
-      gcov[1][1] = 1;
-      gcov[2][2] = r*r;
-      gcov[3][3] = r*r*sin(th)*sin(th);
-      return;
+    MUNULOOP gcov[mu][nu] = 0;
+    gcov[0][0] = -1;
+    gcov[1][1] = 1;
+    gcov[2][2] = r*r;
+    gcov[3][3] = r*r*sin(th)*sin(th);
+    return;
+  } else if (metric == METRIC_EMINKOWSKI) {
+    MUNULOOP gcov[mu][nu] = 0;
+    gcov[0][0] = -1;
+    gcov[1][1] = r*r;
+    gcov[2][2] = r*r;
+    gcov[3][3] = r*r*sin(th)*sin(th);
+    return;
   }
 
   // compute ks metric
@@ -201,6 +220,8 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
     dxdX[2][2] = M_PI;
   } else {
     switch (metric) {
+      case METRIC_EKS:
+        break;
       case METRIC_MKS:
         dxdX[2][2] = M_PI + (1 - hslope) * M_PI * cos(2. * M_PI * X[2]);
         break;
@@ -265,6 +286,10 @@ void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM])
       case METRIC_MINKOWSKI:
         // Blank transform: just override L_11
         dxdX[1][1] = 1.;
+        break;
+      case METRIC_EMINKOWSKI:
+        // keep radial transformation element!
+        break;
     }
   }
 }
@@ -297,6 +322,8 @@ void vec_from_ks(double X[NDIM], double v_ks[NDIM], double v_nat[NDIM]) {
 void native_coord(double r, double th, double phi, double X[NDIM]) {
   if (metric == METRIC_MINKOWSKI) {
     X[0] = 1; X[1] = r; X[2] = th/180*M_PI; X[3] = phi/180*M_PI;
+  } else if (metric == METRIC_EMINKOWSKI) {
+    X[0] = 1; X[1] = log(r); X[2] = th/180*M_PI; X[3] = phi/180*M_PI;
   } else {
     double x[NDIM] = {0., r, th/180.*M_PI, phi/180.*M_PI};
     X[0] = 0.0;
@@ -325,11 +352,11 @@ double root_find(double X[NDIM])
   Xc[3] = Xa[3];
 
   if (X[2] < M_PI / 2.) {
-    Xa[2] = startx[2];
-    Xb[2] = (stopx[2] - startx[2])/2 + SMALL;
+    Xa[2] = cstartx[2];
+    Xb[2] = (cstopx[2] - cstartx[2])/2 + SMALL;
   } else {
-    Xa[2] = (stopx[2] - startx[2])/2 - SMALL;
-    Xb[2] = stopx[2];
+    Xa[2] = (cstopx[2] - cstartx[2])/2 - SMALL;
+    Xb[2] = cstopx[2];
   }
 
   double tol = 1.e-9;

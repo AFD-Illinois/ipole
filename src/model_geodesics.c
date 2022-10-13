@@ -18,6 +18,7 @@
 #include "tetrads.h"
 
 #include "debug_tools.h"
+#include "simcoords.h"
 
 // TODO pick one or runtime
 #define STEP_STRICT_MIN 0
@@ -252,7 +253,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
 double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {
   double dl;
-  double deh = fmin(fabs(X[1] - startx[1]), 0.1); // TODO coordinate dependent
+  double deh = fmin(fabs(X[1] - cstartx[1]), 0.1); // TODO coordinate dependent
   double dlx1 = eps * (10*deh) / (fabs(Kcon[1]) + SMALL*SMALL);
 
   // Make the step cautious near the pole, improving accuracy of Stokes U

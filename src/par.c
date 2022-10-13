@@ -2,6 +2,7 @@
 #include "par.h"
 #include "decs.h"
 #include "model.h"
+#include "model_radiation.h"
 
 #include <stdio.h>
 #include <errno.h>
@@ -188,6 +189,9 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
 
   // Let models add/parse their own parameters we don't understand
   try_set_model_parameter(word, value);
+
+  // Let radiation model load its own parameters
+  try_set_radiation_parameter(word, value);
 }
 
 // sets default values for elements of params (if desired) and loads from par file 'fname'

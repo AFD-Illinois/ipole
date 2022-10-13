@@ -1,5 +1,36 @@
 #include "kappa.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
+#define SMALL 1e-40
+
+/**
+ * Stabilized version of the hypergeometric fn:
+ * Use GSL's version on small domain of validity,
+ * use an extension to maintain stability outside that
+ *
+ * Final form courtesy of Angelo Ricarte
+ */
+static inline double stable_hyp2f1(double a, double b, double c, double z)
+{
+  if (z > -1 && z < 1) {
+    //fprintf(stderr, "GSL hyperg_u: %g %g %g %g\n", a, b, c, z);
+    return gsl_sf_hyperg_2F1(a, b, c, z);
+  } else {
+    //fprintf(stderr, "GSL hyperg_p1: %g %g %g %g %g\n", a, c-b, a-b+1., 1./(1.-z), z);
+    //fprintf(stderr, "GSL hyperg_p2: %g %g %g %g %g\n", b, c-a, b-a+1., 1./(1.-z), z);
+    /*GSL 2F1 only works for |z| < 1; had to apply a hypergeometric function
+    identity because in our case z = -kappa*w, so |z| > 1 */
+    return pow(1.-z, -a) * tgamma(c) * tgamma(b-a)
+                 / (tgamma(b)*tgamma(c-a))
+                 * gsl_sf_hyperg_2F1(a, c-b, a-b+1., 1./(1.-z))
+                 + pow(1.-z, -b) * tgamma(c) * tgamma(a-b)
+                 / (tgamma(a) * tgamma(c-b))
+                 * gsl_sf_hyperg_2F1(b, c-a, b-a+1., 1./(1.-z));
+  }
+}
+
 /*kappa_I: fitting formula to the emissivity, in Stokes I, produced by a
  *         kappa distribution of electrons (without any exponential
  *         cutoff).  Uses eq. 29, 35, 36, 37, 38 of [1].
@@ -15,6 +46,7 @@ double kappa_I(struct parameters * params)
                 *sin(params->observer_angle);
 
   double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
 
   double prefactor = (params->electron_density 
                       * pow(params->electron_charge, 2.) * nu_c 
@@ -26,14 +58,23 @@ double kappa_I(struct parameters * params)
 
   double Nhigh = (1./4.) * pow(3., (params->kappa-1.)/2.) 
                  * (params->kappa-2.) * (params->kappa-1.)
+		             * tgamma(params->kappa/4.-1./3.) 
 		 * tgamma(params->kappa/4.-1./3.) 
-                 * tgamma(params->kappa/4.+4./3.);
+		             * tgamma(params->kappa/4.-1./3.) 
+                 * tgamma(params->kappa/4.+4./3.) + SMALL;
 
   double x = 3. * pow(params->kappa, -3./2.);
 
   double ans = prefactor * Nlow * pow(X_k, 1./3.) 
                * pow(1.+pow(X_k, x * (3. * params->kappa-4.)/6.)
                      * pow(Nlow/Nhigh, x), -1./x);
+
+#if DEBUG
+  if (isnan(ans)) {
+    fprintf(stderr, "NaN in kappa. X_k, prefactor, Nlow, Nhigh, x, ans: %g %g %g %g %g %g\n",
+                    X_k, prefactor, Nlow, Nhigh, x, ans);
+  }
+#endif
 
   return ans;
 
@@ -54,6 +95,7 @@ double kappa_Q(struct parameters * params)
                 * sin(params->observer_angle);
 
   double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
 
   double prefactor = (params->electron_density 
                       * pow(params->electron_charge, 2.) 
@@ -66,13 +108,20 @@ double kappa_Q(struct parameters * params)
   double Nhigh = -(pow(4./5., 2)+params->kappa/50.) * (1./4.) 
                  * pow(3., (params->kappa-1.)/2.) * (params->kappa-2.) 
                  * (params->kappa-1.) * tgamma(params->kappa/4.-1./3.)
-                 * tgamma(params->kappa/4.+4./3.);
+                 * tgamma(params->kappa/4.+4./3.) + SMALL;
  
   double x = (37./10.)*pow(params->kappa, -8./5.);
 
   double ans = prefactor * Nlow * pow(X_k, 1./3.)
               * pow(1. + pow(X_k, x * (3. * params->kappa-4.)/6.)
               * pow(Nlow/Nhigh, x), -1./x);
+
+#if DEBUG
+  if (isnan(ans)) {
+    fprintf(stderr, "NaN in kappa. X_k, prefactor, Nlow, Nhigh, x, ans: %g %g %g %g %g %g\n",
+                    X_k, prefactor, Nlow, Nhigh, x, ans);
+  }
+#endif
 
   return ans;
 
@@ -93,6 +142,7 @@ double kappa_V(struct parameters * params)
                 * nu_c * sin(params->observer_angle);
 
   double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
 
   double prefactor = (params->electron_density 
                      * pow(params->electron_charge, 2.)
@@ -112,13 +162,14 @@ double kappa_V(struct parameters * params)
                  * pow(X_k, -1./2.) * (1./4.) * pow(3., (params->kappa-1.)/2.) 
                  * (params->kappa-2.) * (params->kappa-1.) 
                  * tgamma(params->kappa/4.-1./3.) 
-                 * tgamma(params->kappa/4.+4./3.);
+                 * tgamma(params->kappa/4.+4./3.) + SMALL;
 
   double x = 3.*pow(params->kappa, -3./2.);
 
-  double ans = prefactor * Nlow * pow(X_k, 1./3.)
-              * pow(1.+pow(X_k, x * (3.*params->kappa-4.)/6.)
-              * pow(Nlow/Nhigh, x), -1./x);
+  double ans = (Nhigh < SMALL*SMALL) ? 0:
+               prefactor * Nlow * pow(X_k, 1./3.)
+               * pow(1.+pow(X_k, x * (3.*params->kappa-4.)/6.)
+               * pow(Nlow/Nhigh, x), -1./x);
 
   /*The Stokes V absorption coefficient changes sign at observer_angle
     equals 90deg, but this formula does not.  This discrepancy is a 
@@ -130,6 +181,14 @@ double kappa_V(struct parameters * params)
     and Pandya et al. (2016) for Stokes V transfer coefficients
     does not follow the convention the papers describe (IEEE/IAU);
     the sign has been corrected here.*/
+
+#if DEBUG
+  if (isnan(ans) || isnan(sign_bug_patch)) {
+    fprintf(stderr, "NaN in kappa. X_k, prefactor, Nlow, Nhigh, x, ans, sign: %g %g %g %g %g %g %g\n",
+                    X_k, prefactor, Nlow, Nhigh, x, ans, sign_bug_patch);
+  }
+#endif
+
   return -ans * sign_bug_patch;
 
 }
@@ -149,6 +208,7 @@ double kappa_I_abs(struct parameters * params)
                 * nu_c * sin(params->observer_angle);
 
   double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
 
   double prefactor = params->electron_density * params->electron_charge 
                      / (params->magnetic_field * sin(params->observer_angle));
@@ -161,14 +221,8 @@ double kappa_I_abs(struct parameters * params)
 
   double z = -params->kappa*params->kappa_width;
 
-  /*GSL 2F1 only works for |z| < 1; had to apply a hypergeometric function
-  identity because in our case z = -kappa*w, so |z| > 1 */
-  double hyp2f1 = pow(1.-z, -a) * tgamma(c) * tgamma(b-a) 
-                 / (tgamma(b)*tgamma(c-a)) 
-                 * gsl_sf_hyperg_2F1(a, c-b, a-b+1., 1./(1.-z)) 
-                 + pow(1.-z, -b) * tgamma(c) * tgamma(a-b)
-                 / (tgamma(a) * tgamma(c-b))
-                 * gsl_sf_hyperg_2F1(b, c-a, b-a+1., 1./(1.-z));
+  double hyp2f1 = stable_hyp2f1(a, b, c, z);
+  if (fabs(hyp2f1) < 1e-200) { return 0; }
 
   double Nlow = pow(3., 1./6.) * (10./41.) * pow(2. * params->pi, 2.)
                / pow(params->kappa_width * params->kappa, 16./3.-params->kappa)
@@ -180,13 +234,20 @@ double kappa_I_abs(struct parameters * params)
                  / pow(params->kappa_width * params->kappa, 5.) 
                  * (2 * tgamma(2. + params->kappa/2.)
                  / (2.+params->kappa)-1.) 
-                 * (pow(3./params->kappa, 19./4.) + 3./5.);
+                 * (pow(3./params->kappa, 19./4.) + 3./5.) + SMALL;;
 
   double x = pow(-7./4. + 8. * params->kappa/5., -43./50.);
 
   double ans = prefactor * Nlow * pow(X_k, -5./3.)
                * pow(1. + pow(X_k, x * (3. * params->kappa-1.)/6.)
                * pow(Nlow/Nhigh, x), -1./x);
+
+#if DEBUG
+  if (isnan(ans)) {
+    fprintf(stderr, "NaN in kappa. X_k, prefactor: %g %g\na, b, c, z, hyp2f1: %g %g %g %g %g\nNlow, Nhigh, x, ans: %g %g %g %g\n",
+                    X_k, prefactor, a, b, c, z, hyp2f1, Nlow, Nhigh, x, ans);
+  }
+#endif
 
   return ans;
 }
@@ -206,6 +267,7 @@ double kappa_Q_abs(struct parameters * params)
                 * nu_c * sin(params->observer_angle);
 
   double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
 
   double prefactor = params->electron_density * params->electron_charge
                      / (params->magnetic_field * sin(params->observer_angle));
@@ -218,13 +280,9 @@ double kappa_Q_abs(struct parameters * params)
 
   double z = -params->kappa * params->kappa_width;
 
-  /*GSL 2F1 only works for |z| < 1; had to apply a hypergeometric function
-  identity because in our case z = -kappa*w, so |z| > 1 */
-  double hyp2f1 = pow(1.-z, -a) * tgamma(c) * tgamma(b-a) 
-                  / (tgamma(b) * tgamma(c-a))
-                 * gsl_sf_hyperg_2F1(a, c-b, a-b+1., 1./(1.-z))+pow(1.-z, -b)
-                 * tgamma(c) * tgamma(a-b) / (tgamma(a)*tgamma(c-b))
-                 * gsl_sf_hyperg_2F1(b, c - a, b - a + 1., 1./(1. - z));
+  double hyp2f1 = stable_hyp2f1(a, b, c, z);
+  if (fabs(hyp2f1) < 1e-200) { return 0; }
+
   double Nlow = -(25./48.) * pow(3., 1./6.) * (10./41.) 
                 * pow(2. * params->pi, 2.)
                 / pow(params->kappa_width*params->kappa, 16./3.-params->kappa)
@@ -236,13 +294,20 @@ double kappa_Q_abs(struct parameters * params)
                  * (params->kappa-1.) * params->kappa 
                  / pow(params->kappa_width * params->kappa, 5.) 
                  * (2 * tgamma(2. + params->kappa/2.)
-                 / (2. + params->kappa)-1.);
+                 / (2. + params->kappa)-1.) + SMALL;
 
   double x = (7./5.) * pow(params->kappa, -23./20.);
 
   double ans = prefactor * Nlow * pow(X_k, -5./3.)
               * pow(1. + pow(X_k, x * (3. * params->kappa-1.) / 6.)
               * pow(Nlow/Nhigh, x), -1./x);
+
+#if DEBUG
+  if (isnan(ans)) {
+    fprintf(stderr, "NaN in kappa. X_k, prefactor: %g %g\na, b, c, z, hyp2f1: %g %g %g %g %g\nNlow, Nhigh, x, ans: %g %g %g %g\n",
+                    X_k, prefactor, a, b, c, z, hyp2f1, Nlow, Nhigh, x, ans);
+  }
+#endif
 
   return ans;
 }
@@ -262,6 +327,7 @@ double kappa_V_abs(struct parameters * params)
                * nu_c * sin(params->observer_angle);
 
   double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
 
   double prefactor = params->electron_density * params->electron_charge 
                      / (params->magnetic_field * sin(params->observer_angle));
@@ -274,14 +340,8 @@ double kappa_V_abs(struct parameters * params)
 
   double z = -params->kappa * params->kappa_width;
 
-  /*GSL 2F1 only works for |z| < 1; had to apply a hypergeometric function
-  identity because in our case z = -kappa*w, so |z| > 1 */
-  double hyp2f1 = pow(1.-z, -a) * tgamma(c) * tgamma(b-a) 
-                  / (tgamma(b) * tgamma(c-a))
-                  * gsl_sf_hyperg_2F1(a, c-b, a-b+1., 1./(1.-z)) 
-                  + pow(1.-z, -b) * tgamma(c) * tgamma(a-b)
-                  / (tgamma(a) * tgamma(c-b))
-                  * gsl_sf_hyperg_2F1(b, c - a, b - a + 1., 1./(1.-z));
+  double hyp2f1 = stable_hyp2f1(a, b, c, z);
+  if (fabs(hyp2f1) < 1e-200) { return 0; }
 
   double Nlow = -(77./(100. * params->kappa_width)) 
                 * pow(pow(sin(params->observer_angle), -114./50.)
@@ -302,7 +362,7 @@ double kappa_V_abs(struct parameters * params)
                  * (params->kappa-2.) * (params->kappa-1.) * params->kappa 
                  / pow(params->kappa_width*params->kappa, 5.)
                  * (2 * tgamma(2. + params->kappa/2.)
-                 / (2. + params->kappa) - 1.);
+                 / (2. + params->kappa) - 1.) + SMALL;
 
   double x = (61./50.)*pow(params->kappa, -142./125.)+7./1000.;
 
@@ -316,9 +376,304 @@ double kappa_V_abs(struct parameters * params)
   double sign_bug_patch = cos(params->observer_angle) /
                           fabs(cos(params->observer_angle));
 
+#if DEBUG
+  if (isnan(ans) || isnan(sign_bug_patch)) {
+    fprintf(stderr, "NaN in kappa. X_k, prefactor: %g %g\na, b, c, z, hyp2f1: %g %g %g %g %g\nNlow, Nhigh, x, ans: %g %g %g %g\n",
+                    X_k, prefactor, a, b, c, z, hyp2f1, Nlow, Nhigh, x, ans);
+  }
+#endif
+
   /*NOTE: Sign corrected; the sign in Leung et al. (2011)
     and Pandya et al. (2016) for Stokes V transfer coefficients
     does not follow the convention the papers describe (IEEE/IAU);
     the sign has been corrected here.*/
   return -ans * sign_bug_patch;
 }
+
+double kappa35_rho_Q(struct parameters * params)
+{
+  double nu_c = get_nu_c(*params);
+
+  double nu_w = pow(params->kappa_width*params->kappa, 2.) * nu_c 
+                * sin(params->observer_angle);
+
+  double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
+
+  double prefactor = -(params->electron_density 
+                      * pow(params->electron_charge, 2.) 
+		      * pow(nu_c, 2.)
+		      * pow(sin(params->observer_angle), 2.))
+	             /(params->mass_electron * params->speed_light * pow(params->nu, 3.));
+	
+  double w_term = (17. * params->kappa_width) 
+	  - (3. * pow(params->kappa_width, .5)) 
+	  + (7. * pow(params->kappa_width, .5) * exp(-5. * params->kappa_width));
+	  
+  double f_X = 1. - exp(-pow(X_k, .84) / 30.) 
+	  - (sin(X_k / 10.) * exp(-3. * pow(X_k, .471) / 2.));
+
+  double ans = prefactor * f_X * w_term;
+
+#if DEBUG
+ if (isnan(ans)) {
+    fprintf(stderr, "\nNaN in kappa rot. X_k, prefactor, w_term, f_X, ans: %g %g %g %g %g\n",
+                    X_k, prefactor, w_term, f_X, ans);
+    fprintf(stderr, "kappa, kappa_width: %g %g\n", params->kappa, params->kappa_width);
+ }
+#endif
+
+  return ans;
+}
+
+double kappa4_rho_Q(struct parameters * params)
+{
+  double nu_c = get_nu_c(*params);
+
+  double nu_w = pow(params->kappa_width*params->kappa, 2.) * nu_c 
+                * sin(params->observer_angle);
+
+  double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
+
+  double prefactor = -(params->electron_density 
+                      * pow(params->electron_charge, 2.) 
+		      * pow(nu_c, 2.)
+		      * pow(sin(params->observer_angle), 2.))
+	             /(params->mass_electron * params->speed_light * pow(params->nu, 3.));
+	
+  double w_term = ((46./3.) * params->kappa_width) 
+	  - ((5./3.) * pow(params->kappa_width, .5)) 
+	  + ((17./3.) * pow(params->kappa_width, .5) * exp(-5. * params->kappa_width));
+	  
+  double f_X = 1. - exp(-pow(X_k, .84) / 18.) 
+	  - (sin(X_k / 6.) * exp(-7. * pow(X_k, .5) / 4.));
+
+  double ans = prefactor * f_X * w_term;
+
+#if DEBUG
+ if (isnan(ans)) {
+    fprintf(stderr, "\nNaN in kappa rot. X_k, prefactor, w_term, f_X, ans: %g %g %g %g %g\n",
+                    X_k, prefactor, w_term, f_X, ans);
+    fprintf(stderr, "kappa, kappa_width: %g %g\n", params->kappa, params->kappa_width);
+ }
+#endif
+
+  return ans;
+}
+
+double kappa45_rho_Q(struct parameters * params)
+{
+  double nu_c = get_nu_c(*params);
+
+  double nu_w = pow(params->kappa_width*params->kappa, 2.) * nu_c 
+                * sin(params->observer_angle);
+
+  double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
+
+  double prefactor = -(params->electron_density 
+                      * pow(params->electron_charge, 2.) 
+		      * pow(nu_c, 2.)
+		      * pow(sin(params->observer_angle), 2.))
+	             /(params->mass_electron * params->speed_light * pow(params->nu, 3.));
+	
+  double w_term = (14. * params->kappa_width) 
+	  - ((13./8.) * pow(params->kappa_width, .5)) 
+	  + ((9./2.) * pow(params->kappa_width, .5) * exp(-5. * params->kappa_width));
+	  
+  double f_X = 1. - exp(-pow(X_k, .84) / 12.) 
+	  - (sin(X_k / 4.) * exp(-2. * pow(X_k, .525)));
+
+  double ans = prefactor * f_X * w_term;
+
+#if DEBUG
+ if (isnan(ans)) {
+    fprintf(stderr, "\nNaN in kappa rot. X_k, prefactor, w_term, f_X, ans: %g %g %g %g %g\n",
+                    X_k, prefactor, w_term, f_X, ans);
+    fprintf(stderr, "kappa, kappa_width: %g %g\n", params->kappa, params->kappa_width);
+ }
+#endif
+
+  return ans;
+}
+
+double kappa5_rho_Q(struct parameters * params)
+{
+  double nu_c = get_nu_c(*params);
+
+  double nu_w = pow(params->kappa_width*params->kappa, 2.) * nu_c 
+                * sin(params->observer_angle);
+
+  double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
+
+  double prefactor = -(params->electron_density 
+                      * pow(params->electron_charge, 2.) 
+		      * pow(nu_c, 2.)
+		      * pow(sin(params->observer_angle), 2.))
+	             /(params->mass_electron * params->speed_light * pow(params->nu, 3.));
+	
+  double w_term = ((25./2.) * params->kappa_width)
+	  - (pow(params->kappa_width, .5)) 
+	  + (5. * pow(params->kappa_width, .5) * exp(-5. * params->kappa_width));
+	  
+  double f_X = 1. - exp(-pow(X_k, .84) / 8.) 
+	  - (sin(3. * X_k / 8.) * exp(-9. * pow(X_k, .541) / 4.));
+
+  double ans = prefactor * f_X * w_term;
+
+#if DEBUG
+ if (isnan(ans)) {
+    fprintf(stderr, "\nNaN in kappa rot. X_k, prefactor, w_term, f_X, ans: %g %g %g %g %g\n",
+                    X_k, prefactor, w_term, f_X, ans);
+    fprintf(stderr, "kappa, kappa_width: %g %g\n", params->kappa, params->kappa_width);
+ }
+#endif
+
+  return ans;
+}
+
+double kappa35_rho_V(struct parameters * params)
+{
+  double nu_c = get_nu_c(*params);
+
+  double nu_w = pow(params->kappa_width*params->kappa, 2.) * nu_c 
+                * sin(params->observer_angle);
+
+  double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
+
+  double prefactor = 2. * (params->electron_density 
+                      * pow(params->electron_charge, 2.) 
+		      * nu_c * cos(params->observer_angle))
+	             /(params->mass_electron * params->speed_light * pow(params->nu, 2.));
+	
+  double bessel_term = (gsl_sf_bessel_Kn(0, 1./params->kappa_width)) / (gsl_sf_bessel_Kn(2, 1./params->kappa_width) + SMALL);
+	
+  double w_term = (pow(params->kappa_width, 2.) + (2. * params->kappa_width) + 1.) 
+		 / (((25./8.) * pow(params->kappa_width, 2.)) + (4. * params->kappa_width) + 1.);
+	  
+  double g_X = 1. - .17*log(1. + (.447 * pow(X_k, -.5)));
+
+  double ans = prefactor * bessel_term * g_X * w_term;
+
+#if DEBUG
+ if (isnan(ans)) {
+    fprintf(stderr, "\nNaN in kappa rot. X_k, prefactor, bessel_term, w_term, g_X, ans: %g %g %g %g %g %g\n",
+                    X_k, prefactor, bessel_term, w_term, g_X, ans);
+    fprintf(stderr, "kappa, kappa_width, num, denom: %g %g %g %g", params->kappa, params->kappa_width,
+                    gsl_sf_bessel_Kn(0, 1./params->kappa_width), gsl_sf_bessel_Kn(2, 1./params->kappa_width) + SMALL);
+ }
+#endif
+
+  return ans;
+}
+								       
+double kappa4_rho_V(struct parameters * params)
+{
+  double nu_c = get_nu_c(*params);
+
+  double nu_w = pow(params->kappa_width*params->kappa, 2.) * nu_c 
+                * sin(params->observer_angle);
+
+  double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
+
+  double prefactor = 2. * (params->electron_density 
+                      * pow(params->electron_charge, 2.) 
+		      * nu_c * cos(params->observer_angle))
+	             /(params->mass_electron * params->speed_light * pow(params->nu, 2.));
+	
+  double bessel_term = (gsl_sf_bessel_Kn(0, 1./params->kappa_width)) / (gsl_sf_bessel_Kn(2, 1./params->kappa_width) + SMALL);
+	
+  double w_term = (pow(params->kappa_width, 2.) + (54. * params->kappa_width) + 50.) 
+		 / (((30./11.) * pow(params->kappa_width, 2.)) + (134. * params->kappa_width) + 50.);
+	  
+  double g_X = 1. - .17*log(1. + (.391 * pow(X_k, -.5)));
+
+  double ans = prefactor * bessel_term * g_X * w_term;
+
+#if DEBUG
+ if (isnan(ans)) {
+    fprintf(stderr, "\nNaN in kappa rot. X_k, prefactor, bessel_term, w_term, g_X, ans: %g %g %g %g %g %g\n",
+                    X_k, prefactor, bessel_term, w_term, g_X, ans);
+    fprintf(stderr, "kappa, kappa_width, num, denom: %g %g %g %g", params->kappa, params->kappa_width,
+                    gsl_sf_bessel_Kn(0, 1./params->kappa_width), gsl_sf_bessel_Kn(2, 1./params->kappa_width) + SMALL);
+ }
+#endif
+
+  return ans;
+}
+								       
+double kappa45_rho_V(struct parameters * params)
+{
+  double nu_c = get_nu_c(*params);
+
+  double nu_w = pow(params->kappa_width*params->kappa, 2.) * nu_c 
+                * sin(params->observer_angle);
+
+  double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
+
+  double prefactor = 2. * (params->electron_density 
+                      * pow(params->electron_charge, 2.) 
+		      * nu_c * cos(params->observer_angle))
+	             /(params->mass_electron * params->speed_light * pow(params->nu, 2.));
+	
+  double bessel_term = (gsl_sf_bessel_Kn(0, 1./params->kappa_width)) / (gsl_sf_bessel_Kn(2, 1./params->kappa_width) + SMALL);
+	
+  double w_term = (pow(params->kappa_width, 2.) + (43. * params->kappa_width) + 38.) 
+		 / (((7./3.) * pow(params->kappa_width, 2.)) + ((185./2.) * params->kappa_width) + 38.);
+	  
+  double g_X = 1. - .17*log(1. + (.348 * pow(X_k, -.5)));
+
+  double ans = prefactor * bessel_term * g_X * w_term;
+
+#if DEBUG
+ if (isnan(ans)) {
+    fprintf(stderr, "\nNaN in kappa rot. X_k, prefactor, bessel_term, w_term, g_X, ans: %g %g %g %g %g %g\n",
+                    X_k, prefactor, bessel_term, w_term, g_X, ans);
+    fprintf(stderr, "kappa, kappa_width, num, denom: %g %g %g %g", params->kappa, params->kappa_width,
+                    gsl_sf_bessel_Kn(0, 1./params->kappa_width), gsl_sf_bessel_Kn(2, 1./params->kappa_width) + SMALL);
+ }
+#endif
+
+  return ans;
+}
+								       
+double kappa5_rho_V(struct parameters * params)
+{
+  double nu_c = get_nu_c(*params);
+
+  double nu_w = pow(params->kappa_width*params->kappa, 2.) * nu_c 
+                * sin(params->observer_angle);
+
+  double X_k = params->nu/nu_w;
+  if (isinf(X_k)) { return 0; }
+
+  double prefactor = 2. * (params->electron_density 
+                      * pow(params->electron_charge, 2.) 
+		      * nu_c * cos(params->observer_angle))
+	             /(params->mass_electron * params->speed_light * pow(params->nu, 2.));
+	
+  double bessel_term = (gsl_sf_bessel_Kn(0, 1./params->kappa_width)) / (gsl_sf_bessel_Kn(2, 1./params->kappa_width) + SMALL);
+	
+  double w_term = ((params->kappa_width) + (13./14.)) 
+		 / ((2. * params->kappa_width) + (13./14.));
+	  
+  double g_X = 1. - .17*log(1. + (.313 * pow(X_k, -.5)));
+
+  double ans = prefactor * bessel_term * g_X * w_term;
+
+#if DEBUG
+ if (isnan(ans)) {
+    fprintf(stderr, "\nNaN in kappa rot. X_k, prefactor, bessel_term, w_term, g_X, ans: %g %g %g %g %g %g\n",
+                    X_k, prefactor, bessel_term, w_term, g_X, ans);
+    fprintf(stderr, "kappa, kappa_width, num, denom: %g %g %g %g", params->kappa, params->kappa_width,
+                    gsl_sf_bessel_Kn(0, 1./params->kappa_width), gsl_sf_bessel_Kn(2, 1./params->kappa_width) + SMALL);
+ }
+#endif
+
+  return ans;
+}								       

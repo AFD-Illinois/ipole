@@ -5,6 +5,7 @@
 #include "model_radiation.h"
 #include "model_tetrads.h"
 
+#include "bremss_fits.h"
 #include "radiation.h"
 #include "coordinates.h"
 #include "debug_tools.h"
@@ -88,6 +89,9 @@ int main(int argc, char *argv[])
   // them and use init_model to load the first dump
   init_model(&tA, &tB);
 
+  // If we're using Bremsstrahlung emission, precalculate a spline
+  init_bremss_spline();
+
   // Adaptive resolution option
   // nx, ny are the resolution at maximum refinement level
   // nx_min, ny_min are at coarsest level
@@ -118,6 +122,10 @@ int main(int argc, char *argv[])
   // normalize frequency to electron rest-mass energy
   double freqcgs = params.freqcgs;
   freq = params.freqcgs * HPL / (ME * CL * CL);
+  if (freq == 0) {
+    fprintf(stderr, "Frequency cannot be zero. Quitting!\n");
+    exit(1);
+  }
 
   // Initialize the camera
   params.rotcam *= M_PI/180.;
@@ -229,7 +237,7 @@ int main(int argc, char *argv[])
         int nstep = 0;
         double dl;
         double X[NDIM], Xhalf[NDIM], Kcon[NDIM], Kconhalf[NDIM];
-        init_XK(i,j, params.nx, params.ny, Xcam, params, fovx,fovy, X, Kcon);
+        init_XK(i,j, params.nx, params.ny, Xcam, params, fovx, fovy, X, Kcon);
 
         MULOOP Kcon[mu] *= freq;
 
@@ -806,8 +814,11 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
                double *Intensity, double *Is, double *Qs, double *Us, double *Vs,
                double *Tau, double *tauF)
 {
-  double X[NDIM], Kcon[NDIM];
-  double complex N_coord[NDIM][NDIM];
+  double X[NDIM] = {0.}, Kcon[NDIM] = {0.};
+  double complex N_coord[NDIM][NDIM] = {{0.}};
+  *Intensity = 0.;
+  *Tau = 0.;
+  *tauF = 0.;
 
   // Integrate backward to find geodesic trajectory
   init_XK(i,j, params.nx, params.ny, Xcam, params, fovx, fovy, X, Kcon);
@@ -824,7 +835,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   }
 
   // Integrate emission forward along trajectory
-  int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params);
+  int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params, 0);
 
   if (!only_intensity) {
     project_N(X, Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);

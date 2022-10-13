@@ -2,14 +2,19 @@
 
 #include "decs.h"
 #include "hdf5_utils.h"
+#include "debug_tools.h"
 
 #include "coordinates.h"
 #include "geometry.h"
 #include "grid.h"
-#include "model_radiation.h" // Only for outputting emissivities
+#include "model_radiation.h"  // Only for outputting emissivities
+#include "simcoords.h"  // For interpolating arbitrary grids
 #include "par.h"
 #include "utils.h"
 
+#include "debug_tools.h"
+
+#include <assert.h>
 #include <string.h>
 
 #define NVAR (10)
@@ -21,6 +26,7 @@
 
 #define FORMAT_HAMR_EKS (3)
 #define FORMAT_IHARM_v1 (1)
+#define FORMAT_KORAL_v2 (4)
 int dumpfile_format = 0;
 
 // UNITS
@@ -32,12 +38,17 @@ double U_unit;
 double B_unit;
 double Te_unit;
 
+double target_mdot = 0.0;  // if this value > 0, use to renormalize M_unit &c.
+
+// MOLECULAR WEIGHTS
+static double Ne_factor = 1.;  // e.g., used for He with 2 protons+neutrons per 2 electrons
+static double mu_i, mu_e, mu_tot;
+
 // MODEL PARAMETERS: PUBLIC
 double DTd;
-double rmax_geo = 100.;
-double rmin_geo = 1.;
 double sigma_cut = 1.0;
 double beta_crit = 1.0;
+double sigma_cut_high = -1.0;
 
 // MODEL PARAMETERS: PRIVATE
 static char fnam[STRLEN] = "dump.h5";
@@ -45,12 +56,10 @@ static char fnam[STRLEN] = "dump.h5";
 static double tp_over_te = 3.;
 static double trat_small = 1.;
 static double trat_large = 40.;
-
-static double powerlaw_gamma_min = 1e2;
-static double powerlaw_gamma_max = 1e5;
-static double powerlaw_gamma_cut = 1e10;
-static double powerlaw_eta = 0.02;
-static double powerlaw_p = 3.25;
+// Minimum number of dynamical times the cooling time must
+// undershoot to be considered "small"
+// lower values -> higher max T_e, higher values are restrictive
+static double cooling_dynamical_times = 1.e-20;
 
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
@@ -60,14 +69,21 @@ static double Mdot_dump;
 static double MdotEdd_dump;
 static double Ladv_dump;
 
+static int reverse_field = 0;
+
+double tf;
+
 // MAYBES
 //static double t0;
 
-// ELECTRONS -> 
+// ELECTRONS
 //    0 : constant TP_OVER_TE
 //    1 : use dump file model (kawazura?)
 //    2 : use mixed TP_OVER_TE (beta model)
+//    3 : use mixed TP_OVER_TE (beta model) with fluid temperature
+//    9 : load Te (in Kelvin) from dump file (KORAL etc.)
 // TODO the way this is selected is horrid.  Make it a parameter.
+#define ELECTRONS_TFLUID (3)
 static int RADIATION, ELECTRONS;
 static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
 static double Thetae_unit, Mdotedd;
@@ -87,6 +103,7 @@ struct of_data {
   double ***thetae;
   double ***b;
   double ***sigma;
+  double ***beta;
 };
 static struct of_data dataA, dataB, dataC;
 static struct of_data *data[NSUP];
@@ -95,12 +112,14 @@ static struct of_data *data[NSUP];
 void set_units();
 void load_data(int n, char *, int dumpidx, int verbose);
 void load_iharm_data(int n, char *, int dumpidx, int verbose);
+void load_koral_data(int n, char *, int dumpidx, int verbose);
 void load_hamr_data(int n, char *, int dumpidx, int verbose);
 double get_dump_t(char *fnam, int dumpidx);
 void init_grid(char *fnam, int dumpidx);
 void init_iharm_grid(char *fnam, int dumpidx);
+void init_koral_grid(char *fnam, int dumpidx);
 void init_hamr_grid(char *fnam, int dumpidx);
-void init_physical_quantities(int n);
+void init_physical_quantities(int n, double rescale_factor);
 void init_storage(void);
 
 void try_set_model_parameter(const char *word, const char *value)
@@ -111,6 +130,7 @@ void try_set_model_parameter(const char *word, const char *value)
   // assume params is populated
   set_by_word_val(word, value, "MBH", &MBH_solar, TYPE_DBL);
   set_by_word_val(word, value, "M_unit", &M_unit, TYPE_DBL);
+  set_by_word_val(word, value, "mdot", &target_mdot, TYPE_DBL);
 
   set_by_word_val(word, value, "dump", (void *)fnam, TYPE_STR);
 
@@ -118,17 +138,14 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "trat_small", &trat_small, TYPE_DBL);
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
+  set_by_word_val(word, value, "sigma_cut_high", &sigma_cut_high, TYPE_DBL);
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
-
-  set_by_word_val(word, value, "powerlaw_gamma_min", &powerlaw_gamma_min, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_gamma_cut", &powerlaw_gamma_cut, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_eta", &trat_large, TYPE_DBL);
-  set_by_word_val(word, value, "powerlaw_p", &trat_large, TYPE_DBL);
+  set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
+  set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
   // allow cutting out the spine
   set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
 
@@ -137,6 +154,11 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "dump_max", &dumpmax, TYPE_INT);
   set_by_word_val(word, value, "dump_skip", &dumpskip, TYPE_INT);
   dumpidx = dumpmin;
+
+  // override parameters based on input
+  if (target_mdot > 0.) {
+    M_unit = 1.;
+  }
 }
 
 // Advance through dumps until we are closer to the next set
@@ -235,15 +257,29 @@ void get_dumpfile_type(char *fnam, int dumpidx)
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
 
-  // TODO needs KORAL/MKS3 support
-
   hdf5_open(fname);
   int hamr_attr_exists = hdf5_attr_exists("", "dscale");
+
   if (!hamr_attr_exists) {
-    dumpfile_format = FORMAT_IHARM_v1;
-    fprintf(stderr, "iharm!\n");
+    if (!hdf5_exists("header/version")) {
+      // Converted BHAC dumps and very old iharm3d output do not include a version
+      // BHAC output requires nothing special from ipole so we mark it "iharm_v1"
+      dumpfile_format = FORMAT_IHARM_v1;
+      fprintf(stderr, "bhac! (or old iharm)\n");
+    } else {
+      char harmversion[256];
+      hdf5_read_single_val(harmversion, "header/version", hdf5_make_str_type(255));
+
+      if ( strcmp(harmversion, "KORALv2") == 0 ) {
+        dumpfile_format = FORMAT_KORAL_v2;
+        fprintf(stderr, "koral!\n");
+      } else {
+        dumpfile_format = FORMAT_IHARM_v1;
+        fprintf(stderr, "iharm!\n");
+      }
+    }
   } else {
-    // note this will return -1 if the "header" group does not exists
+    // note this will return -1 if the "header" group does not exist
     dumpfile_format = FORMAT_HAMR_EKS;
     fprintf(stderr, "hamr!\n");
   }
@@ -270,7 +306,8 @@ void init_model(double *tA, double *tB)
 
   // read fluid data
   fprintf(stderr, "Reading data...\n");
-  load_data(0, fnam, dumpidx, dumpmin);
+  load_data(0, fnam, dumpidx, 2);  
+  // replaced dumpmin -> 2 because apparently that argument was just .. removed
   dumpidx += dumpskip;
   #if SLOW_LIGHT
   update_data(tA, tB);
@@ -420,12 +457,17 @@ double get_model_thetae(double X[NDIM])
   double tfac = set_tinterp_ns(X, &nA, &nB);
   double thetae = interp_scalar_time(X, data[nA]->thetae, data[nB]->thetae, tfac);
 
-  if (thetae < 0.) {
-    printf("thetae negative!\n");
+#if DEBUG
+  if (thetae < 0. || isnan(thetae)) {
+    printf("thetae negative or NaN!\n");
     printf("X[] = %g %g %g %g\n", X[0], X[1], X[2], X[3]);
     printf("t = %e %e %e\n", data[0]->t, data[1]->t, data[2]->t);
-    printf("thetae = %e\n", thetae);
+    double thetaeA = interp_scalar(X, data[nA]->thetae);
+    double thetaeB = interp_scalar(X, data[nB]->thetae);
+    printf("thetaeA, thetaeB = %e %e", thetaeA, thetaeB);
+    printf("thetae, tfac = %e %e\n", thetae, tfac);
   }
+#endif
 
   return thetae;
 }
@@ -452,19 +494,44 @@ double get_model_sigma(double X[NDIM])
   return interp_scalar_time(X, data[nA]->sigma, data[nB]->sigma, tfac);
 }
 
+double get_model_beta(double X[NDIM]) 
+{
+  if ( X_in_domain(X) == 0 ) return 0.;  // TODO inf?
+
+  double betaA, betaB, tfac;
+  int nA, nB;
+  tfac = set_tinterp_ns(X, &nA, &nB);
+  betaA = interp_scalar(X, data[nA]->beta);
+  betaB = interp_scalar(X, data[nB]->beta);
+  return tfac*betaA + (1. - tfac)*betaB;
+}
+
+double get_sigma_smoothfac(double sigma)
+{
+  double sigma_above = sigma_cut;
+  if (sigma_cut_high > 0) sigma_above = sigma_cut_high;
+  if (sigma < sigma_cut) return 1;
+  if (sigma >= sigma_above) return 0;
+  double dsig = sigma_above - sigma_cut;
+  return cos(M_PI / 2. / dsig * (sigma - sigma_cut));
+}
+
 double get_model_ne(double X[NDIM])
 {
   if ( X_in_domain(X) == 0 ) return 0.;
 
+  double sigma_smoothfac = 1;
+
 #if USE_GEODESIC_SIGMACUT
   double sigma = get_model_sigma(X);
   if (sigma > sigma_cut) return 0.;
+  sigma_smoothfac = get_sigma_smoothfac(sigma);
 #endif
 
   int nA, nB;
   double tfac = set_tinterp_ns(X, &nA, &nB);
 
-  return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac);
+  return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac) * sigma_smoothfac;
 }
 
 void set_units()
@@ -482,37 +549,99 @@ void set_units()
   fprintf(stderr,"rho,u,B units: %g [g cm^-3] %g [g cm^-1 s^-2] %g [G] \n",RHO_unit,U_unit,B_unit) ;
 }
 
-void init_physical_quantities(int n)
+void init_physical_quantities(int n, double rescale_factor)
 {
+#if DEBUG
+  int ceilings = 0;
+#endif
+
+  rescale_factor = sqrt(rescale_factor);
+
   // cover everything, even ghost zones
 #pragma omp parallel for collapse(3)
   for (int i = 0; i < N1+2; i++) {
     for (int j = 0; j < N2+2; j++) {
       for (int k = 0; k < N3+2; k++) {
-        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) ;
+        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) * Ne_factor;
+
+        data[n]->b[i][j][k] *= rescale_factor;
 
         double bsq = data[n]->b[i][j][k] / B_unit;
         bsq = bsq*bsq;
 
         double sigma_m = bsq/data[n]->p[KRHO][i][j][k];
-
+        double beta_m = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
+#if DEBUG
+        if(isnan(sigma_m)) {
+          sigma_m = 0;
+          fprintf(stderr, "Setting zero sigma!\n");
+        }
+        if(isnan(beta_m)) {
+          beta_m = INFINITY;
+          fprintf(stderr, "Setting INF beta!\n");
+        }
+#endif
         if (ELECTRONS == 1) {
-          data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k]*pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
+          data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k] * 
+                                     pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
         } else if (ELECTRONS == 2) {
-          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-          double betasq = beta*beta / beta_crit/beta_crit;
+          double betasq = beta_m*beta_m / beta_crit/beta_crit;
           double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
           //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
           // see, e.g., Eq. 8 of the EHT GRRT formula list
-          Thetae_unit = (MP/ME) * (game-1.) * (gamp-1.) / ( (gamp-1.) + (game-1.)*trat );
-          data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
+          double lcl_Thetae_u = (MP/ME) * (game-1.) * (gamp-1.) / ( (gamp-1.) + (game-1.)*trat );
+          Thetae_unit = lcl_Thetae_u;
+          data[n]->thetae[i][j][k] = lcl_Thetae_u*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
+        } else if (ELECTRONS == 9) {
+          // convert Kelvin -> Thetae
+          data[n]->thetae[i][j][k] = data[n]->p[TFLK][i][j][k] * KBOL / ME / CL / CL;
+        } else if (ELECTRONS == ELECTRONS_TFLUID) {
+          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
+          double betasq = beta*beta / beta_crit/beta_crit;
+          double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
+          double dfactor = mu_tot / mu_e + mu_tot / mu_i * trat;
+          data[n]->thetae[i][j][k] = data[n]->p[THF][i][j][k] / dfactor;
         } else {
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
+#if DEBUG
+        if(isnan(data[n]->thetae[i][j][k])) {
+          data[n]->thetae[i][j][k] = 0.0;
+          fprintf(stderr, "\nNaN Thetae!  Prims %g %g %g %g %g %g %g %g\n", data[n]->p[KRHO][i][j][k], data[n]->p[UU][i][j][k],
+                  data[n]->p[U1][i][j][k], data[n]->p[U2][i][j][k], data[n]->p[U3][i][j][k], data[n]->p[B1][i][j][k],
+                  data[n]->p[B2][i][j][k], data[n]->p[B3][i][j][k]);
+          fprintf(stderr, "Setting floor temp!\n");
+        }
+#endif
+
+        // Enforce a max on Thetae based on cooling time == dynamical time
+        if (cooling_dynamical_times > 1e-20) {
+          double X[NDIM];
+          ijktoX(i, j, k, X);
+          double r, th;
+          bl_coord(X, &r, &th);
+          // Calculate thetae_max based on matching the cooling time w/dynamical time
+          // Makes sure to use b w/units, but r has already been rescaled
+          double Thetae_max_dynamical =  1 / cooling_dynamical_times * 7.71232e46 / 2 / MBH * pow(data[n]->b[i][j][k], -2) * pow(r * sin(th), -1.5);
+#if DEBUG
+          if (Thetae_max_dynamical < data[n]->thetae[i][j][k]) {
+            if (r > 2) fprintf(stderr, "Ceiling on temp! %g < %g, r, th %g %g\n", Thetae_max_dynamical, data[n]->thetae[i][j][k], r, th);
+            ceilings++;
+          }
+#endif
+          data[n]->thetae[i][j][k] = fmin(data[n]->thetae[i][j][k], Thetae_max_dynamical);
+        }
+
+        // Apply floor last in case the above is a very restrictive ceiling
         data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
 
-        //strongly magnetized = empty, no shiny spine
-        data[n]->sigma[i][j][k] = sigma_m;  // allow sigma cut per geodesic step
+        // Preserve sigma for cutting along geodesics, and for variable-kappa model
+        data[n]->sigma[i][j][k] = fmax(sigma_m, SMALL);
+        // Also record beta, for variable-kappa model
+        data[n]->beta[i][j][k] = fmax(beta_m, SMALL);
+
+        // Cut Ne (i.e. emission) based on sigma, if we're not doing so along each geodesic
+        // Strongly magnetized = empty, no shiny spine
         if (sigma_m > sigma_cut && !USE_GEODESIC_SIGMACUT) {
           data[n]->b[i][j][k]=0.0;
           data[n]->ne[i][j][k]=0.0;
@@ -521,6 +650,9 @@ void init_physical_quantities(int n)
       }
     }
   }
+#if DEBUG
+  fprintf(stderr, "TOTAL TEMPERATURE CEILING ZONES: %d of %d\n", ceilings, (N1+2)*(N2+2)*(N3+2));
+#endif
 
 }
 
@@ -533,6 +665,7 @@ void init_storage(void)
     data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->b = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->sigma = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->beta = malloc_rank3(N1+2,N2+2,N3+2);
   }
 }
 
@@ -540,6 +673,8 @@ void init_grid(char *fnam, int dumpidx)
 {
   if (dumpfile_format == FORMAT_IHARM_v1) {
     init_iharm_grid(fnam, dumpidx);
+  } else if (dumpfile_format == FORMAT_KORAL_v2) {
+    init_koral_grid(fnam, dumpidx);
   } else if (dumpfile_format == FORMAT_HAMR_EKS) {
     init_hamr_grid(fnam, dumpidx);
   }
@@ -625,13 +760,6 @@ void init_hamr_grid(char *fnam, int dumpidx)
   stopx[2] = startx[2]+N2*dx[2];
   stopx[3] = startx[3]+N3*dx[3];
 
-  // set boundary of coordinate system
-  MULOOP cstartx[mu] = 0.;
-  cstopx[0] = 0;
-  cstopx[1] = log(Rout);
-  cstopx[2] = 1;
-  cstopx[3] = 2*M_PI;
-
   // now translate from hamr x2 \in (-1, 1) -> mks x2 \in (0, 1)
   startx[2] = (startx[2] + 1)/2.;
   stopx[2] = (stopx[2] + 1)/2.;
@@ -641,10 +769,8 @@ void init_hamr_grid(char *fnam, int dumpidx)
   rmax_geo = fmin(rmax_geo, Rout);
   rmin_geo = fmax(rmin_geo, Rin);
 
-  cstartx[0] = 0;
-  cstartx[1] = 0;
-  cstartx[2] = 0;
-  cstartx[3] = 0;
+  // set boundary of coordinate system
+  MULOOP cstartx[mu] = 0.;
   cstopx[0] = 0;
   cstopx[1] = log(Rout);
   cstopx[2] = 1.0;
@@ -690,6 +816,17 @@ void init_iharm_grid(char *fnam, int dumpidx)
     exit(-3);
   }
 
+  if ( hdf5_exists("weights") ) {
+    hdf5_set_directory("/header/weights/");
+    hdf5_read_single_val(&mu_i, "mu_i", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mu_e, "mu_e", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&mu_tot, "mu_tot", H5T_IEEE_F64LE);
+    fprintf(stderr, "Loaded molecular weights (mu_i, mu_e, mu_tot): %g %g %g\n", mu_i, mu_e, mu_tot);
+    Ne_factor = 1. / mu_e;
+    hdf5_set_directory("/header/");
+    ELECTRONS = ELECTRONS_TFLUID;
+  }
+
   char metric_name[20];
   hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
   hdf5_read_single_val(&metric_name, "metric", HDF5_STR_TYPE);
@@ -712,6 +849,9 @@ void init_iharm_grid(char *fnam, int dumpidx)
     use_eKS_internal = 1;
     metric = METRIC_MKS3;
     cstopx[2] = 1.0;
+  } else if ( strncmp(metric_name, "EKS", 19) == 0 ) {
+    metric = METRIC_EKS;
+    cstopx[2] = M_PI;
   } else {
     fprintf(stderr, "File is in unknown metric %s.  Cannot continue.\n", metric_name);
     exit(-1);
@@ -739,6 +879,9 @@ void init_iharm_grid(char *fnam, int dumpidx)
     }
     ELECTRONS = 1;
     Thetae_unit = MP/ME;
+  } else if (ELECTRONS == ELECTRONS_TFLUID) {
+    fprintf(stderr, "Using Ressler/Athena electrons with mixed tp_over_te and\n");
+    fprintf(stderr, "trat_small = %g, trat_large = %g, and beta_crit = %g\n", trat_small, trat_large, beta_crit);
   } else if (USE_FIXED_TPTE && !USE_MIXED_TPTE) {
     ELECTRONS = 0; // force TP_OVER_TE to overwrite bad electrons
     fprintf(stderr, "Using fixed tp_over_te ratio = %g\n", tp_over_te);
@@ -799,6 +942,10 @@ void init_iharm_grid(char *fnam, int dumpidx)
       fprintf(stderr, "Using logarithmic KS coordinates internally\n");
       fprintf(stderr, "Converting from KORAL-style Modified Kerr-Schild coordinates MKS3\n");
       break;
+    case METRIC_EKS:
+      hdf5_set_directory("/header/geom/eks/");
+      fprintf(stderr, "Using Kerr-Schild coordinates with exponential radial coordiante\n");
+      break;
   }
   
   if ( metric == METRIC_MKS3 ) {
@@ -809,6 +956,12 @@ void init_iharm_grid(char *fnam, int dumpidx)
     hdf5_read_single_val(&mks3MY2, "MY2", H5T_IEEE_F64LE);
     hdf5_read_single_val(&mks3MP0, "MP0", H5T_IEEE_F64LE);
     Rout = 100.; 
+  } else if ( metric == METRIC_EKS ) {
+    hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rin, "r_in", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&Rout, "r_out", H5T_IEEE_F64LE);
+    fprintf(stderr, "eKS parameters a: %f Rin: %f Rout: %f\n", a, Rin, Rout);
+    
   } else { // Some brand of MKS.  All have the same parameters
     hdf5_read_single_val(&a, "a", H5T_IEEE_F64LE);
     hdf5_read_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
@@ -860,6 +1013,184 @@ void init_iharm_grid(char *fnam, int dumpidx)
   hdf5_close();
 }
 
+void init_koral_grid(char *fnam, int dumpidx)
+{
+  // called at the beginning of the run and sets the static parameters
+  // along with setting up the grid
+
+  // assert(42==0);
+  // this version of the code has not been validated to have the
+  // right units and four-vector recovery. use at your own peril
+  
+  char fname[256];
+  snprintf(fname, 255, fnam, dumpidx);
+  fprintf(stderr, "filename: %s\n", fname);
+
+  // always load ks rh from the file to get proper extents
+  // and potentially as a fallback for when we cannnot get
+  // the inverse/reverse transformation eKS -> simcoords.
+  load_simcoord_info_from_file(fname);
+
+  // beecause of legacy global state choices, we can't open two 
+  // files at once, so we have to call this after the above.
+  hdf5_open(fname);
+
+  // get dump info to copy to ipole output
+  fluid_header = hdf5_get_blob("/header");
+
+  // get time information for slow light
+  // currently unsupported
+  //hdf5_read_single_val(&DTd, "dump_cadence", H5T_IEEE_F64LE);
+
+  // in general, we assume KORAL should use the simcoords feature. first
+  // ensure that metric_out is KS and then set simcoords
+  hdf5_set_directory("/header/");
+  char metric_out[20], metric_run[20];
+  hid_t HDF5_STR_TYPE = hdf5_make_str_type(20);
+  hdf5_read_single_val(&metric_out, "metric_out", HDF5_STR_TYPE);
+  hdf5_read_single_val(&metric_run, "metric_run", HDF5_STR_TYPE);
+
+  if (strcmp(metric_out, "KS") != 0) {
+    fprintf(stderr, "! expected koral metric_out==KS but got %s instead. quitting.\n", metric_out);
+    exit(5);
+  }
+
+  // at this point, assume we will load data as eKS and trace as eKS. 
+  use_simcoords = 1;
+  metric = METRIC_MKS;
+  hslope = 1.;
+
+  // get simulation grid coordinates
+  if (strcmp(metric_run, "MKS3") == 0) {
+    simcoords = SIMCOORDS_KORAL_MKS3;
+    hdf5_read_single_val(&a, "bhspin", H5T_IEEE_F64LE);
+    hdf5_set_directory("/header/geom/mks3/");
+    hdf5_read_single_val(&(mp_koral_mks3.r0), "mksr0", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&(mp_koral_mks3.h0), "mksh0", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&(mp_koral_mks3.my1), "mksmy1", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&(mp_koral_mks3.my2), "mksmy2", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&(mp_koral_mks3.mp0), "mksmp0", H5T_IEEE_F64LE);
+    fprintf(stderr, "KORAL simulation was run with MKS3 coordinates.\n");
+  } else if (strcmp(metric_run, "MKS2") == 0) {
+    simcoords = SIMCOORDS_KORAL_MKS3;
+    hdf5_read_single_val(&a, "bhspin", H5T_IEEE_F64LE);
+    hdf5_set_directory("/header/geom/mks2/");
+    hdf5_read_single_val(&(mp_koral_mks3.r0), "mksr0", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&(mp_koral_mks3.h0), "mksh0", H5T_IEEE_F64LE);
+    mp_koral_mks3.my1 = 0;
+    mp_koral_mks3.my2 = 0;
+    mp_koral_mks3.mp0 = 0;
+    fprintf(stderr, "KORAL simulation was run with MKS2 coordinates.\n");
+  } else if (strcmp(metric_run, "JETCOORDS") == 0) {
+    simcoords = SIMCOORDS_KORAL_JETCOORDS;
+    hdf5_read_single_val(&a, "bhspin", H5T_IEEE_F64LE);
+    hdf5_set_directory("/header/geom/jetcoords/");
+    hdf5_read_single_val(&(mp_koral_jetcoords.alpha_1), "alpha1", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&(mp_koral_jetcoords.alpha_2), "alpha2", H5T_IEEE_F64LE);
+    hdf5_read_single_val(&(mp_koral_jetcoords.cylindrify), "cylindrify", H5T_IEEE_F64LE);
+    hdf5_set_directory("/header/geom/");
+    fprintf(stderr, "KORAL simulation was run with JETCOORDS coordinates.\n");
+  } else {
+    fprintf(stderr, "! unknown koral metric_run (%s). quitting.\n", metric_run);
+    exit(5);
+  }
+
+  // get grid information
+  hdf5_set_directory("/header/");
+  hdf5_read_single_val(&N1, "n1", H5T_STD_I32LE);
+  hdf5_read_single_val(&N2, "n2", H5T_STD_I32LE);
+  hdf5_read_single_val(&N3, "n3", H5T_STD_I32LE);
+  hdf5_read_single_val(&gam, "gam", H5T_IEEE_F64LE);
+
+  hdf5_set_directory("/header/geom/");
+  hdf5_read_single_val(&startx[1], "startx1", H5T_IEEE_F64LE);
+  hdf5_read_single_val(&startx[2], "startx2", H5T_IEEE_F64LE);
+  hdf5_read_single_val(&startx[3], "startx3", H5T_IEEE_F64LE);
+  hdf5_read_single_val(&dx[1], "dx1", H5T_IEEE_F64LE);
+  hdf5_read_single_val(&dx[2], "dx2", H5T_IEEE_F64LE);
+  hdf5_read_single_val(&dx[3], "dx3", H5T_IEEE_F64LE);
+  hdf5_set_directory("/header/");
+
+  // reset x3 grid. this makes it easier for simcoords + Xtoijk to handle the
+  // translation, but it also means ipole and KORAL disagree about where x3=0
+  if ( fabs(2.*M_PI - dx[3]*N3) >= dx[3] ) {
+    fprintf(stderr, "! base koral domain extent in x3 is not 2 PI. quitting.\n");
+    exit(5);
+  } else {
+    startx[3] = 0.;
+  }
+
+  stopx[0] = 1.;
+  stopx[1] = startx[1]+N1*dx[1];
+  stopx[2] = startx[2]+N2*dx[2];
+  stopx[3] = startx[3]+N3*dx[3];
+  MULOOP cstartx[mu] = startx[mu];
+  MULOOP cstopx[mu] = stopx[mu];
+
+  fprintf(stderr, "KORAL coordinates dx: %g %g %g\n", dx[1], dx[2], dx[3]);
+  fprintf(stderr, "Native coordinate start: %g %g %g stop: %g %g %g\n",
+                  cstartx[1], cstartx[2], cstartx[3], cstopx[1], cstopx[2], cstopx[3]);
+  fprintf(stderr, "Grid start: %g %g %g stop: %g %g %g\n",
+                  startx[1], startx[2], startx[3], stopx[1], stopx[2], stopx[3]);
+
+  // unsupported features / undocumented elements
+  hdf5_set_directory("/header/geom/mks3/");
+  if (hdf5_exists("gam_e")) {
+    fprintf(stderr, "! found gam_e in KORAL simulation. undocumented. quitting.\n");
+    exit(5);
+  }
+
+  // maybe load radiation units from dump file
+  RADIATION = 0;
+  hdf5_set_directory("/header/");
+  if ( hdf5_exists("has_radiation") ) {
+    hdf5_read_single_val(&RADIATION, "has_radiation", H5T_STD_I32LE);
+    if (RADIATION) {
+      // Note set_units(...) get called AFTER this function returns
+      fprintf(stderr, "koral dump file was from radiation run. loading units...\n");
+      hdf5_set_directory("/header/units/");
+      hdf5_read_single_val(&MBH_solar, "M_bh", H5T_IEEE_F64LE);
+      hdf5_read_single_val(&RHO_unit, "M_unit", H5T_IEEE_F64LE);
+      hdf5_read_single_val(&T_unit, "T_unit", H5T_IEEE_F64LE);
+      hdf5_read_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
+      hdf5_read_single_val(&U_unit, "U_unit", H5T_IEEE_F64LE);
+      hdf5_read_single_val(&B_unit, "B_unit", H5T_IEEE_F64LE);
+      M_unit = RHO_unit * L_unit*L_unit*L_unit;
+    }
+  }
+
+  ELECTRONS = 0;
+  hdf5_set_directory("/header/");
+  if ( hdf5_exists("has_electrons") ) {
+    hdf5_read_single_val(&ELECTRONS, "has_electrons", H5T_STD_I32LE);
+    if (ELECTRONS) {
+      fprintf(stderr, "koral dump has native electron temperature. forcing Thetae...\n");
+      ELECTRONS = 9;
+    } else {
+      if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
+        fprintf(stderr, "Using mixed tp_over_te with trat_small = %g, trat_large = %g, and beta_crit = %g\n", trat_small, trat_large, beta_crit);
+        ELECTRONS = 2;
+      } else {
+        fprintf(stderr, "! koral unsupported without native electrons or mixed tp_over_te.\n");
+        exit(6);
+      }
+    }
+  }
+
+  fprintf(stderr, "sigma_cut = %g\n", sigma_cut);
+  
+  fprintf(stderr, "generating simcoords grid... ");
+  int interp_n1 = 1024;
+  int interp_n2 = 1024;
+  initialize_simgrid(interp_n1, interp_n2, 
+                     startx[1], startx[1]+N1*dx[1], 
+                     startx[2], startx[2]+N2*dx[2]);
+  fprintf(stderr, "done!\n");
+
+  init_storage();
+  hdf5_close();
+}
+
 void output_hdf5()
 {
   hdf5_set_directory("/");
@@ -888,10 +1219,15 @@ void output_hdf5()
     hdf5_write_single_val(&trat_small, "rlow", H5T_IEEE_F64LE);
     hdf5_write_single_val(&trat_large, "rhigh", H5T_IEEE_F64LE);
     hdf5_write_single_val(&beta_crit, "beta_crit", H5T_IEEE_F64LE);
+  } else if (ELECTRONS == ELECTRONS_TFLUID) {
+    hdf5_write_single_val(&mu_i, "mu_i", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&mu_e, "mu_e", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&mu_tot, "mu_tot", H5T_IEEE_F64LE);
   }
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
 
   hdf5_set_directory("/header/");
+  hdf5_write_single_val(&reverse_field,"field_config",H5T_STD_I32LE);
   hdf5_make_directory("units");
   hdf5_set_directory("/header/units/");
   hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
@@ -908,6 +1244,8 @@ void load_data(int n, char *fnam, int dumpidx, int verbose)
 {
   if (dumpfile_format == FORMAT_IHARM_v1) {
     load_iharm_data(n, fnam, dumpidx, verbose);
+  } else if (dumpfile_format == FORMAT_KORAL_v2) {
+    load_koral_data(n, fnam, dumpidx, verbose);
   } else if (dumpfile_format == FORMAT_HAMR_EKS) {
     load_hamr_data(n, fnam, dumpidx, verbose);
   }
@@ -1197,6 +1535,23 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   MdotEdd_dump = Mdotedd;
   Ladv_dump =  Ladv;
 
+  double rescale_factor = 1.;
+
+  if (target_mdot > 0) {
+    fprintf(stderr, "Resetting M_unit to match target_mdot = %g ", target_mdot);
+
+    double current_mdot = Mdot_dump/MdotEdd_dump;
+    fprintf(stderr, "... is now %g\n", M_unit * fabs(target_mdot / current_mdot));
+    rescale_factor = fabs(target_mdot / current_mdot);
+    M_unit *= rescale_factor;
+
+    set_units();
+  }
+
+  Mdot_dump = -dMact*M_unit/T_unit;
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
   if (verbose == 2) {
     fprintf(stderr,"dMact: %g [code]\n",dMact);
     fprintf(stderr,"Ladv: %g [code]\n",Ladv_dump);
@@ -1211,7 +1566,251 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
-  init_physical_quantities(n);
+  init_physical_quantities(n, rescale_factor);
+}
+
+void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
+{
+  // loads relevant information from fluid dump file stored at fname
+  // to the n'th copy of data (e.g., for slow light)
+
+  double dMact, Ladv;
+
+  char fname[256];
+  snprintf(fname, 255, fnam, dumpidx);
+
+  nloaded++;
+
+  if ( hdf5_open(fname) < 0 ) {
+    fprintf(stderr, "! unable to open file %s. Exiting!\n", fname);
+    exit(-1);
+  }
+
+  hdf5_set_directory("/");
+  hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
+
+  hdf5_set_directory("/quants/");
+
+  // load into "center" of data
+  hsize_t fdims[] = { N1, N2, N3 };
+  hsize_t fstart[] = { 0, 0, 0 };
+  hsize_t fcount[] = { N1, N2, N3, 1 };
+  hsize_t mdims[] = { N1+2, N2+2, N3+2 };
+  hsize_t mstart[] = { 1, 1, 1 };
+
+  hdf5_read_array(data[n]->p[KRHO][0][0], "rho", 3, fdims, fstart, fcount, 
+                  mdims, mstart, H5T_IEEE_F64LE); 
+
+  hdf5_read_array(data[n]->p[UU][0][0], "uint", 3, fdims, fstart, fcount, 
+                  mdims, mstart, H5T_IEEE_F64LE); 
+
+  hdf5_read_array(data[n]->p[U1][0][0], "U1", 3, fdims, fstart, fcount, 
+                  mdims, mstart, H5T_IEEE_F64LE); 
+
+  hdf5_read_array(data[n]->p[U2][0][0], "U2", 3, fdims, fstart, fcount, 
+                  mdims, mstart, H5T_IEEE_F64LE); 
+
+  hdf5_read_array(data[n]->p[U3][0][0], "U3", 3, fdims, fstart, fcount, 
+                  mdims, mstart, H5T_IEEE_F64LE); 
+
+  hdf5_read_array(data[n]->p[B1][0][0], "B1", 3, fdims, fstart, fcount, 
+                  mdims, mstart, H5T_IEEE_F64LE); 
+
+  hdf5_read_array(data[n]->p[B2][0][0], "B2", 3, fdims, fstart, fcount, 
+                  mdims, mstart, H5T_IEEE_F64LE); 
+
+  hdf5_read_array(data[n]->p[B3][0][0], "B3", 3, fdims, fstart, fcount, 
+                  mdims, mstart, H5T_IEEE_F64LE); 
+
+  if (ELECTRONS == 9) {
+    hdf5_read_array(data[n]->p[TFLK][0][0], "te", 3, fdims, fstart, fcount, 
+                    mdims, mstart, H5T_IEEE_F64LE); 
+  }
+
+  hdf5_close();
+
+  dMact = Ladv = 0.;
+
+  // construct four-vectors over "real" zones
+#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv)
+  for(int i = 1; i < N1+1; i++) {
+    for(int j = 1; j < N2+1; j++) {
+
+      double X[NDIM] = { 0. };
+      double gcov[NDIM][NDIM], gcon[NDIM][NDIM], gcov_KS[NDIM][NDIM], gcon_KS[NDIM][NDIM];
+      double g, r, th;
+
+      // this assumes axisymmetry in the coordinates
+      ijktoX(i-1,j-1,0, X);
+      gcov_func(X, gcov);
+      gcon_func(gcov, gcon);
+      g = gdet_zone(i-1,j-1,0);
+
+      bl_coord(X, &r, &th);
+
+      // the file is output in KS, so get KS metric
+      gcov_ks(r, th, gcov_KS);
+      gcon_func(gcov_KS, gcon_KS);
+
+      for(int k = 1; k < N3+1; k++){
+
+        ijktoX(i-1,j-1,k,X);
+        double UdotU = 0.;
+        
+        for(int l = 1; l < NDIM; l++) 
+          for(int m = 1; m < NDIM; m++) 
+            UdotU += gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
+        double ufac = sqrt(-1./gcon_KS[0][0]*(1 + fabs(UdotU)));
+
+        double ucon[NDIM] = { 0. };
+        ucon[0] = -ufac * gcon_KS[0][0];
+
+        for(int l = 1; l < NDIM; l++) 
+          ucon[l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon_KS[0][l];
+
+        double ucov[NDIM] = { 0. };
+        flip_index(ucon, gcov_KS, ucov);
+
+        // reconstruct the magnetic field three vectors
+        double udotB = 0.;
+        
+        for (int l = 1; l < NDIM; l++) {
+          udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
+        }
+      
+        double bcon[NDIM] = { 0. };
+        double bcov[NDIM] = { 0. };
+
+        bcon[0] = udotB;
+        for (int l = 1; l < NDIM; l++) {
+          bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
+        }
+        flip_index(bcon, gcov_KS, bcov);
+
+        double bsq = 0.;
+        for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
+        data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
+
+        if(i <= 21) { dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1]; }
+        if(i >= 21 && i < 41 && 0) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
+        if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
+
+        // trust ...
+        //double udb1 = 0., udu1 = 0., bdb1 = 0.;
+        //MULOOP { udb1 += ucon[mu]*bcov[mu]; udu1 += ucon[mu]*ucov[mu]; bdb1 += bcon[mu]*bcov[mu]; }
+
+        // now translate from KS (outcoords) -> MKS:hslope=1
+        ucon[1] /= r;
+        ucon[2] /= M_PI;
+        bcon[1] /= r;
+        bcon[2] /= M_PI;
+
+        // resynthesize the primitives. note we have assumed that B^i = *F^{ti}
+        double alpha = sqrt(-1. / gcon[0][0]);
+        data[n]->p[U1][i][j][k] = (gcon[0][1]*alpha*alpha + ucon[1]/ucon[0]) * ucon[0];
+        data[n]->p[U2][i][j][k] = (gcon[0][2]*alpha*alpha + ucon[2]/ucon[0]) * ucon[0];
+        data[n]->p[U3][i][j][k] = (gcon[0][3]*alpha*alpha + ucon[3]/ucon[0]) * ucon[0];
+        data[n]->p[B1][i][j][k] = ucon[0] * bcon[1] - bcon[0] * ucon[1];
+        data[n]->p[B2][i][j][k] = ucon[0] * bcon[2] - bcon[0] * ucon[2];
+        data[n]->p[B3][i][j][k] = ucon[0] * bcon[3] - bcon[0] * ucon[3];
+
+        // ... but verify
+        //flip_index(bcon, gcov, bcov);
+        //flip_index(ucon, gcov, ucov);
+        //double udb2 = 0., udu2 = 0., bdb2 = 0.;
+        //MULOOP { udb2 += ucon[mu]*bcov[mu]; udu2 += ucon[mu]*ucov[mu]; bdb2 += bcon[mu]*bcov[mu]; }
+        //fprintf(stderr, "u.u %g %g   u.b %g %g   b.b %g %g\n", udu1,udu2, udb1,udb2, bdb1,bdb2);
+      }
+    }
+  }
+
+  // now copy primitives and four-vectors according to boundary conditions
+  populate_boundary_conditions(n);
+
+  dMact *= dx[3]*dx[2] ;
+  dMact /= 21. ;
+  Ladv *= dx[3]*dx[2] ;
+  Ladv /= 21. ;
+
+  Mdot_dump = -dMact*M_unit/T_unit;
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
+  double rescale_factor = 1.;
+
+  if (target_mdot > 0) {
+    fprintf(stderr, "Resetting M_unit to match target_mdot = %g ", target_mdot);
+
+    double current_mdot = Mdot_dump/MdotEdd_dump;
+    fprintf(stderr, "... is now %g\n", M_unit * fabs(target_mdot / current_mdot));
+    rescale_factor = fabs(target_mdot / current_mdot);
+    M_unit *= rescale_factor;
+
+    set_units();
+  }
+
+  Mdot_dump = -dMact*M_unit/T_unit;
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
+  if (verbose == 2) {
+    fprintf(stderr,"dMact: %g [code]\n",dMact);
+    fprintf(stderr,"Ladv: %g [code]\n",Ladv_dump);
+    fprintf(stderr,"Mdot: %g [g/s] \n",Mdot_dump);
+    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",Mdot_dump/(MSUN / YEAR));
+    fprintf(stderr,"Mdot: %g [Mdotedd]\n",Mdot_dump/MdotEdd_dump);
+    fprintf(stderr,"Mdotedd: %g [g/s]\n",MdotEdd_dump);
+    fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",MdotEdd_dump/(MSUN/YEAR));
+  } else if (verbose == 1) {
+    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",Mdot_dump/(MSUN / YEAR));
+    fprintf(stderr,"Mdot: %g [Mdotedd]\n",Mdot_dump/MdotEdd_dump);
+  }
+
+  // now construct useful scalar quantities (over full (+ghost) zones of data)
+  init_physical_quantities(n, rescale_factor);
+}
+
+// get dMact in the i'th radial zone (0 = 0 of the dump, so ignore ghost zones)
+double get_code_dMact(int i, int n)
+{
+  i += 1;
+  double dMact = 0;
+#pragma omp parallel for collapse(1) reduction(+:dMact)
+  for (int j=1; j<N2+1; ++j) {
+    double X[NDIM] = { 0. };
+    double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+    double g, r, th;
+
+    // this assumes axisymmetry in the coordinates
+    ijktoX(i-1,j-1,0, X);
+    gcov_func(X, gcov);
+    gcon_func(gcov, gcon);
+    g = gdet_zone(i-1,j-1,0);
+    bl_coord(X, &r, &th);
+
+    for (int k=1; k<N3+1; ++k) {
+      ijktoX(i-1,j-1,k,X);
+      double UdotU = 0;
+
+      for(int l = 1; l < NDIM; l++)
+        for(int m = 1; m < NDIM; m++)
+          UdotU += gcov[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
+      double ufac = sqrt(-1./gcon[0][0]*(1 + fabs(UdotU)));
+
+      double ucon[NDIM] = { 0. };
+      ucon[0] = -ufac * gcon[0][0];
+
+      for(int l = 1; l < NDIM; l++)
+        ucon[l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon[0][l];
+
+      double ucov[NDIM] = { 0. };
+      flip_index(ucon, gcov, ucov);
+
+      dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1];
+    }
+
+  }
+  return dMact;
 }
 
 void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
@@ -1267,7 +1866,25 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
     hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 
+  //Reversing B Field
+  if(reverse_field) {
+    double multiplier = -1.0;
+    for(int i=0;i<N1+2;i++){
+      for(int j=0;j<N2+2;j++){
+        for(int k=0;k<N3+2;k++){ 
+          data[n]->p[B1][i][j][k] = multiplier*data[n]->p[B1][i][j][k];
+          data[n]->p[B2][i][j][k] = multiplier*data[n]->p[B2][i][j][k];
+          data[n]->p[B3][i][j][k] = multiplier*data[n]->p[B3][i][j][k];
+        }
+      }
+    }
+  }
   hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
+
+  if (ELECTRONS == ELECTRONS_TFLUID) {
+    fstart[3] = 8;
+    hdf5_read_array(data[n]->p[THF][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+  }
 
   hdf5_close();
 
@@ -1294,7 +1911,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
 
         ijktoX(i-1,j-1,k,X);
         double UdotU = 0.;
-        
+
         // the four-vector reconstruction should have gcov and gcon and gdet using the modified coordinates
         // interpolating the four vectors to the zone center !!!!
         for(int l = 1; l < NDIM; l++) 
@@ -1314,11 +1931,11 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
 
         // reconstruct the magnetic field three vectors
         double udotB = 0.;
-        
+
         for (int l = 1; l < NDIM; l++) {
           udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
         }
-      
+
         double bcon[NDIM] = { 0. };
         double bcov[NDIM] = { 0. };
 
@@ -1332,10 +1949,36 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
 
-        if(i <= 21) { dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1];; }
+
+        if(i <= 21) { dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1]; }
         if(i >= 21 && i < 41 && 0) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
         if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
 
+      }
+    }
+  }
+
+  // check if 21st zone (i.e., 20th without ghost zones) is beyond r_eh
+  // otherwise recompute
+  if (1==1) {
+    double r_eh = 1. + sqrt(1. - a*a);
+    int N2_by_2 = (int)(N2/2);
+
+    double X[NDIM] = { 0. };
+    ijktoX(20, N2_by_2, 0, X);
+
+    double r, th;
+    bl_coord(X, &r, &th);
+
+    if (r < r_eh) {
+      for (int i=1; i<N1+1; ++i) {
+        ijktoX(i, N2_by_2, 0, X);
+        bl_coord(X, &r, &th);
+        if (r >= r_eh) {
+          fprintf(stderr, "r_eh is beyond regular zones. recomputing at %g...\n", r);
+          dMact = get_code_dMact(i, n) * 21;
+          break;
+        }
       }
     }
   }
@@ -1347,6 +1990,23 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   dMact /= 21. ;
   Ladv *= dx[3]*dx[2] ;
   Ladv /= 21. ;
+
+  Mdot_dump = -dMact*M_unit/T_unit;
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
+  double rescale_factor = 1.;
+
+  if (target_mdot > 0) {
+    fprintf(stderr, "Resetting M_unit to match target_mdot = %g ", target_mdot);
+
+    double current_mdot = Mdot_dump/MdotEdd_dump;
+    fprintf(stderr, "... is now %g\n", M_unit * fabs(target_mdot / current_mdot));
+    rescale_factor = fabs(target_mdot / current_mdot);
+    M_unit *= rescale_factor;
+
+    set_units();
+  }
 
   Mdot_dump = -dMact*M_unit/T_unit;
   MdotEdd_dump = Mdotedd;
@@ -1366,28 +2026,15 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   // now construct useful scalar quantities (over full (+ghost) zones of data)
-  init_physical_quantities(n);
+  init_physical_quantities(n, rescale_factor);
 }
+
 
 int radiating_region(double X[NDIM])
 {
   double r, th;
   bl_coord(X, &r, &th);
   return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg));
-}
-
-void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
-                             double *gamma_min, double *gamma_max, double *gamma_cut)
-{
-  *gamma_min = powerlaw_gamma_min;
-  *gamma_max = powerlaw_gamma_max;
-  *gamma_cut = powerlaw_gamma_cut;
-  *p = powerlaw_p;
-
-  double b = get_model_b(X);
-  double u_nth = powerlaw_eta*b*b/2;
-  // Number density of nonthermals
-  *n = u_nth * (*p - 2)/(*p - 1) * 1/(ME * CL*CL * *gamma_min);
 }
 
 // In case we want to mess with emissivities directly
