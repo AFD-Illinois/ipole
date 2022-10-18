@@ -25,4 +25,6 @@ void dump(double image[], double imageS[], double taus[],
 void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny,
                     double scale, double cam[NDIM], double fovx, double fovy, Params *params);
 
+void write_histo(Params *params);
+
 #endif // IO_H
