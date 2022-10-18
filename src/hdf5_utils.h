@@ -53,3 +53,5 @@ int hdf5_write_str_list(const void *data, const char *name, size_t strlen, size_
 int hdf5_add_attr(const void *att, const char *att_name, const char *data_name, hsize_t hdf5_type);
 int hdf5_add_units(const char *name, const char *unit);
 
+// Old h5io.c functions
+void h5io_add_data_dbl_3ds(hid_t fid, const char *path, hsize_t n1, hsize_t n2, hsize_t n3, double data[]);
