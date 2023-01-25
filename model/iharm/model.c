@@ -1842,27 +1842,35 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   hsize_t mdims[] = { N1+2, N2+2, N3+2, 1 };
   hsize_t mstart[] = { 1, 1, 1, 0 };
 
-  fstart[3] = 0;
+  fstart[3] = KRHO;
   hdf5_read_array(data[n]->p[KRHO][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 1;
+  fstart[3] = UU;
   hdf5_read_array(data[n]->p[UU][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 2;
+  fstart[3] = U1;
   hdf5_read_array(data[n]->p[U1][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 3;
+  fstart[3] = U2;
   hdf5_read_array(data[n]->p[U2][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 4;
+  fstart[3] = U3;
   hdf5_read_array(data[n]->p[U3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 5;
+  #if EMHD_CONDUCTION
+    fstart[3] = QTILDE;
+    hdf5_read_array(data[n]->p[QTILDE][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+  #endif
+  #if EMHD_VISCOSITY
+    fstart[3] = DPTILDE;
+    hdf5_read_array(data[n]->p[DPTILDE][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+  #endif
+  fstart[3] = B1;
   hdf5_read_array(data[n]->p[B1][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 6;
+  fstart[3] = B2;
   hdf5_read_array(data[n]->p[B2][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 7;
+  fstart[3] = B3;
   hdf5_read_array(data[n]->p[B3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE); 
 
   if (ELECTRONS == 1) {
-    fstart[3] = 8;
+    fstart[3] = KEL;
     hdf5_read_array(data[n]->p[KEL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-    fstart[3] = 9;
+    fstart[3] = KTOT;
     hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 

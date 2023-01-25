@@ -4,13 +4,10 @@ CC = h5pcc
 
 ifneq (,$(findstring icc,$(shell $(CC) --version)))
 
-	ifneq (,$(findstring 18.0,$(shell $(CC) --version)))
-		GSL_DIR = /opt/apps/intel18/gsl/2.3
-	else
-		GSL_DIR = /opt/apps/intel17/gsl/2.3
-	endif
+	GSL_DIR = /opt/apps/intel19/gsl/2.6
 
-	CFLAGS = -O3 -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512 -std=gnu99 -qopenmp
+
+	CFLAGS = -O3 -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512 -std=gnu11 -qopenmp
 	MATH_LIB =
 endif
 
