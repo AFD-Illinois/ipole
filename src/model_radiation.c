@@ -110,6 +110,18 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 
   // This wrapper can be used to call jar_calc_dist differently in e.g. funnel vs jet, or
   // depending on local fluid parameters, whatever
+
+  // set selected coefficients to zero. ASCII for 0 is 48
+  if(params->select_coefficient){
+    if(params->select_coefficient_str[0]==48) *jI=0.0;
+    if(params->select_coefficient_str[1]==48) *jQ=0.0;
+    if(params->select_coefficient_str[2]==48) *jV=0.0;
+    if(params->select_coefficient_str[3]==48) *aI=0.0;
+    if(params->select_coefficient_str[4]==48) *aQ=0.0;
+    if(params->select_coefficient_str[5]==48) *aV=0.0;
+    if(params->select_coefficient_str[6]==48) *rQ=0.0;
+    if(params->select_coefficient_str[7]==48) *rV=0.0;
+  }
 }
 
 /**

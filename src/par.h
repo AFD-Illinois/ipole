@@ -32,6 +32,11 @@ typedef struct params_t {
 
   // Which e- energy distributions/emissivities to use
   int emission_type;
+  
+  // whether to turn off select coefficients and a string that encodes which ones to be turned off (total 8 coefficients)
+  int select_coefficient;
+  const char select_coefficient_str[8];
+  
   // Whether to apply I > 0 "floor" when integrating forward the Stokes parameters
   // Probably harmless!
   int stokes_floors;
