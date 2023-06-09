@@ -468,7 +468,12 @@ double get_model_thetae(double X[NDIM])
     printf("thetae, tfac = %e %e\n", thetae, tfac);
   }
 #endif
-
+	double sigma,r,th;
+	double Tjet=1e3;
+	sigma = get_model_sigma(X);
+	thetae = thetae/(1+ sigma*sigma) + Tjet*sigma*sigma/(1+sigma*sigma);
+	bl_coord(X,&r,&th);
+	//if(r>10 && th > 4*M_PI/5)	thetae*=2;
   return thetae;
 }
 
@@ -530,7 +535,9 @@ double get_model_ne(double X[NDIM])
 
   int nA, nB;
   double tfac = set_tinterp_ns(X, &nA, &nB);
-
+	double r,th;
+	bl_coord(X, &r, &th);
+	//if(r>20 && th > 2*M_PI/3) return 1e4;
   return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac) * sigma_smoothfac;
 }
 
@@ -2034,7 +2041,8 @@ int radiating_region(double X[NDIM])
 {
   double r, th;
   bl_coord(X, &r, &th);
-  return (r > rmin_geo && r < rmax_geo && th > th_beg && th < (M_PI-th_beg));
+	//if( r > 10 && th < 3*M_PI/4) return 0;
+  return (r > rmin_geo && r < Rout && th > th_beg && th < (M_PI-th_beg));
 }
 
 // In case we want to mess with emissivities directly
