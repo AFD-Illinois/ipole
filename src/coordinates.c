@@ -171,7 +171,7 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
   MUNULOOP gcov[mu][nu] = 0.;
   // Compute KS metric from KS coordinates (cyclic in t,phi)
   gcov[0][0] = -1. + 2. * r / rho2;
-  gcov[0][1] = 2. * r / rho2;
+  gcov[0][1] = 2. * r / rho2 + 0.0001;
   gcov[0][3] = -2. * a * r * s2 / rho2;
 
   gcov[1][0] = gcov[0][1];
