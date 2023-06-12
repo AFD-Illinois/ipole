@@ -827,7 +827,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   MULOOP Kcon[mu] *= freq;
 #endif
 
-  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep, Xcam, 0);
+  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep, Xcam, &params, 0);
   if (nstep >= params.maxnstep-1) {
     // You almost certainly don't want to continue if this happens
     fprintf(stderr, "\nMaxNStep exceeded in pixel %ld %ld!\n", i, j);
