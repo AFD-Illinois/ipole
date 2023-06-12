@@ -43,6 +43,7 @@ typedef struct params_t {
 
   // Subrings
   int target_nturns;
+  int subring_dtheta;
 
   // Adaptive tracing
   int nx_min, ny_min;   // dimensions of lowest resolution image
