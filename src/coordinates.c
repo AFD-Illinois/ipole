@@ -170,20 +170,20 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
 //Variables used in EDGB metric
   double cost2 = cth*cth;
   double cost4 = cost2*cost2;
-  //double epsilon = 1;
-  //double ep2 = epsilon * epsilon;
-  //double ep4 = ep2*ep2;
-  //double zeta = 1;
+  //double a = 1;
+  //double pow(a,2) = a * a;
+  //double pow(a,4) = pow(a,2)*pow(a,2);
+  double zeta = 0.01;
   MUNULOOP gcov[mu][nu] = 0.;
   // Compute KS metric from KS coordinates (cyclic in t,phi)
   
-  gcov[0][0] = -1. + 2. * r / rho2 - 0.001;
+  gcov[0][0] = -1. + 2. *r/rho2;
 
   //EDGB metric
-  /*-1 + 2/r - (2*ep2*cost2)/pow(r,3) + 2*ep4*cost4/pow(r,5) + zeta*(-1/15*(-400+96*r+66*pow(r,2)+130*pow(r,3)+5*pow(r,4))/pow(r,7)
-    + (ep2*(pow(r,7)*(444696-562338*cost2)  + 8820000*(-1 + 3*cost2) - 19600*r*(-467 + 1251*cost2) - 63*pow(r,8)*(-3267 + 8926*cost2) 
+  /*-1 + 2/r - (2*pow(a,2)*cost2)/pow(r,3) + 2*pow(a,4)*cost4/pow(r,5) + zeta*(-1/15*(-400+96*r+66*pow(r,2)+130*pow(r,3)+5*pow(r,4))/pow(r,7)
+    + (pow(a,2)*(pow(r,7)*(444696-562338*cost2)  + 8820000*(-1 + 3*cost2) - 19600*r*(-467 + 1251*cost2) - 63*pow(r,8)*(-3267 + 8926*cost2) 
     + 1050*pow(r,3)*(-1465 + 11997*cost2) - 2100*pow(r,2)*(-955 + 22577*cost2) - 6*pow(r,6)*(-59329 + 82437*cost2) + 15*pow(r,5)*(-52533 + 455029*cost2) 
-    + 10*pow(r,4)*(-281221 + 1218513*cost2)))/(110250*pow(r,11)) + (ep4*(675*pow(r,12)*(-19717 + 67726*cost2) + 450*pow(r,11)*(43312 + 101589*cost2) 
+    + 10*pow(r,4)*(-281221 + 1218513*cost2)))/(110250*pow(r,11)) + (pow(a,4)*(675*pow(r,12)*(-19717 + 67726*cost2) + 450*pow(r,11)*(43312 + 101589*cost2) 
     - 164640000*(-70 + 585*cost2 + 156*cost4) - 8232000*r*(3949 - 11058*cost2 + 6948*cost4) - 39200*pow(r,2)*(189191 - 824825*cost2 + 972045*cost4) 
     + 60*pow(r,9)*(717867 - 13885852*cost2 + 12733507*cost4) + 30*pow(r,10)*(209773 - 9090216*cost2 + 16888370*cost4) + 1400*pow(r,3)*(648009 - 14691730*cost2 
     + 26074500*cost4) + 420*pow(r,4)*(553219 - 32471380*cost2 + 222891320*cost4) - 14*pow(r,7)*(-11393603 + 38599350*cost2 + 359928985*cost4) 
@@ -192,13 +192,13 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
   //Original value:
   //-1. + 2. * r / rho2;
 
-  gcov[0][1] = 2. * r / rho2 -0.001;
+  gcov[0][1] =2. * r / rho2 +0.0001;
 
   //EDGB metric
-  /*2/r - (2*ep2*cost2)/pow(r,3) + (2*ep4*cost4)/pow(r,5) + zeta*(-1/30*(-800 + 912*r + 516*pow(r,2) + 470*pow(r,3) + 50*pow(r,4) + 15*pow(r,5))/ pow(r,7) 
-    + (ep2*(-566034*pow(r,8) + 55125*pow(r,9) +  17640000*(-1 + 3*cost2) + 12600*pow(r,3)*(4006 + 1877*cost2) + 78400*r*(-779 + 2412*cost2) + 42*pow(r,7)*(-94339 
+  /*2/r - (2*pow(a,2)*cost2)/pow(r,3) + (2*pow(a,4)*cost4)/pow(r,5) + zeta*(-1/30*(-800 + 912*r + 516*pow(r,2) + 470*pow(r,3) + 50*pow(r,4) + 15*pow(r,5))/ pow(r,7) 
+    + (pow(a,2)*(-566034*pow(r,8) + 55125*pow(r,9) +  17640000*(-1 + 3*cost2) + 12600*pow(r,3)*(4006 + 1877*cost2) + 78400*r*(-779 + 2412*cost2) + 42*pow(r,7)*(-94339 
     + 107112*cost2) - 1400*pow(r,2)*(20431 + 132243*cost2) + 36*pow(r,6)*(-436917 + 491281*cost2) + 20*pow(r,4)*(-875941 + 2263053*cost2) + 20*pow(r,5)*(-1122937 
-    + 2632446*cost2)))/(220500*pow(r,11)) - (ep4*(-80247150*pow(r,12) - 5788125*pow(r,13) + 450*pow(r,11)*(-1196839 + 812712*cost2) 
+    + 2632446*cost2)))/(220500*pow(r,11)) - (pow(a,4)*(-80247150*pow(r,12) - 5788125*pow(r,13) + 450*pow(r,11)*(-1196839 + 812712*cost2) 
     + 329280000*(-70 + 585*cost2 + 156*cost4) + 49392000*r*(-1717 + 21664*cost2 + 9076*cost4) + 60*pow(r,10)*(-23601289 + 13406112*cost2 + 2187250*cost4) 
     + 78400*pow(r,2)*(-2206069 - 11318105*cost2 + 13657725*cost4) + 14000*pow(r,3)*(22540153 - 88517480*cost2 + 62290230*cost4) 
     + 30*pow(r,9)*(-145291221 + 30934768*cost2 + 146683252*cost4) + 280*pow(r,4)*(793805393 - 2014699860*cost2 + 507428040*cost4) 
@@ -207,11 +207,11 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
   //Original value:
   //2. * r / rho2 +0.0001;
 
-  gcov[0][3] = -2. * a * r * s2 / rho2 - 0.001;
+  gcov[0][3] = -2. * a * r * s2 / rho2+0.0001;
 
   //EDGB metric
-  /*(2*epsilon*(-1 + cost2))/r - (2*epsilon*ep2*cost2*(-1 + cost2))/pow(r,3) + zeta*(-1/15*((-400 + 144*r + 90*pow(r,2) + 140*pow(r,3) 
-    + 9*pow(r,4))*epsilon*(-1 + cost2))/pow(r,7) - (ep2*epsilon*(-1 + cost2)* (pow(r,4)*(2736210 - 4410530*cost2) + pow(r,5)*(766015 - 3620183*cost2) - 
+  /*(2*a*(-1 + cost2))/r - (2*a*pow(a,2)*cost2*(-1 + cost2))/pow(r,3) + zeta*(-1/15*((-400 + 144*r + 90*pow(r,2) + 140*pow(r,3) 
+    + 9*pow(r,4))*a*(-1 + cost2))/pow(r,7) - (pow(a,2)*a*(-1 + cost2)* (pow(r,4)*(2736210 - 4410530*cost2) + pow(r,5)*(766015 - 3620183*cost2) - 
     8820000*(-1 + 3*cost2) + 19600*r*(-467 + 1551*cost2) - 12*pow(r,6)*(26511 +  6310*cost2) + 750*pow(r,3)*(2051 + 8733*cost2) +  2100*pow(r,2)*(-955 + 21233*cost2) 
     + 3*pow(r,8)*(-63529 + 262520*cost2) + pow(r,7)*(-406611 + 563055*cost2)))/(110250*pow(r,11)));*/
   //Original value:
@@ -219,13 +219,13 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
 
   gcov[1][0] = gcov[0][1];
 
-  gcov[1][1] = 1. + 2. * r / rho2 - 0.001;
+  gcov[1][1] = 1. + 2. * r / rho2;
 
   //EDGB metric
-  /*(2 + r)/r - (2*ep2*cost2)/pow(r,3) + (2*ep4*cost4)/pow(r,5) + zeta*(-1/15*(-400 + 816*r + 450*pow(r,2) + 340*pow(r,3) + 45*pow(r,4) + 15*pow(r,5))/pow(r,7) 
-    + (ep2*(55125*pow(r,9) + 8820000*(-1 + 3*cost2) + 1050*pow(r,3)*(49537 + 10527*cost2) + 19600*r*(-3583 + 10899*cost2) + 21*pow(r,8)*(-36755 + 26778*cost2) 
+  /*(2 + r)/r - (2*pow(a,2)*cost2)/pow(r,3) + (2*pow(a,4)*cost4)/pow(r,5) + zeta*(-1/15*(-400 + 816*r + 450*pow(r,2) + 340*pow(r,3) + 45*pow(r,4) + 15*pow(r,5))/pow(r,7) 
+    + (pow(a,2)*(55125*pow(r,9) + 8820000*(-1 + 3*cost2) + 1050*pow(r,3)*(49537 + 10527*cost2) + 19600*r*(-3583 + 10899*cost2) + 21*pow(r,8)*(-36755 + 26778*cost2) 
     + 42*pow(r,7)*(-104927 + 120501*cost2) - 700*pow(r,2)*(43727 + 196755*cost2) + 6*pow(r,6)*(-2680831 + 3030123*cost2) + 10*pow(r,4)*(-1470661 + 3307593*cost2) 
-    + 5*pow(r,5)*(-4334149 + 9164697*cost2)))/(110250*pow(r,11)) - (ep4*(-5788125*pow(r,13) + 225*pow(r,12)*(-415805 + 203178*cost2) 
+    + 5*pow(r,5)*(-4334149 + 9164697*cost2)))/(110250*pow(r,11)) - (pow(a,4)*(-5788125*pow(r,13) + 225*pow(r,12)*(-415805 + 203178*cost2) 
     + 1350*pow(r,11)*(-384509 + 304767*cost2) + 164640000*(-70 + 585*cost2 + 156*cost4) + 8232000*r*(-14251 + 141042*cost2 + 47508*cost4) 
     + 30*pow(r,10)*(-46992805 + 17722008*cost2 + 21262870*cost4) + 39200*pow(r,2)*(-4601329 - 21811385*cost2 + 26343405*cost4) 
     + 30*pow(r,9)*(-143855487 + 3163064*cost2 + 172150266*cost4) + 1400*pow(r,3)*(226049539 - 899866530*cost2 + 648976800*cost4) 
@@ -235,22 +235,22 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
   //Original value:
   //1. + 2. * r / rho2;
 
-  gcov[1][3] = -a * s2 * (1. + 2. * r / rho2) - 0.001;
+  gcov[1][3] = -a * s2 * (1. + 2. * r / rho2); 
 
   //EDGB metric
-  /*((2 + r)*epsilon*(-1 + cost2))/r - (2*epsilon*ep2*cost2*(-1 + cost2))/pow(r,3) + zeta*(-1/36750*((16660000 - 5350800*r + 4797450*pow(r,2) + 3526600*pow(r,3) 
-    + 2965560*pow(r,4) + 918855*pow(r,5) + 187446*pow(r,6))*epsilon*(-1 + cost2))/pow(r,7) + (epsilon*ep2*(-1 + cost2)*(22085775*pow(r,9) 
+  /*((2 + r)*a*(-1 + cost2))/r - (2*a*pow(a,2)*cost2*(-1 + cost2))/pow(r,3) + zeta*(-1/36750*((16660000 - 5350800*r + 4797450*pow(r,2) + 3526600*pow(r,3) 
+    + 2965560*pow(r,4) + 918855*pow(r,5) + 187446*pow(r,6))*a*(-1 + cost2))/pow(r,7) + (a*pow(a,2)*(-1 + cost2)*(22085775*pow(r,9) 
     + 4571505*pow(r,10) + 49392000*(580 + 327*cost2) + 548800*r*(-23041 + 74715*cost2) + 6300*pow(r,3)*(-446807 + 973501*cost2) 
     + 126*pow(r,7)*(1064483 + 1485790*cost2) + 9800*pow(r,2)*(-1223527 + 1991748*cost2) + 12*pow(r,8)*(4458631 + 3456783*cost2) 
     + 280*pow(r,4)*(3773463 + 15733496*cost2) + 42*pow(r,6)*(6767669 + 23527525*cost2) + 56*pow(r,5)*(17855552 + 49207893*cost2)))/(3087000*pow(r,11)));*/
   //Original value:
   //-a * s2 * (1. + 2. * r / rho2);
 
-  gcov[2][2] = rho2 - 0.001;
+  gcov[2][2] = rho2;
 
   //EDGB metric
-  /*pow(r,2) + ep2*cost2 + ((8820000 - 6213200*r - 3416700*pow(r,2) - 1855650*pow(r,3) + 887110*pow(r,4) + 800733*pow(r,5) + 435540*pow(r,6) 
-   + 187446*pow(r,7))*ep2*zeta*(1 - 3*cost2))/(110250*pow(r,8)) + (ep4*zeta*(45715050*pow(r,11)*(-1 + 3*cost2) + 5625*pow(r,10)*(-20749 + 58131*cost2) 
+  /*pow(r,2) + pow(a,2)*cost2 + ((8820000 - 6213200*r - 3416700*pow(r,2) - 1855650*pow(r,3) + 887110*pow(r,4) + 800733*pow(r,5) + 435540*pow(r,6) 
+   + 187446*pow(r,7))*pow(a,2)*zeta*(1 - 3*cost2))/(110250*pow(r,8)) + (pow(a,4)*zeta*(45715050*pow(r,11)*(-1 + 3*cost2) + 5625*pow(r,10)*(-20749 + 58131*cost2) 
    + 493920000*(-70 + 585*cost2 + 156*cost4) + 24696000*r*(3049 - 10698*cost2 + 8868*cost4) + 117600*pow(r,2)*(280331 - 1711445*cost2 + 1596165*cost4) 
    + 180*pow(r,9)*(-1286466 - 846865*cost2 + 5819941*cost4) + 4200*pow(r,3)*(2362411 - 16650910*cost2 + 14489100*cost4) 
    - 1260*pow(r,4)*(-3173281 - 5026080*cost2 + 26477920*cost4) + 42*pow(r,8)*(-18071967 - 940590*cost2 + 54146980*cost4) 
@@ -262,12 +262,12 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
   gcov[3][0] = gcov[0][3];
   gcov[3][1] = gcov[1][3];
 
-  gcov[3][3] = s2 * (rho2 + a * a * s2 * (1. + 2. * r / rho2)) - 0.001;
+  gcov[3][3] = s2 * (rho2 + a * a * s2 * (1. + 2. * r / rho2));
 
   //EDGB metric
-  /*-(pow(r,2)*(-1 + cost2)) - (ep2*(2 + r - 2*cost2)*(-1 + cost2))/r - (2*ep4*cost2*pow((-1 + cost2),2))/pow(r,3) 
+  /*-(pow(r,2)*(-1 + cost2)) - (pow(a,2)*(2 + r - 2*cost2)*(-1 + cost2))/r - (2*pow(a,4)*cost2*pow((-1 + cost2),2))/pow(r,3) 
     + zeta*(((8820000 - 6213200*r - 3416700*pow(r,2) - 1855650*pow(r,3) + 887110*pow(r,4) + 800733*pow(r,5) + 435540*pow(r,6) 
-    + 187446*pow(r,7))*ep2* (-1 + cost2)*(-1 + 3*cost2))/(110250*pow(r,8)) -  (ep4*(-1 + cost2)*(45715050*pow(r,11)*(-1 + 3*cost2) 
+    + 187446*pow(r,7))*pow(a,2)* (-1 + cost2)*(-1 + 3*cost2))/(110250*pow(r,8)) -  (pow(a,4)*(-1 + cost2)*(45715050*pow(r,11)*(-1 + 3*cost2) 
     + 5625*pow(r,10)*(-20749 + 58131*cost2) + 493920000*(-70 + 585*cost2 + 156*cost4) + 24696000*r*(3649 - 8958*cost2 + 6528*cost4) 
     + 352800*pow(r,2)*(84857 - 350495*cost2 + 320655*cost4) + 12600*pow(r,3)*(-82303 - 1443030*cost2 + 1592200*cost4) 
     + 180*pow(r,9)*(-411718 - 4345857*cost2 + 8444185*cost4) - 1260*pow(r,4)*(1578719 - 11450880*cost2 + 28150720*cost4) 
