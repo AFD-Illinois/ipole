@@ -105,6 +105,9 @@ void get_connection(double X[NDIM], double conn[NDIM][NDIM][NDIM])
     fprintf(stderr, "Encountered singluar gcov when getting connection!\n");
     print_vector("X", X);
     print_matrix("gcov", gcov);
+    
+//T Thomas debugging
+    exit(1);
   }
 
   for (k = 0; k < NDIM; k++) {
