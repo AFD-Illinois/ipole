@@ -39,6 +39,8 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM]);
 // TODO privatize these, why are they needed in models?
 void gcov_ks(double r, double th, double gcov[NDIM][NDIM]);
 void gcov_bl(double r, double th, double gcov[NDIM][NDIM]);
+void gcov_EdGB_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]);
+void gcov_DCS_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]);
 
 // Internal
 void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM]);
