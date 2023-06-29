@@ -9,7 +9,7 @@
 #include <stdio.h>
 
 // malloc utilities
-void *malloc_rank1(size_t n1, size_t size)
+void *malloc_rank1(u_int64_t n1, u_int64_t size)
 {
   void *A;
 
@@ -22,12 +22,12 @@ void *malloc_rank1(size_t n1, size_t size)
 }
 
 
-double ***malloc_rank3(int n1, int n2, int n3)
+double ***malloc_rank3(u_int64_t n1, u_int64_t n2, u_int64_t n3)
 {
 
   double ***A;
   double *space;
-  int i,j;
+  u_int64_t i,j;
 
   space = malloc_rank1(n1*n2*n3, sizeof(double));
   A = malloc_rank1(n1, sizeof(double *));
@@ -41,12 +41,12 @@ double ***malloc_rank3(int n1, int n2, int n3)
   return A;
 }
 
-float ***malloc_rank3_float(int n1, int n2, int n3)
+float ***malloc_rank3_float(u_int64_t n1, u_int64_t n2, u_int64_t n3)
 {
 
   float ***A;
   float *space;
-  int i,j;
+  u_int64_t i,j;
 
   space = malloc_rank1(n1*n2*n3, sizeof(float));
   A = malloc_rank1(n1, sizeof(float *));
@@ -60,12 +60,12 @@ float ***malloc_rank3_float(int n1, int n2, int n3)
   return A;
 }
 
-double ****malloc_rank4(int n1, int n2, int n3, int n4)
+double ****malloc_rank4(u_int64_t n1, u_int64_t n2, u_int64_t n3, u_int64_t n4)
 {
 
   double ****A;
   double *space;
-  int i,j,k;
+  u_int64_t i,j,k;
 
   space = malloc_rank1(n1*n2*n3*n4, sizeof(double));
   A = malloc_rank1(n1, sizeof(double *));
@@ -82,12 +82,12 @@ double ****malloc_rank4(int n1, int n2, int n3, int n4)
   return A;
 }
 
-float ****malloc_rank4_float(int n1, int n2, int n3, int n4)
+float ****malloc_rank4_float(u_int64_t n1, u_int64_t n2, u_int64_t n3, u_int64_t n4)
 {
 
   float ****A;
   float *space;
-  int i,j,k;
+  u_int64_t i,j,k;
 
   space = malloc_rank1(n1*n2*n3*n4, sizeof(float));
   A = malloc_rank1(n1, sizeof(float *));
