@@ -21,7 +21,7 @@ void gcov_EdGB_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
 
    MUNULOOP gcov[mu][nu] = 0.;
   // Compute EdGB metric from KS coordinates (cyclic in t,phi)
-  //note: added a parentheses before the semicolon for all the terms
+
   gcov[0][0] = -1. + 2.*r/rho2
     + zeta*(-1./15.*(-400.+96.*r+66.*pow(r,2)+130.*pow(r,3)+5.*pow(r,4))/pow(r,7)
     + (a2*(pow(r,7)*(444696.-562338.*c2)  + 8820000.*(-1. + 3.*c2) - 19600.*r*(-467. + 1251.*c2) - 63.*pow(r,8)*(-3267. + 8926.*c2) 
@@ -50,7 +50,7 @@ void gcov_EdGB_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
 //0 used to replace a*a2
   gcov[0][3] = -2.*a*r*s2/rho2
     + zeta*(-1./15.*((-400. + 144.*r + 90.*pow(r,2) + 140.*pow(r,3) 
-    + 9.*pow(r,4))*a*(-1. + c2))/pow(r,7) - (0*(-1. + c2)* (pow(r,4)*(2736210. - 4410530.*c2) + pow(r,5)*(766015. - 3620183.*c2) - 
+    + 9.*pow(r,4))*a*(-1. + c2))/pow(r,7) - (pow(a,3)*(-1. + c2)* (pow(r,4)*(2736210. - 4410530.*c2) + pow(r,5)*(766015. - 3620183.*c2) - 
     8820000.*(-1. + 3.*c2) + 19600.*r*(-467. + 1551.*c2) - 12.*pow(r,6)*(26511. +  6310.*c2) + 750.*pow(r,3)*(2051. + 8733.*c2) +  2100.*pow(r,2)*(-955. + 21233.*c2) 
     + 3.*pow(r,8)*(-63529. + 262520.*c2) + pow(r,7)*(-406611. + 563055.*c2)))/(110250.*pow(r,11)));
 
@@ -71,10 +71,10 @@ void gcov_EdGB_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
     + 14.*pow(r,6)*(-1465072681. - 2454976180.*c2 + 7341025990.*c4)))/(30870000.*pow(r,15)));  
 
 
-//0 used to replace a*a2
+
   gcov[1][3] = -a *s2*(1. + 2.*r/rho2)
     + zeta*(-1./36750.*((16660000. - 5350800.*r + 4797450.*pow(r,2) + 3526600.*pow(r,3) 
-    + 2965560.*pow(r,4) + 918855.*pow(r,5) + 187446.*pow(r,6))*a*(-1. + c2))/pow(r,7)+ (0*(-1. + c2)*(22085775.*pow(r,9) 
+    + 2965560.*pow(r,4) + 918855.*pow(r,5) + 187446.*pow(r,6))*a*(-1. + c2))/pow(r,7)+ (pow(a,3)*(-1. + c2)*(22085775.*pow(r,9) 
     + 4571505.*pow(r,10) + 49392000.*(580. + 327.*c2) + 548800.*r*(-23041. + 74715.*c2) + 6300.*pow(r,3)*(-446807. + 973501.*c2) 
     + 126.*pow(r,7)*(1064483. + 1485790.*c2) + 9800.*pow(r,2)*(-1223527. + 1991748.*c2) + 12.*pow(r,8)*(4458631. + 3456783.*c2) 
     + 280.*pow(r,4)*(3773463. + 15733496.*c2) + 42.*pow(r,6)*(6767669. + 23527525.*c2) + 56.*pow(r,5)*(17855552. + 49207893.*c2)))/(3087000.*pow(r,11)));
@@ -116,7 +116,7 @@ void gcov_DCS_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
   double c2 = cth * cth;
   double c4 = c2*c2;
   double a2 = a*a;
-  double a4 = a2*a2;
+  double a4 = 0.;
 
     MUNULOOP gcov[mu][nu] = 0.;
   // Compute DCS metric from KS coordinates (cyclic in t,phi)
@@ -143,7 +143,7 @@ void gcov_DCS_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
     + pow(r,8.)*(-164813529. + 45059288.*c2 + 116931460.*c4) + 36.*pow(r,4.)*(-27676299. - 98275560.*c2 + 239844820.*c4)
      + 8.*pow(r,6.)*(-76467017. - 93284976.*c2 + 253740770.*c4) + 4.*pow(r,5.)*(-83689817. - 868048872.*c2 + 1345549080.*c4)))/(27095040.*pow(r,14.)));;
 
-  
+  //replaced pow(a,3) with 0
   gcov[0][3] = -2.*a*r*s2/rho2
      +zeta*(-1./112.*((189. + 120.*r + 70.*pow(r,2.))*a*(-1. + c2))/pow(r,6.) + (pow(a,3)*(-1. + c2)*(-10160640.*(-1. + 3.*c2) 
      + 105828.*pow(r,7.)*(-1. + 5.*c2) + 30.*pow(r,5.)*(2247. + 95.*c2) + 55440.*r*(-25. + 453.*c2) + 15.*pow(r,6.)*(-271. + 24875.*c2) 
@@ -165,7 +165,7 @@ void gcov_DCS_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
     + pow(r,5.)*(-307392130. - 3810590928.*c2 + 5462039280.*c4)))/(13547520.*pow(r,14.)));;  
 
 
-
+//replaced pow(a,3) with 0
   gcov[1][3] = -a *s2*(1. + 2.*r/rho2) 
   +zeta*(((571536. + 393540.*r + 219380.*pow(r,2.) + 64660.*pow(r,3.) + 19880.*pow(r,4.) + 4221.*pow(r,5.))*a*(-1. + c2))/(12544.*pow(r,6.)) 
   - (pow(a,3)*(-1. + c2)*(1570950.*pow(r,8.) + 327420.*pow(r,9.) - 60963840.*(-49. + 48.*c2) - 7560.*r*(-133087. + 6297.*c2) 

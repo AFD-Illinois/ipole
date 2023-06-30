@@ -8,6 +8,8 @@
 
 int use_eKS_internal = 0;
 int metric = -1;
+int theory = 2;
+double zeta = 0.1;
 double a, hslope; // mks
 double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
@@ -166,13 +168,13 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
 inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
 {
   
-  /*if params->metric??? == EdGB{
-      gcov_EdGB_ks(r, th, gcov[NDIM][NDIM]);
+  if(theory ==1){
+      gcov_EdGB_ks(r, th, zeta, gcov);
       return;
-  }else if params->metric??? ==DCS{
-      gcov_DCS_ks(r, th, gcov[NDIM][NDIM]);
+  }else if(theory==2){
+      gcov_DCS_ks(r, th, zeta, gcov);
       return;
-  }*/
+  }
   double cth = cos(th);
   double sth = sin(th);
   double s2 = sth * sth;
@@ -182,8 +184,7 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
   MUNULOOP gcov[mu][nu] = 0.;
   // Compute KS metric from KS coordinates (cyclic in t,phi)
   
-  gcov_EdGB_ks(r,th,0.2,gcov);
-  /*gcov[0][0] = -1. + 2.*r/rho2;
+  gcov[0][0] = -1. + 2.*r/rho2;
   gcov[0][1] = 2.*r/rho2;
   gcov[0][3] = -2.*a*r*s2/rho2;  
 
@@ -195,7 +196,7 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
 
   gcov[3][0] = gcov[0][3];
   gcov[3][1] = gcov[1][3];
-  gcov[3][3] =s2 * (rho2+a2*s2*(1. + 2. *r/rho2));*/
+  gcov[3][3] =s2 * (rho2+a2*s2*(1. + 2. *r/rho2));
 
 }
 
