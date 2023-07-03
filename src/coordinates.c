@@ -8,8 +8,8 @@
 
 int use_eKS_internal = 0;
 int metric = -1;
-int theory = 2;
-double zeta = 0.1;
+int theory = 1; //Theory of Gravity: 0 for General Relativity, 1 for EdGB, and 2 for DCS
+double zeta = 0.2; //Deviation from Gravity: Should be between 0 and 0.3
 double a, hslope; // mks
 double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
