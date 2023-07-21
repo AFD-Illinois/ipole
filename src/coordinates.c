@@ -168,10 +168,10 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
 {
   
   if(theory ==1){
-      gcov_EdGB_ks(r, th, zeta, gcov);
+      gcov_EdGB_ks(r, th, gcov);
       return;
   }else if(theory==2){
-      gcov_DCS_ks(r, th, zeta, gcov);
+      gcov_DCS_ks(r, th, gcov);
       return;
   }
   double cth = cos(th);

@@ -16,6 +16,7 @@
 #include "model.h"
 #include "model_tetrads.h"
 #include "tetrads.h"
+#include "modified_metrics.h"
 
 #include "debug_tools.h"
 #include "simcoords.h"
@@ -227,7 +228,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
-      r < (Rh + 0.0001) /*|| r < rmin_geo*/) { // Or right near the horizon
+      r < event_horizon(th) /*|| r < rmin_geo*/) { // Or right near the horizon
 #if THIN_DISK
     // If we stopped during the thin disk timer, remember to reset it!
     n_left = -1;

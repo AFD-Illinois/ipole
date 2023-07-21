@@ -3,12 +3,12 @@
 #include "decs.h"
 #include "geometry.h"
 
-int theory = 1; //Theory of Gravity: 0 for General Relativity, 1 for EdGB, and 2 for DCS
+int theory = 2; //Theory of Gravity: 0 for General Relativity, 1 for EdGB, and 2 for DCS
 double zeta = 0.1; //Deviation from Gravity: Should be between 0 and 0.3
 double a;
 double Rh;
 
-void gcov_EdGB_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
+void gcov_EdGB_ks(double r, double th, double gcov[NDIM][NDIM]){
 //Return the Einstein dilaton Gauss Bonet metric in KS coordinates
 
   double cth = cos(th);
@@ -106,7 +106,7 @@ void gcov_EdGB_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
     + 42.*pow(r,6)*(30654807. - 316973820.*c2 + 358739630.*c4) + 6.*pow(r,7)*(-25024421. - 1143700950.*c2 + 1667207055.*c4)))/(92610000.*pow(r,12)));
 
 }
-void gcov_DCS_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
+void gcov_DCS_ks(double r, double th, double gcov[NDIM][NDIM]){
 //Return the Dynamical Chern-Simons metric in KS coordinates
   
   double cth = cos(th);
@@ -199,8 +199,8 @@ void gcov_DCS_ks(double r, double th, double zeta, double gcov[NDIM][NDIM]){
      + pow(r,7.)*(-696903. - 73328880.*c2 + 119241500.*c4) + 4.*pow(r,4.)*(-9548811. - 215787012.*c2 + 299057380.*c4)))/(40642560.*pow(r,11.)));
 }
 
-double get_EdGB_Event_Horizon(double zeta, double th){
-    //returns the event horizon for EdGB for zeta @ some value of theta 
+double get_EdGB_Event_Horizon(double th){
+    //returns the event horizon for EdGB @ some value of theta 
     double cth = cos(th);
     double sth = sin(th);
     double c2 = cth*cth;
@@ -258,8 +258,8 @@ double get_EdGB_Event_Horizon(double zeta, double th){
 }
 
 
-double get_dCS_Event_Horizon(double zeta, double th){
-    //returns the event horizon for dCS for zeta @ some value of theta 
+double get_dCS_Event_Horizon(double th){
+    //returns the event horizon for dCS @ some value of theta 
     double cth = cos(th);
     double sth = sin(th);
     double c2 = cth*cth;
@@ -306,4 +306,14 @@ double get_dCS_Event_Horizon(double zeta, double th){
     + 66515640. *pow(Rh,9.) *a4 *sixcth + 29810375. *pow(Rh,10.) *a4 *sixcth + 10521435. *pow(Rh,11.) *a4 *sixcth);
 
     return Rh - zB/dAdr;
+}
+
+double event_horizon(double th){
+  if(theory==0){
+    return Rh + 0.0001;
+  }else if(theory==1){
+    return get_EdGB_Event_Horizon(th) + 0.0001;
+  }else if(theory==2){
+    return get_dCS_Event_Horizon(th) + 0.0001;
+  }
 }
