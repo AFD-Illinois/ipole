@@ -24,6 +24,8 @@
 // Coordinate parameters.  See 
 extern int use_eKS_internal;
 extern int metric;
+extern int theory;
+extern double zeta;
 extern double a, hslope; // mks
 extern double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
 extern double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3

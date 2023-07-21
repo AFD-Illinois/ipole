@@ -2,7 +2,7 @@
 
 outfile image.h5
 
-a 0.9375
+a 0.5
 Ne_unit 3e7
 Te_unit 3e11
 

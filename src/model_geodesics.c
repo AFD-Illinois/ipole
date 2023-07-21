@@ -227,7 +227,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
-      r < (Rh + 0.0001)) { // Or right near the horizon
+      r < (Rh + 0.0001) /*|| r < rmin_geo*/) { // Or right near the horizon
 #if THIN_DISK
     // If we stopped during the thin disk timer, remember to reset it!
     n_left = -1;
