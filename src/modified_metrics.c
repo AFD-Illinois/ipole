@@ -3,7 +3,7 @@
 #include "decs.h"
 #include "geometry.h"
 
-int theory = 2; //Theory of Gravity: 0 for General Relativity, 1 for EdGB, and 2 for DCS
+int theory = 1; //Theory of Gravity: 0 for General Relativity, 1 for EdGB, and 2 for DCS
 double zeta = 0.1; //Deviation from Gravity: Should be between 0 and 0.3
 double a;
 double Rh;
@@ -200,7 +200,7 @@ void gcov_DCS_ks(double r, double th, double gcov[NDIM][NDIM]){
 }
 
 double get_EdGB_Event_Horizon(double th){
-    //returns the event horizon for EdGB @ some value of theta 
+    //returns the largest event horizon for EdGB 
     double cth = cos(th);
     double sth = sin(th);
     double c2 = cth*cth;
@@ -211,15 +211,15 @@ double get_EdGB_Event_Horizon(double th){
     double fourcth = cos(4*th);
     double sixcth = cos(6*th);
     double rho=pow(Rh,2.)+(a2)*(c2);
-   
+  
 
     double dAdr =((-2.*pow((1./sth),2.) + 2.*Rh*pow((1./sth),2.))*pow(sth,2.))/rho - (2.*Rh*(a2 + a2*pow((cth/sth),2.) - 2.*Rh*pow((1./sth),2.) 
     + pow(Rh,2.)*pow((1./sth),2.))*pow(sth,2.))/pow(rho,2.);
 
     double zB = (-(1./(1481760000.*pow(Rh,15.)*pow(rho,2.)))*zeta*
     (181762560000.* pow(Rh,12.) - 4741632000.* pow(Rh,13.) - 2963520000.* pow(Rh,14.) - 25683840000.* pow(Rh,15.) 
-    - 1481760000.* pow(Rh,16.) - 1481760000.* pow(Rh,17.) - 1007596800000.* pow(Rh,8.) *a2 + 1159724160000.* pow(Rh,9.)* a2 - 
-    1402709280000. *pow(Rh,10.)* a2 + 142114896000.* pow(Rh,11.) *a2 - 48900700800. *pow(Rh,12.) *a2 + 53172638400.* pow(Rh,13.) *a2 
+    - 1481760000.* pow(Rh,16.) - 1481760000.* pow(Rh,17.) - 1007596800000.* pow(Rh,8.) *a2 + 1159724160000.* pow(Rh,9.)* a2 
+    - 1402709280000. *pow(Rh,10.)* a2 + 142114896000.* pow(Rh,11.) *a2 - 48900700800. *pow(Rh,12.) *a2 + 53172638400.* pow(Rh,13.) *a2 
     + 373806720.* pow(Rh,14.) *a2 + 4914362880. *pow(Rh,15.)* a2 - 518757120.* pow(Rh,16.) *a2 + 740880000. *pow(Rh,17.) *a2 
     + 55516608000000. *pow(Rh,4.) *a4 - 19548760896000. *pow(Rh,5.) *a4 - 5354670686400.* pow(Rh,6.)* a4 + 1198382707200. *pow(Rh,7.) *a4 
     + 4171356174720. *pow(Rh,8.)* a4 + 68875906680. *pow(Rh,9.) *a4 - 603190690872. *pow(Rh,10.)* a4 - 108481166724.* pow(Rh,11.) *a4 
@@ -254,12 +254,12 @@ double get_EdGB_Event_Horizon(double th){
     + 17734953600. *pow(Rh,7.)* pow(a,6.) *sixcth - 1928523310.* pow(Rh,8.) *pow(a,6.) *sixcth - 7533532230.* pow(Rh,9.) *pow(a,6.)* sixcth 
     - 5001621165. *pow(Rh,10.) *pow(a,6.)* sixcth - 2204535900.* pow(Rh,11.) *pow(a,6.)* sixcth - 759976650. *pow(Rh,12.) *pow(a,6.) *sixcth));
 
-   return Rh - zB/dAdr;
+   return Rh-zB/dAdr;
 }
 
 
 double get_dCS_Event_Horizon(double th){
-    //returns the event horizon for dCS @ some value of theta 
+    //returns the largest event horizon for dCS for theta between 0 and pi
     double cth = cos(th);
     double sth = sin(th);
     double c2 = cth*cth;
@@ -304,7 +304,8 @@ double get_dCS_Event_Horizon(double th){
     - 1646023680. *pow(Rh,3.) *a4 *sixcth + 71510040. *pow(Rh,4.) *a4 *sixcth + 994237740.* pow(Rh,5.)* a4 *sixcth 
     + 423773820. *pow(Rh,6.) *a4 *sixcth + 299057380.* pow(Rh,7.) *a4 *sixcth + 116668260. *pow(Rh,8.) *a4 *sixcth 
     + 66515640. *pow(Rh,9.) *a4 *sixcth + 29810375. *pow(Rh,10.) *a4 *sixcth + 10521435. *pow(Rh,11.) *a4 *sixcth);
-
+    //noticed that when printed this out got 1.866017 for most besides the occasional 1.866018
+    //printf("%f",Rh-zB/dAdr);
     return Rh - zB/dAdr;
 }
 
@@ -312,8 +313,10 @@ double event_horizon(double th){
   if(theory==0){
     return Rh + 0.0001;
   }else if(theory==1){
-    return get_EdGB_Event_Horizon(th) + 0.0001;
+    //get_EdGB_Event_Horizon NOT CURRENTLY RUNNING PROPERLY SO THAT WHY HAVE THIS
+    return Rh+0.0001;
+    //return largest_eh+0.01;
   }else if(theory==2){
-    return get_dCS_Event_Horizon(th) + 0.0001;
+    return get_dCS_Event_Horizon(th) + 0.001;
   }
 }
