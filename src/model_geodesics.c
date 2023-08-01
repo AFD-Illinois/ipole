@@ -228,7 +228,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
-      r < event_horizon(th) /*|| r < rmin_geo*/) { // Or right near the horizon
+      r < (event_horizon(th) +0.0001)/*|| r < rmin_geo*/) { // Or right near the horizon
 #if THIN_DISK
     // If we stopped during the thin disk timer, remember to reset it!
     n_left = -1;
@@ -267,7 +267,10 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
 double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {
   double dl;
-  double deh = fmin(fabs(X[1] - cstartx[1]), 0.1); // TODO coordinate dependent
+  //double deh = fmin(fabs(X[1] - cstartx[1]), 0.1); // TODO coordinate dependent
+  double r, th;
+  bl_coord(X, &r, &th);
+  double deh = fmin(fabs(X[1] - log(event_horizon(th))), 0.1);
   double dlx1 = eps * (10*deh) / (fabs(Kcon[1]) + SMALL*SMALL);
 
   // Make the step cautious near the pole, improving accuracy of Stokes U

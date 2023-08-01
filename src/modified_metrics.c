@@ -3,7 +3,7 @@
 #include "decs.h"
 #include "geometry.h"
 
-int theory = 1; //Theory of Gravity: 0 for General Relativity, 1 for EdGB, and 2 for DCS
+int theory = 2; //Theory of Gravity: 0 for General Relativity, 1 for EdGB, and 2 for DCS
 double zeta = 0.1; //Deviation from Gravity: Should be between 0 and 0.3
 double a;
 double Rh;
@@ -311,12 +311,11 @@ double get_dCS_Event_Horizon(double th){
 
 double event_horizon(double th){
   if(theory==0){
-    return Rh + 0.0001;
+    return Rh;
   }else if(theory==1){
-    //get_EdGB_Event_Horizon NOT CURRENTLY RUNNING PROPERLY SO THAT WHY HAVE THIS
-    return Rh+0.0001;
-    //return largest_eh+0.01;
+    return get_EdGB_Event_Horizon(th);
+   // return 1.734;
   }else if(theory==2){
-    return get_dCS_Event_Horizon(th) + 0.001;
+    return get_dCS_Event_Horizon(th);
   }
 }
