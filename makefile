@@ -47,6 +47,9 @@ endif
 ifneq (,$(findstring frontera,$(HOST)))
 	-include $(MAKEFILE_PATH)/machines/frontera.make
 endif
+ifneq (,$(findstring delta,$(HOST)))
+	-include $(MAKEFILE_PATH)/machines/delta.make
+endif
 # Hack to check only whether host begins with bh*
 ifneq (,$(findstring beginsbh,begins$(HOST)))
         -include $(MAKEFILE_PATH)/machines/bh-cluster.make
@@ -65,7 +68,7 @@ GIT_VERSION := $(shell cd $(MAKEFILE_PATH); git describe --dirty --always --tags
 LINK = $(CC)
 LDFLAGS = $(CFLAGS)
 
-HDF5_LIB = -lhdf5_hl -lhdf5
+HDF5_LIB = -lhdf5
 GSL_LIB = -lgsl -lgslcblas
 
 ## LOGIC FOR PATHS ##
