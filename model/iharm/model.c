@@ -1834,6 +1834,14 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
 
   int n_prims;
   hdf5_read_single_val(&n_prims, "/header/n_prim", H5T_STD_I32LE);
+  #if (EMHD_KHARMA)
+  #if (EMHD_CONDUCTION)
+  n_prims++;
+  #endif
+  #if (EMHD_VISCOSITY)
+  n_prims++;
+  #endif
+  #endif
 
   // load into "center" of data
   hsize_t fdims[] = { N1, N2, N3, n_prims };

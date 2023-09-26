@@ -5,6 +5,8 @@
 #define EMHD_CONDUCTION (1)
 #define EMHD_VISCOSITY  (1)
 
+#define EMHD_KHARMA (1)
+
 // Model-specific definitions and globals
 #define KRHO 0
 #define UU   1
@@ -13,26 +15,48 @@
 #define U3   4
 #if (EMHD_CONDUCTION)
 #if (EMHD_VISCOSITY)
+#if (EMHD_KHARMA)
+#define B1   5
+#define B2   6
+#define B3   7
+#define QTILDE 8
+#define DPTILDE 9
+#else
 #define QTILDE 5
 #define DPTILDE 6
 #define B1   7
 #define B2   8
 #define B3   9
+#endif
 #define KEL  10
 #define KTOT 11
+#else
+#if (EMHD_KHARMA)
+#define B1   5
+#define B2   6
+#define B3   7
+#define QTILDE 8
 #else
 #define QTILDE 5
 #define B1   6
 #define B2   7
 #define B3   8
+#endif
 #define KEL  9
 #define KTOT 10
 #endif
 #elif (EMHD_VISCOSITY)
+#if (EMHD_KHARMA)
+#define B1   5
+#define B2   6
+#define B3   7
+#define DPTILDE 8
+#else
 #define DPTILDE 5
 #define B1   6
 #define B2   7
 #define B3   8
+#endif
 #define KEL  9
 #define KTOT 10
 #else
