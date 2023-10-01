@@ -14,4 +14,7 @@ float ***malloc_rank3_float(int n1, int n2, int n3);
 double ****malloc_rank4(int n1, int n2, int n3, int n4);
 float ****malloc_rank4_float(int n1, int n2, int n3, int n4);
 
+double *****malloc_rank5(int n1, int n2, int n3, int n4, int n5);
+float *****malloc_rank5_float(int n1, int n2, int n3, int n4, int n5);
+
 #endif /* SRC_UTILS_H_ */
