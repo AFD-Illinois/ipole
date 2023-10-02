@@ -7,7 +7,7 @@ HDF5_DIR =
 GSL_DIR =
 # System /lib equivalent (can be /usr/lib, /lib64, /usr/lib64)
 # Can leave this blank if it's included automatically by GCC
-SYSTEM_LIBDIR = /lib64
+SYSTEM_LIBDIR = 
 
 # Try pointing this to h5pcc or h5cc on your machine, before hunting down libraries
 CC=h5cc
@@ -91,12 +91,12 @@ LIB = $(MATH_LIB) $(GSL_LIB)
 # Add HDF and MPI directories only if compiler doesn't
 ifneq ($(strip $(HDF5_DIR)),)
 	INC += -I$(HDF5_DIR)/include/
-	LIBDIR += -L$(HDF5_DIR)/lib/
+	LIBDIR += -L$(HDF5_DIR)/lib64/
 	LIB += $(HDF5_LIB)
 endif
 ifneq ($(strip $(GSL_DIR)),)
 	INC += -I$(GSL_DIR)/include/
-	LIBDIR += -L$(GSL_DIR)/lib/
+	LIBDIR += -L$(GSL_DIR)/lib64/
 endif
 ifneq ($(strip $(SYSTEM_LIBDIR)),)
 	# Prefer user libraries (above) to system
@@ -112,6 +112,9 @@ build: $(EXE)
 	@$(ECHO) "Completed build with model: $(MODEL)"
 	@$(ECHO) "CFLAGS: $(CFLAGS)"
 	@$(ECHO) "MD5: $(shell $(MD5) $(EXE))"
+
+static: CFLAGS += -static
+static: build
 
 debug: CFLAGS += -g -Wall -Werror -Wno-unused-variable -Wno-unused-but-set-variable
 debug: CFLAGS += -DDEBUG=1
