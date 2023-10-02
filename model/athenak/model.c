@@ -80,6 +80,8 @@ static int dumpidx;
 static int dumpmin;
 static int dumpmax;
 static int dumpskip;
+static double DTd = 0.;
+static double last_time_loaded = 0.;
 
 // geometry for the mesh. assumes static
 double *meshblock_geometry;
@@ -239,8 +241,6 @@ double get_athenak_dump_time(char *fname)
       time = atof(value);
     }
   }
-
-  fprintf(stderr, "TODO got dump time: %g\n", time); 
 
   return time;
 }
@@ -790,8 +790,6 @@ size_t get_athenak_datastart(char *fname)
   size_t datastart = ftell(fp);
   fclose(fp);
 
-  fprintf(stderr, "TODO: got datastart %ld\n", datastart);
-
   return datastart;
 }
 
@@ -1050,6 +1048,10 @@ void load_athenak_data(int n, char *fnam, int index, size_t datastart)
   fprintf(stderr, "Loading file %s... ", fname);
 
   data[n]->t = get_athenak_dump_time(fname);
+  DTd = data[n]->t - last_time_loaded;
+  last_time_loaded = data[n]->t;
+
+  nloaded++;
 
   if (datastart < 0) {
     datastart = get_athenak_datastart(fname);
@@ -1201,8 +1203,9 @@ void init_model(double *tA, double *tB)
 #else // FAST LIGHT
   data[2]->t = 10000.;
 #endif // SLOW_LIGHT
+  DTd = 10.;
 
-  fprintf(stderr, "\n\n");
+  fprintf(stderr, "\n");
 }
 
 /*
