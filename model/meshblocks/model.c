@@ -242,6 +242,8 @@ double get_athenak_dump_time(char *fname)
     }
   }
 
+  fclose(fp);
+
   return time;
 }
 
