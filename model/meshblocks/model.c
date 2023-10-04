@@ -181,10 +181,10 @@ void update_data(double *tA, double *tB)
   int nextdumpidx = dumpidx;
   dumpidx += dumpskip;
   if (nextdumpidx > dumpmax) {
-    load_athenak_data(2, fnam, --nextdumpidx, -1);
+    load_athenak_data(2, fnam, --nextdumpidx, 0);
     data[2]->t += 1.;
   } else {
-    load_athenak_data(2, fnam, nextdumpidx, -1);
+    load_athenak_data(2, fnam, nextdumpidx, 0);
   }
   *tA = data[0]->t;
   *tB = data[1]->t;
@@ -1055,7 +1055,7 @@ void load_athenak_data(int n, char *fnam, int index, size_t datastart)
 
   nloaded++;
 
-  if (datastart < 0) {
+  if (datastart == 0) {
     datastart = get_athenak_datastart(fname);
   }
 
