@@ -469,7 +469,7 @@ double get_model_thetae(double X[NDIM])
   }
 #endif
 	double sigma,r,th;
-	double Tjet=1e3;
+	double Tjet=1e2;
 	sigma = get_model_sigma(X);
 	thetae = thetae/(1+ sigma*sigma) + Tjet*sigma*sigma/(1+sigma*sigma);
 	bl_coord(X,&r,&th);
