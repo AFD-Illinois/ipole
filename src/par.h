@@ -65,7 +65,8 @@ typedef struct params_t {
   const char trace_outf[STRLEN];
 
   // Histogram observer-visible emission from each zone
-  int histo, histo_polar;
+  int histo, histo_polar_nr, histo_polar_nh;
+  double histo_polar_rlim;
   const char histo_outf[STRLEN];
 } Params;
 

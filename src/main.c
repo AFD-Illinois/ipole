@@ -198,7 +198,12 @@ int main(int argc, char *argv[])
 
   if (params.histo) {
     // allocate memory for emission histogram
-    visible_emission_histogram = calloc(N1*N2*N3, sizeof(*visible_emission_histogram));
+    if (params.histo_polar_nr > 0) {
+      visible_emission_histogram = calloc(params.histo_polar_nr * params.histo_polar_nh,
+                                          sizeof(*visible_emission_histogram));
+    } else {
+      visible_emission_histogram = calloc(N1*N2*N3, sizeof(*visible_emission_histogram));
+    }
   }
 
   if (params.perform_check) {
