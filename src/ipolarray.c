@@ -151,11 +151,22 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       } else {
         Inew = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
       }
-      if (params->histo && !params->histo_polar) {
-        int i, j, k; double del[NDIM];
-        Xtoijk(tf.X, &i, &j, &k, del);
-        #pragma omp atomic
-        visible_emission_histogram[k + j*N3 + i*N2*N3] += Inew - *Intensity; 
+      if (params->histo) {
+        if (params->histo_polar_nr > 0) {
+          int hpr = params->histo_polar_nr;
+          int hph = params->histo_polar_nh;
+          double r, h;
+          bl_coord(tf.X, &r, &h);
+          int i = (hpr * r) / params->histo_polar_rlim;
+          int j = (hph * h) / M_PI;
+          #pragma omp atomic
+          visible_emission_histogram[j + i*hph] += Inew - *Intensity;
+        } else {
+          int i, j, k; double del[NDIM];
+          Xtoijk(tf.X, &i, &j, &k, del);
+          #pragma omp atomic
+          visible_emission_histogram[k + j*N3 + i*N2*N3] += Inew - *Intensity; 
+        }
       }
       *Intensity = Inew;
 
