@@ -302,11 +302,14 @@ int read_int(FILE *fp, size_t bytes)
   // Warning: this is not safe across different sizeof(int)
   char values[bytes];
   if (fread(values, 1, bytes, fp)) ;
-  int rv = 0;
-  for (int i=0; i<bytes; ++i) {
-    rv += values[i] << 8*i;
+  int ival = 0;
+  if (bytes == 4) {
+    memcpy(&ival, values, sizeof(int));
+  } else {
+    fprintf(stderr, "unsupported integer size\n");
+    exit(9);
   }
-  return rv;
+  return ival;
 }
 
 double read_double(FILE *fp, size_t bytes)
