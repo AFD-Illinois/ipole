@@ -155,12 +155,17 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         if (params->histo_polar_nr > 0) {
           int hpr = params->histo_polar_nr;
           int hph = params->histo_polar_nh;
+          int hpp = params->histo_polar_np;
           double r, h;
+          double p = tf.X[3];
+          while (p < 0) p += 2. * M_PI;
+          while (p >= 2. * M_PI) p -= 2. * M_PI;
           bl_coord(tf.X, &r, &h);
           int i = (hpr * r) / params->histo_polar_rlim;
           int j = (hph * h) / M_PI;
+          int k = (hpp * p) / 2. / M_PI;
           #pragma omp atomic
-          visible_emission_histogram[j + i*hph] += Inew - *Intensity;
+          visible_emission_histogram[k + j*hpp + i*hph*hpp] += Inew - *Intensity;
         } else {
           int i, j, k; double del[NDIM];
           Xtoijk(tf.X, &i, &j, &k, del);
