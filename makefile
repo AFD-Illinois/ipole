@@ -27,10 +27,10 @@ ECHO=echo -e
 
 # Overrides of the above for macOS
 ifneq (,$(findstring Darwin,$(shell uname)))
-	export HDF5_CC = /usr/local/opt/llvm/bin/clang
-	export HDF5_CLINKER = /usr/local/opt/llvm/bin/clang
+	export HDF5_CC = /opt/homebrew/bin/gcc-13
+	export HDF5_CLINKER = /opt/homebrew/bin/gcc-13
 
-	GSL_DIR=/usr/local
+	GSL_DIR=/opt/homebrew/opt/gsl
 	SYSTEM_LIBDIR=
 
 	MD5=md5
