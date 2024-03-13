@@ -12,6 +12,7 @@
 #include "tetrads.h"
 #include "geometry.h"
 #include "geodesics.h"
+#include "grid.h"
 #include "image.h"
 #include "io.h"
 #include "ipolarray.h"
@@ -76,10 +77,12 @@ int main(int argc, char *argv[])
   double freq, scale;
   double DX, DY, fovx, fovy;
 
+  int omp_nthreads = 1;
 #pragma omp parallel
-  if (omp_get_thread_num() == 0) {
-    fprintf(stderr, "nthreads = %d\n", omp_get_num_threads());
-  }
+{
+  omp_nthreads = omp_get_num_threads();
+}
+  fprintf(stderr, "nthreads = %d\n", omp_nthreads);
 
   // load values from parameter file. handle all actual
   // model parameter comprehension in the model/* files
@@ -191,6 +194,11 @@ int main(int argc, char *argv[])
       fprintf(stderr, "Could not allocate image memory!");
       exit(-1);
     }
+  }
+
+  if (params.histo) {
+    // allocate memory for emission histogram
+    visible_emission_histogram = calloc(N1*N2*N3, sizeof(*visible_emission_histogram));
   }
 
   if (params.perform_check) {
@@ -802,6 +810,8 @@ int main(int argc, char *argv[])
     }
   } // SLOW_LIGHT
 
+  if (params.histo) write_histo(&params);
+
   time = omp_get_wtime() - time;
   fprintf(stderr, "Total wallclock time: %g s (%g s)\n\n", time, initialization_time);
 
@@ -827,7 +837,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   MULOOP Kcon[mu] *= freq;
 #endif
 
-  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep, Xcam, 0);
+  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep, Xcam, &params, 0);
   if (nstep >= params.maxnstep-1) {
     // You almost certainly don't want to continue if this happens
     fprintf(stderr, "\nMaxNStep exceeded in pixel %ld %ld!\n", i, j);

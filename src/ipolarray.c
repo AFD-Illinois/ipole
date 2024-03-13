@@ -16,6 +16,7 @@
 #include "coordinates.h"
 #include "debug_tools.h"
 #include "geometry.h"
+#include "grid.h"
 #include "radiation.h"
 
 #include "model.h"
@@ -34,6 +35,9 @@
 
 // Smallest double that prevents NaNs on inverses
 #define CUT_PREVENT_NAN 1e-80
+
+// Global histogram data structure
+double *visible_emission_histogram;
 
 // Sub-functions
 void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
@@ -141,11 +145,19 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       js = jf;
       ks = kf;
 
+      double Inew = 0.;
       if (zero_emission) {
-        *Intensity = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
+        Inew = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
       } else {
-        *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+        Inew = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
       }
+      if (params->histo && !params->histo_polar) {
+        int i, j, k; double del[NDIM];
+        Xtoijk(tf.X, &i, &j, &k, del);
+        #pragma omp atomic
+        visible_emission_histogram[k + j*N3 + i*N2*N3] += Inew - *Intensity; 
+      }
+      *Intensity = Inew;
 
       //fprintf(stderr, "Unpolarized transport\n");
       
