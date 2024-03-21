@@ -277,7 +277,7 @@ void get_dumpfile_type(char *fnam, int dumpidx)
       char harmversion[256];
       hdf5_read_single_val(harmversion, "header/version", hdf5_make_str_type(255));
 
-      if ( strcmp(harmversion, "KORALv2") == 0 ) {
+      if ( strcmp(harmversion, "KORALv2") == 0 || strcmp(harmversion, "KORAL") == 0 || strcmp(harmversion, "KORA") == 0  ) {
         dumpfile_format = FORMAT_KORAL_v2;
         fprintf(stderr, "koral!\n");
       } else {
