@@ -60,6 +60,10 @@ static double trat_large = 40.;
 // undershoot to be considered "small"
 // lower values -> higher max T_e, higher values are restrictive
 static double cooling_dynamical_times = 1.e-20;
+//ANDREW added more control on KORAL electron model
+
+static int koral_use_electrons=1; // use koral electrons in file if present
+static int koral_use_munit=1; // use koral munit in file if present
 
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
@@ -142,6 +146,9 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
   set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
 
+  set_by_word_val(word, value, "koral_use_electrons", &koral_use_electrons, TYPE_INT);
+  set_by_word_val(word, value, "koral_use_munit", &koral_use_munit, TYPE_INT);
+  
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
@@ -270,7 +277,7 @@ void get_dumpfile_type(char *fnam, int dumpidx)
       char harmversion[256];
       hdf5_read_single_val(harmversion, "header/version", hdf5_make_str_type(255));
 
-      if ( strcmp(harmversion, "KORALv2") == 0 ) {
+      if ( strcmp(harmversion, "KORALv2") == 0 || strcmp(harmversion, "KORAL") == 0 || strcmp(harmversion, "KORA") == 0  ) {
         dumpfile_format = FORMAT_KORAL_v2;
         fprintf(stderr, "koral!\n");
       } else {
@@ -593,7 +600,7 @@ void init_physical_quantities(int n, double rescale_factor)
           Thetae_unit = lcl_Thetae_u;
           data[n]->thetae[i][j][k] = lcl_Thetae_u*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         } else if (ELECTRONS == 9) {
-          // convert Kelvin -> Thetae
+          // convert Kelvin -> Thetae (e.g. KORAL radiation dumps)
           data[n]->thetae[i][j][k] = data[n]->p[TFLK][i][j][k] * KBOL / ME / CL / CL;
         } else if (ELECTRONS == ELECTRONS_TFLUID) {
           double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
@@ -1145,7 +1152,7 @@ void init_koral_grid(char *fnam, int dumpidx)
   hdf5_set_directory("/header/");
   if ( hdf5_exists("has_radiation") ) {
     hdf5_read_single_val(&RADIATION, "has_radiation", H5T_STD_I32LE);
-    if (RADIATION) {
+    if (RADIATION && koral_use_munit) {
       // Note set_units(...) get called AFTER this function returns
       fprintf(stderr, "koral dump file was from radiation run. loading units...\n");
       hdf5_set_directory("/header/units/");
@@ -1159,18 +1166,27 @@ void init_koral_grid(char *fnam, int dumpidx)
     }
   }
 
+  int koral_has_electrons=0;
   ELECTRONS = 0;
   hdf5_set_directory("/header/");
   if ( hdf5_exists("has_electrons") ) {
-    hdf5_read_single_val(&ELECTRONS, "has_electrons", H5T_STD_I32LE);
-    if (ELECTRONS) {
-      fprintf(stderr, "koral dump has native electron temperature. forcing Thetae...\n");
+    hdf5_read_single_val(&koral_has_electrons, "has_electrons", H5T_STD_I32LE);
+    if (koral_has_electrons && koral_use_electrons) //ANDREW changed so user must specify koral_use_electrons  
+    {
+      fprintf(stderr, "using koral dump native electron temperature. forcing Thetae...\n");
       ELECTRONS = 9;
-    } else {
-      if (USE_MIXED_TPTE && !USE_FIXED_TPTE) {
+    }
+    else
+    {
+      if (koral_use_electrons)
+	fprintf(stderr,"could not find koral dump electron temperature. Proceeding with Te model...\n");
+      if (USE_MIXED_TPTE && !USE_FIXED_TPTE)
+      {
         fprintf(stderr, "Using mixed tp_over_te with trat_small = %g, trat_large = %g, and beta_crit = %g\n", trat_small, trat_large, beta_crit);
         ELECTRONS = 2;
-      } else {
+      }
+      else
+      {
         fprintf(stderr, "! koral unsupported without native electrons or mixed tp_over_te.\n");
         exit(6);
       }
