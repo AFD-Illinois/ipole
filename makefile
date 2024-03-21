@@ -27,8 +27,8 @@ ECHO=echo -e
 
 # Overrides of the above for macOS
 ifneq (,$(findstring Darwin,$(shell uname)))
-	export HDF5_CC = /usr/local/opt/llvm/bin/clang
-	export HDF5_CLINKER = /usr/local/opt/llvm/bin/clang
+	#export HDF5_CC = /usr/local/opt/llvm/bin/clang
+	#export HDF5_CLINKER = /usr/local/opt/llvm/bin/clang
 
 	GSL_DIR=/usr/local
 	SYSTEM_LIBDIR=

@@ -1,0 +1,40 @@
+#
+# this is for a supermassive black hole
+# will produce Lumiere's cat's eye if run at high resolution
+#
+# Camera location for thin-disk comparison
+# Note rcam is farther than ipole's usual
+rcam 1.e6
+thetacam 60
+phicam 0
+Rout 1000.
+
+# Camera FOV in uas
+fovx_dsource 2
+fovy_dsource 2
+# Camera FOV in M
+#dx 1000
+#dy 1000
+
+# Image size
+nx 160
+ny 160
+
+# Distance to source in pc
+dsource 1.e7
+
+# Frequency corresponding to 5000AA photons
+freqcgs 6.e14
+
+# MBH in solar masses
+MBH 1.e8
+
+# Accretion rate as fraction of Eddington
+# (assuming 10% efficiency)
+Mdot 0.1
+
+# BH dimensionless spin
+a 0.50
+
+outfile image.h5
+
