@@ -2,8 +2,8 @@
 #define MODEL_PARAMS_H
 
 #define SLOW_LIGHT (0)
-#define EMHD_CONDUCTION (1)
-#define EMHD_VISCOSITY  (1)
+#define EMHD_CONDUCTION (0)
+#define EMHD_VISCOSITY  (0)
 
 // Model-specific definitions and globals
 #define KRHO 0
