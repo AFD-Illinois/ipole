@@ -27,7 +27,7 @@ double bremss_I(struct parameters *params, int bremss_type)
   double nu = params->nu;
   double x = HPL * nu / (KBOL * Te);
   double Ne = params->electron_density;
-  double jv;
+  double jv = 0.;
   
   double efac = 0.;
   if (x < 1.e-3) {
@@ -322,7 +322,7 @@ double gffee(double Te, double nu)
 	double emass = 510.998902;
 	double tau = KBOL * Te / ME / CL / CL;
 	double x = HPL * nu / KBOL / Te;
-	double gffeeval;
+	double gffeeval = 0.;
 
 	if ( tau < ( 0.05 / emass ) ) tau = 0.05 / emass;
 
