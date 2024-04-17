@@ -11,6 +11,7 @@
 #include "simcoords.h"  // For interpolating arbitrary grids
 #include "par.h"
 #include "utils.h"
+#include "modified_metrics.h"
 
 #include "debug_tools.h"
 
@@ -318,8 +319,10 @@ void init_model(double *tA, double *tB)
   #endif // SLOW_LIGHT
 
   // horizon radius
-  Rh = 1 + sqrt(1. - a * a);
-
+  //Rh = 1 + sqrt(1. - a * a);
+  Rh = event_horizon();
+  fprintf(stderr,"RH: %lf ", Rh);
+  fprintf(stderr, "GR RH: %lf \n",1. + sqrt(1. - a * a));
   // possibly cut around the pole
   if (polar_cut >= 0) {
     th_beg = 0.0174 * polar_cut;

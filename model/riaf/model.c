@@ -6,7 +6,8 @@
 #include "radiation.h"
 #include "par.h"
 #include "tetrads.h"
-
+#include "modified_metrics.h"
+//#define DEBUG 1
 // Globals we're in charge of
 double M_unit;
 double L_unit;
@@ -120,6 +121,7 @@ void set_units()
   // TODO function like initialize_coordinates, that makes sure these are all set.
   R0 = 0.;
   Rh = 1 + sqrt(1. - a * a);
+  fprintf(stderr,"RH: %lf",Rh);
   // These are for tracing.  We only *emit* inside *_geo parameters
   Rin = Rh;
   Rout = rmax_geo;
@@ -263,7 +265,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
     double urFF = -sqrt(fmax(0.0, -(1.0 + bl_gcon[0][0]) * bl_gcon[1][1]));
     ur = bl_Ucon_tmp[1] + infall_factor * (urFF - bl_Ucon_tmp[1]);
 
-#if DEBUG
+/*#if DEBUG
     if (fabs(ur) < 1e-10) {
       fprintf(stderr, "Bad ur: ur is %g\n", ur);
       fprintf(stderr, "Ucon BL: %g %g %g %g\n",
@@ -272,7 +274,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
               bl_Ucov_tmp[0], bl_Ucov_tmp[1], bl_Ucov_tmp[2], bl_Ucov_tmp[3]);
       fprintf(stderr, "urk was %g (%g pre-cut), e & l were %g %g\n", urk, urk_precut, e, l);
     }
-#endif
+#endif*/
 
     // Finally, get Ucon in BL coordinates
     K = bl_gcov[0][0] + 2*omega*bl_gcov[0][3] + omega*omega*bl_gcov[3][3];
@@ -309,8 +311,9 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
   // and grab Ucov
   flip_index(Ucon, gcov, Ucov);
 
-
-  // Check
+//GET ERRORS BELOW IN SAME AREA WHERE WE GET NANS, 
+//already checked if the bl_gcov matched with what we expected and it did for most part so long as r and theta were given to bl.c at up to 15 
+//digits. rr was the main component that would fail first  
 #if DEBUG
   //if (r < r_isco) { fprintf(stderr, "ur = %g\n", Ucon[1]); }
   double bl_Ucov[NDIM];
@@ -318,10 +321,28 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
   double sum_U = Ucon[0]+Ucon[1]+Ucon[2]+Ucon[3];
   // Following condition gets handled better above
   // (r < r_isco && fabs(Ucon[1]) < 1e-10) ||
-  if (get_fluid_nu(Kcon, Ucov) == 1. ||
-      fabs(fabs(dot_U) - 1.) > 1e-10 || sum_U < 0.1) {
+  /*if (get_fluid_nu(Kcon, Ucov) == 1. ||
+      fabs(fabs(dot_U) - 1.) > 1e-10 || sum_U < 0.1) {*/
+    if(isnan(get_fluid_nu(Kcon,Ucov))||get_fluid_nu(Kcon,Ucov)<0){
     flip_index(bl_Ucon, bl_gcov, bl_Ucov);
     fprintf(stderr, "RIAF model problem at r, th, phi = %g %g %g\n", r, th, X[3]);
+    /*fprintf(stderr, "Omega K: %g FF: %g Final: %g K: %g ur: %g ut: %g\n",
+            omegaK, omegaFF, omega, K, ur, ut);
+    fprintf(stderr, "K1: %g K2: %g K3: %g\n", bl_gcov[0][0], 2*omega*bl_gcov[0][3], omega*omega*bl_gcov[3][3]);
+    fprintf(stderr, "Ucon BL: %g %g %g %g\n", bl_Ucon[0], bl_Ucon[1], bl_Ucon[2], bl_Ucon[3]);
+    fprintf(stderr, "Ucon KS: %g %g %g %g\n", ks_Ucon[0], ks_Ucon[1], ks_Ucon[2], ks_Ucon[3]);
+    fprintf(stderr, "Ucon native: %g %g %g %g\n", Ucon[0], Ucon[1], Ucon[2], Ucon[3]);*/
+    //fprintf(stderr, "Ucov: %g %g %g %g\n", Ucov[0], Ucov[1], Ucov[2], Ucov[3]);
+    //fprintf(stderr, "Ubl.Ubl: %g\n", bl_Ucov[0]*bl_Ucon[0]+bl_Ucov[1]*bl_Ucon[1]+
+                                 //   bl_Ucov[2]*bl_Ucon[2]+bl_Ucov[3]*bl_Ucon[3]);
+    //fprintf(stderr, "U.U: %g\n", Ucov[0]*Ucon[0]+Ucov[1]*Ucon[1]+Ucov[2]*Ucon[2]+Ucov[3]*Ucon[3]);
+    //fprintf(stderr,"BL Gcov: %lf %lf %lf %lf\n",bl_gcov[0][0],bl_gcov[1][1],bl_gcov[2][2],bl_gcov[3][3]);
+    //fprintf(stderr,"Native Gcov: %lf %lf\n",gcov[0][0],gcov[3][3]);
+
+    exit(-1);
+  }/*else if(((r-1.86)<0.01||(r-1.86)<-0.01)&&((th-1.6)<0.01||(th-1.6)<-0.01)){
+        flip_index(bl_Ucon, bl_gcov, bl_Ucov);
+    fprintf(stderr, "RIAF model example at r, th, phi = %g %g %g\n", r, th, X[3]);
     fprintf(stderr, "Omega K: %g FF: %g Final: %g K: %g ur: %g ut: %g\n",
             omegaK, omegaFF, omega, K, ur, ut);
     fprintf(stderr, "K1: %g K2: %g K3: %g\n", bl_gcov[0][0], 2*omega*bl_gcov[0][3], omega*omega*bl_gcov[3][3]);
@@ -332,7 +353,11 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM], double Ucon[NDIM], doubl
     fprintf(stderr, "Ubl.Ubl: %g\n", bl_Ucov[0]*bl_Ucon[0]+bl_Ucov[1]*bl_Ucon[1]+
                                     bl_Ucov[2]*bl_Ucon[2]+bl_Ucov[3]*bl_Ucon[3]);
     fprintf(stderr, "U.U: %g\n", Ucov[0]*Ucon[0]+Ucov[1]*Ucon[1]+Ucov[2]*Ucon[2]+Ucov[3]*Ucon[3]);
-  }
+  }*/
+  //negative Ucon[1][1] are allowed and still run normally 
+ /*if(Ucon[1]<-1){
+      fprintf(stderr, "Ucon native: %g %g %g %g\nUcov: %g %g %g %g\n", Ucon[0], Ucon[1], Ucon[2], Ucon[3],Ucov[0], Ucov[1], Ucov[2], Ucov[3]);
+  }*/
 #endif
 
   // Use pure toroidal field,

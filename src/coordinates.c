@@ -8,7 +8,7 @@
 
 int use_eKS_internal = 0;
 int metric = -1;
-int theta; // defined in modified_metrics
+int theory; // defined in modified_metrics
 double zeta; //defined in modified_metrics
 double a, hslope; // mks
 double poly_norm, poly_xt, poly_alpha, mks_smooth; // fmks
@@ -87,12 +87,17 @@ void bl_to_ks(double X[NDIM], double ucon_bl[NDIM], double ucon_ks[NDIM])
   bl_coord(X, &r, &th);
 
   double trans[NDIM][NDIM];
+  if(theory==1){
+    EdGB_bl_to_ks(r,th,trans);
+  }else if(theory==2){
+    dCS_bl_to_ks(r,th,trans);
+  }else{
   MUNULOOP
     trans[mu][nu] = delta(mu, nu);
 
   trans[0][1] = 2. * r / (r * r - 2. * r + a * a);
   trans[3][1] = a / (r * r - 2. * r + a * a);
-
+  }
   MULOOP
     ucon_ks[mu] = 0.;
   MUNULOOP
@@ -106,11 +111,17 @@ void ks_to_bl(double X[NDIM], double ucon_ks[NDIM], double ucon_bl[NDIM])
   bl_coord(X, &r, &th);
 
   double trans[NDIM][NDIM], rev_trans[NDIM][NDIM];
+  if(theory==1){
+    EdGB_bl_to_ks(r,th,trans);
+  }else if(theory==2){
+    dCS_bl_to_ks(r,th,trans);
+  }else{
   MUNULOOP
     trans[mu][nu] = delta(mu, nu);
 
   trans[0][1] = 2. * r / (r * r - 2. * r + a * a);
   trans[3][1] = a / (r * r - 2. * r + a * a);
+  }
 
   invert_matrix(trans, rev_trans);
 
@@ -201,7 +212,15 @@ inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
 
 
 inline void gcov_bl(double r, double th, double gcov[NDIM][NDIM])
-{
+{ //not sure how well behaved this is in BL coords when getting close to horizon
+//it should blow up when close to horizon??? might also not be behaving bad
+  if(theory==1){
+      gcov_EdGB_bl(r, th, gcov);
+      return;
+  }else if(theory==2){
+      gcov_dCS_bl(r, th, gcov);
+      return;
+  }
   double sth, cth, s2, a2, r2, DD, mu;
   sth = fabs(sin(th));
   s2 = sth * sth;
