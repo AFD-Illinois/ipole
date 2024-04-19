@@ -53,6 +53,9 @@ ifneq (,$(findstring beginsbh,begins$(HOST)))
 endif
 -include $(MAKEFILE_PATH)/machines/$(HOST).make
 
+ifneq (,$(findstring delta,$(HOST)))
+	-include $(MAKEFILE_PATH)/machines/delta.make
+endif
 # Allow overrides of which cflags to add
 CFLAGS += $(CFLAGS_CUSTOM)
 
