@@ -36,8 +36,10 @@ void bl_coord(double X[NDIM], double *r, double *th);
 void bl_to_ks(double X[NDIM], double ucon_bl[NDIM], double ucon_ks[NDIM]);
 void ks_to_bl(double X[NDIM], double ucon_ks[NDIM], double ucon_bl[NDIM]);
 void gcov_func(double X[NDIM], double gcov[NDIM][NDIM]);
+void gcov_func_eff(double X[NDIM], double gcov[NDIM][NDIM]);
 // TODO privatize these, why are they needed in models?
 void gcov_ks(double r, double th, double gcov[NDIM][NDIM]);
+void gcov_ks_eff(double r, double th, double gcov[NDIM][NDIM]);
 void gcov_bl(double r, double th, double gcov[NDIM][NDIM]);
 
 // Internal

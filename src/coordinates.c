@@ -159,30 +159,92 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM])
   }
 }
 
+void gcov_func_eff(double X[NDIM], double gcov[NDIM][NDIM])
+{
+  double r, th;
+  bl_coord(X, &r, &th);
+
+  if (metric == METRIC_MINKOWSKI) {
+    MUNULOOP gcov[mu][nu] = 0;
+    gcov[0][0] = -1;
+    gcov[1][1] = 1;
+    gcov[2][2] = r*r;
+    gcov[3][3] = r*r*sin(th)*sin(th);
+    return;
+  } else if (metric == METRIC_EMINKOWSKI) {
+    MUNULOOP gcov[mu][nu] = 0;
+    gcov[0][0] = -1;
+    gcov[1][1] = r*r;
+    gcov[2][2] = r*r;
+    gcov[3][3] = r*r*sin(th)*sin(th);
+    return;
+  }
+
+  // compute ks metric
+  double Gcov_ks[NDIM][NDIM];
+  gcov_ks_eff(r, th, Gcov_ks);
+
+  // convert from ks metric to mks/mmks
+  double dxdX[NDIM][NDIM];
+  set_dxdX(X, dxdX);
+
+  MUNULOOP
+  {
+    gcov[mu][nu] = 0;
+    for (int lam = 0; lam < NDIM; ++lam) {
+      for (int kap = 0; kap < NDIM; ++kap) {
+        gcov[mu][nu] += Gcov_ks[lam][kap] * dxdX[lam][mu] * dxdX[kap][nu];
+      }
+    }
+  }
+}
+
 // compute KS metric at point (r,th) in KS coordinates (cyclic in t, ph)
+// inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
+// {
+//   double cth = cos(th);
+//   double sth = sin(th);
+
+//   double s2 = sth * sth;
+//   double rho2 = r * r + a * a * cth * cth;
+
+//   MUNULOOP gcov[mu][nu] = 0.;
+//   // Compute KS metric from KS coordinates (cyclic in t,phi)
+//   gcov[0][0] = -1. + 2. * r / rho2;
+//   gcov[0][1] = 2. * r / rho2;
+//   gcov[0][3] = -2. * a * r * s2 / rho2;
+
+//   gcov[1][0] = gcov[0][1];
+//   gcov[1][1] = 1. + 2. * r / rho2;
+//   gcov[1][3] = -a * s2 * (1. + 2. * r / rho2);
+
+//   gcov[2][2] = rho2;
+
+//   gcov[3][0] = gcov[0][3];
+//   gcov[3][1] = gcov[1][3];
+//   gcov[3][3] = s2 * (rho2 + a * a * s2 * (1. + 2. * r / rho2));
+// }
+
 inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
 {
-  double cth = cos(th);
+  const double k = 0.5;
   double sth = sin(th);
+  // Define the components of the background metric
+  gcov[0][0] = -1 + (2 * exp(-k*k/(2*r))) / r;
+  gcov[1][1] = 1 / (1 - (2 * exp(-k*k/(2*r))) / r);
+  gcov[2][2] = r * r;
+  gcov[3][3] = r * r * sth * sth;
+}
 
-  double s2 = sth * sth;
-  double rho2 = r * r + a * a * cth * cth;
-
-  MUNULOOP gcov[mu][nu] = 0.;
-  // Compute KS metric from KS coordinates (cyclic in t,phi)
-  gcov[0][0] = -1. + 2. * r / rho2;
-  gcov[0][1] = 2. * r / rho2;
-  gcov[0][3] = -2. * a * r * s2 / rho2;
-
-  gcov[1][0] = gcov[0][1];
-  gcov[1][1] = 1. + 2. * r / rho2;
-  gcov[1][3] = -a * s2 * (1. + 2. * r / rho2);
-
-  gcov[2][2] = rho2;
-
-  gcov[3][0] = gcov[0][3];
-  gcov[3][1] = gcov[1][3];
-  gcov[3][3] = s2 * (rho2 + a * a * s2 * (1. + 2. * r / rho2));
+inline void gcov_ks_eff(double r, double th, double gcov[NDIM][NDIM])
+{
+  const double k = 0.5;
+  double sth = sin(th);
+  // Define the components of the effective metric
+  gcov[0][0] = -((16 - 8 * exp(k*k/(2*r)) * r) / (k*k - 8 * r));
+  gcov[1][1] = -((8 * exp(k*k/r) * r * r) / ((k*k - 8 * r) * (-2 + exp(k*k/(2*r)) * r)));
+  gcov[2][2] = (32 * exp(k*k/(2*r)) * r * r * r * r) / (k*k*k*k - 14 * k*k*r + 32 * r*r);
+  gcov[3][3] = (32 * exp(k*k/(2*r)) * r * r * sth * sth) / (k*k*k*k - 14 * k*k*r + 32 * r*r);
 }
 
 inline void gcov_bl(double r, double th, double gcov[NDIM][NDIM])

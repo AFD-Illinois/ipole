@@ -19,7 +19,7 @@ double B_unit;
 double Te_unit;
 
 // Model parameters: public
-double rmax_geo;
+
 // Model parameters: private
 static double Mdot = 0.01;
 static double MBH_solar = 10.;

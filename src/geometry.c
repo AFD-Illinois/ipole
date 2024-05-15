@@ -100,7 +100,7 @@ void get_connection(double X[NDIM], double conn[NDIM][NDIM][NDIM])
   double gh[NDIM][NDIM];
   double gl[NDIM][NDIM];
 
-  gcov_func(X, gcov);
+  gcov_func_eff(X, gcov);
   if(gcon_func(gcov, gcon)) {
     fprintf(stderr, "Encountered singluar gcov when getting connection!\n");
     print_vector("X", X);
@@ -114,8 +114,8 @@ void get_connection(double X[NDIM], double conn[NDIM][NDIM][NDIM])
       Xl[l] = X[l];
     Xh[k] += DEL;
     Xl[k] -= DEL;
-    gcov_func(Xh, gh);
-    gcov_func(Xl, gl);
+    gcov_func_eff(Xh, gh);
+    gcov_func_eff(Xl, gl);
 
     for (i = 0; i < NDIM; i++) {
       for (j = 0; j < NDIM; j++) {
