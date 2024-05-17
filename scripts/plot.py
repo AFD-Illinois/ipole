@@ -60,7 +60,7 @@ if __name__ == "__main__":
     unpol = np.copy(hfp['unpol']).transpose((1,0))
     if 'pol' in hfp:
       no_pol = False
-      do_fullscreen_unpol = False
+      #do_fullscreen_unpol = False
       imagep = np.copy(hfp['pol']).transpose((1,0,2))
       I = imagep[:,:,0]
       Q = imagep[:,:,1]
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     # create plots
     plt.close('all')
     plt.figure(figsize=(8, 8))
-    if no_pol:
+    if no_pol or do_fullscreen_unpol:
       ax1 = plt.subplot(1, 1, 1)
     else:
       ax1 = plt.subplot(2, 2, 1)
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     if not do_fullscreen_unpol:
       colorbar(im1)
 
-    if not no_pol:
+    if not no_pol and not do_fullscreen_unpol:
       # linear polarization fraction
       lpfrac = 100.*np.sqrt(Q*Q+U*U)/I
       lpfrac[np.abs(I)<Imaskval] = np.nan
@@ -172,7 +172,7 @@ if __name__ == "__main__":
     ax1.set_title("Stokes I [cgs]")
     ax1.set_aspect('equal')
     ax1.set_ylabel(FOV_UNITS)
-    if not no_pol:
+    if not no_pol and not do_fullscreen_unpol:
       ax2.set_title("LP [%]")
       ax3.set_title("EVPA [deg]")
       ax4.set_title("CP [%]")

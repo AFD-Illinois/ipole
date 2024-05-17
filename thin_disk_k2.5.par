@@ -1,0 +1,41 @@
+# Camera location for thin-disk comparison
+# Note rcam is farther than ipole's usual
+rcam 1.e3
+thetacam 75
+phicam 0
+
+only_unpolarized 0
+
+# Thin disk parameters
+# Event horizon (or photon singularity) radius
+Rh = 2.173
+#Rh = 2.2
+
+# ISCO radius
+r_isco = 4.483
+
+# Accretion rate as fraction of Eddington
+# (assuming 10% efficiency)
+Mdot 0.1
+
+# BH dimensionless spin
+a 0.0
+
+# Camera FOV in r_g
+#dx 40
+#dy 40
+
+# FOV from Earth
+fovx_dsource 160
+fovy_dsource 160
+
+# Image size
+nx 500
+ny 500
+
+# M87
+MBH 6.2e9
+dsource 16.9e6
+freqcgs 230.e9
+
+outfile image.h5

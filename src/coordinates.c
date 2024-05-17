@@ -14,10 +14,13 @@ double mks3R0, mks3H0, mks3MY1, mks3MY2, mks3MP0; // mks3
 // Coordinate parameters
 double startx[NDIM], stopx[NDIM], dx[NDIM];
 double cstartx[NDIM], cstopx[NDIM];
-double R0, Rin, Rout, Rh;
+double R0 = 0., Rin = 0., Rout = 0., Rh = 0.;
 // Tracing parameters we need independent of model
 double rmax_geo = 100.;
 double rmin_geo = 1.;
+
+const double k = 2.5;
+//const double k = 0.5;
 
 /*
  * Despite the name, this returns r, th coordinates for a KS or BL
@@ -227,24 +230,26 @@ void gcov_func_eff(double X[NDIM], double gcov[NDIM][NDIM])
 
 inline void gcov_ks(double r, double th, double gcov[NDIM][NDIM])
 {
-  const double k = 0.5;
   double sth = sin(th);
+  double emk2r = exp(-k*k/(2*r));
   // Define the components of the background metric
-  gcov[0][0] = -1 + (2 * exp(-k*k/(2*r))) / r;
-  gcov[1][1] = 1 / (1 - (2 * exp(-k*k/(2*r))) / r);
+  MUNULOOP gcov[mu][nu] = 0.;
+  gcov[0][0] = -1 + (2 * emk2r) / r;
+  gcov[1][1] = 1 / (1 - (2 * emk2r) / r);
   gcov[2][2] = r * r;
   gcov[3][3] = r * r * sth * sth;
 }
 
 inline void gcov_ks_eff(double r, double th, double gcov[NDIM][NDIM])
 {
-  const double k = 0.5;
   double sth = sin(th);
+  double ek2r = exp(k*k/(2*r));
   // Define the components of the effective metric
-  gcov[0][0] = -((16 - 8 * exp(k*k/(2*r)) * r) / (k*k - 8 * r));
-  gcov[1][1] = -((8 * exp(k*k/r) * r * r) / ((k*k - 8 * r) * (-2 + exp(k*k/(2*r)) * r)));
-  gcov[2][2] = (32 * exp(k*k/(2*r)) * r * r * r * r) / (k*k*k*k - 14 * k*k*r + 32 * r*r);
-  gcov[3][3] = (32 * exp(k*k/(2*r)) * r * r * sth * sth) / (k*k*k*k - 14 * k*k*r + 32 * r*r);
+  MUNULOOP gcov[mu][nu] = 0.;
+  gcov[0][0] = -((16 - 8 * ek2r * r) / (k*k - 8 * r));
+  gcov[1][1] = -((8 * ek2r * ek2r * r * r) / ((k*k - 8 * r) * (-2 + ek2r * r)));
+  gcov[2][2] = (32 * ek2r * r * r * r * r) / (k*k*k*k - 14 * k*k*r + 32 * r*r);
+  gcov[3][3] = (32 * ek2r * r * r * r * r * sth * sth) / (k*k*k*k - 14 * k*k*r + 32 * r*r);
 }
 
 inline void gcov_bl(double r, double th, double gcov[NDIM][NDIM])

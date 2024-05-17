@@ -28,7 +28,7 @@ static double MBH;
 // Thin-disk tables
 double *ch_mu, *ch_I, *ch_delta;
 // Thin-disk constants
-static double T0, Mdotedd, r_isco;
+static double T0, Mdotedd, r_isco = 0.;
 
 // Forward declarations for non-public functions
 void set_units();
@@ -51,6 +51,10 @@ void try_set_model_parameter(const char *word, const char *value)
 
   set_by_word_val(word, value, "a", &a, TYPE_DBL);
   set_by_word_val(word, value, "Mdot", &Mdot, TYPE_DBL);
+
+  // Extra parameters for exotic spacetimes
+  set_by_word_val(word, value, "Rh", &Rh, TYPE_DBL);
+  set_by_word_val(word, value, "r_isco", &r_isco, TYPE_DBL);
 }
 
 void init_model(double *tA, double *tB)
@@ -92,10 +96,15 @@ void set_units()
   // Set all the geometry
   // TODO function like initialize_coordinates, that makes sure these are all set.
   R0 = 0.;
-  Rh = 1 + sqrt(1. - a * a);
-  double z1 = 1. + pow(1. - a * a, 1. / 3.) * (pow(1. + a, 1. / 3.) + pow(1. - a, 1. / 3.));
-  double z2 = sqrt(3. * a * a + z1 * z1);
-  r_isco = 3. + z2 - copysign(sqrt((3. - z1) * (3. + z1 + 2. * z2)), a);
+  if (Rh == 0.) {
+    Rh = 1 + sqrt(1. - a * a);
+  }
+
+  if (r_isco == 0.) {
+    double z1 = 1. + pow(1. - a * a, 1. / 3.) * (pow(1. + a, 1. / 3.) + pow(1. - a, 1. / 3.));
+    double z2 = sqrt(3. * a * a + z1 * z1);
+    r_isco = 3. + z2 - copysign(sqrt((3. - z1) * (3. + z1 + 2. * z2)), a);
+  }
   Rin = Rh;
   Rout = 100.0;
   rmax_geo = fmin(1000., Rout);
@@ -239,9 +248,9 @@ void thindisk_vals(double r, double *T, double *omega)
   // Start the disk at r_isco, the marginally stable orbit which N-K take as an inner boundary condition.
   // End it eventually.
   if (r > r_isco) {
-    *omega = fmax(1. / (pow(r, 3. / 2.) + a), om);
+    *omega = sqrt(exp(-(k * k / (2 * r))) * (-k * k + 2 * r)) / (sqrt(2) * r * r); //fmax(1. / (pow(r, 3. / 2.) + a), om);
   } else {
-    *omega = fmax((lc + a * hc) / (r * r + 2. * r * (1. + hc)), om);
+    *omega = 0.; //fmax((lc + a * hc) / (r * r + 2. * r * (1. + hc)), om);
   }
 
   if (r > r_isco && r < Rout) {
