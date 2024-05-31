@@ -75,7 +75,6 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
     /* This stepsize function can be troublesome inside of R = 2M,
        and should be used cautiously in this region. */
     double dl = stepsize(X, Kcon, eps);
-
     /* Geodesics in ipole are integrated using
      * dx^\mu/d\lambda = k^\mu
      * The positions x^mu are in simulation units, since different
@@ -165,7 +164,6 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
     traj[nstep].nturns = nturns;
 
   }
-
   //fprintf(stderr, "End trace geodesic");
   return nstep;
 }
@@ -228,7 +226,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
-      r < (event_horizon(th) +0.0001)/*|| r < rmin_geo*/) { // Or right near the horizon
+      r <= (Rh +0.0005)/*|| r < rmin_geo*/){ // Or right near the horizon
 #if THIN_DISK
     // If we stopped during the thin disk timer, remember to reset it!
     n_left = -1;
@@ -267,10 +265,10 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
 double stepsize(double X[NDIM], double Kcon[NDIM], double eps)
 {
   double dl;
-  //double deh = fmin(fabs(X[1] - cstartx[1]), 0.1); // TODO coordinate dependent
+  double deh = fmin(fabs(X[1] - cstartx[1]), 0.1); // TODO coordinate dependent
   double r, th;
   bl_coord(X, &r, &th);
-  double deh = fmin(fabs(X[1] - log(event_horizon(th))), 0.1);
+
   double dlx1 = eps * (10*deh) / (fabs(Kcon[1]) + SMALL*SMALL);
 
   // Make the step cautious near the pole, improving accuracy of Stokes U

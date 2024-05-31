@@ -342,6 +342,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *ncoord = calloc(NDIM*NDIM*nsteps,sizeof(double));
   double *econ = calloc(NDIM*NDIM*nsteps,sizeof(double));
   double *ecov = calloc(NDIM*NDIM*nsteps,sizeof(double));
+  double *connection = calloc(NDIM*NDIM*NDIM*nsteps, sizeof(double));
 
   double *e2Constructed = calloc(NDIM*nsteps,sizeof(double));
   double *e2ConstructedCov = calloc(NDIM*nsteps,sizeof(double));
@@ -349,6 +350,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *e2TransportedCov = calloc(NDIM*nsteps,sizeof(double));
 
   for (int i=nstep-1; i > 0; --i) {
+    double connect_coef[NDIM][NDIM][NDIM];
     // Record ambient variables
     get_model_primitives(traj[i].X, &(prims[i*nprims]));
     double Ucont[NDIM], Ucovt[NDIM], Bcont[NDIM], Bcovt[NDIM];
@@ -379,6 +381,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
    double Gcov[NDIM][NDIM], Gcon[NDIM][NDIM];
    gcov_func(traj[i].X, Gcov);
    gcon_func(Gcov, Gcon);
+   get_connection(traj[i].X, connect_coef);
 //   lower(traj[i].Kcon, Gcov, &(Kcov[i*NDIM]));
 
     bl_coord(traj[i].X, &(r[i]), &(th[i]));
@@ -404,6 +407,14 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     MUNULOOP {
       econ[i*NDIM*NDIM + mu*NDIM + nu] = Econt[mu][nu];
       ecov[i*NDIM*NDIM + mu*NDIM + nu] = Ecovt[mu][nu];
+    }
+    for (int j=0; j<4; j++){
+      for(int k=0; k<4; k++){
+        for(int l=0; l<4; l++){
+          connection[i*NDIM*NDIM*NDIM + j*NDIM*NDIM + k*NDIM + l] = connect_coef[j][k][l];
+          //fprintf(stderr, "%g \n", connection[i*NDIM*NDIM*NDIM + j*NDIM*NDIM + k*NDIM + l]);
+        }
+      }
     }
 
     flip_index(e2Final,Gcov,e2Cov);
@@ -513,6 +524,16 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hdf5_write_chunked_array(econ, "Econ", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
   hdf5_write_chunked_array(ecov, "Ecov", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
 
+
+  hsize_t fdims_c[] = { nx, ny, params->maxnstep, 4, 4, 4 };
+  hsize_t chunk_c[] =  { 1, 1, 200, 4, 4, 4 };
+  hsize_t fstart_c[] = { i, j, 0, 0, 0, 0 };
+  hsize_t fcount_c[] = { 1, 1, nsteps, 4, 4, 4 };
+  hsize_t mdims_c[] =  { 1, 1, nsteps, 4, 4, 4 };
+  hsize_t mstart_c[] = { 0, 0, 0, 0, 0, 0 };
+
+  //hdf5_write_full_array(connection, "Connection Coeff", 6, dims_c, H5T_IEEE_F64LE);
+  hdf5_write_chunked_array(connection, "Connect", 6, fdims_c, fstart_c, fcount_c, mdims_c, mstart_c, chunk_c, H5T_IEEE_F64LE);
   // DEALLOCATE
 
   // Scalars
@@ -526,14 +547,14 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   // Vectors
   free(X);
   free(Kcon); //free(Kcov);
-  //free(Ucon); free(Ucov); free(Bcon); free(Bcov);
+ //free(Ucon); //free(Ucov); free(Bcon); free(Bcov);
   free(j_inv); free(alpha_inv); free(rho_inv);
   free(stokes); 
   // free(stokes_coordinate);
   free(e2Constructed);free(e2ConstructedCov);
   free(e2Transported);free(e2TransportedCov);
   free(prims);
-
+  free(connection);
   // Tensors
   free(ntetrad); free(ncoord);
   free(econ); free(ecov);
