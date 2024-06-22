@@ -19,7 +19,7 @@
 
 #define NVAR (10)
 #define USE_FIXED_TPTE (0)
-#define USE_MIXED_TPTE (1)
+#define USE_MIXED_TPTE (0)
 #define NSUP (3)
 
 #define USE_GEODESIC_SIGMACUT (1)
@@ -60,6 +60,9 @@ static double trat_large = 40.;
 // undershoot to be considered "small"
 // lower values -> higher max T_e, higher values are restrictive
 static double cooling_dynamical_times = 1.e-20;
+
+// Electron heating/cooled GRMHD model parameter to choose which Kel to read
+static int electron_ind = 0;
 
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
@@ -141,6 +144,8 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "sigma_cut_high", &sigma_cut_high, TYPE_DBL);
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
   set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
+
+  set_by_word_val(word, value, "electron_ind", &electron_ind, TYPE_INT);
 
   set_by_word_val(word, value, "rmax_geo", &rmax_geo, TYPE_DBL);
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
@@ -1223,6 +1228,8 @@ void output_hdf5()
     hdf5_write_single_val(&mu_i, "mu_i", H5T_IEEE_F64LE);
     hdf5_write_single_val(&mu_e, "mu_e", H5T_IEEE_F64LE);
     hdf5_write_single_val(&mu_tot, "mu_tot", H5T_IEEE_F64LE);
+  } else if ((ELECTRONS == 1) && (dumpfile_format == FORMAT_IHARM_v1)){
+    hdf5_write_single_val(&electron_ind,"electron_ind",H5T_STD_I32LE);
   }
   hdf5_write_single_val(&ELECTRONS, "type", H5T_STD_I32LE);
 
@@ -1842,28 +1849,28 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   hsize_t mdims[] = { N1+2, N2+2, N3+2, 1 };
   hsize_t mstart[] = { 1, 1, 1, 0 };
 
-  fstart[3] = 0;
+  fstart[3] = KRHO;
   hdf5_read_array(data[n]->p[KRHO][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 1;
+  fstart[3] = UU;
   hdf5_read_array(data[n]->p[UU][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 2;
+  fstart[3] = U1;
   hdf5_read_array(data[n]->p[U1][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 3;
+  fstart[3] = U2;
   hdf5_read_array(data[n]->p[U2][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 4;
+  fstart[3] = U3;
   hdf5_read_array(data[n]->p[U3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 5;
+  fstart[3] = B1;
   hdf5_read_array(data[n]->p[B1][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 6;
+  fstart[3] = B2;
   hdf5_read_array(data[n]->p[B2][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-  fstart[3] = 7;
+  fstart[3] = B3;
   hdf5_read_array(data[n]->p[B3][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE); 
 
   if (ELECTRONS == 1) {
-    fstart[3] = 8;
+    fstart[3] = 8 + electron_ind;
     hdf5_read_array(data[n]->p[KEL][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-    fstart[3] = 9;
-    hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+    // fstart[3] = 9;
+    // hdf5_read_array(data[n]->p[KTOT][0][0], "prims", 4, fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
   }
 
   //Reversing B Field
