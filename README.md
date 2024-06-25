@@ -139,11 +139,11 @@ polarized transfer equation assuming constant coefficients. This
 is intended to produce sensible results even when absorption or Faraday rotation
 and conversion are large in a single step.  A comparison of
 polarized relativistic radiative transport schemes can be found in
-Prather (2021, in prep).
+Prather [2023](https://ui.adsabs.harvard.edu/abs/2023ApJ...950...35P/abstract).
 
 If you are imaging GRMHD simulations, you will find guidance on how a GRMHD
 simulation and analysis pipeline fits together in the PATOKA pipeline paper,
-Wong (2021, in prep).
+Wong [2022](https://ui.adsabs.harvard.edu/abs/2022ApJS..259...64W/abstract).
 
 ```ipole``` treats synchrotron emission and absorption but not bremsstrahlung or Compton
 scattering.  The transfer coefficients (emissivities, absorptivities, and rotativities)
