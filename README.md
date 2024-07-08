@@ -22,11 +22,17 @@ $ sudo dnf install hdf5-devel hdf5-static gsl-devel
 ```
 The packages are straightforward to compile from source as well.
 
+To install ipole on macOS using ```gcc``` via homebrew, install 
+```bash
+$ brew install gcc@13 hdf5 gsl
+```
+
 The native macOS version of ```clang``` does not support OpenMP parallelization, so on macOS with ```brew```, install
 ```bash
 $ brew install llvm gsl hdf5
 ```
 these should all be binary packages, no compiling should be required.
+For the clang installation, change the ```HDF5_CC```, ```HDF5_CLINKER``` and ```GSL_DIR``` variables in the makefile. Please raise an issue in the event that neither of these methods work on macOS.
 
 # Building
 
