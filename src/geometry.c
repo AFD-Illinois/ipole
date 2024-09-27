@@ -104,6 +104,9 @@ void get_connection(double X[NDIM], double conn[NDIM][NDIM][NDIM])
   if(gcon_func(gcov, gcon)) {
     fprintf(stderr, "Encountered singluar gcov when getting connection!\n");
     print_vector("X", X);
+    double r, th;
+    bl_coord(X, &r, &th);
+    fprintf(stderr,"r: %g th: %g \n",r,th);
     print_matrix("gcov", gcov);
   }
 
