@@ -71,7 +71,8 @@ static double Ladv_dump;
 
 static int reverse_field = 0;
 
-double tf;
+// Need to share this with main.c!
+extern double tf;
 
 // MAYBES
 //static double t0;
