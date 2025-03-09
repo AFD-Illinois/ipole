@@ -122,17 +122,38 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     if (radiating_region(tf.X)) {
       // Conditions to zero just the emission, not all radiative transport
       int zero_emission = 0;
+      double r, th;
+      bl_coord(tf.X, &r, &th);
+
+      //zero out unwanted photon ring emission 
       if (params->target_nturns >= 0 && ti.nturns != params->target_nturns) {
         zero_emission = 1; 
       }
+
+      if (ti.nturns > params->max_nturns){
+	zero_emission = 1;
+      }
+
+      //zero emission if we cut out the disk
+      if (th*180.0/M_PI > params->diskcut && th*180.0/M_PI < 180.0 - params->diskcut){
+	zero_emission = 1;
+      }
+
+      //zero out unwanted counter-jet emission
       if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
-        if (tf.X[2] < (cstopx[2] - cstartx[2]) / 2) {
-          zero_emission = 1;
-        }
+	if (th > M_PI/2.0){
+	  zero_emission = 1;
+	}
+        /* if (tf.X[2] < (cstopx[2] - cstartx[2]) / 2) { */
+        /*   zero_emission = 1; */
+        /* } */
       } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
-        if (tf.X[2] > (cstopx[2] - cstartx[2]) / 2) {
-          zero_emission = 1;
-        }
+        /* if (tf.X[2] > (cstopx[2] - cstartx[2]) / 2) { */
+        /*   zero_emission = 1; */
+        /* } */
+	if (th < M_PI/2.0){
+	  zero_emission = 1;
+	}
       }
 
       // Solve unpolarized transport
@@ -168,6 +189,9 @@ int integrate_emission(struct of_traj *traj, int nsteps,
                 print, nstep, ti.X[1], ti.X[2], ti.X[3], Xg[1], Xg[2], Xg[3], 
                 ji, *Intensity, ti.dl);
       }
+
+      double r0, th0;
+      bl_coord(tf.X, &r0, &th0);
 
       // Solve polarized transport
       if (!params->only_unpolarized) {

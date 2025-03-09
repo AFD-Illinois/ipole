@@ -349,30 +349,40 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *e2Transported = calloc(NDIM*nsteps,sizeof(double));
   double *e2TransportedCov = calloc(NDIM*nsteps,sizeof(double));
 
+  int counts = 0;
+
   for (int i=nstep-1; i > 0; --i) {
+    //get emissivity 
+    double jhere = 0.0, khere = 0.0;
+    get_jkinv(traj[i].X, traj[i].Kcon, &jhere, &khere, params);
+    if (jhere == 0.0){
+      continue; // proceed if there's no emission
+    }
+    j_unpol[counts] = jhere;
+    k_unpol[counts] = khere;
+
     // Record ambient variables
-    get_model_primitives(traj[i].X, &(prims[i*nprims]));
+    get_model_primitives(traj[i].X, &(prims[counts*nprims]));
     double Ucont[NDIM], Ucovt[NDIM], Bcont[NDIM], Bcovt[NDIM];
     //variables for parallel transport
     double e2Mid[NDIM], e2Final[NDIM], e2Cov[NDIM];
     get_model_fourv(traj[i].X, traj[i].Kcon, Ucont, Ucovt, Bcont, Bcovt);
 
     // Record scaled values
-    b[i] = get_model_b(traj[i].X);
-    ne[i] = get_model_ne(traj[i].X);
-    thetae[i] = get_model_thetae(traj[i].X);
-    nu[i] = get_fluid_nu(traj[i].Kcon, Ucovt);
-    mu[i] = get_bk_angle(traj[i].X, traj[i].Kcon, Ucovt, Bcont, Bcovt);
-    sigma[i] = get_model_sigma(traj[i].X);
-    beta[i] = get_model_beta(traj[i].X);
+    b[counts] = get_model_b(traj[i].X);
+    ne[counts] = get_model_ne(traj[i].X);
+    thetae[counts] = get_model_thetae(traj[i].X);
+    nu[counts] = get_fluid_nu(traj[i].Kcon, Ucovt);
+    mu[counts] = get_bk_angle(traj[i].X, traj[i].Kcon, Ucovt, Bcont, Bcovt);
+    sigma[counts] = get_model_sigma(traj[i].X);
+    beta[counts] = get_model_beta(traj[i].X);
 
     // Record emission coefficients
     jar_calc(traj[i].X, traj[i].Kcon, &(j_inv[i*NDIM]), &(j_inv[i*NDIM+1]), &(j_inv[i*NDIM+2]), &(j_inv[i*NDIM+3]),
              &(alpha_inv[i*NDIM]), &(alpha_inv[i*NDIM+1]), &(alpha_inv[i*NDIM+2]), &(alpha_inv[i*NDIM+3]),
              &(rho_inv[i*NDIM+1]), &(rho_inv[i*NDIM+2]), &(rho_inv[i*NDIM+3]), params);
-    get_jkinv(traj[i].X, traj[i].Kcon, &(j_unpol[i]), &(k_unpol[i]), params);
 
-    dl[i] = traj[i].dl;
+    dl[counts] = traj[i].dl;
     MULOOP {
       X[i*NDIM+mu] = traj[i].X[mu];
       Kcon[i*NDIM+mu] = traj[i].Kcon[mu];
@@ -382,8 +392,8 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
    gcon_func(Gcov, Gcon);
 //   lower(traj[i].Kcon, Gcov, &(Kcov[i*NDIM]));
 
-    bl_coord(traj[i].X, &(r[i]), &(th[i]));
-    phi[i] = traj[i].X[3];
+    bl_coord(traj[i].X, &(r[counts]), &(th[counts]));
+    phi[counts] = traj[i].X[3];
 
     //make the plasma tetrad to project the coherency tensor
     make_plasma_tetrad(Ucont,traj[i].Kcon,Bcont,Gcov,Econt,Ecovt);
@@ -424,12 +434,14 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
     // Integrate and record results
     int flag = integrate_emission(&(traj[i]), 1, &Intensity, &Tau, &tauF, N_coord, params, 0);
-    I_unpol[i] = Intensity;
+    I_unpol[counts] = Intensity;
     // project_N(traj[i-1].X, traj[i-1].Kcon, N_coord, &(stokes[i*NDIM]), &(stokes[i*NDIM+1]), &(stokes[i*NDIM+2]), &(stokes[i*NDIM+3]),0;
     // any_tensor_to_stokes(N_coord, Gcov, &(stokes_coordinate[i*NDIM]), &(stokes_coordinate[i*NDIM+1]), &(stokes_coordinate[i*NDIM+2]), &(stokes_coordinate[i*NDIM+3]));
     
 
     if (flag) printf("Flagged integration when tracing: %d\n", flag);
+
+    counts++;
 
   }
 
@@ -443,64 +455,92 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hsize_t mstart_p[] = { 0, 0 };
 
   // Could just flat record the final emission values here...
-  hdf5_write_array(&nstep, "nstep", 2, fdims_p, fstart_p, fcount_p, mdims_p, mstart_p, H5T_STD_I32LE);
+  // hdf5_write_array(&nstep, "nstep", 2, fdims_p, fstart_p, fcount_p, mdims_p, mstart_p, H5T_STD_I32LE);
 
   // SCALARS: Anything with one value for every geodesic step
-  hsize_t fdims_s[] = { nx, ny, params->maxnstep };
-  hsize_t chunk_s[] =  { 1, 1, 200 };
-  hsize_t fstart_s[] = { i, j, 0 };
-  hsize_t fcount_s[] = { 1, 1, nsteps };
-  hsize_t mdims_s[] =  { 1, 1, nsteps };
-  hsize_t mstart_s[] = { 0, 0, 0 };
+  hsize_t fdims_s[] = {counts}; //{ nx, ny, params->maxnstep };
+  hsize_t chunk_s[] =  { 200 };
+  hsize_t fstart_s[] = { 0 };
+  hsize_t fcount_s[] = { counts };
+  hsize_t mdims_s[] =  { counts };
+  hsize_t mstart_s[] = { 0 };
 
-  hdf5_write_chunked_array(b, "b", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(ne, "ne", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(thetae, "thetae", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(nu, "nu", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(mu, "b_k_angle", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(sigma, "sigma", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(beta, "beta", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-
-  hdf5_write_chunked_array(dl, "dl", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(r, "r", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(th, "th", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(phi, "phi", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-
-  hdf5_write_chunked_array(j_unpol, "j_unpol", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(k_unpol, "k_unpol", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(I_unpol, "I_unpol", 3, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char bname[20];
+  sprintf(bname, "b_%d_%d", i, j);
+  hdf5_write_chunked_array(b, bname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char nename[20];
+  sprintf(nename, "ne_%d_%d", i, j);
+  hdf5_write_chunked_array(ne, nename, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char thetaename[20];
+  sprintf(thetaename, "thetae_%d_%d", i, j);
+  hdf5_write_chunked_array(thetae, thetaename, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char nuname[20];
+  sprintf(nuname, "nu_%d_%d", i, j);
+  hdf5_write_chunked_array(nu, nuname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char bkname[20];
+  sprintf(bkname, "b_k_angle_%d_%d", i, j);
+  hdf5_write_chunked_array(mu, bkname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char sigmaname[20];
+  sprintf(sigmaname, "sigma_%d_%d", i, j);
+  hdf5_write_chunked_array(sigma, sigmaname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char betaname[20];
+  sprintf(betaname, "beta_%d_%d", i, j);
+  hdf5_write_chunked_array(beta, betaname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char dlname[20];
+  sprintf(dlname, "dl_%d_%d", i, j);
+  hdf5_write_chunked_array(dl, dlname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char rname[20];
+  sprintf(rname, "r_%d_%d", i, j);
+  hdf5_write_chunked_array(r, rname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char thname[20];
+  sprintf(thname, "th_%d_%d", i, j);
+  hdf5_write_chunked_array(th, thname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char phiname[20];
+  sprintf(phiname, "phi_%d_%d", i, j);
+  hdf5_write_chunked_array(phi, "phi", 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char jname[20];
+  sprintf(jname, "j_unpol_%d_%d", i, j);
+  hdf5_write_chunked_array(j_unpol, jname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char kname[20];
+  sprintf(kname, "k_unpol_%d_%d", i, j);
+  hdf5_write_chunked_array(k_unpol, kname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char Iname[20];
+  sprintf(Iname, "I_unpol_%d_%d", i, j);
+  hdf5_write_chunked_array(I_unpol, Iname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
 
   // VECTORS: Anything with N values per geodesic step
-  hsize_t fdims_v[] = { nx, ny, params->maxnstep, 4 };
-  hsize_t chunk_v[] =  { 1, 1, 200, 4 };
-  hsize_t fstart_v[] = { i, j, 0, 0 };
-  hsize_t fcount_v[] = { 1, 1, nsteps, 4 };
-  hsize_t mdims_v[] =  { 1, 1, nsteps, 4 };
-  hsize_t mstart_v[] = { 0, 0, 0, 0 };
+  hsize_t fdims_v[] = { counts, 4 };
+  hsize_t chunk_v[] =  { 200, 4 };
+  hsize_t fstart_v[] = {  0, 0 };
+  hsize_t fcount_v[] = { counts, 4 };
+  hsize_t mdims_v[] =  { counts, 4 };
+  hsize_t mstart_v[] = { 0, 0 };
 
-  hdf5_write_chunked_array(X, "X", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(Kcon, "Kcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(X, "X", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(Kcon, "Kcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 //  hdf5_write_chunked_array(Kcov, "Kcov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-//  hdf5_write_chunked_array(Ucon, "Ucon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-//  hdf5_write_chunked_array(Ucov, "Ucov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(Ucon, "Ucon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(Ucov, "Ucov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 //  hdf5_write_chunked_array(Bcon, "Bcon", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 //  hdf5_write_chunked_array(Bcov, "Bcov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-  hdf5_write_chunked_array(j_inv, "j_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(alpha_inv, "alpha_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(rho_inv, "rho_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(j_inv, "j_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(alpha_inv, "alpha_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(rho_inv, "rho_inv", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-  hdf5_write_chunked_array(stokes, "stokes", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(stokes, "stokes", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
   // hdf5_write_chunked_array(stokes_coordinate, "stokes_coordinate", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-  hdf5_write_chunked_array(e2Constructed, "e2Constructed", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(e2ConstructedCov, "e2ConstructedCov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(e2Transported, "e2Transported", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(e2TransportedCov, "e2TransportedCov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(e2Constructed, "e2Constructed", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(e2ConstructedCov, "e2ConstructedCov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(e2Transported, "e2Transported", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(e2TransportedCov, "e2TransportedCov", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
-  fdims_v[3] = chunk_v[3] = fcount_v[3] = mdims_v[3] = 8;
-  hdf5_write_chunked_array(prims, "prims", 4, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
+  fdims_v[1] = chunk_v[1] = fcount_v[1] = mdims_v[1] = 8;
+  char primsname[20];
+  sprintf(primsname, "prims_%d_%d", i, j);
+  hdf5_write_chunked_array(prims, primsname, 2, fdims_v, fstart_v, fcount_v, mdims_v, mstart_v, chunk_v, H5T_IEEE_F64LE);
 
   // TENSORS: Anything with NxN values per geodesic step
   hsize_t fdims_t[] = { nx, ny, params->maxnstep, 4, 4 };
@@ -509,10 +549,10 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   hsize_t fcount_t[] = { 1, 1, nsteps, 4, 4 };
   hsize_t mdims_t[] =  { 1, 1, nsteps, 4, 4 };
   hsize_t mstart_t[] = { 0, 0, 0, 0, 0 };
-  hdf5_write_chunked_array(ntetrad, "ntetrad", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(ncoord, "ncoord", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(econ, "Econ", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
-  hdf5_write_chunked_array(ecov, "Ecov", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(ntetrad, "ntetrad", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(ncoord, "ncoord", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(econ, "Econ", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
+  // hdf5_write_chunked_array(ecov, "Ecov", 5, fdims_t, fstart_t, fcount_t, mdims_t, mstart_t, chunk_t, H5T_IEEE_F64LE);
 
   // DEALLOCATE
 
