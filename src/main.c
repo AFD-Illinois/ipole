@@ -848,6 +848,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   }
 
   // Integrate emission forward along trajectory
+  /* int intprint = (i == 1 && j == 123) ? 1 : 0; */
   int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params, 0);
 
   if (!only_intensity) {

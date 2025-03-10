@@ -355,7 +355,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     //get emissivity 
     double jhere = 0.0, khere = 0.0;
     get_jkinv(traj[i].X, traj[i].Kcon, &jhere, &khere, params);
-    if (jhere == 0.0){
+    if (jhere == 0.0 || !radiating_region(traj[i].X)){
       continue; // proceed if there's no emission
     }
     j_unpol[counts] = jhere;

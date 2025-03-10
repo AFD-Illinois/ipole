@@ -73,6 +73,8 @@ int integrate_emission(struct of_traj *traj, int nsteps,
   // Initialize the running cached coefficients js, ks
   get_jkinv(traj[nsteps].X, traj[nsteps].Kcon, &js, &ks, params);
 
+  int countemit = 0;
+
   // Integrate the polarized & unpolarized transfer equations (& parallel transport)
   // 
   for (int nstep=nsteps; nstep > 0; --nstep) {
@@ -144,13 +146,8 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 	if (th > M_PI/2.0){
 	  zero_emission = 1;
 	}
-        /* if (tf.X[2] < (cstopx[2] - cstartx[2]) / 2) { */
-        /*   zero_emission = 1; */
-        /* } */
+      
       } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
-        /* if (tf.X[2] > (cstopx[2] - cstartx[2]) / 2) { */
-        /*   zero_emission = 1; */
-        /* } */
 	if (th < M_PI/2.0){
 	  zero_emission = 1;
 	}
@@ -162,10 +159,23 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       double jf, kf;
       //get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
       get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
+      int increase = 0;
+      if (jf != 0){
+	increase = 1;
+	countemit += 1;
+      }
+      
       // End coefficients are next starting coefficients
       js = jf;
       ks = kf;
 
+      
+      /* set condition that psi thread the horizon */
+      /* if (increase){ */
+      /* 	/\* if (psivals[countemit-1] > params->psimax) zero_emission = 1; *\/ */
+      /* 	if (countemit == 1400 && print == 1) printf("rhere %g\n", r0); */
+      /* } */
+      
       double Inew = 0.;
       if (zero_emission) {
         Inew = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
@@ -181,15 +191,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       *Intensity = Inew;
 
       //fprintf(stderr, "Unpolarized transport\n");
-      
-      if (print) {
-        double Xg[4] = { 0., 0., 0., 0. };
-        eks_to_simcoord(ti.X, Xg);
-        fprintf(stderr, "INTEGRATION %d %d %g %g %g %g %g %g %g %g %g \n", 
-                print, nstep, ti.X[1], ti.X[2], ti.X[3], Xg[1], Xg[2], Xg[3], 
-                ji, *Intensity, ti.dl);
-      }
-
+     
       double r0, th0;
       bl_coord(tf.X, &r0, &th0);
 
@@ -267,6 +269,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 #endif
   }
   // Return the final flag so caller can print
+  if (print) printf("countemit %i\n", countemit);
   return oddflag;
 }
 
