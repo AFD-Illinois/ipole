@@ -128,6 +128,11 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
     }
 
   }
+
+  if (params->histo != 0 || params->histo_polar != 0) {
+    fprintf(stderr, "histogramming emission is nuanced. please either use the trace feature or uncomment this exit() at your own risk.\n");
+    exit(42);
+  }
 }
 
 // sets parameter file entry if any key==word
