@@ -375,8 +375,15 @@ void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width) {
     *kappa = model_kappa;
   }
 
+  double rhere, thhere;
+  bl_coord(X, &rhere, &thhere);
+  double sigma = get_model_sigma(X);
   double Thetae = get_model_thetae(X);
-  *kappa_width = (*kappa - 3.) / *kappa * Thetae;
+  double mpoverme = 1836.152674;
+  double eps0 = 0.015; //0.0;
+  double rinj = 10.0; //from Fromm+ 2019
+  double epstilde = eps0  / 2. * (1. + tanh(rhere - rinj));
+  *kappa_width = (*kappa - 3.) / *kappa * Thetae + epstilde * (*kappa - 3.) / (6. * *kappa) * mpoverme * sigma; //from Davelaar+ 2019
 #if DEBUG
   if (isnan(*kappa_width) || isnan(*kappa)) {
     fprintf(stderr, "NaN kappa val! kappa, kappa_width, Thetae: %g %g %g\n", *kappa, *kappa_width, Thetae);

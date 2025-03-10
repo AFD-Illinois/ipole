@@ -4,6 +4,7 @@
 #include "model_geodesics.h"
 #include "model_radiation.h"
 #include "model_tetrads.h"
+#include "simcoords.h"
 
 #include "bremss_fits.h"
 #include "radiation.h"
@@ -136,6 +137,7 @@ int main(int argc, char *argv[])
   // translate to geodesic coordinates
   native_coord(params.rcam, params.thetacam, params.phicam, Xcam);
   fprintf(stderr, "Xcam[] = %e %e %e %e\n", Xcam[0], Xcam[1], Xcam[2], Xcam[3]);
+
 
   params.dsource *= PC;
   double Dsource = params.dsource; // Shorthand
@@ -531,6 +533,7 @@ int main(int argc, char *argv[])
       }
     }
 
+    
     // Get the "base image" -- if not adaptively refining, this is just the whole image
     // Note the average of the interpolated image != the average of calculated pixels, though they're close.
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
@@ -845,6 +848,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   }
 
   // Integrate emission forward along trajectory
+  /* int intprint = (i == 1 && j == 123) ? 1 : 0; */
   int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params, 0);
 
   if (!only_intensity) {

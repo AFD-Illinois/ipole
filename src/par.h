@@ -20,6 +20,10 @@ typedef struct params_t {
   double freqcgs;       // ... in cgs
   int old_centering;    // 0 uses k_phi=0 "ZAMO" new centering, 1 uses k^phi=0 old centering
 
+  //new additions
+  int max_nturns; //maximum photon ring orbit
+  double diskcut; //cuts out with in \pm discut degrees of midplane
+
   // Geodesic accuracy
   double eps;
   int maxnstep;
@@ -61,6 +65,7 @@ typedef struct params_t {
   // Save out variables along a geodesic
   int trace;
   int trace_stride;
+  int nstride; //spacing of geodesic trace data
   int trace_i, trace_j;
   const char trace_outf[STRLEN];
 

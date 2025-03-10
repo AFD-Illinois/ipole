@@ -64,6 +64,9 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->nx = 160;
   params->ny = 160;
 
+  params->diskcut = 90.0; //zero out disk emission
+  params->max_nturns = 1000;
+
   params->eps = 0.01;
   params->maxnstep = 50000;
 
@@ -88,6 +91,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
 
   params->trace = 0;
   params->trace_stride = 1;
+  params->nstride = 1;
   params->trace_i = -1;
   params->trace_j = -1;
 
@@ -173,6 +177,9 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
 
   set_by_word_val(word, value, "target_nturns", &(params->target_nturns), TYPE_INT);
   set_by_word_val(word, value, "subring_dtheta", &(params->subring_dtheta), TYPE_INT);
+  set_by_word_val(word, value, "max_nturns", &(params->max_nturns), TYPE_INT);
+  
+  set_by_word_val(word, value, "diskcut", &(params->diskcut), TYPE_DBL);
 
   set_by_word_val(word, value, "eps", &(params->eps), TYPE_DBL);
   set_by_word_val(word, value, "maxnstep", &(params->maxnstep), TYPE_INT);
@@ -189,6 +196,7 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   // Save out variables along paths
   set_by_word_val(word, value, "trace", &(params->trace), TYPE_INT);
   set_by_word_val(word, value, "trace_stride", &(params->trace_stride), TYPE_INT);
+  set_by_word_val(word, value, "nstride", &(params->nstride), TYPE_INT);
   set_by_word_val(word, value, "trace_i", &(params->trace_i), TYPE_INT);
   set_by_word_val(word, value, "trace_j", &(params->trace_j), TYPE_INT);
   set_by_word_val(word, value, "trace_outf", (void *)(params->trace_outf), TYPE_STR);
