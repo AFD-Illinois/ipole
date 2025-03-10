@@ -61,12 +61,8 @@ int integrate_emission(struct of_traj *traj, int nsteps,
                     double complex N_coord[NDIM][NDIM], Params *params,
                     int print)
 {
-  *tauF = 0.;
   // Unpolarized
-  *Intensity = 0.;
-  *Tau = 0.;
-  double js = 0.;
-  double ks;
+  double js, ks;
   // Error flag
   int oddflag = 0;
 
