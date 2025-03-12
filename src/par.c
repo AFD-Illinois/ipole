@@ -96,10 +96,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   sscanf("trace.h5", "%s", (char *) (void *) params->trace_outf);
 
   params->histo = 0;
-  params->histo_polar_rlim = 100.;
-  params->histo_polar_nr = 0;
-  params->histo_polar_nh = 0;
-  params->histo_polar_np = 1;
+  params->histo_polar = 0;
   sscanf("histo.h5", "%s", (char *) (void *) params->histo_outf);
 
   // process each command line argument
@@ -202,10 +199,7 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "trace_outf", (void *)(params->trace_outf), TYPE_STR);
 
   set_by_word_val(word, value, "histo", &(params->histo), TYPE_INT);
-  set_by_word_val(word, value, "histo_polar_rlim", &(params->histo_polar_rlim), TYPE_INT);
-  set_by_word_val(word, value, "histo_polar_nr", &(params->histo_polar_nr), TYPE_INT);
-  set_by_word_val(word, value, "histo_polar_nh", &(params->histo_polar_nh), TYPE_INT);
-  set_by_word_val(word, value, "histo_polar_np", &(params->histo_polar_np), TYPE_INT);
+  set_by_word_val(word, value, "histo_polar", &(params->histo_polar), TYPE_INT);
   set_by_word_val(word, value, "histo_outf", (void *)(params->histo_outf), TYPE_STR);
 
   // Let models add/parse their own parameters we don't understand

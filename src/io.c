@@ -548,16 +548,6 @@ void write_histo(Params *params) {
     fprintf(stderr, "! unable to open/create hdf5 zone output file.\n");
     exit(-3);
   }
-  if (params->histo_polar_nr > 0) {
-    hdf5_set_file(histo_fid);
-    hdf5_write_single_val(&(params->histo_polar_nr), "nr", H5T_STD_I32LE);
-    hdf5_write_single_val(&(params->histo_polar_nh), "nh", H5T_STD_I32LE);
-    hdf5_write_single_val(&(params->histo_polar_np), "np", H5T_STD_I32LE);
-    hdf5_write_single_val(&(params->histo_polar_rlim), "rlim", H5T_IEEE_F64LE);
-    h5io_add_data_dbl_3ds(histo_fid, "/data", params->histo_polar_nr, params->histo_polar_nh,
-                          params->histo_polar_np, visible_emission_histogram);
-  } else {
-    h5io_add_data_dbl_3ds(histo_fid, "/data", N1, N2, N3, visible_emission_histogram);
-  }
+  h5io_add_data_dbl_3ds(histo_fid, "/data", N1, N2, N3, visible_emission_histogram);
   H5Fclose(histo_fid);
 }
