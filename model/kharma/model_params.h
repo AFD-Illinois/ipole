@@ -22,4 +22,13 @@
 extern double DTd;
 extern double sigma_cut;
 
+// Model-specific function declarations
+
+double get_dump_time(char *fnam, int dumpidx);
+void set_units();
+void load_kharma_data(int n, char *, int dumpidx, int verbose);
+void init_kharma_grid(char *fnam, int dumpidx);
+void init_physical_quantities(int n, double rescale_factor);
+void init_storage(void);
+
 #endif // MODEL_PARAMS_H
