@@ -1,0 +1,83 @@
+# example.par -- ipole example parameter file for iharm problem
+
+# Common
+dump tests/test-resources/sample_dump_SANE_a+0.94_MKS_0900.h5
+outfile image.h5
+nx 160
+ny 160
+
+# Emission 1=Pandya, 4=Dexter, others are debug/custom
+emission_type 4
+
+# M87 parameters
+MBH 6.2e9
+dsource 16.9e6
+freqcgs 230.e9
+# M_unit scales the accretion rate to match a known object flux
+# These are example values
+# SANE:
+M_unit 3e26
+# MAD:
+#M_unit 6e24
+
+# e- Temperature, via the Rhigh model described 
+trat_small 1
+trat_large 20
+# Constant e- temperature ratio
+#tp_over_te 3
+
+# Adaptive res
+# enable by setting a minimum "base" image size
+#nx_min 40
+#ny_min 40
+refine_abs = 2e-2
+refine_rel = 1e-2
+refine_cut = 0
+
+# Camera
+rcam 1000
+# Values in degrees
+thetacam 17
+phicam 0
+rotcam 0
+
+# FOV from Earth
+fovx_dsource 160
+fovy_dsource 160
+
+# Geodesic accuracy parameters
+#eps 0.01
+#maxnstep 50000
+
+# Options
+# Convention for EVPA defining stokes Q,U:
+# 0 is measured East of North, 1 is North of West
+qu_conv 0
+# Don't produce an output file
+quench_output 0
+# Add a .ppm image of the unpolarized flux
+add_ppm 0
+# Only calculate the unpolarized image
+only_unpolarized 0
+# 1 to emit only for th>PI/2, 2 for other hemisphere
+# 0 emits everywhere
+counterjet 0
+# Offset for each geodesic in pixels, used to prevent
+# overtraining ML models to pixel locations
+xoff 0
+yoff 0
+
+# Path trace -- save emissivities & local state
+# for every step along a geodesic, or several
+trace 0
+# Pixel to trace i,j (rightward from left, upward from bottom)
+#trace_i 40
+#trace_j 40
+# Or trace every N pixels in each direction
+trace_stride 1
+# Trace file name
+trace_outf trace.h5
+
+# Histogram of origin of observed emissivity 
+histo 0
+histo_outf histo.h5

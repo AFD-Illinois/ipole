@@ -61,8 +61,12 @@ int integrate_emission(struct of_traj *traj, int nsteps,
                     double complex N_coord[NDIM][NDIM], Params *params,
                     int print)
 {
+  *tauF = 0.;
   // Unpolarized
-  double js, ks;
+  *Intensity = 0.;
+  *Tau = 0.;
+  double js = 0.;
+  double ks;
   // Error flag
   int oddflag = 0;
 
@@ -147,27 +151,11 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       } else {
         Inew = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
       }
-      if (params->histo) {
-        if (params->histo_polar_nr > 0) {
-          int hpr = params->histo_polar_nr;
-          int hph = params->histo_polar_nh;
-          int hpp = params->histo_polar_np;
-          double r, h;
-          double p = tf.X[3];
-          while (p < 0) p += 2. * M_PI;
-          while (p >= 2. * M_PI) p -= 2. * M_PI;
-          bl_coord(tf.X, &r, &h);
-          int i = (hpr * r) / params->histo_polar_rlim;
-          int j = (hph * h) / M_PI;
-          int k = (hpp * p) / 2. / M_PI;
-          #pragma omp atomic
-          visible_emission_histogram[k + j*hpp + i*hph*hpp] += Inew - *Intensity;
-        } else {
-          int i, j, k; double del[NDIM];
-          Xtoijk(tf.X, &i, &j, &k, del);
-          #pragma omp atomic
-          visible_emission_histogram[k + j*N3 + i*N2*N3] += Inew - *Intensity; 
-        }
+      if (params->histo && !params->histo_polar) {
+        int i, j, k; double del[NDIM];
+        Xtoijk(tf.X, &i, &j, &k, del);
+        #pragma omp atomic
+        visible_emission_histogram[k + j*N3 + i*N2*N3] += Inew - *Intensity; 
       }
       *Intensity = Inew;
 
