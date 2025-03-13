@@ -781,6 +781,32 @@ int read_parameters_and_set_grid(char *fnam, int dumpidx)
   return 0;
 }
 
+
+/**
+ * @brief Allocate memory for 'data' struct.
+ * 
+ * Oncde the grid parameters have been read from the dump file, this function allocates
+ * memory for the 'data' struct members. This includes the primitive variables, electron
+ * number density, electron temperature, magnetic field, magnetization, and plasma beta.
+ * 
+ * @param fnam    Filename of the dump file.
+ * @param dumpidx Index of the dump file.
+ *
+ * @return 0 on success, -1 on error.
+ */
+void init_storage(void)
+{ 
+  /* One ghost zone on each side of the domain */
+  for (int n = 0; n < NSUP; n++) {
+    data[n]->p      = malloc_rank4(NVAR,N1+2,N2+2,N3+2);
+    data[n]->ne     = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->b      = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->sigma  = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->beta   = malloc_rank3(N1+2,N2+2,N3+2);
+  }
+}
+
 void init_model(double *tA, double *tB)
 {
   // set up initial ordering of data[]
@@ -1141,18 +1167,6 @@ void init_physical_quantities(int n, double rescale_factor)
 
 }
 
-void init_storage(void)
-{ 
-  // one ghost zone on each side of the domain
-  for (int n = 0; n < NSUP; n++) {
-    data[n]->p = malloc_rank4(NVAR,N1+2,N2+2,N3+2);
-    data[n]->ne = malloc_rank3(N1+2,N2+2,N3+2);
-    data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
-    data[n]->b = malloc_rank3(N1+2,N2+2,N3+2);
-    data[n]->sigma = malloc_rank3(N1+2,N2+2,N3+2);
-    data[n]->beta = malloc_rank3(N1+2,N2+2,N3+2);
-  }
-}
 
 void init_grid(char *fnam, int dumpidx)
 {
