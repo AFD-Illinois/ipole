@@ -659,7 +659,6 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
   int nghost;
   double x1min, x1max, x2min, x2max, x3min, x3max; // Domain limits
   double a;
-  double r_in, r_out;
   double hslope, mks_smooth, poly_xt, poly_alpha;
 
 
@@ -750,31 +749,31 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
   /* Load metric-specific parameters */
   if (metric == METRIC_EKS) {
     dict_add(model_params, "a", get_parameter_value(parfile, "coordinates", "a", TYPE_DBL, &a, 0));
-    dict_add(model_params, "r_in", get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &r_in, 0));
-    dict_add(model_params, "r_out", get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &r_out, 0));
-    fprintf(stderr, "eKS parameters a: %f r_in: %f r_out: %f\n", a, r_in, r_out);
+    dict_add(model_params, "r_in", get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &Rin, 0));
+    dict_add(model_params, "r_out", get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &Rout, 0));
+    fprintf(stderr, "eKS parameters a: %f r_in: %f r_out: %f\n", a, Rin, Rout);
   } else if (metric == METRIC_MKS) {
     dict_add(model_params, "a", get_parameter_value(parfile, "coordinates", "a", TYPE_DBL, &a, 0));
-    dict_add(model_params, "r_in", get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &r_in, 0));
-    dict_add(model_params, "r_out", get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &r_out, 0));
+    dict_add(model_params, "r_in", get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &Rin, 0));
+    dict_add(model_params, "r_out", get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &Rout, 0));
     dict_add(model_params, "hslope", get_parameter_value(parfile, "coordinates", "hslope", TYPE_DBL, &hslope, 0));
-    fprintf(stderr, "MKS parameters a: %f hslope: %f r_in: %f r_out: %f\n", a, hslope, r_in, r_out);
+    fprintf(stderr, "MKS parameters a: %f hslope: %f r_in: %f r_out: %f\n", a, hslope, Rin, Rout);
   } else if (metric == METRIC_FMKS) {
     dict_add(model_params, "a", get_parameter_value(parfile, "coordinates", "a", TYPE_DBL, &a, 0));
-    dict_add(model_params, "r_in", get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &r_in, 0));
-    dict_add(model_params, "r_out", get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &r_out, 0));
+    dict_add(model_params, "r_in", get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &Rin, 0));
+    dict_add(model_params, "r_out", get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &Rout, 0));
     dict_add(model_params, "hslope", get_parameter_value(parfile, "coordinates", "hslope", TYPE_DBL, &hslope, 0));
     dict_add(model_params, "mks_smooth", get_parameter_value(parfile, "coordinates", "mks_smooth", TYPE_DBL, &mks_smooth, 0));
     dict_add(model_params, "poly_xt", get_parameter_value(parfile, "coordinates", "poly_xt", TYPE_DBL, &poly_xt, 0));
     dict_add(model_params, "poly_alpha", get_parameter_value(parfile, "coordinates", "poly_alpha", TYPE_DBL, &poly_alpha, 0));
     poly_norm = 0.5 * M_PI * 1. / (1. + 1. / (poly_alpha + 1.) * 1. / pow(poly_xt, poly_alpha));
     fprintf(stderr, "FMKS parameters a: %f hslope: %f r_in: %f r_out: %f mks_smooth: %f poly_xt: %f poly_alpha: %f poly_norm: %f\n", 
-      a, hslope, r_in, r_out, mks_smooth, poly_xt, poly_alpha, poly_norm);
+      a, hslope, Rin, Rout, mks_smooth, poly_xt, poly_alpha, poly_norm);
   }
 
   /* Don't emit beyond specified limit or coordinate limit */
-  rmax_geo = fmin(rmax_geo, r_out);
-  rmin_geo = fmax(rmin_geo, r_in);
+  rmax_geo = fmin(rmax_geo, Rout);
+  rmin_geo = fmax(rmin_geo, Rin);
 
   /* The rest of the grid bounds */
   stopx[0] = 1.;
@@ -787,7 +786,7 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
   cstartx[2] = 0;
   cstartx[3] = 0;
   cstopx[0]  = 0;
-  cstopx[1]  = log(r_out);
+  cstopx[1]  = log(Rout);
   cstopx[3]  = 2 * M_PI;
 
   /* Print grid bounds */
@@ -849,10 +848,9 @@ void init_model(double *tA, double *tB)
   /* Set all dimensional quantities from loaded parameters */
   set_units();
 
-  // read fluid data
+  /* Read fluid data */
   fprintf(stderr, "Reading data...\n");
-  load_data(0, fnam, dumpidx, 2);  
-  // replaced dumpmin -> 2 because apparently that argument was just .. removed
+  load_data(0, fnam, dumpidx, 2);  // replaced dumpmin -> 2 because apparently that argument was just .. removed
   dumpidx += dumpskip;
   #if SLOW_LIGHT
   update_data(tA, tB);
@@ -862,17 +860,25 @@ void init_model(double *tA, double *tB)
   data[2]->t = 10000.;
   #endif // SLOW_LIGHT
 
-  // horizon radius
+  /* Event horizon radius */
   Rh = 1 + sqrt(1. - a * a);
 
-  // possibly cut around the pole
+  /* Possibly cut around the pole */
   if (polar_cut >= 0) th_beg = 0.0174 * polar_cut;
 }
 
 
-// In slowlight mode, we perform linear interpolation in time. This function tells
-// us how far we've progressed from data[nA]->t to data[nB]->t but "in reverse" as
-// tinterp == 1 -> we're exactly on nA and tinterp == 0 -> we're exactly on nB.
+/** 
+ * @brief How far have we interpolated between data[nA]->t and data[nB]->t
+ * 
+ * In slowlight mode, we perform linear interpolation in time. This function tells
+ * us how far we've progressed from data[nA]->t to data[nB]->t but "in reverse" as
+ * tinterp == 1 -> we're exactly on nA and tinterp == 0 -> we're exactly on nB.
+ * 
+ * @param X  local coordinates
+ * @param nA dataA index
+ * @param nB dataB index
+ */
 double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
 {
   #if SLOW_LIGHT
@@ -882,7 +888,7 @@ double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
     *nA = 1; *nB = 2;
   }
   double tinterp = 1. - ( X[0] - data[*nA]->t ) / ( data[*nB]->t - data[*nA]->t );
-  if (tinterp < 0.) tinterp = 0.; //  in slow light, when we reset based on tB, sometimes we overshoot
+  if (tinterp < 0.) tinterp = 0.; //  In slow light, when we reset based on tB, sometimes we overshoot
   if (tinterp > 1.) tinterp = 1.; //  TODO, this should really only happen at r >> risco, but still...
   return tinterp;
   #else
@@ -891,6 +897,7 @@ double set_tinterp_ns(double X[NDIM], int *nA, int *nB)
   return 0.;
   #endif // SLOW_LIGHT
 }
+
 
 // Calculate Ucon,Ucov,Bcon,Bcov from primitives at location X using 
 // interpolation (on the primitives). This has been all wrapped into
