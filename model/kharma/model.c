@@ -133,7 +133,7 @@ dict *model_params = NULL;
  * - **Other Parameters:**  
  *   - "reverse_field": Flag to reverse the field orientation.
  *
- * The function utilizes the function @c set_by_word_val to set a model parameter based on the provided key and value.
+ * The function utilizes @c set_by_word_val to set a model parameter based on the provided key and value.
  *
  * @param word  The key identifying which model parameter to set.
  * @param value The value to be assigned to the model parameter.
@@ -609,17 +609,32 @@ double get_dump_time(char *fnam, int dumpidx)
 
 
 /**
- * @brief Allocate memory for 'data' struct.
+ * @brief Allocate memory for primitives.
  * 
  * Once the grid parameters have been read from the dump file, this function allocates
- * memory for the 'data' struct members. This includes the primitive variables, electron
- * number density, electron temperature, magnetic field, magnetization, and plasma beta.
+ * memory only for the primitive variables defined over the entire mesh. This is to 
+ * minimize memory usage.
  */
-void init_storage(void)
+void init_storage_prims(void)
 { 
   /* One ghost zone on each side of the domain */
   for (int n = 0; n < NSUP; n++) {
     data[n]->p      = malloc_rank4(NVAR,N1+2,N2+2,N3+2);
+  }
+}
+
+
+/**
+ * @brief Allocate memory for derived variables in the data struct.
+ * 
+ * Once the primitives are defined over the entire mesh, the derived variables:
+ * electron number density, electron temperature, magnetic field, magnetization, 
+ * and plasma beta are defined over the entire grid.
+ */
+void init_storage_prims(void)
+{ 
+  /* One ghost zone on each side of the domain */
+  for (int n = 0; n < NSUP; n++) {
     data[n]->ne     = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->b      = malloc_rank3(N1+2,N2+2,N3+2);
@@ -654,13 +669,12 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
   /* Grid parameter*/
   char coordinate_system[256];
   int metric = 0;
-  int nx1, nx2, nx3; // Mesh size
+  // int nx1, nx2, nx3; // Mesh size
   int nx1_mb, nx2_mb, nx3_mb; // Meshblock size
   int nghost;
   double x1min, x1max, x2min, x2max, x3min, x3max; // Domain limits
   double a;
   double hslope, mks_smooth, poly_xt, poly_alpha;
-
 
   /* Read parameters from par file */
   dict_add(model_params, "has_electrons", get_parameter_value(parfile, "electrons", "on", TYPE_INT, &has_electrons, 0));
@@ -687,9 +701,9 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
     fprintf(stderr, "Unknown coordinate system: %s\n", coordinate_system);
     return -1;
   }
-  dict_add(model_params, "nx1", get_parameter_value(parfile, "parthenon/mesh", "nx1", TYPE_INT, &nx1, 0));
-  dict_add(model_params, "nx2", get_parameter_value(parfile, "parthenon/mesh", "nx2", TYPE_INT, &nx2, 0));
-  dict_add(model_params, "nx3", get_parameter_value(parfile, "parthenon/mesh", "nx3", TYPE_INT, &nx3, 0));
+  dict_add(model_params, "nx1", get_parameter_value(parfile, "parthenon/mesh", "nx1", TYPE_INT, &N1, 0));
+  dict_add(model_params, "nx2", get_parameter_value(parfile, "parthenon/mesh", "nx2", TYPE_INT, &N2, 0));
+  dict_add(model_params, "nx3", get_parameter_value(parfile, "parthenon/mesh", "nx3", TYPE_INT, &N3, 0));
   dict_add(model_params, "nghost", get_parameter_value(parfile, "parthenon/mesh", "nghost", TYPE_INT, &nghost, 0));
   dict_add(model_params, "nx1_mb", get_parameter_value(parfile, "parthenon/meshblock", "nx1", TYPE_INT, &nx1_mb, 0));
   dict_add(model_params, "nx2_mb", get_parameter_value(parfile, "parthenon/meshblock", "nx2", TYPE_INT, &nx2_mb, 0));
@@ -795,8 +809,8 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
   fprintf(stderr, "Grid start: %g %g %g stop: %g %g %g\n",
     startx[1], startx[2], startx[3], stopx[1], stopx[2], stopx[3]);
 
-  /* Allocate memory for data object members */
-  init_storage();
+  /* Allocate memory for the primitive member of the data struct */
+  init_storage_prims();
 
   return 0;
 }
@@ -827,6 +841,30 @@ void set_units()
 
 
 /**
+ * @brief Read fluid primitives and initialize the 'data' struct.
+ *
+ * This function reads the primitives from the native KHARMA dump file, assembles the mesh from the meshblocks,
+ * and initializes the 'data' struct.
+ * 
+ * @param n       Index of the 'data' struct.
+ * @param fname   Filename of the dump file.
+ * @param data    Pointer to the 'data' struct.
+ * @param verbose Verbosity level (print values)
+ */
+void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
+{
+  char fname[256];
+  snprintf(fname, 255, fnam, dumpidx);
+
+  /* Read the time of the dump */
+  data[n]->t = get_dump_time(fnam, dumpidx);
+
+  /* Read the fluid data */
+  read_kharma_dump(fname, data[n], verbose);
+}
+
+
+/**
  * @brief Initialize KHARMA model
  *
  * This function reads the fluid data from the dump file and stores it in the 'data' struct.
@@ -850,7 +888,7 @@ void init_model(double *tA, double *tB)
 
   /* Read fluid data */
   fprintf(stderr, "Reading data...\n");
-  load_data(0, fnam, dumpidx, 2);  // replaced dumpmin -> 2 because apparently that argument was just .. removed
+  load_kharma_data(0, fnam, dumpidx, 2);  // replaced dumpmin -> 2 because apparently that argument was just .. removed
   dumpidx += dumpskip;
   #if SLOW_LIGHT
   update_data(tA, tB);
@@ -1132,33 +1170,6 @@ void init_physical_quantities(int n, double rescale_factor)
         } else {
           data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         }
-#if DEBUG
-        if(isnan(data[n]->thetae[i][j][k])) {
-          data[n]->thetae[i][j][k] = 0.0;
-          fprintf(stderr, "\nNaN Thetae!  Prims %g %g %g %g %g %g %g %g\n", data[n]->p[KRHO][i][j][k], data[n]->p[UU][i][j][k],
-                  data[n]->p[U1][i][j][k], data[n]->p[U2][i][j][k], data[n]->p[U3][i][j][k], data[n]->p[B1][i][j][k],
-                  data[n]->p[B2][i][j][k], data[n]->p[B3][i][j][k]);
-          fprintf(stderr, "Setting floor temp!\n");
-        }
-#endif
-
-        // Enforce a max on Thetae based on cooling time == dynamical time
-        if (cooling_dynamical_times > 1e-20) {
-          double X[NDIM];
-          ijktoX(i, j, k, X);
-          double r, th;
-          bl_coord(X, &r, &th);
-          // Calculate thetae_max based on matching the cooling time w/dynamical time
-          // Makes sure to use b w/units, but r has already been rescaled
-          double Thetae_max_dynamical =  1 / cooling_dynamical_times * 7.71232e46 / 2 / MBH * pow(data[n]->b[i][j][k], -2) * pow(r * sin(th), -1.5);
-#if DEBUG
-          if (Thetae_max_dynamical < data[n]->thetae[i][j][k]) {
-            if (r > 2) fprintf(stderr, "Ceiling on temp! %g < %g, r, th %g %g\n", Thetae_max_dynamical, data[n]->thetae[i][j][k], r, th);
-            ceilings++;
-          }
-#endif
-          data[n]->thetae[i][j][k] = fmin(data[n]->thetae[i][j][k], Thetae_max_dynamical);
-        }
 
         // Apply floor last in case the above is a very restrictive ceiling
         data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
@@ -1178,31 +1189,14 @@ void init_physical_quantities(int n, double rescale_factor)
       }
     }
   }
-#if DEBUG
-  fprintf(stderr, "TOTAL TEMPERATURE CEILING ZONES: %d of %d\n", ceilings, (N1+2)*(N2+2)*(N3+2));
-#endif
-
 }
 
-
-void init_grid(char *fnam, int dumpidx)
-{
-  if (dumpfile_format == FORMAT_IHARM_v1) {
-    init_iharm_grid(fnam, dumpidx);
-  } else if (dumpfile_format == FORMAT_KORAL_v2) {
-    init_koral_grid(fnam, dumpidx);
-  } else if (dumpfile_format == FORMAT_HAMR_EKS) {
-    init_hamr_grid(fnam, dumpidx);
-  }
-}
 
 void output_hdf5()
 {
   hdf5_set_directory("/");
 
-  if (dumpfile_format == FORMAT_IHARM_v1) {
-    hdf5_write_blob(fluid_header, "/fluid_header");
-  }
+  hdf5_write_blob(fluid_header, "/fluid_header");
 
   hdf5_write_single_val(&Mdot_dump, "Mdot", H5T_IEEE_F64LE);
   hdf5_write_single_val(&MdotEdd_dump, "MdotEdd", H5T_IEEE_F64LE);
@@ -1241,20 +1235,8 @@ void output_hdf5()
   hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
 
   hdf5_set_directory("/");
-
-  //fprintf(stderr, "Wrote model header\n");
 }
 
-void load_data(int n, char *fnam, int dumpidx, int verbose)
-{
-  if (dumpfile_format == FORMAT_IHARM_v1) {
-    load_iharm_data(n, fnam, dumpidx, verbose);
-  } else if (dumpfile_format == FORMAT_KORAL_v2) {
-    load_koral_data(n, fnam, dumpidx, verbose);
-  } else if (dumpfile_format == FORMAT_HAMR_EKS) {
-    load_hamr_data(n, fnam, dumpidx, verbose);
-  }
-}
 
 void populate_boundary_conditions(int n)
 {
