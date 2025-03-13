@@ -3,6 +3,7 @@
 #include "decs.h"
 #include "hdf5_utils.h"
 #include "debug_tools.h"
+#include "dict.h"
 
 #include "coordinates.h"
 #include "geometry.h"
@@ -82,6 +83,7 @@ static int reverse_field = 0;
 double tf;
 static hdf5_blob fluid_header = { 0 };
 
+
 // Struct to store model-specific data
 struct of_data {
   double t;
@@ -94,6 +96,11 @@ struct of_data {
 };
 static struct of_data dataA, dataB, dataC; // additional structs for slow light
 static struct of_data *data[NSUP];
+
+
+// Dictionary for model parameters
+dict *model_params = NULL;
+
 
 /**
  * @brief Attempts to set a model parameter based on the provided key and value.
@@ -366,84 +373,108 @@ int read_info_attribute(const char *filename, const char *attr_name, int type, v
 }
 
 
-/*
- * get_parameter_value:
- *   Parses the input_text for the given key and extracts the value following '='.
- *   Ensures an exact key match (not a substring of a longer key).
- *   The value is converted to an int, double, or copied as a string depending on type.
+/**
+ * @brief Extract the value for a given key within a block (optional) from the KHARMA par file
  *
- * Parameters:
- *   input_text - A string containing the full contents of the "File" attribute.
- *   key        - The parameter key to search for (e.g. "nx3", "problem_id").
- *   type       - Expected type (TYPE_INT, TYPE_DBL, TYPE_STR).
- *   value      - Pointer to memory where the value will be stored.
- *                For TYPE_INT and TYPE_DBL, pass a pointer to an int or double.
- *                For TYPE_STR, pass a character buffer.
- *   value_size - The size of the buffer for PARAM_STRING; ignored for numeric types.
+ * If a block name is provided (e.g. "parthenon/mesh"), the function first locates the
+ * block (assumed to appear as "<parthenon/mesh>") and then searches for the key within that block.
+ * If no block name is passed (i.e. block == NULL or block[0]=='\0'), the entire input is searched,
+ * returning the first occurrence of the key.
  *
- * Returns:
- *   0 on success, or -1 if the key or the '=' sign is not found.
+ * @param input_text The full text of the par file attribute.
+ * @param block Optional block name (without angle brackets). For example, "parthenon/mesh".
+ *              If provided, only key–value pairs within that block are considered.
+ * @param key The key to search for (e.g. "nx1").
+ * @param type The expected type (TYPE_INT, TYPE_DBL, or TYPE_STR).
+ * @param value Pointer to where the converted value should be stored.
+ *              For TYPE_INT and TYPE_DBL, pass a pointer to an int or double.
+ *              For TYPE_STR, pass a character buffer.
+ * @param value_size For strings, the size of the provided buffer; ignored for numeric types.
+ *
+ * @return 0 on success, or -1 if the key (or block) is not found or on conversion error.
  */
-int get_parameter_value(const char *input_text, const char *key, int type, void *value, size_t value_size)
+int get_parameter_value(const char *input_text, const char *block, const char *key, int type, void *value, size_t value_size)
 {
-  const char *pos = input_text;
+  const char *search_region = input_text;
+  const char *region_end = input_text + strlen(input_text);
+
+  /* If a block is specified, narrow the search region to that block */
+  if (block != NULL && block[0] != '\0') {
+    char block_tag[256];
+    snprintf(block_tag, sizeof(block_tag), "<%s>", block);
+    const char *block_pos = strstr(input_text, block_tag);
+    if (block_pos == NULL) {
+      fprintf(stderr, "Block '%s' not found in input.\n", block);
+      return -1;
+    }
+    search_region = block_pos;
+    /* Define the end of the block as the start of the next block marker, if any */
+    const char *next_block = strstr(block_pos + strlen(block_tag), "<");
+    if (next_block != NULL) {
+      region_end = next_block;
+    }
+}
+
+  const char *pos = search_region;
   size_t key_len = strlen(key);
   const char *key_loc = NULL;
 
-  // Loop to find an occurrence of the key that is not part of a longer word.
-  while ((pos = strstr(pos, key)) != NULL) {
-    // Check that the character before key is either start of string or whitespace.
-    if (pos != input_text && !isspace((unsigned char) *(pos - 1))) {
-      pos++; // not a valid match, continue search
+  /* Loop to find an occurrence of the key that is not part of a longer word
+  and lies within the designated search region. */
+  while ((pos = strstr(pos, key)) != NULL && pos < region_end) {
+    /* Check that the character before the key is either the start of the region or whitespace */
+    if (pos != search_region && !isspace((unsigned char)*(pos - 1))) {
+      pos++; // Not a valid match, continue search
       continue;
     }
-    // Check that the character after the key is either whitespace or '='.
+    /* Check that the character after the key is either whitespace or '=' */
     char after = pos[key_len];
     if (after != '\0' && !isspace((unsigned char)after) && after != '=') {
-      pos++; // not a valid match, continue search
+      pos++; // Not a valid match, continue search
       continue;
     }
-    // Valid key found.
+    /* Valid key found */
     key_loc = pos;
     break;
   }
 
-  if (key_loc == NULL) {
-    fprintf(stderr, "Key '%s' not found in input.\n", key);
+  if (key_loc == NULL || key_loc >= region_end) {
+    fprintf(stderr, "Key '%s' not found in %sinput.\n", key, (block && block[0] != '\0') ? block : "default ");
     return -1;
   }
 
-  // Find the '=' sign after the key.
+  /* Locate the '=' sign after the key */
   const char *equals_sign = strchr(key_loc, '=');
-  if (equals_sign == NULL) {
+  if (equals_sign == NULL || equals_sign >= region_end) {
     fprintf(stderr, "No '=' found for key '%s'.\n", key);
     return -1;
   }
 
-  // Move past '=' and skip any leading whitespace.
-  equals_sign++; 
-  while (*equals_sign && isspace((unsigned char)*equals_sign)) {
+  /* Move past '=' and skip any leading whitespace */
+  equals_sign++;
+  while (equals_sign < region_end && *equals_sign && isspace((unsigned char)*equals_sign)) {
     equals_sign++;
   }
 
-  // Depending on the type, extract and convert the value.
+  /* Extract and convert the value based on the expected type */
   if (type == TYPE_INT) {
     *(int *)value = atoi(equals_sign);
   } else if (type == TYPE_DBL) {
     *(double *)value = atof(equals_sign);
   } else if (type == TYPE_STR) {
-  // Copy until whitespace, newline, or comment ('#') marker.
-  char *str_value = (char *)value;
-  size_t i = 0;
-  while (equals_sign[i] && !isspace((unsigned char)equals_sign[i]) && equals_sign[i] != '#' && i < value_size - 1) {
-    str_value[i] = equals_sign[i];
-    i++;
-  }
-  str_value[i] = '\0';
+    char *str_value = (char *)value;
+    size_t i = 0;
+    while (equals_sign < region_end && equals_sign[i] && !isspace((unsigned char)equals_sign[i]) 
+    && equals_sign[i] != '#' && i < value_size - 1) {
+      str_value[i] = equals_sign[i];
+      i++;
+    }
+    str_value[i] = '\0';
   } else {
     fprintf(stderr, "Unsupported parameter type.\n");
     return -1;
   }
+
   return 0;
 }
 
@@ -470,6 +501,13 @@ double get_dump_time(char *fnam, int dumpidx)
 }
 
 
+void read_parameters_and_set_grid(char *fnam, int dumpidx)
+{
+  char fname[256];
+  snprintf(fname, 255, fnam, dumpidx);
+
+
+}
 
 void init_model(double *tA, double *tB)
 {
@@ -508,9 +546,6 @@ void init_model(double *tA, double *tB)
   if (polar_cut >= 0) th_beg = 0.0174 * polar_cut;
 }
 
-/*
-  these supply basic model data to ipole
-*/
 
 // In slowlight mode, we perform linear interpolation in time. This function tells
 // us how far we've progressed from data[nA]->t to data[nB]->t but "in reverse" as
