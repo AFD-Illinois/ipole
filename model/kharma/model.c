@@ -609,6 +609,27 @@ double get_dump_time(char *fnam, int dumpidx)
 
 
 /**
+ * @brief Allocate memory for 'data' struct.
+ * 
+ * Once the grid parameters have been read from the dump file, this function allocates
+ * memory for the 'data' struct members. This includes the primitive variables, electron
+ * number density, electron temperature, magnetic field, magnetization, and plasma beta.
+ */
+void init_storage(void)
+{ 
+  /* One ghost zone on each side of the domain */
+  for (int n = 0; n < NSUP; n++) {
+    data[n]->p      = malloc_rank4(NVAR,N1+2,N2+2,N3+2);
+    data[n]->ne     = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->b      = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->sigma  = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->beta   = malloc_rank3(N1+2,N2+2,N3+2);
+  }
+}
+
+
+/**
  * @brief Read relevant fluid and geometry parameters and allocate memory for 'data' object.
  *
  * The relevant parameters (data stoted in header in iharm3d format) are saved to the model_params
@@ -619,7 +640,7 @@ double get_dump_time(char *fnam, int dumpidx)
  *
  * @return 0 on success, -1 on error.
  */
-int read_parameters_and_set_grid(char *fnam, int dumpidx)
+int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
 {
   /* Get input parameter file from dump*/
   char fname[256];
@@ -783,45 +804,49 @@ int read_parameters_and_set_grid(char *fnam, int dumpidx)
 
 
 /**
- * @brief Allocate memory for 'data' struct.
- * 
- * Oncde the grid parameters have been read from the dump file, this function allocates
- * memory for the 'data' struct members. This includes the primitive variables, electron
- * number density, electron temperature, magnetic field, magnetization, and plasma beta.
- * 
- * @param fnam    Filename of the dump file.
- * @param dumpidx Index of the dump file.
+ * @brief Set units
  *
- * @return 0 on success, -1 on error.
+ * Once the relevant parameres are read---MBH and Munit---this function sets various units
+ * which fixes the scale of the system.
  */
-void init_storage(void)
-{ 
-  /* One ghost zone on each side of the domain */
-  for (int n = 0; n < NSUP; n++) {
-    data[n]->p      = malloc_rank4(NVAR,N1+2,N2+2,N3+2);
-    data[n]->ne     = malloc_rank3(N1+2,N2+2,N3+2);
-    data[n]->thetae = malloc_rank3(N1+2,N2+2,N3+2);
-    data[n]->b      = malloc_rank3(N1+2,N2+2,N3+2);
-    data[n]->sigma  = malloc_rank3(N1+2,N2+2,N3+2);
-    data[n]->beta   = malloc_rank3(N1+2,N2+2,N3+2);
-  }
+void set_units()
+{
+  MBH = MBH_solar * MSUN; // Convert to CGS
+
+  L_unit   = GNEWT * MBH / (CL * CL);
+  T_unit   = L_unit / CL;
+  RHO_unit = M_unit / pow(L_unit, 3);
+  U_unit   = RHO_unit * CL * CL;
+  B_unit   = CL * sqrt(4.*M_PI*RHO_unit);
+
+  Mdotedd  = 4. * M_PI * GNEWT * MBH * MP / CL / 0.1 / SIGMA_THOMSON;
+
+  fprintf(stderr,"MBH: %g [Msun]\n",MBH/MSUN);
+  fprintf(stderr,"L,T,M units: %g [cm] %g [s] %g [g]\n",L_unit,T_unit,M_unit) ;
+  fprintf(stderr,"rho,u,B units: %g [g cm^-3] %g [g cm^-1 s^-2] %g [G] \n",RHO_unit,U_unit,B_unit) ;
 }
 
+
+/**
+ * @brief Initialize KHARMA model
+ *
+ * This function reads the fluid data from the dump file and stores it in the 'data' struct.
+ * 
+ * @param tA Address of time variable for dataA (only for slowlight calculation)
+ * @param tB Address of time variable for dataB (only for slowlight calculation)
+ */
 void init_model(double *tA, double *tB)
 {
-  // set up initial ordering of data[]
+  /* Set up initial ordering of data[] */
   data[0] = &dataA;
   data[1] = &dataB;
   data[2] = &dataC;
 
-  fprintf(stderr, "Determining dump file type... ");
-  get_dumpfile_type(fnam, dumpmin);
+  /* Read relevant parameters from dump file and allocate memory for data struct */
+  fprintf(stderr, "Reading parameters, allocating memory...\n");
+  read_parameters_and_alloate_memory(fnam, dumpmin);
 
-  // set up grid for fluid data
-  fprintf(stderr, "Reading data header...\n");
-  init_grid(fnam, dumpmin);
-
-  // set all dimensional quantities from loaded parameters
+  /* Set all dimensional quantities from loaded parameters */
   set_units();
 
   // read fluid data
@@ -1043,21 +1068,6 @@ double get_model_ne(double X[NDIM])
   double tfac = set_tinterp_ns(X, &nA, &nB);
 
   return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac) * sigma_smoothfac;
-}
-
-void set_units()
-{
-  MBH = MBH_solar * MSUN; // Convert to CGS
-  L_unit = GNEWT * MBH / (CL * CL);
-  T_unit = L_unit / CL;
-  RHO_unit = M_unit / pow(L_unit, 3);
-  U_unit = RHO_unit * CL * CL;
-  B_unit = CL * sqrt(4.*M_PI*RHO_unit);
-  Mdotedd=4.*M_PI*GNEWT*MBH*MP/CL/0.1/SIGMA_THOMSON;
-
-  fprintf(stderr,"MBH: %g [Msun]\n",MBH/MSUN);
-  fprintf(stderr,"L,T,M units: %g [cm] %g [s] %g [g]\n",L_unit,T_unit,M_unit) ;
-  fprintf(stderr,"rho,u,B units: %g [g cm^-3] %g [g cm^-1 s^-2] %g [G] \n",RHO_unit,U_unit,B_unit) ;
 }
 
 void init_physical_quantities(int n, double rescale_factor)
