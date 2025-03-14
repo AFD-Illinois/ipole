@@ -1550,6 +1550,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   lower(Bcon, gcov, Bcov);
 }
 
+
 // Get the primitive variables interpolated to a point X,
 // And fill them in the next 8 array slots after p
 // Not used for transport but useful for plotting along a geodesic later
@@ -1564,6 +1565,7 @@ void get_model_primitives(double X[NDIM], double *p)
     p[np] = interp_scalar_time(X, data[nA]->p[np], data[nA]->p[np], tfac);
   }
 }
+
 
 double get_model_thetae(double X[NDIM])
 {
@@ -1588,6 +1590,7 @@ double get_model_thetae(double X[NDIM])
   return thetae;
 }
 
+
 //b field strength in Gauss
 double get_model_b(double X[NDIM])
 {
@@ -1600,6 +1603,7 @@ double get_model_b(double X[NDIM])
   return interp_scalar_time(X, data[nA]->b, data[nB]->b, tfac);
 }
 
+
 double get_model_sigma(double X[NDIM]) 
 {
   if ( X_in_domain(X) == 0 ) return 0.;
@@ -1609,6 +1613,7 @@ double get_model_sigma(double X[NDIM])
 
   return interp_scalar_time(X, data[nA]->sigma, data[nB]->sigma, tfac);
 }
+
 
 double get_model_beta(double X[NDIM]) 
 {
@@ -1622,6 +1627,7 @@ double get_model_beta(double X[NDIM])
   return tfac*betaA + (1. - tfac)*betaB;
 }
 
+
 double get_sigma_smoothfac(double sigma)
 {
   double sigma_above = sigma_cut;
@@ -1631,6 +1637,7 @@ double get_sigma_smoothfac(double sigma)
   double dsig = sigma_above - sigma_cut;
   return cos(M_PI / 2. / dsig * (sigma - sigma_cut));
 }
+
 
 double get_model_ne(double X[NDIM])
 {
@@ -1710,4 +1717,6 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV) {return;}
+
+    
 void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv) {return;}

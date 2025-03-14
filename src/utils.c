@@ -22,7 +22,7 @@ void *malloc_rank1(size_t n1, size_t size)
 }
 
 
-int *malloc_rank2_int(int n1, int n2)
+int **malloc_rank2_int(int n1, int n2)
 {
   int **A;
   int *space;
