@@ -22,6 +22,22 @@ void *malloc_rank1(size_t n1, size_t size)
 }
 
 
+int *malloc_rank2_int(int n1, int n2)
+{
+  int **A;
+  int *space;
+  int i;
+
+  space = malloc_rank1(n1*n2, sizeof(int));
+  A = malloc_rank1(n1, sizeof(int *));
+  for(i = 0; i < n1; i++){
+    A[i] = &(space[n2 * i]);
+  }
+
+  return A;
+}
+
+
 double ***malloc_rank3(int n1, int n2, int n3)
 {
 
