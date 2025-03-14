@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <ctype.h>
 
 
 // Macros
@@ -189,7 +190,7 @@ void update_data_until(double *tA, double *tB, double tgt)
 
   while (tC < tgt) {
     dumpidx += dumpskip;
-    tC = get_dump_t(fnam, dumpidx);
+    tC = get_dump_time(fnam, dumpidx);
   }
 
   // reset dump index, just to be safe, then load on out ...
@@ -593,7 +594,7 @@ int get_parameter_value(const char *input_text, const char *block, const char *k
     if (next_block != NULL) {
       region_end = next_block;
     }
-}
+  }
 
   const char *pos = search_region;
   size_t key_len = strlen(key);
@@ -750,17 +751,22 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
   double hslope, mks_smooth, poly_xt, poly_alpha;
 
   /* Read parameters from par file */
-  dict_add(model_params, "has_electrons", get_parameter_value(parfile, "electrons", "on", TYPE_INT, &has_electrons, 0));
+  char buffer[100];
+  get_parameter_value(parfile, "electrons", "on", TYPE_INT, &has_electrons, 0);
+  dict_add(model_params, "has_electrons", (snprintf(buffer, sizeof(buffer), "%d", has_electrons), buffer));
   if (has_electrons) {
-    dict_add(model_params, "game", get_parameter_value(parfile, "electrons", "gamma_e", TYPE_DBL, &game, 0));
-    dict_add(model_params, "gamp", get_parameter_value(parfile, "electrons", "gamma_p", TYPE_DBL, &gamp, 0));
+    get_parameter_value(parfile, "electrons", "gamma_e", TYPE_DBL, &game, 0);
+    get_parameter_value(parfile, "electrons", "gamma_p", TYPE_DBL, &gamp, 0);
+    dict_add(model_params, "game", (snprintf(buffer, sizeof(buffer), "%.8g", game), buffer));
+    dict_add(model_params, "gamp", (snprintf(buffer, sizeof(buffer), "%.8g", gamp), buffer));
     ELECTRONS = 1;
   } else {
     ELECTRONS = 0;
   }
-  dict_add(model_params, "gam", get_parameter_value(parfile, "GRMHD", "gamma", TYPE_DBL, &gam, 0));
-  dict_add(model_params, "coordinate_system", get_parameter_value(parfile, "coordinates", "transform", 
-    TYPE_STR, coordinate_system, sizeof(coordinate_system)));
+  get_parameter_value(parfile, "GRMHD", "gamma", TYPE_DBL, &gam, 0);
+  dict_add(model_params, "gam", (snprintf(buffer, sizeof(buffer), "%.8g", game), buffer));
+  get_parameter_value(parfile, "coordinates", "transform", TYPE_STR, coordinate_system, sizeof(coordinate_system));
+  dict_add(model_params, "coordinate_system", coordinate_system);
   if (strncmp(coordinate_system, "fmks", 19) == 0) {
     metric = METRIC_FMKS;
     cstopx[2] = 1.0;
@@ -774,19 +780,32 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
     fprintf(stderr, "Unknown coordinate system: %s\n", coordinate_system);
     return -1;
   }
-  dict_add(model_params, "nx1", get_parameter_value(parfile, "parthenon/mesh", "nx1", TYPE_INT, &N1, 0));
-  dict_add(model_params, "nx2", get_parameter_value(parfile, "parthenon/mesh", "nx2", TYPE_INT, &N2, 0));
-  dict_add(model_params, "nx3", get_parameter_value(parfile, "parthenon/mesh", "nx3", TYPE_INT, &N3, 0));
-  dict_add(model_params, "nghost", get_parameter_value(parfile, "parthenon/mesh", "nghost", TYPE_INT, &nghost, 0));
-  dict_add(model_params, "nx1_mb", get_parameter_value(parfile, "parthenon/meshblock", "nx1", TYPE_INT, &nx1_mb, 0));
-  dict_add(model_params, "nx2_mb", get_parameter_value(parfile, "parthenon/meshblock", "nx2", TYPE_INT, &nx2_mb, 0));
-  dict_add(model_params, "nx3_mb", get_parameter_value(parfile, "parthenon/meshblock", "nx3", TYPE_INT, &nx3_mb, 0));
-  dict_add(model_params, "x1min", get_parameter_value(parfile, "parthenon/mesh", "x1min", TYPE_DBL, &x1min, 0));
-  dict_add(model_params, "x1max", get_parameter_value(parfile, "parthenon/mesh", "x1max", TYPE_DBL, &x1max, 0));
-  dict_add(model_params, "x2min", get_parameter_value(parfile, "parthenon/mesh", "x2min", TYPE_DBL, &x2min, 0));
-  dict_add(model_params, "x2max", get_parameter_value(parfile, "parthenon/mesh", "x2max", TYPE_DBL, &x2max, 0));
-  dict_add(model_params, "x3min", get_parameter_value(parfile, "parthenon/mesh", "x3min", TYPE_DBL, &x3min, 0));
-  dict_add(model_params, "x3max", get_parameter_value(parfile, "parthenon/mesh", "x3max", TYPE_DBL, &x3max, 0));
+  get_parameter_value(parfile, "parthenon/mesh", "nx1", TYPE_INT, &N1, 0);
+  dict_add(model_params, "nx1", (snprintf(buffer, sizeof(buffer), "%d", N1), buffer));
+  get_parameter_value(parfile, "parthenon/mesh", "nx2", TYPE_INT, &N2, 0);
+  dict_add(model_params, "nx2", (snprintf(buffer, sizeof(buffer), "%d", N2), buffer));
+  get_parameter_value(parfile, "parthenon/mesh", "nx3", TYPE_INT, &N3, 0);
+  dict_add(model_params, "nx3", (snprintf(buffer, sizeof(buffer), "%d", N3), buffer));
+  get_parameter_value(parfile, "parthenon/mesh", "nghost", TYPE_INT, &nghost, 0);
+  dict_add(model_params, "nghost", (snprintf(buffer, sizeof(buffer), "%d", nghost), buffer));
+  get_parameter_value(parfile, "parthenon/meshblock", "nx1", TYPE_INT, &nx1_mb, 0);
+  dict_add(model_params, "nx1_mb", (snprintf(buffer, sizeof(buffer), "%d", nx1_mb), buffer));
+  get_parameter_value(parfile, "parthenon/meshblock", "nx2", TYPE_INT, &nx2_mb, 0);
+  dict_add(model_params, "nx2_mb", (snprintf(buffer, sizeof(buffer), "%d", nx2_mb), buffer));
+  get_parameter_value(parfile, "parthenon/meshblock", "nx3", TYPE_INT, &nx3_mb, 0);
+  dict_add(model_params, "nx3_mb", (snprintf(buffer, sizeof(buffer), "%d", nx3_mb), buffer));
+  get_parameter_value(parfile, "parthenon/mesh", "x1min", TYPE_DBL, &x1min, 0);
+  dict_add(model_params, "x1min", (snprintf(buffer, sizeof(buffer), "%.8g", x1min), buffer));
+  get_parameter_value(parfile, "parthenon/mesh", "x1max", TYPE_DBL, &x1max, 0);
+  dict_add(model_params, "x1max", (snprintf(buffer, sizeof(buffer), "%.8g", x1max), buffer));
+  get_parameter_value(parfile, "parthenon/mesh", "x2min", TYPE_DBL, &x2min, 0);
+  dict_add(model_params, "x2min", (snprintf(buffer, sizeof(buffer), "%.8g", x2min), buffer));
+  get_parameter_value(parfile, "parthenon/mesh", "x2max", TYPE_DBL, &x2max, 0);
+  dict_add(model_params, "x2max", (snprintf(buffer, sizeof(buffer), "%.8g", x2max), buffer));
+  get_parameter_value(parfile, "parthenon/mesh", "x3min", TYPE_DBL, &x3min, 0);
+  dict_add(model_params, "x3min", (snprintf(buffer, sizeof(buffer), "%.8g", x3min), buffer));
+  get_parameter_value(parfile, "parthenon/mesh", "x3max", TYPE_DBL, &x3max, 0);
+  dict_add(model_params, "x3max", (snprintf(buffer, sizeof(buffer), "%.8g", x3max), buffer));
 
   /* Which electron model to use if electrons are present in dump*/
   if (!USE_FIXED_TPTE && !USE_MIXED_TPTE) {
@@ -835,24 +854,38 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
 
   /* Load metric-specific parameters */
   if (metric == METRIC_EKS) {
-    dict_add(model_params, "a", get_parameter_value(parfile, "coordinates", "a", TYPE_DBL, &a, 0));
-    dict_add(model_params, "r_in", get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &Rin, 0));
-    dict_add(model_params, "r_out", get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &Rout, 0));
+    get_parameter_value(parfile, "coordinates", "a", TYPE_DBL, &a, 0);
+    dict_add(model_params, "a", (snprintf(buffer, sizeof(buffer), "%.8g", a), buffer));
+    get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &Rin, 0);
+    dict_add(model_params, "r_in", (snprintf(buffer, sizeof(buffer), "%.8g", Rin), buffer));
+    get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &Rout, 0);
+    dict_add(model_params, "r_out", (snprintf(buffer, sizeof(buffer), "%.8g", Rout), buffer));
     fprintf(stderr, "eKS parameters a: %f r_in: %f r_out: %f\n", a, Rin, Rout);
   } else if (metric == METRIC_MKS) {
-    dict_add(model_params, "a", get_parameter_value(parfile, "coordinates", "a", TYPE_DBL, &a, 0));
-    dict_add(model_params, "r_in", get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &Rin, 0));
-    dict_add(model_params, "r_out", get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &Rout, 0));
-    dict_add(model_params, "hslope", get_parameter_value(parfile, "coordinates", "hslope", TYPE_DBL, &hslope, 0));
+    get_parameter_value(parfile, "coordinates", "a", TYPE_DBL, &a, 0);
+    dict_add(model_params, "a", (snprintf(buffer, sizeof(buffer), "%.8g", a), buffer));
+    get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &Rin, 0);
+    dict_add(model_params, "r_in", (snprintf(buffer, sizeof(buffer), "%.8g", Rin), buffer));
+    get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &Rout, 0);
+    dict_add(model_params, "r_out", (snprintf(buffer, sizeof(buffer), "%.8g", Rout), buffer));
+    get_parameter_value(parfile, "coordinates", "hslope", TYPE_DBL, &hslope, 0);
+    dict_add(model_params, "hslope", (snprintf(buffer, sizeof(buffer), "%.8g", hslope), buffer));
     fprintf(stderr, "MKS parameters a: %f hslope: %f r_in: %f r_out: %f\n", a, hslope, Rin, Rout);
   } else if (metric == METRIC_FMKS) {
-    dict_add(model_params, "a", get_parameter_value(parfile, "coordinates", "a", TYPE_DBL, &a, 0));
-    dict_add(model_params, "r_in", get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &Rin, 0));
-    dict_add(model_params, "r_out", get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &Rout, 0));
-    dict_add(model_params, "hslope", get_parameter_value(parfile, "coordinates", "hslope", TYPE_DBL, &hslope, 0));
-    dict_add(model_params, "mks_smooth", get_parameter_value(parfile, "coordinates", "mks_smooth", TYPE_DBL, &mks_smooth, 0));
-    dict_add(model_params, "poly_xt", get_parameter_value(parfile, "coordinates", "poly_xt", TYPE_DBL, &poly_xt, 0));
-    dict_add(model_params, "poly_alpha", get_parameter_value(parfile, "coordinates", "poly_alpha", TYPE_DBL, &poly_alpha, 0));
+    get_parameter_value(parfile, "coordinates", "a", TYPE_DBL, &a, 0);
+    dict_add(model_params, "a", (snprintf(buffer, sizeof(buffer), "%.8g", a), buffer));
+    get_parameter_value(parfile, "coordinates", "r_in", TYPE_DBL, &Rin, 0);
+    dict_add(model_params, "r_in", (snprintf(buffer, sizeof(buffer), "%.8g", Rin), buffer));
+    get_parameter_value(parfile, "coordinates", "r_out", TYPE_DBL, &Rout, 0);
+    dict_add(model_params, "r_out", (snprintf(buffer, sizeof(buffer), "%.8g", Rout), buffer));
+    get_parameter_value(parfile, "coordinates", "hslope", TYPE_DBL, &hslope, 0);
+    dict_add(model_params, "hslope", (snprintf(buffer, sizeof(buffer), "%.8g", hslope), buffer));
+    get_parameter_value(parfile, "coordinates", "mks_smooth", TYPE_DBL, &mks_smooth, 0);
+    dict_add(model_params, "mks_smooth", (snprintf(buffer, sizeof(buffer), "%.8g", mks_smooth), buffer));
+    get_parameter_value(parfile, "coordinates", "poly_xt", TYPE_DBL, &poly_xt, 0);
+    dict_add(model_params, "poly_xt", (snprintf(buffer, sizeof(buffer), "%.8g", poly_xt), buffer));
+    get_parameter_value(parfile, "coordinates", "poly_alpha", TYPE_DBL, &poly_alpha, 0);
+    dict_add(model_params, "poly_alpha", (snprintf(buffer, sizeof(buffer), "%.8g", poly_alpha), buffer));
     poly_norm = 0.5 * M_PI * 1. / (1. + 1. / (poly_alpha + 1.) * 1. / pow(poly_xt, poly_alpha));
     fprintf(stderr, "FMKS parameters a: %f hslope: %f r_in: %f r_out: %f mks_smooth: %f poly_xt: %f poly_alpha: %f poly_norm: %f\n", 
       a, hslope, Rin, Rout, mks_smooth, poly_xt, poly_alpha, poly_norm);
@@ -1154,12 +1187,12 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   /* Get meshblock ordering */
   int **mb_order = malloc_rank2_int(num_meshblocks, NDIM-1);
   int rank = 2;
-  hsize_t fdims[] = {num_meshblocks, NDIM-1};
-  hsize_t fstart[] = {0, 0};
-  hsize_t fcount[] = {num_meshblocks, NDIM-1};
-  hsize_t mdims[] = {num_meshblocks, NDIM-1};
-  hsize_t mstart[] = {0, 0};
-  hdf5_read_array_int(mb_order, "Blocks/loc.lx123", rank, fdims, fstart, fcount, mdims, mstart, H5T_STD_I32LE);
+  hsize_t fdims_2[] = {num_meshblocks, NDIM-1};
+  hsize_t fstart_2[] = {0, 0};
+  hsize_t fcount_2[] = {num_meshblocks, NDIM-1};
+  hsize_t mdims_2[] = {num_meshblocks, NDIM-1};
+  hsize_t mstart_2[] = {0, 0};
+  hdf5_read_array(mb_order, "Blocks/loc.lx123", rank, fdims_2, fstart_2, fcount_2, mdims_2, mstart_2, H5T_STD_I32LE);
 
   /* Read primitives into buffer */
   double *****primitives_buffer; // NMB, N3, N2, N1, NVAR
@@ -1169,40 +1202,39 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   /* Read scalar fields */
   int frank = 4;
   int mrank = 5;
-  hsize_t fdims[4]  = {num_meshblocks, N3, N2, N1 };
-  hsize_t fstart[4] = {0, 0, 0, 0};
-  hsize_t fcount[4] = {num_meshblocks, N3, N2, N1 }; // Read the entire dataset
-  hsize_t mdims[5]  = {num_meshblocks, N3, N2, N1, NVAR };
+  hsize_t fdims_4[4]  = {num_meshblocks, N3, N2, N1};
+  hsize_t fstart_4[4] = {0, 0, 0, 0};
+  hsize_t fcount_4[4] = {num_meshblocks, N3, N2, N1}; // Read the entire dataset
   /* In the memory buffer, we want to store the file data into the slice corresponding to "rho".
     So we set mstart such that the last (5th) dimension starts at KRHO, and mcount to read 1 element along that axis. */
-  hsize_t mstart[5] = {0, 0, 0, 0, KRHO};
-  hsize_t mcount[5] = {num_meshblocks, N3, N2, N1, 1 };
-  hdf5_read_array_multidim(primitives_buffer, "prims.rho", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
-  mstart[4] = UU;
-  hdf5_read_array_multidim(primitives_buffer, "prims.u", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+  hsize_t mdims_5[5]  = {num_meshblocks, N3, N2, N1, NVAR};
+  hsize_t mstart_5[5] = {0, 0, 0, 0, KRHO};
+  hsize_t mcount_5[5] = {num_meshblocks, N3, N2, N1, 1 };
+  hdf5_read_array_multidim(primitives_buffer, "prims.rho", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  mstart_5[4] = UU;
+  hdf5_read_array_multidim(primitives_buffer, "prims.u", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   /* Read vector fields */
   frank = 5;
-  hsize_t fdims[5]  = {num_meshblocks, NDIM-1, N3, N2, N1};
-  hsize_t fstart[5] = {0, 0, 0, 0, 0};
-  hsize_t fcount[5] = {num_meshblocks, 1, N3, N2, N1};
-  hsize_t mdims[5]  = {num_meshblocks, N3, N2, N1, NVAR};
-  hsize_t mstart[5] = {0, 0, 0, 0, U1};
-  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
-  fstart[1] = 1;
-  mstart[4] = U2;
-  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
-  fstart[1] = 2;
-  mstart[4] = U3;
-  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
-  fstart[1] = 0;
-  mstart[4] = B1;
-  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
-  fstart[1] = 1;
-  mstart[4] = B2;
-  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
-  fstart[1] = 2;
-  mstart[4] = B3;
-  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+  hsize_t fdims_5[5]  = {num_meshblocks, NDIM-1, N3, N2, N1};
+  hsize_t fstart_5[5] = {0, 0, 0, 0, 0};
+  hsize_t fcount_5[5] = {num_meshblocks, 1, N3, N2, N1};
+  mstart_5[4] = U1;
+  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  fstart_5[1] = 1;
+  mstart_5[4] = U2;
+  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  fstart_5[1] = 2;
+  mstart_5[4] = U3;
+  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  fstart_5[1] = 0;
+  mstart_5[4] = B1;
+  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  fstart_5[1] = 1;
+  mstart_5[4] = B2;
+  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  fstart_5[1] = 2;
+  mstart_5[4] = B3;
+  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
 
   // TODO: Read electron fields
 
@@ -1428,7 +1460,7 @@ void init_model(double *tA, double *tB)
   #if SLOW_LIGHT
   update_data(tA, tB);
   update_data(tA, tB);
-  tf = get_dump_t(fnam, dumpmax) - 1.e-5;
+  tf = get_dump_time(fnam, dumpmax) - 1.e-5;
   #else // FAST LIGHT
   data[2]->t = 10000.;
   #endif // SLOW_LIGHT
@@ -1718,5 +1750,5 @@ void get_model_jar(double X[NDIM], double Kcon[NDIM],
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV) {return;}
 
-    
+
 void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knuinv) {return;}
