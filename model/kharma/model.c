@@ -702,7 +702,7 @@ void init_storage_prims(void)
  * 
  * Once the primitives are defined over the entire mesh, the derived variables:
  * electron number density, electron temperature, magnetic field, magnetization, 
- * and plasma beta are defined over the entire grid.
+ * and plasma beta over the entire grid, are allocated memory.
  */
 void init_storage_derived_quantities(void)
 { 
@@ -981,6 +981,144 @@ void populate_boundary_conditions(int n)
 
 
 /**
+ * @brief Compute horizon accretion rate at zone @p i index along X1
+ *
+ * This function computes the horizon accretion rate at zone @p i index along X1 by evaluating,
+ * rho * u^r * sqrt(-g) * dx^2 * dx^3, integrated over the shell at r[i]
+ * 
+ * @param i Index of radial coordinate
+ * @param n Index of the 'data' struct.
+ */
+double get_code_dMact(int i, int n)
+{
+  i += 1;
+  double dMact = 0;
+#pragma omp parallel for collapse(1) reduction(+:dMact)
+  for (int j = 1; j < N2+1; ++j) {
+    double X[NDIM] = { 0. };
+    double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+    double g, r, th;
+
+    // this assumes axisymmetry in the coordinates
+    ijktoX(i-1, j-1, 0, X);
+    gcov_func(X, gcov);
+    gcon_func(gcov, gcon);
+    g = gdet_zone(i-1, j-1, 0);
+    bl_coord(X, &r, &th);
+
+    for (int k = 1; k < N3+1; ++k) {
+      ijktoX(i-1, j-1, k, X);
+      double UdotU = 0;
+
+      for(int l = 1; l < NDIM; l++)
+        for(int m = 1; m < NDIM; m++)
+          UdotU += gcov[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
+      double ufac = sqrt(-1./gcon[0][0]*(1 + fabs(UdotU)));
+
+      double ucon[NDIM] = { 0. };
+      ucon[0] = -ufac * gcon[0][0];
+
+      for(int l = 1; l < NDIM; l++)
+        ucon[l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon[0][l];
+
+      double ucov[NDIM] = { 0. };
+      flip_index(ucon, gcov, ucov);
+
+      dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1];
+    }
+
+  }
+  return dMact;
+}
+
+
+/**
+ * @brief Initialize derived variables in 'data' struct
+ * 
+ * This function initializes the derived variables in the 'data' struct, such as electron number density,
+ * electron temperature, magnetic field, magnetization, and plasma beta.
+ * 
+ * @param n              Index of the 'data' struct.
+ * @param rescale_factor Rescale factor for magnetic field.
+ */
+void init_physical_quantities(int n, double rescale_factor)
+{
+#if DEBUG
+  int ceilings = 0;
+#endif
+
+  rescale_factor = sqrt(rescale_factor);
+
+  /* Cover everything, even ghost zones */
+#pragma omp parallel for collapse(3)
+  for (int i = 0; i < N1+2; i++) {
+    for (int j = 0; j < N2+2; j++) {
+      for (int k = 0; k < N3+2; k++) {
+        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) * Ne_factor;
+
+        data[n]->b[i][j][k] *= rescale_factor;
+
+        double bsq = data[n]->b[i][j][k] / B_unit;
+        bsq = bsq*bsq;
+
+        double sigma_m = bsq/data[n]->p[KRHO][i][j][k];
+        double beta_m = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
+#if DEBUG
+        if(isnan(sigma_m)) {
+          sigma_m = 0;
+          fprintf(stderr, "Setting zero sigma!\n");
+        }
+        if(isnan(beta_m)) {
+          beta_m = INFINITY;
+          fprintf(stderr, "Setting INF beta!\n");
+        }
+#endif
+        if (ELECTRONS == 1) {
+          data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k] * 
+                                     pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
+        } else if (ELECTRONS == 2) {
+          double betasq = (beta_m * beta_m) / (beta_crit * beta_crit);
+          double trat = trat_large * betasq / (1. + betasq) + trat_small / (1. + betasq);
+          //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
+          // see, e.g., Eq. 8 of the EHT GRRT formula list
+          double lcl_Thetae_u = (MP/ME) * (game-1.) * (gamp-1.) / ( (gamp-1.) + (game-1.) * trat );
+          Thetae_unit = lcl_Thetae_u;
+          data[n]->thetae[i][j][k] = lcl_Thetae_u * (data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k]);
+        } else if (ELECTRONS == 9) {
+          /* Convert Kelvin -> Thetae */
+          data[n]->thetae[i][j][k] = data[n]->p[TFLK][i][j][k] * KBOL / ME / CL / CL;
+        } else if (ELECTRONS == ELECTRONS_TFLUID) {
+          double beta = data[n]->p[UU][i][j][k] * (gam-1.) / 0.5 / bsq;
+          double betasq = (beta * beta) / (beta_crit * beta_crit);
+          double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
+          double dfactor = mu_tot / mu_e + mu_tot / mu_i * trat;
+          data[n]->thetae[i][j][k] = data[n]->p[THF][i][j][k] / dfactor;
+        } else {
+          data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
+        }
+
+        // Apply floor last in case the above is a very restrictive ceiling
+        data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
+
+        // Preserve sigma for cutting along geodesics, and for variable-kappa model
+        data[n]->sigma[i][j][k] = fmax(sigma_m, SMALL);
+        // Also record beta, for variable-kappa model
+        data[n]->beta[i][j][k] = fmax(beta_m, SMALL);
+
+        // Cut Ne (i.e. emission) based on sigma, if we're not doing so along each geodesic
+        // Strongly magnetized = empty, no shiny spine
+        if (sigma_m > sigma_cut && !USE_GEODESIC_SIGMACUT) {
+          data[n]->b[i][j][k]=0.0;
+          data[n]->ne[i][j][k]=0.0;
+          data[n]->thetae[i][j][k]=0.0;
+        }
+      }
+    }
+  }
+}
+
+
+/**
  * @brief Read fluid primitives, compute four-vectors, populate ghost zones, and initialize the 'data' struct.
  *
  * This function reads the primitives from the native KHARMA dump file, assembles the mesh from the meshblocks,
@@ -1231,7 +1369,32 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   /* Copy primitives and four-vectors to ghost zones according to boundary conditions */
   populate_boundary_conditions(n);
 
+  dMact *= dx[3]*dx[2] ;
+  dMact /= 21. ;
+  Ladv *= dx[3]*dx[2] ;
+  Ladv /= 21. ;
 
+  Mdot_dump = -dMact * (M_unit/T_unit);
+  MdotEdd_dump = Mdotedd;
+  Ladv_dump =  Ladv;
+
+  double rescale_factor = 1.;
+
+  if (verbose == 2) {
+    fprintf(stderr,"dMact: %g [code]\n",dMact);
+    fprintf(stderr,"Ladv: %g [code]\n",Ladv_dump);
+    fprintf(stderr,"Mdot: %g [g/s] \n",Mdot_dump);
+    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",Mdot_dump/(MSUN / YEAR));
+    fprintf(stderr,"Mdot: %g [Mdotedd]\n",Mdot_dump/MdotEdd_dump);
+    fprintf(stderr,"Mdotedd: %g [g/s]\n",MdotEdd_dump);
+    fprintf(stderr,"Mdotedd: %g [MSUN/YR]\n",MdotEdd_dump/(MSUN/YEAR));
+  } else if (verbose == 1) {
+    fprintf(stderr,"Mdot: %g [MSUN/YR] \n",Mdot_dump/(MSUN / YEAR));
+    fprintf(stderr,"Mdot: %g [Mdotedd]\n",Mdot_dump/MdotEdd_dump);
+  }
+
+  // now construct useful scalar quantities (over full (+ghost) zones of data)
+  init_physical_quantities(n, rescale_factor);
 
 }
 
@@ -1487,82 +1650,6 @@ double get_model_ne(double X[NDIM])
   return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac) * sigma_smoothfac;
 }
 
-void init_physical_quantities(int n, double rescale_factor)
-{
-#if DEBUG
-  int ceilings = 0;
-#endif
-
-  rescale_factor = sqrt(rescale_factor);
-
-  // cover everything, even ghost zones
-#pragma omp parallel for collapse(3)
-  for (int i = 0; i < N1+2; i++) {
-    for (int j = 0; j < N2+2; j++) {
-      for (int k = 0; k < N3+2; k++) {
-        data[n]->ne[i][j][k] = data[n]->p[KRHO][i][j][k] * RHO_unit/(MP+ME) * Ne_factor;
-
-        data[n]->b[i][j][k] *= rescale_factor;
-
-        double bsq = data[n]->b[i][j][k] / B_unit;
-        bsq = bsq*bsq;
-
-        double sigma_m = bsq/data[n]->p[KRHO][i][j][k];
-        double beta_m = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-#if DEBUG
-        if(isnan(sigma_m)) {
-          sigma_m = 0;
-          fprintf(stderr, "Setting zero sigma!\n");
-        }
-        if(isnan(beta_m)) {
-          beta_m = INFINITY;
-          fprintf(stderr, "Setting INF beta!\n");
-        }
-#endif
-        if (ELECTRONS == 1) {
-          data[n]->thetae[i][j][k] = data[n]->p[KEL][i][j][k] * 
-                                     pow(data[n]->p[KRHO][i][j][k],game-1.)*Thetae_unit;
-        } else if (ELECTRONS == 2) {
-          double betasq = beta_m*beta_m / beta_crit/beta_crit;
-          double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
-          //Thetae_unit = (gam - 1.) * (MP / ME) / trat;
-          // see, e.g., Eq. 8 of the EHT GRRT formula list
-          double lcl_Thetae_u = (MP/ME) * (game-1.) * (gamp-1.) / ( (gamp-1.) + (game-1.)*trat );
-          Thetae_unit = lcl_Thetae_u;
-          data[n]->thetae[i][j][k] = lcl_Thetae_u*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
-        } else if (ELECTRONS == 9) {
-          // convert Kelvin -> Thetae
-          data[n]->thetae[i][j][k] = data[n]->p[TFLK][i][j][k] * KBOL / ME / CL / CL;
-        } else if (ELECTRONS == ELECTRONS_TFLUID) {
-          double beta = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
-          double betasq = beta*beta / beta_crit/beta_crit;
-          double trat = trat_large * betasq/(1. + betasq) + trat_small /(1. + betasq);
-          double dfactor = mu_tot / mu_e + mu_tot / mu_i * trat;
-          data[n]->thetae[i][j][k] = data[n]->p[THF][i][j][k] / dfactor;
-        } else {
-          data[n]->thetae[i][j][k] = Thetae_unit*data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
-        }
-
-        // Apply floor last in case the above is a very restrictive ceiling
-        data[n]->thetae[i][j][k] = fmax(data[n]->thetae[i][j][k], 1.e-3);
-
-        // Preserve sigma for cutting along geodesics, and for variable-kappa model
-        data[n]->sigma[i][j][k] = fmax(sigma_m, SMALL);
-        // Also record beta, for variable-kappa model
-        data[n]->beta[i][j][k] = fmax(beta_m, SMALL);
-
-        // Cut Ne (i.e. emission) based on sigma, if we're not doing so along each geodesic
-        // Strongly magnetized = empty, no shiny spine
-        if (sigma_m > sigma_cut && !USE_GEODESIC_SIGMACUT) {
-          data[n]->b[i][j][k]=0.0;
-          data[n]->ne[i][j][k]=0.0;
-          data[n]->thetae[i][j][k]=0.0;
-        }
-      }
-    }
-  }
-}
-
 
 void output_hdf5()
 {
@@ -1607,50 +1694,6 @@ void output_hdf5()
   hdf5_write_single_val(&Te_unit, "Thetae_unit", H5T_IEEE_F64LE);
 
   hdf5_set_directory("/");
-}
-
-
-// get dMact in the i'th radial zone (0 = 0 of the dump, so ignore ghost zones)
-double get_code_dMact(int i, int n)
-{
-  i += 1;
-  double dMact = 0;
-#pragma omp parallel for collapse(1) reduction(+:dMact)
-  for (int j=1; j<N2+1; ++j) {
-    double X[NDIM] = { 0. };
-    double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
-    double g, r, th;
-
-    // this assumes axisymmetry in the coordinates
-    ijktoX(i-1,j-1,0, X);
-    gcov_func(X, gcov);
-    gcon_func(gcov, gcon);
-    g = gdet_zone(i-1,j-1,0);
-    bl_coord(X, &r, &th);
-
-    for (int k=1; k<N3+1; ++k) {
-      ijktoX(i-1,j-1,k,X);
-      double UdotU = 0;
-
-      for(int l = 1; l < NDIM; l++)
-        for(int m = 1; m < NDIM; m++)
-          UdotU += gcov[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
-      double ufac = sqrt(-1./gcon[0][0]*(1 + fabs(UdotU)));
-
-      double ucon[NDIM] = { 0. };
-      ucon[0] = -ufac * gcon[0][0];
-
-      for(int l = 1; l < NDIM; l++)
-        ucon[l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon[0][l];
-
-      double ucov[NDIM] = { 0. };
-      flip_index(ucon, gcov, ucov);
-
-      dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1];
-    }
-
-  }
-  return dMact;
 }
 
 
