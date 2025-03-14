@@ -268,107 +268,180 @@ void update_data(double *tA, double *tB)
  *
  * This function opens the specified KHARMA dump file, navigates to the "Info" group,
  * and reads the attribute identified by @p attr_name. The attribute value is stored
- * in the memory pointed to by @p value.
+ * in the memory pointed to by @p value. In addition to scalar integer, double, and string
+ * attributes, it now supports integer and double array attributes.
+ *
+ * For scalar attributes (TYPE_INT, TYPE_DBL), the attribute is expected to contain
+ * exactly one element; for array attributes (TYPE_INT_ARRAY, TYPE_DBL_ARRAY), the caller
+ * must allocate a buffer large enough for all elements (the number of elements is not returned).
  *
  * @param filename   Name of the KHARMA dump file.
  * @param attr_name  Name of the attribute to read from the "Info" group.
- * @param type       Expected type of the attribute (TYPE_INT, TYPE_DBL, TYPE_STR).
+ * @param type       Expected type of the attribute:
+ *                   - TYPE_INT: scalar integer
+ *                   - TYPE_DBL: scalar double
+ *                   - TYPE_STR: string (fixed-length assumed; for variable-length, additional handling is needed)
+ *                   - TYPE_INT_ARRAY: integer array
+ *                   - TYPE_DBL_ARRAY: double array
  * @param value      Pointer to memory where the attribute value will be stored.
  *                   For TYPE_INT and TYPE_DBL, pass a pointer to an int or double.
+ *                   For TYPE_INT_ARRAY and TYPE_DBL_ARRAY, pass a pointer to a pre-allocated buffer.
  *                   For TYPE_STR, pass a character buffer.
- * @param value_size Size of the buffer for TYPE_STR; ignored for numeric types.
+ * @param value_size For strings, the size of the provided buffer; ignored for numeric types.
  *
  * @return 0 on success, -1 on error.
  */
 int read_info_attribute(const char *filename, const char *attr_name, int type, void *value, size_t value_size)
 {
-  hid_t file_id = -1, group_id = -1, attr_id = -1, attr_type = -1;
-  H5T_class_t type_class;
-  herr_t status;
-  int ret = 0;
+    hid_t file_id = -1, group_id = -1, attr_id = -1, attr_type_id = -1;
+    H5T_class_t type_class;
+    herr_t status;
+    int ret = 0;
 
-  /* Open the file in read-only mode */
-  file_id = H5Fopen(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
-  if (file_id < 0) {
-    fprintf(stderr, "Error opening file: %s\n", filename);
-    return -1;
-  }
-
-  /* Open the "Info" group */
-  group_id = H5Gopen(file_id, "Info", H5P_DEFAULT);
-  if (group_id < 0) {
-    fprintf(stderr, "Error opening group 'Info'\n");
-    H5Fclose(file_id);
-    return -1;
-  }
-
-  /* Open the specified attribute */
-  attr_id = H5Aopen(group_id, attr_name, H5P_DEFAULT);
-  if (attr_id < 0) {
-    fprintf(stderr, "Error opening attribute: %s\n", attr_name);
-    H5Gclose(group_id);
-    H5Fclose(file_id);
-    return -1;
-  }
-
-  /* Get the attribute's datatype */
-  attr_type = H5Aget_type(attr_id);
-  type_class = H5Tget_class(attr_type);
-
-  if (type == TYPE_INT) {
-    if (type_class != H5T_INTEGER) {
-      fprintf(stderr, "Attribute %s is not an integer.\n", attr_name);
-      ret = -1;
-      goto cleanup;
+    /* Open the file in read-only mode */
+    file_id = H5Fopen(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        fprintf(stderr, "Error opening file: %s\n", filename);
+        return -1;
     }
-    /* Read the attribute as an integer */
-    status = H5Aread(attr_id, H5T_NATIVE_INT, value);
-    if (status < 0) {
-      fprintf(stderr, "Error reading integer attribute %s\n", attr_name);
-      ret = -1;
-      goto cleanup;
-    }
-  } else if (type == TYPE_DBL) {
-    if (type_class != H5T_FLOAT) {
-      fprintf(stderr, "Attribute %s is not a float/double.\n", attr_name);
-      ret = -1;
-      goto cleanup;
-    }
-    /* Read the attribute as a double */
-    status = H5Aread(attr_id, H5T_NATIVE_DOUBLE, value);
-    if (status < 0) {
-      fprintf(stderr, "Error reading double attribute %s\n", attr_name);
-      ret = -1;
-      goto cleanup;
-    }
-  } else if (type == TYPE_STR) {
-    if (type_class != H5T_STRING) {
-      fprintf(stderr, "Attribute %s is not a string.\n", attr_name);
-      ret = -1;
-      goto cleanup;
-    }
-    /* For fixed-length strings we can read directly. For variable-length strings, additional handling would be necessary. */
-    status = H5Aread(attr_id, attr_type, value);
-    if (status < 0) {
-      fprintf(stderr, "Error reading string attribute %s\n", attr_name);
-      ret = -1;
-      goto cleanup;
-    }
-    /* Ensure null termination in case the string isn’t terminated */
-    ((char *)value)[value_size - 1] = '\0';
-  } else {
-    fprintf(stderr, "Unsupported parameter type\n");
-    ret = -1;
-    goto cleanup;
-  }
 
-  cleanup:
-    if (attr_type >= 0) H5Tclose(attr_type);
-    if (attr_id >= 0) H5Aclose(attr_id);
-    if (group_id >= 0) H5Gclose(group_id);
-    if (file_id >= 0) H5Fclose(file_id);
+    /* Open the "Info" group */
+    group_id = H5Gopen(file_id, "Info", H5P_DEFAULT);
+    if (group_id < 0) {
+        fprintf(stderr, "Error opening group 'Info'\n");
+        H5Fclose(file_id);
+        return -1;
+    }
 
-  return ret;
+    /* Open the specified attribute */
+    attr_id = H5Aopen(group_id, attr_name, H5P_DEFAULT);
+    if (attr_id < 0) {
+        fprintf(stderr, "Error opening attribute: %s\n", attr_name);
+        H5Gclose(group_id);
+        H5Fclose(file_id);
+        return -1;
+    }
+
+    /* Get the attribute's datatype and class */
+    attr_type_id = H5Aget_type(attr_id);
+    type_class = H5Tget_class(attr_type_id);
+
+    if (type == TYPE_INT) {
+        if (type_class != H5T_INTEGER) {
+            fprintf(stderr, "Attribute %s is not an integer.\n", attr_name);
+            ret = -1;
+            goto cleanup;
+        }
+        /* Ensure the attribute is scalar */
+        {
+            hid_t space_id = H5Aget_space(attr_id);
+            hsize_t npoints = H5Sget_simple_extent_npoints(space_id);
+            if (npoints != 1) {
+                fprintf(stderr, "Expected scalar integer but found array with %llu elements.\n",
+                        (unsigned long long)npoints);
+                ret = -1;
+                H5Sclose(space_id);
+                goto cleanup;
+            }
+            H5Sclose(space_id);
+        }
+        status = H5Aread(attr_id, H5T_NATIVE_INT, value);
+        if (status < 0) {
+            fprintf(stderr, "Error reading integer attribute %s\n", attr_name);
+            ret = -1;
+            goto cleanup;
+        }
+    } else if (type == TYPE_DBL) {
+        if (type_class != H5T_FLOAT) {
+            fprintf(stderr, "Attribute %s is not a float/double.\n", attr_name);
+            ret = -1;
+            goto cleanup;
+        }
+        /* Ensure the attribute is scalar */
+        {
+            hid_t space_id = H5Aget_space(attr_id);
+            hsize_t npoints = H5Sget_simple_extent_npoints(space_id);
+            if (npoints != 1) {
+                fprintf(stderr, "Expected scalar double but found array with %llu elements.\n",
+                        (unsigned long long)npoints);
+                ret = -1;
+                H5Sclose(space_id);
+                goto cleanup;
+            }
+            H5Sclose(space_id);
+        }
+        status = H5Aread(attr_id, H5T_NATIVE_DOUBLE, value);
+        if (status < 0) {
+            fprintf(stderr, "Error reading double attribute %s\n", attr_name);
+            ret = -1;
+            goto cleanup;
+        }
+    } else if (type == TYPE_STR) {
+        if (type_class != H5T_STRING) {
+            fprintf(stderr, "Attribute %s is not a string.\n", attr_name);
+            ret = -1;
+            goto cleanup;
+        }
+        /* For fixed-length strings we can read directly.
+           (For variable-length strings, additional handling is required.) */
+        status = H5Aread(attr_id, attr_type_id, value);
+        if (status < 0) {
+            fprintf(stderr, "Error reading string attribute %s\n", attr_name);
+            ret = -1;
+            goto cleanup;
+        }
+        /* Ensure null termination in case the string isn’t terminated */
+        ((char *)value)[value_size - 1] = '\0';
+    } else if (type == TYPE_INT_ARRAY) {
+        if (type_class != H5T_INTEGER) {
+            fprintf(stderr, "Attribute %s is not an integer array.\n", attr_name);
+            ret = -1;
+            goto cleanup;
+        }
+        {
+            hid_t space_id = H5Aget_space(attr_id);
+            /* Optionally, you could query npoints here if needed */
+            status = H5Aread(attr_id, H5T_NATIVE_INT, value);
+            H5Sclose(space_id);
+            if (status < 0) {
+                fprintf(stderr, "Error reading integer array attribute %s\n", attr_name);
+                ret = -1;
+                goto cleanup;
+            }
+        }
+    } else if (type == TYPE_DBL_ARRAY) {
+        if (type_class != H5T_FLOAT) {
+            fprintf(stderr, "Attribute %s is not a double array.\n", attr_name);
+            ret = -1;
+            goto cleanup;
+        }
+        {
+            hid_t space_id = H5Aget_space(attr_id);
+            status = H5Aread(attr_id, H5T_NATIVE_DOUBLE, value);
+            H5Sclose(space_id);
+            if (status < 0) {
+                fprintf(stderr, "Error reading double array attribute %s\n", attr_name);
+                ret = -1;
+                goto cleanup;
+            }
+        }
+    } else {
+        fprintf(stderr, "Unsupported parameter type.\n");
+        ret = -1;
+        goto cleanup;
+    }
+
+cleanup:
+    if (attr_type_id >= 0)
+        H5Tclose(attr_type_id);
+    if (attr_id >= 0)
+        H5Aclose(attr_id);
+    if (group_id >= 0)
+        H5Gclose(group_id);
+    if (file_id >= 0)
+        H5Fclose(file_id);
+
+    return ret;
 }
 
 
@@ -600,8 +673,8 @@ double get_dump_time(char *fnam, int dumpidx)
 {
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
+  
   double t = -1.;
-
   read_info_attribute(fname, "Time", TYPE_DBL, &t, 0);
 
   return t;
@@ -619,7 +692,7 @@ void init_storage_prims(void)
 { 
   /* One ghost zone on each side of the domain */
   for (int n = 0; n < NSUP; n++) {
-    data[n]->p      = malloc_rank4(NVAR,N1+2,N2+2,N3+2);
+    data[n]->p = malloc_rank4(NVAR,N1+2,N2+2,N3+2);
   }
 }
 
@@ -631,7 +704,7 @@ void init_storage_prims(void)
  * electron number density, electron temperature, magnetic field, magnetization, 
  * and plasma beta are defined over the entire grid.
  */
-void init_storage_prims(void)
+void init_storage_derived_quantities(void)
 { 
   /* One ghost zone on each side of the domain */
   for (int n = 0; n < NSUP; n++) {
@@ -853,14 +926,152 @@ void set_units()
  */
 void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
 {
+  /* File name */
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
 
-  /* Read the time of the dump */
-  data[n]->t = get_dump_time(fnam, dumpidx);
+  nloaded++;
 
-  /* Read the fluid data */
-  read_kharma_dump(fname, data[n], verbose);
+  double dMact, Ladv;
+
+  /* Check file exists and can be accessed */
+  if ( hdf5_open(fname) < 0 ) {
+    fprintf(stderr, "Unable to open file %s. Exiting!\n", fname);
+    exit(-1);
+  }
+
+  /* Get number of meshblocks and meshblock size */
+  int num_meshblocks = 1;
+  int meshblock_size[NDIM-1] = {0};
+  read_info_attribute(fname, "NumMeshBlocks", TYPE_INT, &num_meshblocks, 0);
+  read_info_attribute(fname, "MeshBlockSize", TYPE_INT_ARRAY, meshblock_size, 0);
+  
+  /* Get meshblock ordering */
+  int **mb_order = malloc_rank2_int(num_meshblocks, NDIM-1);
+  int rank = 2;
+  hsize_t fdims[] = {num_meshblocks, NDIM-1};
+  hsize_t fstart[] = {0, 0};
+  hsize_t fcount[] = {num_meshblocks, NDIM-1};
+  hsize_t mdims[] = {num_meshblocks, NDIM-1};
+  hsize_t mstart[] = {0, 0};
+  hdf5_read_array_int(mb_order, "Blocks/loc.lx123", rank, fdims, fstart, fcount, mdims, mstart, H5T_STD_I32LE);
+
+  /* Read primitives into buffer */
+  double *****primitives_buffer; // NMB, N3, N2, N1, NVAR
+  /* Allocate memory */
+  primitives_buffer = malloc_rank5(num_meshblocks, N3, N2, N1, NVAR);
+
+  /* Read scalar fields */
+  int frank = 4;
+  int mrank = 5;
+  hsize_t fdims[4]  = {num_meshblocks, N3, N2, N1 };
+  hsize_t fstart[4] = {0, 0, 0, 0};
+  hsize_t fcount[4] = {num_meshblocks, N3, N2, N1 }; // Read the entire dataset
+  hsize_t mdims[5]  = {num_meshblocks, N3, N2, N1, NVAR };
+  /* In the memory buffer, we want to store the file data into the slice corresponding to "rho".
+    So we set mstart such that the last (5th) dimension starts at KRHO, and mcount to read 1 element along that axis. */
+  hsize_t mstart[5] = {0, 0, 0, 0, KRHO};
+  hsize_t mcount[5] = {num_meshblocks, N3, N2, N1, 1 };
+  hdf5_read_array_multidim(primitives_buffer, "prims.rho", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+  mstart[4] = UU;
+  hdf5_read_array_multidim(primitives_buffer, "prims.u", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+  /* Read vector fields */
+  frank = 5;
+  hsize_t fdims[5]  = {num_meshblocks, NDIM-1, N3, N2, N1};
+  hsize_t fstart[5] = {0, 0, 0, 0, 0};
+  hsize_t fcount[5] = {num_meshblocks, 1, N3, N2, N1};
+  hsize_t mdims[5]  = {num_meshblocks, N3, N2, N1, NVAR};
+  hsize_t mstart[5] = {0, 0, 0, 0, U1};
+  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+  fstart[1] = 1;
+  mstart[4] = U2;
+  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+  fstart[1] = 2;
+  mstart[4] = U3;
+  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+  fstart[1] = 0;
+  mstart[4] = B1;
+  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+  fstart[1] = 1;
+  mstart[4] = B2;
+  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+  fstart[1] = 2;
+  mstart[4] = B3;
+  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims, fstart, fcount, mrank, mdims, mstart, mcount, H5T_IEEE_F64LE);
+
+  // TODO: Read electron fields
+
+  /* Assemble mesh */
+  /* Retrieve meshblock size */
+  // int nx1_mb = atoi(dict_get(model_params, "nx1_mb", N1));
+  // int nx2_mb = atoi(dict_get(model_params, "nx2_mb", N2));
+  // int nx3_mb = atoi(dict_get(model_params, "nx3_mb", N3));
+#pragma omp parallel for collapse(4)
+  for (int mb = 0; mb < num_meshblocks; mb++) {
+    for (int kb = 0; kb < meshblock_size[2]; kb++) {
+      for (int jb = 0; jb < meshblock_size[1]; jb++) {
+        for (int ib = 0; ib < meshblock_size[0]; ib++) {
+          int *mbd_loc = mb_order[mb];
+          data[n]->p[KRHO][1+mbd_loc[0]*meshblock_size[0]+ib]
+                          [1+mbd_loc[1]*meshblock_size[1]+jb]
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][0];
+            data[n]->p[UU][1+mbd_loc[0]*meshblock_size[0]+ib]
+                          [1+mbd_loc[1]*meshblock_size[1]+jb]
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][1];
+            data[n]->p[U1][1+mbd_loc[0]*meshblock_size[0]+ib]
+                          [1+mbd_loc[1]*meshblock_size[1]+jb]
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][2];
+            data[n]->p[U2][1+mbd_loc[0]*meshblock_size[0]+ib]
+                          [1+mbd_loc[1]*meshblock_size[1]+jb]
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][3];
+            data[n]->p[U3][1+mbd_loc[0]*meshblock_size[0]+ib]
+                          [1+mbd_loc[1]*meshblock_size[1]+jb]
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][4];
+            data[n]->p[B1][1+mbd_loc[0]*meshblock_size[0]+ib]
+                          [1+mbd_loc[1]*meshblock_size[1]+jb]
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][5];
+            data[n]->p[B2][1+mbd_loc[0]*meshblock_size[0]+ib]
+                          [1+mbd_loc[1]*meshblock_size[1]+jb]
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][6];
+            data[n]->p[B3][1+mbd_loc[0]*meshblock_size[0]+ib]
+                          [1+mbd_loc[1]*meshblock_size[1]+jb]
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][7];
+          // TODO: Assemble electron fields mesh
+        }
+      }
+    }
+  }
+
+  /* Free memory */
+  free(primitives_buffer);
+
+  /* Close file */
+  hdf5_close();
+
+  /* Get dump time */
+  double t = -1.;
+  read_info_attribute(fname, "Time", TYPE_DBL, &t, 0);
+
+  /* Reversing B Field */
+  if(reverse_field) {
+    double multiplier = -1.0;
+    for(int i = 0; i < N1 + 2; i++){
+      for(int j = 0; j < N2 + 2; j++){
+        for(int k = 0; k< N3 + 2; k++){ 
+          data[n]->p[B1][i][j][k] = multiplier*data[n]->p[B1][i][j][k];
+          data[n]->p[B2][i][j][k] = multiplier*data[n]->p[B2][i][j][k];
+          data[n]->p[B3][i][j][k] = multiplier*data[n]->p[B3][i][j][k];
+        }
+      }
+    }
+  }
+
+  /* Allocate memory for derived quantities */
+  init_storage_derived_quantities();
+
+  dMact = Ladv = 0.;
+
+
 }
 
 
