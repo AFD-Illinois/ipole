@@ -914,10 +914,77 @@ void set_units()
 
 
 /**
- * @brief Read fluid primitives and initialize the 'data' struct.
+ * @brief Populate ghost zones based on boundary conditions
+ *
+ * This function sets primitives and magnetic field strength in the ghost zones based on the boundary conditions.
+ * Extend along radial direction, reflect about poles, and periodic in azimuthal direction.
+ * 
+ * @param n       Index of the 'data' struct.
+ */
+void populate_boundary_conditions(int n)
+{
+  /* Radial -- just extend zones */
+#pragma omp parallel for collapse(2)
+  for (int j=1; j<N2+1; ++j) {
+    for (int k=1; k<N3+1; ++k) {
+      for (int l=0; l<NVAR; ++l) {
+        data[n]->p[l][0][j][k] = data[n]->p[l][1][j][k];
+        data[n]->p[l][N1+1][j][k] = data[n]->p[l][N1][j][k];
+      }
+      data[n]->b[0][j][k] = data[n]->b[1][j][k];
+      data[n]->b[N1+1][j][k] = data[n]->b[N1][j][k];
+    }
+  }
+
+  /* Elevation -- flip (this is a rotation by pi) */
+#pragma omp parallel for collapse(2)
+  for (int i=0; i<N1+2; ++i) {
+    for (int k=1; k<N3+1; ++k) {
+      if (N3%2 == 0) {
+        int kflip = ( (k - 1) + (N3/2) ) % N3 + 1;
+        for (int l=0; l<NVAR; ++l) {
+          data[n]->p[l][i][0][k] = data[n]->p[l][i][1][kflip];
+          data[n]->p[l][i][N2+1][k] = data[n]->p[l][i][N2][kflip];
+        }
+        data[n]->b[i][0][k] = data[n]->b[i][1][kflip];
+        data[n]->b[i][N2+1][k] = data[n]->b[i][N2][kflip];
+      } else {
+        int kflip1 = ( k + (N3/2) ) % N3;
+        int kflip2 = ( k + (N3/2) + 1 ) % N3;
+        for (int l=0; l<NVAR; ++l) {
+          data[n]->p[l][i][0][k]    = ( data[n]->p[l][i][1][kflip1]
+                                      + data[n]->p[l][i][1][kflip2] ) / 2.;
+          data[n]->p[l][i][N2+1][k] = ( data[n]->p[l][i][N2][kflip1]
+                                      + data[n]->p[l][i][N2][kflip2] ) / 2.;
+        }
+        data[n]->b[i][0][k]    = ( data[n]->b[i][1][kflip1]
+                                 + data[n]->b[i][1][kflip2] ) / 2.;
+        data[n]->b[i][N2+1][k] = ( data[n]->b[i][N2][kflip1]
+                                 + data[n]->b[i][N2][kflip2] ) / 2.;
+      }
+    }
+  }
+
+  /* Azimuth -- periodic */
+#pragma omp parallel for collapse(2)
+  for (int i=0; i<N1+2; ++i) {
+    for (int j=0; j<N2+2; ++j) {
+      for (int l=0; l<NVAR; ++l) {
+        data[n]->p[l][i][j][0] = data[n]->p[l][i][j][N3];
+        data[n]->p[l][i][j][N3+1] = data[n]->p[l][i][j][1];
+      }
+      data[n]->b[i][j][0] = data[n]->b[i][j][N3];
+      data[n]->b[i][j][N3+1] = data[n]->b[i][j][1];
+    }
+  }
+}
+
+
+/**
+ * @brief Read fluid primitives, compute four-vectors, populate ghost zones, and initialize the 'data' struct.
  *
  * This function reads the primitives from the native KHARMA dump file, assembles the mesh from the meshblocks,
- * and initializes the 'data' struct.
+ * calculates the four-vectors in the physical zones, and initializes the derived quantities.
  * 
  * @param n       Index of the 'data' struct.
  * @param fname   Filename of the dump file.
@@ -1070,6 +1137,100 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   init_storage_derived_quantities();
 
   dMact = Ladv = 0.;
+
+  /* Construct four-vectors over "real" zones */
+  #pragma omp parallel for collapse(2) reduction(+:dMact,Ladv)
+  for(int i = 1; i < N1+1; i++) {
+    for(int j = 1; j < N2+1; j++) {
+
+      double X[NDIM] = {0.};
+      double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+      double g, r, th;
+
+      // this assumes axisymmetry in the coordinates
+      ijktoX(i-1, j-1, 0, X);
+      gcov_func(X, gcov);
+      gcon_func(gcov, gcon);
+      g = gdet_zone(i-1, j-1, 0);
+
+      bl_coord(X, &r, &th);
+
+      for(int k = 1; k < N3+1; k++){
+
+        ijktoX(i-1,j-1,k,X);
+        double UdotU = 0.;
+
+        /* The four-vector reconstruction should have gcov and gcon and gdet using the modified coordinates
+        interpolating the four vectors to the zone center !!!! */
+        for(int l = 1; l < NDIM; l++) 
+          for(int m = 1; m < NDIM; m++) 
+            UdotU += gcov[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
+        double ufac = sqrt(-1./gcon[0][0]*(1 + fabs(UdotU)));
+
+        // TODO: move this above
+        double ucon[NDIM] = { 0. };
+        ucon[0] = -ufac * gcon[0][0];
+
+        for(int l = 1; l < NDIM; l++) 
+          ucon[l] = data[n]->p[U1+l-1][i][j][k] - ufac*gcon[0][l];
+
+        double ucov[NDIM] = { 0. };
+        flip_index(ucon, gcov, ucov);
+
+        /* Reconstruct the magnetic field three vectors */
+        double udotB = 0.;
+
+        for (int l = 1; l < NDIM; l++) {
+          udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
+        }
+
+        double bcon[NDIM] = {0.};
+        double bcov[NDIM] = {0.};
+
+        bcon[0] = udotB;
+        for (int l = 1; l < NDIM; l++) {
+          bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
+        }
+        flip_index(bcon, gcov, bcov);
+
+        double bsq = 0.;
+        for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
+        data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
+
+
+        if(i <= 21) { dMact += g * data[n]->p[KRHO][i][j][k] * ucon[1]; }
+        if(i >= 21 && i < 41 && 0) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
+        if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
+
+      }
+    }
+  }
+
+  /* Check if 21st zone (i.e., 20th without ghost zones) is beyond r_eh otherwise recompute */
+  double r_eh = 1. + sqrt(1. - a*a);
+  int N2_by_2 = (int)(N2 / 2);
+
+  double X[NDIM] = { 0. };
+  ijktoX(20, N2_by_2, 0, X);
+
+  double r, th;
+  bl_coord(X, &r, &th);
+
+  if (r < r_eh) {
+    for (int i = 1; i < N1+1; i++) {
+      ijktoX(i, N2_by_2, 0, X);
+      bl_coord(X, &r, &th);
+      if (r >= r_eh) {
+        fprintf(stderr, "r_eh is beyond regular zones. recomputing at %g...\n", r);
+        dMact = get_code_dMact(i, n) * 21;
+        break;
+      }
+    }
+  }
+
+  /* Copy primitives and four-vectors to ghost zones according to boundary conditions */
+  populate_boundary_conditions(n);
+
 
 
 }
@@ -1448,64 +1609,6 @@ void output_hdf5()
   hdf5_set_directory("/");
 }
 
-
-void populate_boundary_conditions(int n)
-{
-  // radial -- just extend zones
-#pragma omp parallel for collapse(2)
-  for (int j=1; j<N2+1; ++j) {
-    for (int k=1; k<N3+1; ++k) {
-      for (int l=0; l<NVAR; ++l) {
-        data[n]->p[l][0][j][k] = data[n]->p[l][1][j][k];
-        data[n]->p[l][N1+1][j][k] = data[n]->p[l][N1][j][k];
-      }
-      data[n]->b[0][j][k] = data[n]->b[1][j][k];
-      data[n]->b[N1+1][j][k] = data[n]->b[N1][j][k];
-    }
-  }
-
-  // elevation -- flip (this is a rotation by pi)
-#pragma omp parallel for collapse(2)
-  for (int i=0; i<N1+2; ++i) {
-    for (int k=1; k<N3+1; ++k) {
-      if (N3%2 == 0) {
-        int kflip = ( (k - 1) + (N3/2) ) % N3 + 1;
-        for (int l=0; l<NVAR; ++l) {
-          data[n]->p[l][i][0][k] = data[n]->p[l][i][1][kflip];
-          data[n]->p[l][i][N2+1][k] = data[n]->p[l][i][N2][kflip];
-        }
-        data[n]->b[i][0][k] = data[n]->b[i][1][kflip];
-        data[n]->b[i][N2+1][k] = data[n]->b[i][N2][kflip];
-      } else {
-        int kflip1 = ( k + (N3/2) ) % N3;
-        int kflip2 = ( k + (N3/2) + 1 ) % N3;
-        for (int l=0; l<NVAR; ++l) {
-          data[n]->p[l][i][0][k]    = ( data[n]->p[l][i][1][kflip1]
-                                      + data[n]->p[l][i][1][kflip2] ) / 2.;
-          data[n]->p[l][i][N2+1][k] = ( data[n]->p[l][i][N2][kflip1]
-                                      + data[n]->p[l][i][N2][kflip2] ) / 2.;
-        }
-        data[n]->b[i][0][k]    = ( data[n]->b[i][1][kflip1]
-                                 + data[n]->b[i][1][kflip2] ) / 2.;
-        data[n]->b[i][N2+1][k] = ( data[n]->b[i][N2][kflip1]
-                                 + data[n]->b[i][N2][kflip2] ) / 2.;
-      }
-    }
-  }
-
-  // azimuth -- periodic
-#pragma omp parallel for collapse(2)
-  for (int i=0; i<N1+2; ++i) {
-    for (int j=0; j<N2+2; ++j) {
-      for (int l=0; l<NVAR; ++l) {
-        data[n]->p[l][i][j][0] = data[n]->p[l][i][j][N3];
-        data[n]->p[l][i][j][N3+1] = data[n]->p[l][i][j][1];
-      }
-      data[n]->b[i][j][0] = data[n]->b[i][j][N3];
-      data[n]->b[i][j][N3+1] = data[n]->b[i][j][1];
-    }
-  }
-}
 
 // get dMact in the i'th radial zone (0 = 0 of the dump, so ignore ghost zones)
 double get_code_dMact(int i, int n)
