@@ -8,6 +8,8 @@
 #ifndef SRC_UTILS_H_
 #define SRC_UTILS_H_
 
+int **malloc_rank2_int(int n1, int n2);
+
 double ***malloc_rank3(int n1, int n2, int n3);
 float ***malloc_rank3_float(int n1, int n2, int n3);
 
