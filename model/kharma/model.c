@@ -81,7 +81,7 @@ static double Ladv_dump;
 // Other parameters
 static int reverse_field = 0;
 double tf;
-static hdf5_blob fluid_header = { 0 };
+static hdf5_blob fluid_header = {0};
 
 
 // Struct to store model-specific data
@@ -739,16 +739,11 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
   /* Declaring necessary parameters */
   /* Thermodynamic parameters*/
   int has_electrons;
-  double gam, game, gamp;
   /* Grid parameter*/
   char coordinate_system[256];
-  int metric = 0;
-  // int nx1, nx2, nx3; // Mesh size
   int nx1_mb, nx2_mb, nx3_mb; // Meshblock size
   int nghost;
   double x1min, x1max, x2min, x2max, x3min, x3max; // Domain limits
-  // double a;
-  // double hslope, mks_smooth, poly_xt, poly_alpha;
 
   /* Read parameters from par file */
   char buffer[100];
@@ -1705,7 +1700,7 @@ void output_hdf5()
 {
   hdf5_set_directory("/");
 
-  hdf5_write_blob(fluid_header, "/fluid_header");
+  // hdf5_write_blob(fluid_header, "/fluid_header");
 
   hdf5_write_single_val(&Mdot_dump, "Mdot", H5T_IEEE_F64LE);
   hdf5_write_single_val(&MdotEdd_dump, "MdotEdd", H5T_IEEE_F64LE);
