@@ -173,98 +173,6 @@ void try_set_model_parameter(const char *word, const char *value)
 
 
 /**
- * @brief Advance through dumps until the current time is closer to the target.
- *
- * This function iterates through data dumps until the time indicated by @p tA
- * is near the target time (@p tgt). It is primarily used when restarting from
- * a slowlight restart file, ensuring that the restart process begins from a dump
- * corresponding to a time close to @p tgt.
- *
- * @param tA Pointer to the time variable for dump A.
- * @param tB Pointer to the time variable for dump B.
- * @param tgt Target time value to advance towards.
- */
-void update_data_until(double *tA, double *tB, double tgt)
-{
-  double tC = data[2]->t;
-
-  while (tC < tgt) {
-    dumpidx += dumpskip;
-    tC = get_dump_time(fnam, dumpidx);
-  }
-
-  // reset dump index, just to be safe, then load on out ...
-  dumpidx -= dumpskip;
-  while (*tA < tgt) update_data(tA, tB);
-}
-
-
-/**
- * @brief Load the next expected dump into memory.
- *
- * This function uses an internal dump index variable to load the next "expected"
- * dump into memory (used for slowlight mode). After calling this function, it is
- * guaranteed that the data dumps are ordered in time:
- *
- *   data[0]->t < data[1]->t < data[2]->t
- *
- * The function uses internal pointers (dataA, dataB, dataC) to store the actual
- * data locations and then swaps which members live where to maintain the correct
- * temporal order.
- *
- * @param tA Pointer to the current time variable for dump A.
- * @param tB Pointer to the current time variable for dump B.
- */
-void update_data(double *tA, double *tB)
-{
-  #if SLOW_LIGHT
-  // Reorder dataA, dataB, dataC in data[]
-  if (nloaded % 3 == 0) {
-    data[0] = &dataB;
-    data[1] = &dataC;
-    data[2] = &dataA;
-  } else if (nloaded % 3 == 1) {
-    data[0] = &dataC;
-    data[1] = &dataA;
-    data[2] = &dataB;
-  } else {
-    data[0] = &dataA;
-    data[1] = &dataB;
-    data[2] = &dataC;
-  }
-  int nextdumpidx = dumpidx;
-  dumpidx += dumpskip;
-  if (nextdumpidx > dumpmax) {
-    load_kharma_data(2, fnam, --nextdumpidx, 0);
-    data[2]->t += 1.;
-  } else {
-    load_kharma_data(2, fnam, nextdumpidx, 0);
-  }
-  *tA = data[0]->t;
-  *tB = data[1]->t;
-  fprintf(stderr, "loaded data (dump %d) (%g < t < %g)\n", nextdumpidx, *tA, *tB);
-  #else // FAST LIGHT
-  if (nloaded % 3 == 0) {
-    data[0] = &dataA;
-    data[1] = &dataB;
-    data[2] = &dataC;
-  } else if (nloaded % 3 == 1) {
-    data[0] = &dataB;
-    data[1] = &dataC;
-    data[2] = &dataA;
-  } else if (nloaded % 3 == 2) {
-    data[0] = &dataC;
-    data[1] = &dataA;
-    data[2] = &dataB;
-  } else {
-    printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
-  }
-  data[2]->t = data[1]->t + DTd;
-  #endif 
-}
-
-
-/**
  * @brief Opens the file, enters the "Info" group, and reads the specified attribute.
  *
  * This function opens the specified KHARMA dump file, navigates to the "Info" group,
@@ -683,6 +591,98 @@ double get_dump_time(char *fnam, int dumpidx)
 
 
 /**
+ * @brief Advance through dumps until the current time is closer to the target.
+ *
+ * This function iterates through data dumps until the time indicated by @p tA
+ * is near the target time (@p tgt). It is primarily used when restarting from
+ * a slowlight restart file, ensuring that the restart process begins from a dump
+ * corresponding to a time close to @p tgt.
+ *
+ * @param tA Pointer to the time variable for dump A.
+ * @param tB Pointer to the time variable for dump B.
+ * @param tgt Target time value to advance towards.
+ */
+void update_data_until(double *tA, double *tB, double tgt)
+{
+  double tC = data[2]->t;
+
+  while (tC < tgt) {
+    dumpidx += dumpskip;
+    tC = get_dump_time(fnam, dumpidx);
+  }
+
+  // reset dump index, just to be safe, then load on out ...
+  dumpidx -= dumpskip;
+  while (*tA < tgt) update_data(tA, tB);
+}
+
+
+/**
+ * @brief Load the next expected dump into memory.
+ *
+ * This function uses an internal dump index variable to load the next "expected"
+ * dump into memory (used for slowlight mode). After calling this function, it is
+ * guaranteed that the data dumps are ordered in time:
+ *
+ *   data[0]->t < data[1]->t < data[2]->t
+ *
+ * The function uses internal pointers (dataA, dataB, dataC) to store the actual
+ * data locations and then swaps which members live where to maintain the correct
+ * temporal order.
+ *
+ * @param tA Pointer to the current time variable for dump A.
+ * @param tB Pointer to the current time variable for dump B.
+ */
+void update_data(double *tA, double *tB)
+{
+  #if SLOW_LIGHT
+  // Reorder dataA, dataB, dataC in data[]
+  if (nloaded % 3 == 0) {
+    data[0] = &dataB;
+    data[1] = &dataC;
+    data[2] = &dataA;
+  } else if (nloaded % 3 == 1) {
+    data[0] = &dataC;
+    data[1] = &dataA;
+    data[2] = &dataB;
+  } else {
+    data[0] = &dataA;
+    data[1] = &dataB;
+    data[2] = &dataC;
+  }
+  int nextdumpidx = dumpidx;
+  dumpidx += dumpskip;
+  if (nextdumpidx > dumpmax) {
+    load_kharma_data(2, fnam, --nextdumpidx, 0);
+    data[2]->t += 1.;
+  } else {
+    load_kharma_data(2, fnam, nextdumpidx, 0);
+  }
+  *tA = data[0]->t;
+  *tB = data[1]->t;
+  fprintf(stderr, "loaded data (dump %d) (%g < t < %g)\n", nextdumpidx, *tA, *tB);
+  #else // FAST LIGHT
+  if (nloaded % 3 == 0) {
+    data[0] = &dataA;
+    data[1] = &dataB;
+    data[2] = &dataC;
+  } else if (nloaded % 3 == 1) {
+    data[0] = &dataB;
+    data[1] = &dataC;
+    data[2] = &dataA;
+  } else if (nloaded % 3 == 2) {
+    data[0] = &dataC;
+    data[1] = &dataA;
+    data[2] = &dataB;
+  } else {
+    printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
+  }
+  data[2]->t = data[1]->t + DTd;
+  #endif 
+}
+
+
+/**
  * @brief Allocate memory for primitives.
  * 
  * Once the grid parameters have been read from the dump file, this function allocates
@@ -806,6 +806,14 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
   dict_add(model_params, "x3min", (snprintf(buffer, sizeof(buffer), "%.8g", x3min), buffer));
   get_parameter_value(parfile, "parthenon/mesh", "x3max", TYPE_DBL, &x3max, 0);
   dict_add(model_params, "x3max", (snprintf(buffer, sizeof(buffer), "%.8g", x3max), buffer));
+  /* Set startx and dx */
+  // TODO: dx may change if we are using meshblocks with refinement (SMR/AMR)
+  startx[1] = x1min;
+  startx[2] = x2min;
+  startx[3] = x3min;
+  dx[1] = (x1max - x1min) / N1;
+  dx[2] = (x2max - x2min) / N2;
+  dx[3] = (x3max - x3min) / N3;
 
   /* Which electron model to use if electrons are present in dump*/
   if (!USE_FIXED_TPTE && !USE_MIXED_TPTE) {
@@ -1048,7 +1056,7 @@ double get_code_dMact(int i, int n)
           UdotU += gcov[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
       double ufac = sqrt(-1./gcon[0][0]*(1 + fabs(UdotU)));
 
-      double ucon[NDIM] = { 0. };
+      double ucon[NDIM] = {0.};
       ucon[0] = -ufac * gcon[0][0];
 
       for(int l = 1; l < NDIM; l++)
@@ -1141,9 +1149,9 @@ void init_physical_quantities(int n, double rescale_factor)
         // Cut Ne (i.e. emission) based on sigma, if we're not doing so along each geodesic
         // Strongly magnetized = empty, no shiny spine
         if (sigma_m > sigma_cut && !USE_GEODESIC_SIGMACUT) {
-          data[n]->b[i][j][k]=0.0;
-          data[n]->ne[i][j][k]=0.0;
-          data[n]->thetae[i][j][k]=0.0;
+          data[n]->b[i][j][k]     = 0.0;
+          data[n]->ne[i][j][k]    = 0.0;
+          data[n]->thetae[i][j][k]= 0.0;
         }
       }
     }
@@ -1183,6 +1191,9 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   int meshblock_size[NDIM-1] = {0};
   read_info_attribute(fname, "NumMeshBlocks", TYPE_INT, &num_meshblocks, 0);
   read_info_attribute(fname, "MeshBlockSize", TYPE_INT_ARRAY, meshblock_size, 0);
+  int nx1_mb = meshblock_size[0];
+  int nx2_mb = meshblock_size[1];
+  int nx3_mb = meshblock_size[2];
   
   /* Get meshblock ordering */
   int **mb_order = malloc_rank2_int(num_meshblocks, NDIM-1);
@@ -1192,49 +1203,49 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   hsize_t fcount_2[] = {num_meshblocks, NDIM-1};
   hsize_t mdims_2[] = {num_meshblocks, NDIM-1};
   hsize_t mstart_2[] = {0, 0};
-  hdf5_read_array(mb_order, "Blocks/loc.lx123", rank, fdims_2, fstart_2, fcount_2, mdims_2, mstart_2, H5T_STD_I32LE);
+  hdf5_read_array(mb_order[0], "Blocks/loc.lx123", rank, fdims_2, fstart_2, fcount_2, mdims_2, mstart_2, H5T_STD_I32LE);
 
   /* Read primitives into buffer */
-  double *****primitives_buffer; // NMB, N3, N2, N1, NVAR
+  double *****primitives_buffer; // NMB, nx3_mb, nx2_mb, nx1_mb, NVAR
   /* Allocate memory */
-  primitives_buffer = malloc_rank5(num_meshblocks, N3, N2, N1, NVAR);
+  primitives_buffer = malloc_rank5(num_meshblocks, nx3_mb, nx2_mb, nx1_mb, NVAR);
 
   /* Read scalar fields */
   int frank = 4;
   int mrank = 5;
-  hsize_t fdims_4[4]  = {num_meshblocks, N3, N2, N1};
+  hsize_t fdims_4[4]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb};
   hsize_t fstart_4[4] = {0, 0, 0, 0};
-  hsize_t fcount_4[4] = {num_meshblocks, N3, N2, N1}; // Read the entire dataset
+  hsize_t fcount_4[4] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb}; // Read the entire dataset
   /* In the memory buffer, we want to store the file data into the slice corresponding to "rho".
     So we set mstart such that the last (5th) dimension starts at KRHO, and mcount to read 1 element along that axis. */
-  hsize_t mdims_5[5]  = {num_meshblocks, N3, N2, N1, NVAR};
+  hsize_t mdims_5[5]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, NVAR};
   hsize_t mstart_5[5] = {0, 0, 0, 0, KRHO};
-  hsize_t mcount_5[5] = {num_meshblocks, N3, N2, N1, 1 };
-  hdf5_read_array_multidim(primitives_buffer, "prims.rho", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  hsize_t mcount_5[5] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, 1};
+  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.rho", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   mstart_5[4] = UU;
-  hdf5_read_array_multidim(primitives_buffer, "prims.u", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.u", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   /* Read vector fields */
   frank = 5;
-  hsize_t fdims_5[5]  = {num_meshblocks, NDIM-1, N3, N2, N1};
+  hsize_t fdims_5[5]  = {num_meshblocks, NDIM-1, nx3_mb, nx2_mb, nx1_mb};
   hsize_t fstart_5[5] = {0, 0, 0, 0, 0};
-  hsize_t fcount_5[5] = {num_meshblocks, 1, N3, N2, N1};
+  hsize_t fcount_5[5] = {num_meshblocks, 1, nx3_mb, nx2_mb, nx1_mb};
   mstart_5[4] = U1;
-  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   fstart_5[1] = 1;
   mstart_5[4] = U2;
-  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   fstart_5[1] = 2;
   mstart_5[4] = U3;
-  hdf5_read_array_multidim(primitives_buffer, "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   fstart_5[1] = 0;
   mstart_5[4] = B1;
-  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   fstart_5[1] = 1;
   mstart_5[4] = B2;
-  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   fstart_5[1] = 2;
   mstart_5[4] = B3;
-  hdf5_read_array_multidim(primitives_buffer, "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
 
   // TODO: Read electron fields
 
@@ -1251,28 +1262,28 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
           int *mbd_loc = mb_order[mb];
           data[n]->p[KRHO][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
-                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][0];
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][KRHO];
             data[n]->p[UU][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
-                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][1];
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][UU];
             data[n]->p[U1][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
-                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][2];
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][U1];
             data[n]->p[U2][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
-                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][3];
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][U2];
             data[n]->p[U3][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
-                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][4];
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][U3];
             data[n]->p[B1][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
-                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][5];
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][B1];
             data[n]->p[B2][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
-                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][6];
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][B2];
             data[n]->p[B3][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
-                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][7];
+                          [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][B3];
           // TODO: Assemble electron fields mesh
         }
       }
@@ -1280,7 +1291,7 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   /* Free memory */
-  free(primitives_buffer);
+  free_rank5(primitives_buffer, num_meshblocks, nx3_mb, nx2_mb, nx1_mb);
 
   /* Close file */
   hdf5_close();
@@ -1380,7 +1391,7 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   double r_eh = 1. + sqrt(1. - a*a);
   int N2_by_2 = (int)(N2 / 2);
 
-  double X[NDIM] = { 0. };
+  double X[NDIM] = {0.};
   ijktoX(20, N2_by_2, 0, X);
 
   double r, th;
