@@ -729,7 +729,7 @@ void init_storage_derived_quantities(void)
  *
  * @return 0 on success, -1 on error.
  */
-int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
+int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
 {
   /* Get input parameter file from dump*/
   char fname[256];
@@ -890,7 +890,7 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
     get_parameter_value(parfile, "coordinates", "poly_alpha", TYPE_DBL, &poly_alpha, 0);
     dict_add(model_params, "poly_alpha", (snprintf(buffer, sizeof(buffer), "%.8g", poly_alpha), buffer));
     poly_norm = 0.5 * M_PI * 1. / (1. + 1. / (poly_alpha + 1.) * 1. / pow(poly_xt, poly_alpha));
-    fprintf(stderr, "FMKS parameters a: %f hslope: %f r_in: %f r_out: %f mks_smooth: %f poly_xt: %f poly_alpha: %f poly_norm: %f\n", 
+    fprintf(stderr, "FMKS parameters a: %f hslope: %f Rin: %f Rout: %f mks_smooth: %f poly_xt: %f poly_alpha: %f poly_norm: %f\n", 
       a, hslope, Rin, Rout, mks_smooth, poly_xt, poly_alpha, poly_norm);
   }
 
@@ -1454,7 +1454,7 @@ void init_model(double *tA, double *tB)
 
   /* Read relevant parameters from dump file and allocate memory for data struct */
   fprintf(stderr, "Reading parameters, allocating memory...\n");
-  read_parameters_and_alloate_memory(fnam, dumpmin);
+  read_parameters_and_allocate_memory(fnam, dumpmin);
 
   /* Set all dimensional quantities from loaded parameters */
   set_units();
