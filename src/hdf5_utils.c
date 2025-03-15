@@ -527,7 +527,7 @@ int hdf5_read_array_multidim(void *data, const char *name,
   H5Sselect_hyperslab(filespace, H5S_SELECT_SET, fstart, NULL, fcount,
     NULL);
   hid_t memspace = H5Screate_simple(mrank, mdims, NULL);
-  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, mstart, NULL, fcount,
+  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, mstart, NULL, mcount,
     NULL);
 
   char path[STRLEN];

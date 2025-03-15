@@ -47,6 +47,9 @@ endif
 ifneq (,$(findstring frontera,$(HOST)))
 	-include $(MAKEFILE_PATH)/machines/frontera.make
 endif
+ifneq (,$(findstring delta,$(HOST)))
+	-include $(MAKEFILE_PATH)/machines/delta.make
+endif
 # Hack to check only whether host begins with bh*
 ifneq (,$(findstring beginsbh,begins$(HOST)))
         -include $(MAKEFILE_PATH)/machines/bh-cluster.make

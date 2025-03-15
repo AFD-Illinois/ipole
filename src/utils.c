@@ -170,3 +170,33 @@ float *****malloc_rank5_float(int n1, int n2, int n3, int n4, int n5)
 
   return A;
 }
+
+
+void free_rank5(double *****A, int n1, int n2, int n3, int n4) {
+  if (A == NULL)
+      return;
+  // First free the contiguous data block.
+  // Note: A[0][0][0][0] points to the block allocated by malloc_rank1 in malloc_rank5.
+  free(A[0][0][0][0]);
+
+  // Now free the pointer arrays allocated at the 4th level:
+  for (int i = 0; i < n1; i++) {
+      for (int j = 0; j < n2; j++) {
+          for (int k = 0; k < n3; k++) {
+              free(A[i][j][k]);  // This frees the array allocated for each A[i][j][k]
+          }
+      }
+  }
+  // Free the pointer arrays at the 3rd level:
+  for (int i = 0; i < n1; i++) {
+      for (int j = 0; j < n2; j++) {
+          free(A[i][j]);  // This frees each array allocated for A[i][j]
+      }
+  }
+  // Free the pointer arrays at the 2nd level:
+  for (int i = 0; i < n1; i++) {
+      free(A[i]);  // This frees each array allocated for A[i]
+  }
+  // Finally free the top-level pointer array:
+  free(A);
+}
