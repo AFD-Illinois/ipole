@@ -210,8 +210,6 @@ void try_set_model_parameter(const char *word, const char *value)
   // KHARMA file format. Older (v5) files have different data ordering
   set_by_word_val(word, value, "kharma_format", (void *)kharma_format, TYPE_STR);
 }
-
-
 /**
  * @brief Opens the file, enters the "Info" group, and reads the specified attribute.
  *
@@ -1404,7 +1402,6 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
         fprintf(stderr, "Unknown electron subgrid model: %s\n", electron_subgrid_model_string);
         break;
     }
-
     /* Read fluid entropy */
     // mstart_5[4] = KTOT;
     // hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Ktot", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
@@ -1450,7 +1447,6 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
               //                 [1+mbd_loc[1]*meshblock_size[1]+jb]
               //                 [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][KTOT];
             }
-
         }
       }
     }
