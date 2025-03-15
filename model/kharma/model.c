@@ -747,8 +747,8 @@ int read_parameters_and_alloate_memory(char *fnam, int dumpidx)
   int nx1_mb, nx2_mb, nx3_mb; // Meshblock size
   int nghost;
   double x1min, x1max, x2min, x2max, x3min, x3max; // Domain limits
-  double a;
-  double hslope, mks_smooth, poly_xt, poly_alpha;
+  // double a;
+  // double hslope, mks_smooth, poly_xt, poly_alpha;
 
   /* Read parameters from par file */
   char buffer[100];
@@ -1388,7 +1388,7 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   /* Check if 21st zone (i.e., 20th without ghost zones) is beyond r_eh otherwise recompute */
-  double r_eh = 1. + sqrt(1. - a*a);
+  double r_eh = 1. + sqrt(1. - a * a);
   int N2_by_2 = (int)(N2 / 2);
 
   double X[NDIM] = {0.};
