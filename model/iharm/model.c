@@ -347,7 +347,7 @@ void init_model(double *tA, double *tB)
     double *gcon_global = malloc(total_elements * sizeof(double));
     // Use the arrays via indexing. For example, to access element [mu][nu][j][i]:
     #define IDX(mu, nu, j, i) (((mu) * NDIM * (N2+2) * (N1+2)) + ((nu) * (N2+2) * (N1+2)) + ((j) * (N1+2)) + (i))
-    
+
 #pragma omp parallel for collapse(2)
   for (int i = 0; i < N1+2; i++) {
     for (int j = 0; j < N2+2; j++) {
@@ -375,11 +375,11 @@ void init_model(double *tA, double *tB)
 
     /* Write physical quantities */
     hsize_t dims_phys[3] = { N1+2, N2+2, N3+2 };
-    hdf5_write_full_array(data[0]->ne, "ne", 3, dims_phys, H5T_NATIVE_DOUBLE);
-    hdf5_write_full_array(data[0]->thetae, "thetae", 3, dims_phys, H5T_NATIVE_DOUBLE);
-    hdf5_write_full_array(data[0]->b, "b", 3, dims_phys, H5T_NATIVE_DOUBLE);
-    hdf5_write_full_array(data[0]->sigma, "sigma", 3, dims_phys, H5T_NATIVE_DOUBLE);
-    hdf5_write_full_array(data[0]->beta, "beta", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->ne[0][0], "ne", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->thetae[0][0], "thetae", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->b[0][0], "b", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->sigma[0][0], "sigma", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->beta[0][0], "beta", 3, dims_phys, H5T_NATIVE_DOUBLE);
 
     /* Close HDF5 file */
     hdf5_close();
