@@ -35,6 +35,10 @@
 #define ELECTRONS_TFLUID (3)
 
 
+// Debug reader
+// Save metric and physical quantities
+#define DEBUG_READER (1)
+
 // Units
 double M_unit;
 double L_unit;
@@ -58,14 +62,14 @@ static double trat_large = 40.;
 double beta_crit = 1.0;
 
 // Geodesic parameters
-double sigma_cut = 1.0;
+double sigma_cut = 1.e100;
 double sigma_cut_high = -1.0;
 // Ignore radiation interactions within one degree of polar axis
 static double polar_cut = -1;
 static double th_beg = 0.0174;
-static int nloaded = 0;
 
 // File loading parameters
+static int nloaded = 0;
 static char fnam[STRLEN] = "dump.h5";
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
@@ -1476,6 +1480,62 @@ void init_model(double *tA, double *tB)
 
   /* Possibly cut around the pole */
   if (polar_cut >= 0) th_beg = 0.0174 * polar_cut;
+
+  #if DEBUG_READER
+    /* Set filename */
+    char debug_fname[256];
+    snprintf(debug_fname, sizeof(debug_fname), "debug_reader_kharma.h5");
+
+    /* Create HDF5 file*/
+    hdf5_create(debug_fname);
+
+    /* Compute gcov, gcon */
+    size_t total_elements = NDIM * NDIM * (N2 + 2) * (N1 + 2);
+    double *gcov_global = malloc(total_elements * sizeof(double));
+    double *gcon_global = malloc(total_elements * sizeof(double));
+    // Use the arrays via indexing. For example, to access element [mu][nu][j][i]:
+    #define IDX(mu, nu, j, i) (((mu) * NDIM * (N2+2) * (N1+2)) + ((nu) * (N2+2) * (N1+2)) + ((j) * (N1+2)) + (i))
+
+#pragma omp parallel for collapse(2)
+  for (int i = 0; i < N1+2; i++) {
+    for (int j = 0; j < N2+2; j++) {
+
+      double X[NDIM] = {0.};
+      ijktoX(i, j, 0, X);
+      double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+      gcov_func(X, gcov);
+      gcon_func(gcov, gcon);
+
+      for (int mu = 0; mu < NDIM; mu++) {
+        for (int nu = 0; nu < NDIM; nu++) {
+          gcov_global[IDX(mu, nu, j, i)] = gcov[mu][nu];
+          gcon_global[IDX(mu, nu, j, i)] = gcon[mu][nu];
+        }
+      }
+    }
+  }
+
+    /* Write gcov, gcon to file */
+    hsize_t dims_grid[4] = { NDIM, NDIM, N2+2, N1+2 };
+    hdf5_write_full_array(gcov_global, "gcov", 4, dims_grid, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(gcon_global, "gcon", 4, dims_grid, H5T_NATIVE_DOUBLE);
+
+    // Free the allocated memory when done
+    free(gcov_global);
+    free(gcon_global);
+
+    /* Write physical quantities */
+    hsize_t dims_phys[3] = { N1+2, N2+2, N3+2 };
+    hdf5_write_full_array(data[0]->ne[0][0], "ne", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->thetae[0][0], "thetae", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->b[0][0], "b", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->sigma[0][0], "sigma", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->beta[0][0], "beta", 3, dims_phys, H5T_NATIVE_DOUBLE);
+
+    /* Close HDF5 file */
+    hdf5_close();
+
+  #endif // DEBUG_READER
 }
 
 
