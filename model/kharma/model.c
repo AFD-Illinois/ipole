@@ -37,7 +37,7 @@
 
 // Debug reader
 // Save metric and physical quantities
-#define DEBUG_READER (1)
+#define DEBUG_READER (0)
 
 // Units
 double M_unit;
