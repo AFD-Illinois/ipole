@@ -50,7 +50,7 @@ double Te_unit;
 
 // Thermodynamic parameters
 static int RADIATION, ELECTRONS;
-static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
+static double gam = 1.444444444444444, game = 1.333333333333333, gamp = 1.666666666666667;
 static double Thetae_unit, Mdotedd;
 // Molecular weights
 static double Ne_factor = 1.;  // e.g., used for He with 2 protons+neutrons per 2 electrons
@@ -62,7 +62,7 @@ static double trat_large = 40.;
 double beta_crit = 1.0;
 
 // Geodesic parameters
-double sigma_cut = 1.e100;
+double sigma_cut = 1.;
 double sigma_cut_high = -1.0;
 // Ignore radiation interactions within one degree of polar axis
 static double polar_cut = -1;
@@ -762,6 +762,8 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
   } else {
     ELECTRONS = 0;
   }
+  Te_unit = Thetae_unit;
+
   get_parameter_value(parfile, "GRMHD", "gamma", TYPE_DBL, &gam, 0);
   dict_add(model_params, "gam", (snprintf(buffer, sizeof(buffer), "%.8g", game), buffer));
   get_parameter_value(parfile, "coordinates", "transform", TYPE_STR, coordinate_system, sizeof(coordinate_system));
@@ -1123,7 +1125,7 @@ void init_physical_quantities(int n, double rescale_factor)
           // see, e.g., Eq. 8 of the EHT GRRT formula list
           double lcl_Thetae_u = (MP/ME) * (game-1.) * (gamp-1.) / ( (gamp-1.) + (game-1.) * trat );
           Thetae_unit = lcl_Thetae_u;
-          data[n]->thetae[i][j][k] = lcl_Thetae_u * (data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k]);
+          data[n]->thetae[i][j][k] = lcl_Thetae_u * data[n]->p[UU][i][j][k]/data[n]->p[KRHO][i][j][k];
         } else if (ELECTRONS == 9) {
           /* Convert Kelvin -> Thetae */
           data[n]->thetae[i][j][k] = data[n]->p[TFLK][i][j][k] * KBOL / ME / CL / CL;

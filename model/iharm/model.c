@@ -46,7 +46,7 @@ static double mu_i, mu_e, mu_tot;
 
 // MODEL PARAMETERS: PUBLIC
 double DTd;
-double sigma_cut = 1.e100;
+double sigma_cut = 1.;
 double beta_crit = 1.0;
 double sigma_cut_high = -1.0;
 
@@ -85,7 +85,7 @@ double tf;
 // TODO the way this is selected is horrid.  Make it a parameter.
 #define ELECTRONS_TFLUID (3)
 static int RADIATION, ELECTRONS;
-static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
+static double gam = 1.444444444444444, game = 1.333333333333333, gamp = 1.666666666666667;
 static double Thetae_unit, Mdotedd;
 
 // Ignore radiation interactions within one degree of polar axis
@@ -919,7 +919,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
   hdf5_read_single_val(&N3, "n3", H5T_STD_I32LE);
   hdf5_read_single_val(&gam, "gam", H5T_IEEE_F64LE);
 
-  if (hdf5_exists("gam_e")) {
+  if (hdf5_exists("gam_e")) { /* pyharm-converted files save gam_e, gam_p even when electrons are not run. Which overwrites the default values*/
     fprintf(stderr, "custom electron model loaded from dump file...\n");
     hdf5_read_single_val(&game, "gam_e", H5T_IEEE_F64LE);
     hdf5_read_single_val(&gamp, "gam_p", H5T_IEEE_F64LE);
