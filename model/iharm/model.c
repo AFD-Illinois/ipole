@@ -98,7 +98,7 @@ static hdf5_blob fluid_header = { 0 };
 
 
 // Debug KHARMA reader
-#define DEBUG_READER (1)
+#define DEBUG_READER (0)
 
 struct of_data {
   double t;
