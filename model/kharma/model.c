@@ -23,7 +23,7 @@
 #define NSUP (3) //how many files to load for slow light tracing
 #define NVAR (10)
 #define USE_FIXED_TPTE (0)
-#define USE_MIXED_TPTE (1)
+#define USE_MIXED_TPTE (0)
 #define USE_GEODESIC_SIGMACUT (1)
 /* ELECTRONS
 *    0 : constant TP_OVER_TE
@@ -60,6 +60,35 @@ static double tp_over_te = 3.;
 static double trat_small = 1.;
 static double trat_large = 40.;
 double beta_crit = 1.0;
+static char electron_subgrid_model_string[STRLEN] = "NONE";
+// enum to represent electron heating model
+enum ElectronSubgridModel {
+  ELECTRONS_UNKNOWN,
+  ELECTRONS_CONSTANT,
+  ELECTRONS_HOWES,
+  ELECTRONS_KAWAZURA,
+  ELECTRONS_WERNER,
+  ELECTRONS_ROWAN,
+  ELECTRONS_SHARMA
+};
+// Converts input model string to an enum value for electron subgrid model
+int get_electron_subgrid_model(const char* electron_subgrid_model_string) {
+  if (strcmp(electron_subgrid_model_string, "CONSTANT") == 0) {
+    return ELECTRONS_CONSTANT;
+  } else if (strcmp(electron_subgrid_model_string, "HOWES") == 0) {
+    return ELECTRONS_HOWES;
+  } else if (strcmp(electron_subgrid_model_string, "KAWAZURA") == 0) {
+    return ELECTRONS_KAWAZURA;
+  } else if (strcmp(electron_subgrid_model_string, "WERNER") == 0) {
+    return ELECTRONS_WERNER;
+  } else if (strcmp(electron_subgrid_model_string, "ROWAN") == 0) {
+    return ELECTRONS_ROWAN;
+  } else if (strcmp(electron_subgrid_model_string, "SHARMA") == 0) {
+    return ELECTRONS_SHARMA;
+  } else {
+    return ELECTRONS_UNKNOWN;
+  }
+}
 
 // Geodesic parameters
 double sigma_cut = 1.;
@@ -173,6 +202,9 @@ void try_set_model_parameter(const char *word, const char *value)
 
   // Other parameters
   set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
+
+  // Electron heating model
+  set_by_word_val(word, value, "electron_subgrid_model", (void *)&electron_subgrid_model_string, TYPE_STR);
 }
 
 
@@ -743,6 +775,7 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
   /* Declaring necessary parameters */
   /* Thermodynamic parameters*/
   int has_electrons;
+  int electrons_subgrid_model;
   /* Grid parameter*/
   char coordinate_system[256];
   int nx1_mb, nx2_mb, nx3_mb; // Meshblock size
@@ -758,6 +791,8 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
     get_parameter_value(parfile, "electrons", "gamma_p", TYPE_DBL, &gamp, 0);
     dict_add(model_params, "game", (snprintf(buffer, sizeof(buffer), "%.8g", game), buffer));
     dict_add(model_params, "gamp", (snprintf(buffer, sizeof(buffer), "%.8g", gamp), buffer));
+
+    dict_add(model_params, "electrons_subgrid_model", electron_subgrid_model_string);
     ELECTRONS = 1;
   } else {
     ELECTRONS = 0;
@@ -816,7 +851,7 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
   dx[2] = (x2max - x2min) / N2;
   dx[3] = (x3max - x3min) / N3;
 
-  /* Which electron model to use if electrons are present in dump*/
+  /* Which electron model to use if electrons are present in dump */
   if (!USE_FIXED_TPTE && !USE_MIXED_TPTE) {
     if (ELECTRONS != 1) {
       fprintf(stderr, "No electron temperature model specified! Cannot continue\n");
@@ -842,7 +877,7 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
     exit(-3);
   }
 
-  /* Set electron temperature unit*/
+  /* Set electron temperature unit */
   Te_unit = Thetae_unit;
   
   /* Print sigma cut value */
@@ -1247,14 +1282,43 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   fstart_5[1] = 2;
   mstart_5[4] = B3;
   hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  if (ELECTRONS == 1) {
+    /* Read electron entropy */
+    frank = 4;
+    mstart_5[4] = KEL;
+    /* Get electron subgrid model enum */
+    int electron_subgrid_model = get_electron_subgrid_model(electron_subgrid_model_string);
+    switch (electron_subgrid_model) {
+      case ELECTRONS_CONSTANT:
+        hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Constant", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+        break;
+      case ELECTRONS_HOWES:
+        hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Howes", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+        break;
+      case ELECTRONS_KAWAZURA:
+        hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Kawazura", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+        break;
+      case ELECTRONS_WERNER:
+        hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Werner", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+        break;
+      case ELECTRONS_ROWAN:
+        hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Rowan", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+        break;
+      case ELECTRONS_SHARMA:
+        hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Sharma", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+        break;
+      case ELECTRONS_UNKNOWN:
+        fprintf(stderr, "Unknown electron subgrid model: %s\n", electron_subgrid_model_string);
+        break;
+    }
 
-  // TODO: Read electron fields
-
+    /* Read fluie entropy */
+    mstart_5[4] = KTOT;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Ktot", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  }
+  
   /* Assemble mesh */
   /* Retrieve meshblock size */
-  // int nx1_mb = atoi(dict_get(model_params, "nx1_mb", N1));
-  // int nx2_mb = atoi(dict_get(model_params, "nx2_mb", N2));
-  // int nx3_mb = atoi(dict_get(model_params, "nx3_mb", N3));
 #pragma omp parallel for collapse(4)
   for (int mb = 0; mb < num_meshblocks; mb++) {
     for (int kb = 0; kb < meshblock_size[2]; kb++) {
@@ -1285,7 +1349,16 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
             data[n]->p[B3][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
                           [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][B3];
-          // TODO: Assemble electron fields mesh
+                          
+            if (ELECTRONS == 1) {
+              data[n]->p[KEL][1+mbd_loc[0]*meshblock_size[0]+ib]
+                             [1+mbd_loc[1]*meshblock_size[1]+jb]
+                             [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][KEL];
+              data[n]->p[KTOT][1+mbd_loc[0]*meshblock_size[0]+ib]
+                              [1+mbd_loc[1]*meshblock_size[1]+jb]
+                              [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][KTOT];
+            }
+
         }
       }
     }
