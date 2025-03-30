@@ -204,7 +204,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
 
   // Electron heating model
-  set_by_word_val(word, value, "electron_subgrid_model", (void *)&electron_subgrid_model_string, TYPE_STR);
+  set_by_word_val(word, value, "electron_subgrid_model", (void *)electron_subgrid_model_string, TYPE_STR);
 }
 
 
@@ -774,8 +774,7 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
 
   /* Declaring necessary parameters */
   /* Thermodynamic parameters*/
-  int has_electrons;
-  int electrons_subgrid_model;
+  char has_electrons[20];
   /* Grid parameter*/
   char coordinate_system[256];
   int nx1_mb, nx2_mb, nx3_mb; // Meshblock size
@@ -784,15 +783,15 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
 
   /* Read parameters from par file */
   char buffer[100];
-  get_parameter_value(parfile, "electrons", "on", TYPE_INT, &has_electrons, 0);
-  dict_add(model_params, "has_electrons", (snprintf(buffer, sizeof(buffer), "%d", has_electrons), buffer));
-  if (has_electrons) {
+  get_parameter_value(parfile, "electrons", "on", TYPE_STR, has_electrons, sizeof(has_electrons));
+  dict_add(model_params, "has_electrons", has_electrons);
+  if (strncmp(has_electrons, "true", 19) == 0) {
     get_parameter_value(parfile, "electrons", "gamma_e", TYPE_DBL, &game, 0);
     get_parameter_value(parfile, "electrons", "gamma_p", TYPE_DBL, &gamp, 0);
     dict_add(model_params, "game", (snprintf(buffer, sizeof(buffer), "%.8g", game), buffer));
     dict_add(model_params, "gamp", (snprintf(buffer, sizeof(buffer), "%.8g", gamp), buffer));
 
-    dict_add(model_params, "electrons_subgrid_model", electron_subgrid_model_string);
+    dict_add(model_params, "electron_subgrid_model", electron_subgrid_model_string);
     ELECTRONS = 1;
   } else {
     ELECTRONS = 0;
@@ -1290,21 +1289,27 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
     int electron_subgrid_model = get_electron_subgrid_model(electron_subgrid_model_string);
     switch (electron_subgrid_model) {
       case ELECTRONS_CONSTANT:
+        fprintf(stderr, "Using CONSTANT electron temperature model\n");
         hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Constant", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
         break;
       case ELECTRONS_HOWES:
+        fprintf(stderr, "Using HOWES electron temperature model\n");
         hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Howes", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
         break;
       case ELECTRONS_KAWAZURA:
+        fprintf(stderr, "Using KAWAZURA electron temperature model\n");
         hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Kawazura", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
         break;
       case ELECTRONS_WERNER:
+        fprintf(stderr, "Using WERNER electron temperature model\n");
         hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Werner", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
         break;
       case ELECTRONS_ROWAN:
+        fprintf(stderr, "Using ROWAN electron temperature model\n");
         hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Rowan", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
         break;
       case ELECTRONS_SHARMA:
+        fprintf(stderr, "Using SHARMA electron temperature model\n");
         hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Kel_Sharma", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
         break;
       case ELECTRONS_UNKNOWN:
@@ -1312,9 +1317,9 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
         break;
     }
 
-    /* Read fluie entropy */
-    mstart_5[4] = KTOT;
-    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Ktot", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    /* Read fluid entropy */
+    // mstart_5[4] = KTOT;
+    // hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.Ktot", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   }
   
   /* Assemble mesh */
@@ -1349,14 +1354,14 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
             data[n]->p[B3][1+mbd_loc[0]*meshblock_size[0]+ib]
                           [1+mbd_loc[1]*meshblock_size[1]+jb]
                           [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][B3];
-                          
+
             if (ELECTRONS == 1) {
               data[n]->p[KEL][1+mbd_loc[0]*meshblock_size[0]+ib]
                              [1+mbd_loc[1]*meshblock_size[1]+jb]
                              [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][KEL];
-              data[n]->p[KTOT][1+mbd_loc[0]*meshblock_size[0]+ib]
-                              [1+mbd_loc[1]*meshblock_size[1]+jb]
-                              [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][KTOT];
+              // data[n]->p[KTOT][1+mbd_loc[0]*meshblock_size[0]+ib]
+              //                 [1+mbd_loc[1]*meshblock_size[1]+jb]
+              //                 [1+mbd_loc[2]*meshblock_size[2]+kb] = primitives_buffer[mb][kb][jb][ib][KTOT];
             }
 
         }
