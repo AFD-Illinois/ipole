@@ -23,7 +23,7 @@
 #define NSUP (3) //how many files to load for slow light tracing
 #define NVAR (10)
 #define USE_FIXED_TPTE (0)
-#define USE_MIXED_TPTE (0)
+#define USE_MIXED_TPTE (1)
 #define USE_GEODESIC_SIGMACUT (1)
 /* ELECTRONS
 *    0 : constant TP_OVER_TE
