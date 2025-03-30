@@ -23,7 +23,7 @@
 #define NSUP (3) //how many files to load for slow light tracing
 #define NVAR (10)
 #define USE_FIXED_TPTE (0)
-#define USE_MIXED_TPTE (1)
+#define USE_MIXED_TPTE (0)
 #define USE_GEODESIC_SIGMACUT (1)
 /* ELECTRONS
 *    0 : constant TP_OVER_TE
@@ -60,7 +60,7 @@ static double tp_over_te = 3.;
 static double trat_small = 1.;
 static double trat_large = 40.;
 double beta_crit = 1.0;
-static char electron_subgrid_model_string[STRLEN] = "NONE";
+static char electron_subgrid_model_string[STRLEN] = "UNKNOWN";
 // enum to represent electron heating model
 enum ElectronSubgridModel {
   ELECTRONS_UNKNOWN,
@@ -791,7 +791,8 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
     dict_add(model_params, "game", (snprintf(buffer, sizeof(buffer), "%.8g", game), buffer));
     dict_add(model_params, "gamp", (snprintf(buffer, sizeof(buffer), "%.8g", gamp), buffer));
 
-    dict_add(model_params, "electron_subgrid_model", electron_subgrid_model_string);
+    enum ElectronSubgridModel electron_subgrid_model = get_electron_subgrid_model(electron_subgrid_model_string);
+    dict_add(model_params, "electron_subgrid_model", (snprintf(buffer, sizeof(buffer), "%d", electron_subgrid_model), buffer));
     ELECTRONS = 1;
   } else {
     ELECTRONS = 0;
@@ -1286,7 +1287,7 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
     frank = 4;
     mstart_5[4] = KEL;
     /* Get electron subgrid model enum */
-    int electron_subgrid_model = get_electron_subgrid_model(electron_subgrid_model_string);
+    enum ElectronSubgridModel electron_subgrid_model = get_electron_subgrid_model(electron_subgrid_model_string);
     switch (electron_subgrid_model) {
       case ELECTRONS_CONSTANT:
         fprintf(stderr, "Using CONSTANT electron temperature model\n");
