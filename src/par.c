@@ -89,6 +89,9 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->xoff = 0.0;
   params->yoff = 0.0;
 
+  //anisotropy
+  params->eta_anisotropy = 1.0;
+
   params->trace = 0;
   params->trace_stride = 1;
   params->nstride = 1;
@@ -192,6 +195,9 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   // for slow light
   set_by_word_val(word, value, "img_cadence", &(params->img_cadence), TYPE_DBL);
   set_by_word_val(word, value, "restart_int", &(params->restart_int), TYPE_DBL);
+
+  //anisotropy
+  set_by_word_val(word, value, "eta_anisotropy", &(params->eta_anisotropy), TYPE_DBL);
 
   // Save out variables along paths
   set_by_word_val(word, value, "trace", &(params->trace), TYPE_INT);

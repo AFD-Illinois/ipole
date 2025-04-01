@@ -62,6 +62,9 @@ typedef struct params_t {
   double img_cadence;
   double restart_int;
 
+  //anisotropy
+  double eta_anisotropy;
+
   // Save out variables along a geodesic
   int trace;
   int trace_stride;
