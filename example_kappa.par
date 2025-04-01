@@ -2,7 +2,8 @@
 
 #I/O
 outfile testim.h5
-dump /home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole_tavg50000-100000_rt.h5
+dump /home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole4444.h5
+#a.7_ipole_tavg50000-100000_rt.h5
 #avgdumps/a.5_ipole_tavg50000-100000_rt.h5
 
 # Common
@@ -28,7 +29,7 @@ splitEDF 1 #when splitEDF=1, disk is thermal and jet is power-law EDF
 # M87 parameters
 MBH 6.2e9
 dsource 16.9e6
-freqcgs 86.e9
+freqcgs 230.e9
 # M_unit scales the accretion rate to match a known object flux
 # These are example values
 # SANE:

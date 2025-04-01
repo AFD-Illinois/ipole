@@ -67,8 +67,6 @@ static double powerlaw_gamma_max = 1e5;
 static double powerlaw_p = 3.25;
 static double powerlaw_eta = 0.02;
 static double eta_anisotropy = 1.0; //anisotropy parameter
-static double sigma_min = 0.0; //minimum sigma (i.e. for cutting out disk/winds)
-static double sigma_dynamic = 0.0; //anisotropy parameter
 static double intprefac = 1.0; //normalizing factor that's slow to compute
 static int splitEDF = 0; //1 if power EDF in jet and thermal EDF in disk, 0 otherwise
 static int variable_kappa = 0;
@@ -94,8 +92,6 @@ void try_set_radiation_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
   set_by_word_val(word, value, "eta_anisotropy", &eta_anisotropy, TYPE_DBL);
-  set_by_word_val(word, value, "sigma_min", &sigma_min, TYPE_DBL);
-  set_by_word_val(word, value, "sigma_dynamic", &sigma_dynamic, TYPE_DBL);
   set_by_word_val(word, value, "splitEDF", &splitEDF, TYPE_INT);
 
   intprefac = gsl_sf_hyperg_2F1(0.5, powerlaw_p/2.0, 1.5, 1.0-eta_anisotropy);
@@ -164,13 +160,6 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   // Please use radiating_region instead for model applicability cutoffs,
   // or see integrate_emission for zeroing just jN
 
-  //dynamical sigma cut (i.e. r-dependent) - see Tsunetoe+ (2025)
-  if (sigma_dynamic != 0.0){
-    double rhere, thhere;
-    bl_coord(X, &rhere, &thhere);
-    sigma_cut = sigma_dynamic/sqrt(rhere);
-  }
-
   double Ne = get_model_ne(X);
   double sigmahere = get_model_sigma(X); //sigma (b^2/rho)
   if (splitEDF == 1) dist = (sigmahere < sigma_min) ? 1 : 3; //split disk/jet EDF if requested
@@ -234,7 +223,7 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   // but allow Faraday rotation in polarized context
   // also if sigma is too small
   // TODO this skips any rho_V NaN/other checks
-  if (theta <= 0.0 || theta >= M_PI || ((sigmahere <= sigma_min) && (splitEDF == 0))) {
+  if (theta <= 0.0 || theta >= M_PI) {
     *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
     *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
     *rQ = 0.0; *rU = 0.0;
@@ -263,6 +252,17 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
       paramsM.dexter_fit = 2; // Signal symphony fits to use Leung+ as fallback
       *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / nusq;
       *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
+      if (paramsM.distribution == paramsM.POWER_LAW && eta_anisotropy != 1.0){
+        //implement anisotropy using Eqs. 15-28 of Tsunetoe+ (2025)
+        double phere = paramsM.power_law_p;
+        double cos2theta = cos(theta)*cos(theta);
+        double sin2theta = sin(theta)*sin(theta);
+        double phifunc = pow(1.0+(eta_anisotropy-1.0)*cos2theta, -phere/2.0) / intprefac;
+        double gfunc = phere*(eta_anisotropy-1.0)*sin2theta / (1.0+(eta_anisotropy-1.0)*cos2theta);
+    
+        *jI *= phifunc;
+        *aI *= phifunc;
+      }
     }
   } else { // Finally, calculate all coefficients normally
     // EMISSIVITIES
