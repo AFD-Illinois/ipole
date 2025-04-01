@@ -276,6 +276,20 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     *jQ = -j_nu_fit(&paramsM, paramsM.STOKES_Q) / nusq;
     *jU = -j_nu_fit(&paramsM, paramsM.STOKES_U) / nusq;
     *jV = j_nu_fit(&paramsM, paramsM.STOKES_V) / nusq;
+
+    if (dist == E_POWERLAW && eta_anisotropy != 1.0){
+      //implement anisotropy using Eqs. 15-28 of Tsunetoe+ (2025)
+      double phere = paramsM.power_law_p;
+      double cos2theta = cos(theta)*cos(theta);
+      double sin2theta = sin(theta)*sin(theta);
+      double phifunc = pow(1.0+(eta_anisotropy-1.0)*cos2theta, -phere/2.0) / intprefac;
+      double gfunc = phere*(eta_anisotropy-1.0)*sin2theta / (1.0+(eta_anisotropy-1.0)*cos2theta);
+  
+      *jI *= phifunc;
+      *jQ *= phifunc;
+      *jV *= phifunc*(1.0+gfunc/(phere+2.0));
+    }
+
     // Check basic relationships
     double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
     if (*jI  < jP/max_pol_frac_e) {
@@ -310,6 +324,19 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
       *aU = -alpha_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
       *aV = alpha_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
 
+      if (dist == E_POWERLAW && eta_anisotropy != 1.0){
+        //implement anisotropy using Eqs. 15-28 of Tsunetoe+ (2025)
+        double phere = paramsM.power_law_p;
+        double cos2theta = cos(theta)*cos(theta);
+        double sin2theta = sin(theta)*sin(theta);
+        double phifunc = pow(1.0+(eta_anisotropy-1.0)*cos2theta, -phere/2.0) / intprefac;
+        double gfunc = phere*(eta_anisotropy-1.0)*sin2theta / (1.0+(eta_anisotropy-1.0)*cos2theta);
+    
+        *aI *= phifunc;
+        *aQ *= phifunc;
+        *aV *= phifunc*(1.0+gfunc/(phere+2.0));
+      }
+
       // Check basic relationships
       double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
       if (*aI < aP/max_pol_frac_a) {
@@ -323,33 +350,12 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
 
 
     // ROTATIVITIES
-    if (dist != E_POWERLAW){
-      paramsM.dexter_fit = 0;  // Don't use the Dexter rhoV, as it's unstable at low temperature
-      *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
-      *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
-      *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
-    }
-    else{
-      *rQ = *rU = *rV = 0.0;
-    }
+    paramsM.dexter_fit = 0;  // Don't use the Dexter rhoV, as it's unstable at low temperature
+    *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
+    *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
+    *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
   }
 
-  if (dist == E_POWERLAW && eta_anisotropy != 1.0){
-    //implement anisotropy using Eqs. 15-28 of Tsunetoe+ (2025)
-    double phere = paramsM.power_law_p;
-    double cos2theta = cos(theta)*cos(theta);
-    double sin2theta = sin(theta)*sin(theta);
-    double phifunc = pow(1.0+(eta_anisotropy-1.0)*cos2theta, -phere/2.0) / intprefac;
-    double gfunc = phere*(eta_anisotropy-1.0)*sin2theta / (1.0+(eta_anisotropy-1.0)*cos2theta);
-
-    *jI *= phifunc;
-    *jQ *= phifunc;
-    *jV *= phifunc*(1.0+gfunc/(phere+2.0));
-
-    *aI *= phifunc;
-    *aQ *= phifunc;
-    *aV *= phifunc*(1.0+gfunc/(phere+2.0));
-  }
 
   // if (dist == E_POWERLAW && params){
   //   double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM])
