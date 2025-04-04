@@ -46,7 +46,7 @@ static double mu_i, mu_e, mu_tot;
 
 // MODEL PARAMETERS: PUBLIC
 double DTd;
-double sigma_cut = 1.0;
+double sigma_cut = 1.;
 double beta_crit = 1.0;
 double sigma_cut_high = -1.0;
 
@@ -85,7 +85,7 @@ double tf;
 // TODO the way this is selected is horrid.  Make it a parameter.
 #define ELECTRONS_TFLUID (3)
 static int RADIATION, ELECTRONS;
-static double gam = 1.444444, game = 1.333333, gamp = 1.666667;
+static double gam = 1.444444444444444, game = 1.333333333333333, gamp = 1.666666666666667;
 static double Thetae_unit, Mdotedd;
 
 // Ignore radiation interactions within one degree of polar axis
@@ -95,6 +95,10 @@ static int nloaded = 0;
 
 
 static hdf5_blob fluid_header = { 0 };
+
+
+// Debug KHARMA reader
+#define DEBUG_READER (0)
 
 struct of_data {
   double t;
@@ -328,6 +332,59 @@ void init_model(double *tA, double *tB)
       th_beg = 0.0174 * 2;
     }
   }
+
+  #if DEBUG_READER
+    /* Set filename */
+    char debug_fname[256];
+    snprintf(debug_fname, sizeof(debug_fname), "debug_reader_iharm.h5");
+
+    /* Create HDF5 file*/
+    hdf5_create(debug_fname);
+
+    /* Compute gcov, gcon */
+    size_t total_elements = NDIM * NDIM * (N2 + 2) * (N1 + 2);
+    double *gcov_global = malloc(total_elements * sizeof(double));
+    double *gcon_global = malloc(total_elements * sizeof(double));
+    // Use the arrays via indexing. For example, to access element [mu][nu][j][i]:
+    #define IDX(mu, nu, j, i) (((mu) * NDIM * (N2+2) * (N1+2)) + ((nu) * (N2+2) * (N1+2)) + ((j) * (N1+2)) + (i))
+
+#pragma omp parallel for collapse(2)
+  for (int i = 0; i < N1+2; i++) {
+    for (int j = 0; j < N2+2; j++) {
+
+      double X[NDIM] = {0.};
+      ijktoX(i, j, 0, X);
+      double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+      gcov_func(X, gcov);
+      gcon_func(gcov, gcon);
+
+      for (int mu = 0; mu < NDIM; mu++) {
+        for (int nu = 0; nu < NDIM; nu++) {
+          gcov_global[IDX(mu, nu, j, i)] = gcov[mu][nu];
+          gcon_global[IDX(mu, nu, j, i)] = gcon[mu][nu];
+        }
+      }
+
+    }
+  }
+
+    /* Write gcov, gcon to file */
+    hsize_t dims_grid[4] = { NDIM, NDIM, N2+2, N1+2 };
+    hdf5_write_full_array(gcov_global, "gcov", 4, dims_grid, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(gcon_global, "gcon", 4, dims_grid, H5T_NATIVE_DOUBLE);
+
+    /* Write physical quantities */
+    hsize_t dims_phys[3] = { N1+2, N2+2, N3+2 };
+    hdf5_write_full_array(data[0]->ne[0][0], "ne", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->thetae[0][0], "thetae", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->b[0][0], "b", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->sigma[0][0], "sigma", 3, dims_phys, H5T_NATIVE_DOUBLE);
+    hdf5_write_full_array(data[0]->beta[0][0], "beta", 3, dims_phys, H5T_NATIVE_DOUBLE);
+
+    /* Close HDF5 file */
+    hdf5_close();
+
+  #endif // DEBUG_READER
 }
 
 /*
@@ -862,7 +919,7 @@ void init_iharm_grid(char *fnam, int dumpidx)
   hdf5_read_single_val(&N3, "n3", H5T_STD_I32LE);
   hdf5_read_single_val(&gam, "gam", H5T_IEEE_F64LE);
 
-  if (hdf5_exists("gam_e")) {
+  if (hdf5_exists("gam_e")) { /* pyharm-converted files save gam_e, gam_p even when electrons are not run. Which overwrites the default values*/
     fprintf(stderr, "custom electron model loaded from dump file...\n");
     hdf5_read_single_val(&game, "gam_e", H5T_IEEE_F64LE);
     hdf5_read_single_val(&gamp, "gam_p", H5T_IEEE_F64LE);

@@ -19,6 +19,24 @@ double R0, Rin, Rout, Rh;
 double rmax_geo = 100.;
 double rmin_geo = 1.;
 
+void cks_to_sks(double x, double y, double z, double X[NDIM])
+{
+  double R = sqrt(x*x + y*y + z*z);
+  double r = sqrt(R*R - a*a + sqrt(((R*R - a*a)*(R*R - a*a)) + 4.*a*a*z*z)) / sqrt(2.);
+  double h = acos(z / r);
+  double p = atan2(a*x - r*y, a*y + r*x);
+  X[1] = r;
+  X[2] = h;
+  X[3] = p;
+}
+
+void sks_to_cks(double r, double h, double p, double *x, double *y, double *z)
+{
+  *x = r * cos(p) * sin(h) - a * sin(p) * sin(h);
+  *y = r * sin(p) * sin(h) + a * cos(p) * sin(h);
+  *z= r * cos(h);
+}
+
 /*
  * Despite the name, this returns r, th coordinates for a KS or BL
  * coordinate system (since they're equal), from a set of "modified"
@@ -115,6 +133,41 @@ void ks_to_bl(double X[NDIM], double ucon_ks[NDIM], double ucon_bl[NDIM])
   MUNULOOP
     ucon_bl[mu] += rev_trans[mu][nu] * ucon_ks[nu];
 }
+
+/*
+ * sets g_{ab} at CKS x, y, z and returns g^{00}
+ */
+double get_g_cks(double x, double y, double z, double gcov[NDIM][NDIM])
+{
+  double R = sqrt(x*x + y*y + z*z);
+  double r = sqrt(R*R - a*a + sqrt((R*R - a*a)*(R*R - a*a) + 4*a*a*z*z)) / sqrt(2.0);
+
+  double f = 2.0*r*r*r / (r*r*r*r + a*a*z*z);
+  double l0 = 1.0;
+  double l1 = (r*x + a*y) / (r*r + a*a);
+  double l2 = (r*y - a*x) / (r*r + a*a);
+  double l3 = z / r;
+
+  gcov[0][0] = -1.0 + f * l0*l0;
+  gcov[0][1] = f*l0*l1;
+  gcov[0][2] = f*l0*l2;
+  gcov[0][3] = f*l0*l3;
+  gcov[1][0] = gcov[0][1];
+  gcov[1][1] = 1.0 + f*l1*l1;
+  gcov[1][2] = f*l1*l2;
+  gcov[1][3] = f*l1*l3;
+  gcov[2][0] = gcov[0][2];
+  gcov[2][1] = gcov[1][2];
+  gcov[2][2] = 1.0 + f*l2*l2;
+  gcov[2][3] = f*l2*l3;
+  gcov[3][0] = gcov[0][3];
+  gcov[3][1] = gcov[1][3];
+  gcov[3][2] = gcov[2][3];
+  gcov[3][3] = 1.0 + f*l3*l3;
+
+  return -1.0 - f;
+}
+
 
 /*
  * returns g_{munu} at location specified by X

@@ -32,6 +32,8 @@ extern double cstartx[NDIM], cstopx[NDIM];
 extern double R0, Rin, Rout, Rh;
 extern double rmin_geo, rmax_geo;
 
+void cks_to_sks(double x, double y, double z, double X[NDIM]);
+void sks_to_cks(double r, double h, double p, double *x, double *y, double *z);
 void bl_coord(double X[NDIM], double *r, double *th);
 void bl_to_ks(double X[NDIM], double ucon_bl[NDIM], double ucon_ks[NDIM]);
 void ks_to_bl(double X[NDIM], double ucon_ks[NDIM], double ucon_bl[NDIM]);
@@ -39,6 +41,7 @@ void gcov_func(double X[NDIM], double gcov[NDIM][NDIM]);
 // TODO privatize these, why are they needed in models?
 void gcov_ks(double r, double th, double gcov[NDIM][NDIM]);
 void gcov_bl(double r, double th, double gcov[NDIM][NDIM]);
+double get_g_cks(double x, double y, double z, double gcov[NDIM][NDIM]);
 
 // Internal
 void set_dxdX(double X[NDIM], double dxdX[NDIM][NDIM]);

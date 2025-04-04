@@ -7,6 +7,9 @@
 #define TYPE_DBL (2)
 #define TYPE_STR (3)
 
+#define TYPE_INT_ARRAY (4)
+#define TYPE_DBL_ARRAY (5)
+
 // feel free to change any part of this structure
 typedef struct params_t {
   double rcam;          // Camera radius in r_g
