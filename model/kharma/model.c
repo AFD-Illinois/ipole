@@ -23,7 +23,7 @@
 #define NSUP (3) //how many files to load for slow light tracing
 #define NVAR (10)
 #define USE_FIXED_TPTE (0)
-#define USE_MIXED_TPTE (0)
+#define USE_MIXED_TPTE (1)
 #define USE_GEODESIC_SIGMACUT (1)
 /* ELECTRONS
 *    0 : constant TP_OVER_TE
@@ -103,6 +103,7 @@ static char fnam[STRLEN] = "dump.h5";
 static int dumpskip = 1;
 static int dumpmin, dumpmax, dumpidx;
 double DTd;
+static char kharma_format[STRLEN] = "new";
 
 // Black hole parameters
 static double MBH_solar = 6.2e9;
@@ -205,6 +206,9 @@ void try_set_model_parameter(const char *word, const char *value)
 
   // Electron heating model
   set_by_word_val(word, value, "electron_subgrid_model", (void *)electron_subgrid_model_string, TYPE_STR);
+
+  // KHARMA file format. Older (v5) files have different data ordering
+  set_by_word_val(word, value, "kharma_format", (void *)kharma_format, TYPE_STR);
 }
 
 
@@ -1261,27 +1265,53 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   mstart_5[4] = UU;
   hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.u", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   /* Read vector fields */
-  frank = 5;
-  hsize_t fdims_5[5]  = {num_meshblocks, NDIM-1, nx3_mb, nx2_mb, nx1_mb};
-  hsize_t fstart_5[5] = {0, 0, 0, 0, 0};
-  hsize_t fcount_5[5] = {num_meshblocks, 1, nx3_mb, nx2_mb, nx1_mb};
-  mstart_5[4] = U1;
-  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
-  fstart_5[1] = 1;
-  mstart_5[4] = U2;
-  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
-  fstart_5[1] = 2;
-  mstart_5[4] = U3;
-  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
-  fstart_5[1] = 0;
-  mstart_5[4] = B1;
-  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
-  fstart_5[1] = 1;
-  mstart_5[4] = B2;
-  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
-  fstart_5[1] = 2;
-  mstart_5[4] = B3;
-  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  if (strcmp(kharma_format, "new") == 0) {
+    fprintf(stderr, "Using latest KHARMA output format\n");
+    frank = 5;
+    hsize_t fdims_5[5]  = {num_meshblocks, NDIM-1, nx3_mb, nx2_mb, nx1_mb};
+    hsize_t fstart_5[5] = {0, 0, 0, 0, 0};
+    hsize_t fcount_5[5] = {num_meshblocks, 1, nx3_mb, nx2_mb, nx1_mb};
+    mstart_5[4] = U1;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[1] = 1;
+    mstart_5[4] = U2;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[1] = 2;
+    mstart_5[4] = U3;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[1] = 0;
+    mstart_5[4] = B1;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[1] = 1;
+    mstart_5[4] = B2;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[1] = 2;
+    mstart_5[4] = B3;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  } else if (strcmp(kharma_format, "old") == 0) {
+    fprintf(stderr, "Using old (v5) KHARMA output format\n");
+    frank = 5;
+    hsize_t fdims_5[5]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, NDIM-1};
+    hsize_t fstart_5[5] = {0, 0, 0, 0, 0};
+    hsize_t fcount_5[5] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, 1};
+    mstart_5[4] = U1;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[4] = 1;
+    mstart_5[4] = U2;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[4] = 2;
+    mstart_5[4] = U3;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.uvec", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[4] = 0;
+    mstart_5[4] = B1;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[4] = 1;
+    mstart_5[4] = B2;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    fstart_5[4] = 2;
+    mstart_5[4] = B3;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+  }
   if (ELECTRONS == 1) {
     /* Read electron entropy */
     frank = 4;
