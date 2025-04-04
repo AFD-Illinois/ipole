@@ -8,6 +8,7 @@
 #include "decs.h"
 #include "coordinates.h"
 #include "geometry.h"
+#include "grid.h"
 #include "ipolarray.h"
 #include "radiation.h"
 #include "par.h"
@@ -539,4 +540,14 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   free(econ); free(ecov);
 
   hdf5_close();
+}
+
+void write_histo(Params *params) {
+  hid_t histo_fid = H5Fcreate(params->histo_outf, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  if (histo_fid < 0) {
+    fprintf(stderr, "! unable to open/create hdf5 zone output file.\n");
+    exit(-3);
+  }
+  h5io_add_data_dbl_3ds(histo_fid, "/data", N1, N2, N3, visible_emission_histogram);
+  H5Fclose(histo_fid);
 }

@@ -19,3 +19,6 @@ test-resources
 *.ppm
 *.mp4
 *.vtk
+
+# vscode
+.vscode/*

@@ -115,7 +115,7 @@ if __name__ == "__main__":
     evpa2 = np.copy(evpa)
     evpa2[np.abs(I)<Imaskval] = np.nan
     ax3.set_facecolor('black')
-    im3 = ax3.imshow(evpa2, cmap='hsv', vmin=-90., vmax=90., origin='lower', extent=extent)
+    im3 = ax3.imshow(evpa2, cmap='hsv', vmin=-90., vmax=90., origin='lower', extent=extent, interpolation='none')
     colorbar(im3)
 
     # quiver on intensity
