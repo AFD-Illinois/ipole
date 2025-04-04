@@ -1354,7 +1354,6 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   }
   
   /* Assemble mesh */
-  /* Retrieve meshblock size */
 #pragma omp parallel for collapse(4)
   for (int mb = 0; mb < num_meshblocks; mb++) {
     for (int kb = 0; kb < meshblock_size[2]; kb++) {
