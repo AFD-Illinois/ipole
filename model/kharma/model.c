@@ -1409,6 +1409,7 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   /* Get dump time */
   double t = -1.;
   read_info_attribute(fname, "Time", TYPE_DBL, &t, 0);
+  data[n]->t = t;
 
   /* Reversing B Field */
   if(reverse_field) {
