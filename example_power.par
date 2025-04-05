@@ -2,29 +2,30 @@
 
 #I/O
 outfile testim.h5
-dump /home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole4444.h5
+dump /home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole_tavg50000-100000_rt.h5
+#a.7_ipole4444.h5
 #a.7_ipole_tavg50000-100000_rt.h5
 #avgdumps/a.5_ipole_tavg50000-100000_rt.h5
 
 # Common
-nx 128
-ny 128
+nx 64
+ny 64
 
 #Cut out disk
 diskcut 90.0
 
 # Emission 1=Pandya, 4=Dexter, others are debug/custom
-emission_type 3
+emission_type 4
 sigma_cut 100.0
-sigma_min 1 #for splitEDF=1, sigma_min serves as the boundary between disk/jet. otherwise, it's a hard lower bound on sigma in emitting region
-sigma_dynamic 300.0
+sigma_min 0 #1 #for splitEDF=1, sigma_min serves as the boundary between disk/jet. otherwise, it's a hard lower bound on sigma in emitting region
+sigma_dynamic 0 #300.0
 kappa 3.5
 variable_kappa 0
 powerlaw_p 2.5
 powerlaw_gamma_min 30
 powerlaw_gamma_max 1e8
-eta_anisotropy 0.01
-splitEDF 1 #when splitEDF=1, disk is thermal and jet is power-law EDF
+eta_anisotropy 1.0
+splitEDF 0 #when splitEDF=1, disk is thermal and jet is power-law EDF
 
 # M87 parameters
 MBH 6.2e9
@@ -35,11 +36,11 @@ freqcgs 230.e9
 # SANE:
 #M_unit 3e26
 # MAD:
-M_unit 5e24
+M_unit 6e24
 
 # e- Temperature, via the Rhigh model described 
-trat_small 1
-trat_large 20
+trat_small 10
+trat_large 160
 # Constant e- temperature ratio
 #tp_over_te 3
 
@@ -64,8 +65,8 @@ phicam 0
 rotcam 0
 
 # FOV from Earth
-fovx_dsource 3000
-fovy_dsource 3000
+fovx_dsource 500
+fovy_dsource 500
 
 # Geodesic accuracy parameters
 eps 0.005
@@ -86,7 +87,7 @@ only_unpolarized 0
 counterjet 0
 
 #photon ring suppression
-max_nturns 1
+#max_nturns 1000000
 
 # Offset for each geodesic in pixels, used to prevent
 # overtraining ML models to pixel locations
@@ -107,8 +108,3 @@ trace_outf /scratch/gpfs/zg2027/Images/MAD/Traces/psitrace/testtrace.h5
 # Histogram of origin of observed emissivity 
 histo 0
 histo_outf histo.h5
-
-#psivals
-usepsi 0
-psiarr avgdumps/psiall_inc17_a5.h5
-psibound 11.1

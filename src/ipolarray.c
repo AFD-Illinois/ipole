@@ -132,9 +132,9 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         zero_emission = 1; 
       }
 
-      if (ti.nturns > params->max_nturns){
-	zero_emission = 1;
-      }
+      // if (ti.nturns > params->max_nturns){
+	    //   zero_emission = 1;
+      // }
 
       //zero emission if we cut out the disk
       if (th*180.0/M_PI > params->diskcut && th*180.0/M_PI < 180.0 - params->diskcut){
@@ -270,6 +270,9 @@ int integrate_emission(struct of_traj *traj, int nsteps,
   }
   // Return the final flag so caller can print
   if (print) printf("countemit %i\n", countemit);
+  if (print == 1){
+    printf("hi\n");
+  }
   return oddflag;
 }
 
@@ -599,7 +602,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 #endif
   if (isnan(Ucov[0])) oddflag |= 8;
   return oddflag;
-}
+} 
 
 /* converts tensor N to Stokes parameters detected at the camera*/
 void project_N(double X[NDIM], double Kcon[NDIM],
