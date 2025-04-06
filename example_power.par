@@ -8,8 +8,8 @@ dump /home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole_tavg50000-100000_rt.h5
 #avgdumps/a.5_ipole_tavg50000-100000_rt.h5
 
 # Common
-nx 64
-ny 64
+nx 128
+ny 128
 
 #Cut out disk
 diskcut 90.0
@@ -17,15 +17,15 @@ diskcut 90.0
 # Emission 1=Pandya, 4=Dexter, others are debug/custom
 emission_type 4
 sigma_cut 100.0
-sigma_min 0 #1 #for splitEDF=1, sigma_min serves as the boundary between disk/jet. otherwise, it's a hard lower bound on sigma in emitting region
-sigma_dynamic 0 #300.0
+sigma_min 1.0 #for splitEDF=1, sigma_min serves as the boundary between disk/jet. otherwise, it's a hard lower bound on sigma in emitting region
+sigma_dynamic 300.0 #300.0
 kappa 3.5
 variable_kappa 0
 powerlaw_p 2.5
 powerlaw_gamma_min 30
 powerlaw_gamma_max 1e8
 eta_anisotropy 1.0
-splitEDF 0 #when splitEDF=1, disk is thermal and jet is power-law EDF
+splitEDF 1 #when splitEDF=1, disk is thermal and jet is power-law EDF
 
 # M87 parameters
 MBH 6.2e9
@@ -39,8 +39,8 @@ freqcgs 230.e9
 M_unit 6e24
 
 # e- Temperature, via the Rhigh model described 
-trat_small 10
-trat_large 160
+trat_small 1
+trat_large 20
 # Constant e- temperature ratio
 #tp_over_te 3
 
@@ -65,8 +65,9 @@ phicam 0
 rotcam 0
 
 # FOV from Earth
-fovx_dsource 500
-fovy_dsource 500
+fovx_dsource 3000
+fovy_dsource 3000
+max_nturns 0
 
 # Geodesic accuracy parameters
 eps 0.005
