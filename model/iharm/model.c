@@ -49,6 +49,9 @@ double DTd;
 double sigma_cut = 1.;
 double beta_crit = 1.0;
 double sigma_cut_high = -1.0;
+double sigma_dynamic = 0.0; //anisotropy parameter (sigmacut=sigma_dynamic/sqrt(rBL))
+double sigma_min = 0.0;
+int splitEDF = 0; //1 if power EDF in jet and thermal EDF in disk, 0 otherwise
 
 // MODEL PARAMETERS: PRIVATE
 static char fnam[STRLEN] = "dump.h5";
@@ -143,6 +146,9 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut_high", &sigma_cut_high, TYPE_DBL);
+  set_by_word_val(word, value, "sigma_dynamic", &sigma_dynamic, TYPE_DBL); //anisotropy parameter
+  set_by_word_val(word, value, "sigma_min", &sigma_min, TYPE_DBL); //minimum sigma to cut beneath
+  set_by_word_val(word, value, "splitEDF", &splitEDF, TYPE_INT); //minimum sigma to cut beneath
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
   set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
 
@@ -563,14 +569,14 @@ double get_model_beta(double X[NDIM])
   return tfac*betaA + (1. - tfac)*betaB;
 }
 
-double get_sigma_smoothfac(double sigma)
+double get_sigma_smoothfac(double sigma, double sigmacutlocal)
 {
-  double sigma_above = sigma_cut;
+  double sigma_above = sigmacutlocal;
   if (sigma_cut_high > 0) sigma_above = sigma_cut_high;
-  if (sigma < sigma_cut) return 1;
+  if (sigma < sigmacutlocal) return 1;
   if (sigma >= sigma_above) return 0;
-  double dsig = sigma_above - sigma_cut;
-  return cos(M_PI / 2. / dsig * (sigma - sigma_cut));
+  double dsig = sigma_above - sigmacutlocal;
+  return cos(M_PI / 2. / dsig * (sigma - sigmacutlocal));
 }
 
 double get_model_ne(double X[NDIM])
@@ -581,8 +587,14 @@ double get_model_ne(double X[NDIM])
 
 #if USE_GEODESIC_SIGMACUT
   double sigma = get_model_sigma(X);
-  if (sigma > sigma_cut) return 0.;
-  sigma_smoothfac = get_sigma_smoothfac(sigma);
+  double sigmacutlocal = sigma_cut;
+  if (sigma_dynamic != 0.0){
+    double rhere, thhere;
+    bl_coord(X, &rhere, &thhere);
+    sigmacutlocal = sigma_dynamic/sqrt(rhere);
+  }
+  if (sigma > sigmacutlocal || (sigma < sigma_min && splitEDF == 0)) return 0.;
+  sigma_smoothfac = get_sigma_smoothfac(sigma, sigmacutlocal);
 #endif
 
   int nA, nB;
