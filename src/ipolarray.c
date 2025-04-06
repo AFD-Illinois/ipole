@@ -132,9 +132,9 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         zero_emission = 1; 
       }
 
-      // if (ti.nturns > params->max_nturns){
-	    //   zero_emission = 1;
-      // }
+      if (ti.nturns > params->max_nturns){
+	      zero_emission = 1;
+      }
 
       //zero emission if we cut out the disk
       if (th*180.0/M_PI > params->diskcut && th*180.0/M_PI < 180.0 - params->diskcut){

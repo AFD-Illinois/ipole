@@ -68,7 +68,6 @@ static double powerlaw_p = 3.25;
 static double powerlaw_eta = 0.02;
 static double eta_anisotropy = 1.0; //anisotropy parameter
 static double intprefac = 1.0; //normalizing factor that's slow to compute
-static int splitEDF = 0; //1 if power EDF in jet and thermal EDF in disk, 0 otherwise
 static int variable_kappa = 0;
 static double variable_kappa_min = 3.1;
 static double variable_kappa_interp_start = 1e20;
@@ -92,7 +91,6 @@ void try_set_radiation_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
   set_by_word_val(word, value, "eta_anisotropy", &eta_anisotropy, TYPE_DBL);
-  set_by_word_val(word, value, "splitEDF", &splitEDF, TYPE_INT);
 
   intprefac = gsl_sf_hyperg_2F1(0.5, powerlaw_p/2.0, 1.5, 1.0-eta_anisotropy);
 
@@ -162,9 +160,10 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
 
   double Ne = get_model_ne(X);
   double sigmahere = get_model_sigma(X); //sigma (b^2/rho)
-  if (splitEDF == 1) dist = (sigmahere < sigma_min) ? 1 : 3; //split disk/jet EDF if requested
+  if (splitEDF == 1) dist = (sigmahere < sigma_min) ? 4 : 3; //split disk/jet EDF if requested
 
   if (Ne <= 0.) {
+    // printf("sigma %g sigmamin %g dist %i dist2 %i\n", sigmahere, sigma_min, dist, E_DEXTER_THERMAL);
     *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
     *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
     *rQ = 0; *rU = 0; *rV = 0;

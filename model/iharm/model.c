@@ -51,6 +51,7 @@ double beta_crit = 1.0;
 double sigma_cut_high = -1.0;
 double sigma_dynamic = 0.0; //anisotropy parameter (sigmacut=sigma_dynamic/sqrt(rBL))
 double sigma_min = 0.0;
+int splitEDF = 0; //1 if power EDF in jet and thermal EDF in disk, 0 otherwise
 
 // MODEL PARAMETERS: PRIVATE
 static char fnam[STRLEN] = "dump.h5";
@@ -143,6 +144,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "sigma_cut_high", &sigma_cut_high, TYPE_DBL);
   set_by_word_val(word, value, "sigma_dynamic", &sigma_dynamic, TYPE_DBL); //anisotropy parameter
   set_by_word_val(word, value, "sigma_min", &sigma_min, TYPE_DBL); //minimum sigma to cut beneath
+  set_by_word_val(word, value, "splitEDF", &splitEDF, TYPE_INT); //minimum sigma to cut beneath
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
   set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
 
@@ -534,7 +536,7 @@ double get_model_ne(double X[NDIM])
     bl_coord(X, &rhere, &thhere);
     sigmacutlocal = sigma_dynamic/sqrt(rhere);
   }
-  if (sigma > sigmacutlocal || sigma < sigma_min) return 0.;
+  if (sigma > sigmacutlocal || (sigma < sigma_min && splitEDF == 0)) return 0.;
   sigma_smoothfac = get_sigma_smoothfac(sigma, sigmacutlocal);
 #endif
 

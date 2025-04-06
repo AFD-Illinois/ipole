@@ -22,5 +22,6 @@
 extern double DTd;
 extern double sigma_cut;
 extern double sigma_min;
+extern int splitEDF;
 
 #endif // MODEL_PARAMS_H
