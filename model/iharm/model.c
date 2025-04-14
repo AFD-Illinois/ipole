@@ -50,7 +50,8 @@ double sigma_cut = 1.0;
 double beta_crit = 1.0;
 double sigma_cut_high = -1.0;
 double sigma_dynamic = 0.0; //anisotropy parameter (sigmacut=sigma_dynamic/sqrt(rBL))
-double sigma_min = 0.0;
+double sigma_min = 0.0; //serves as minimum on sigma if splitEDF=0, else delineates the boundary between jet/disk
+double hpoynting = 0.0;
 int splitEDF = 0; //1 if power EDF in jet and thermal EDF in disk, 0 otherwise
 
 // MODEL PARAMETERS: PRIVATE
@@ -107,6 +108,7 @@ struct of_data {
   double ***b;
   double ***sigma;
   double ***beta;
+  double ***poynting; //magnitude of Poynting flux
 };
 static struct of_data dataA, dataB, dataC;
 static struct of_data *data[NSUP];
@@ -144,6 +146,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "sigma_cut_high", &sigma_cut_high, TYPE_DBL);
   set_by_word_val(word, value, "sigma_dynamic", &sigma_dynamic, TYPE_DBL); //anisotropy parameter
   set_by_word_val(word, value, "sigma_min", &sigma_min, TYPE_DBL); //minimum sigma to cut beneath
+  set_by_word_val(word, value, "hpoynting", &hpoynting, TYPE_DBL); //normalization factor for nonthermal injection rate
   set_by_word_val(word, value, "splitEDF", &splitEDF, TYPE_INT); //minimum sigma to cut beneath
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
   set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
@@ -543,6 +546,11 @@ double get_model_ne(double X[NDIM])
   int nA, nB;
   double tfac = set_tinterp_ns(X, &nA, &nB);
 
+  if (hpoynting != 0.0){
+    double poyntinghere = interp_scalar_time(X, data[nA]->poynting, data[nB]->poynting, tfac);
+    return poyntinghere;
+  }
+
   return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac) * sigma_smoothfac;
 }
 
@@ -678,6 +686,7 @@ void init_storage(void)
     data[n]->b = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->sigma = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->beta = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->poynting = malloc_rank3(N1+2,N2+2,N3+2);
   }
 }
 
@@ -1668,11 +1677,32 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
 
         ijktoX(i-1,j-1,k,X);
         double UdotU = 0.;
+        double UZAMOdotB = 0.; //tilde{u}.mathcal{B}
+        double BZAMO2 = 0.; //mathcal{B}.mathcal{B}
+        double vperp2 = 0.; //as seen in ZAMO frame
         
-        for(int l = 1; l < NDIM; l++) 
-          for(int m = 1; m < NDIM; m++) 
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
             UdotU += gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
+            UZAMOdotB += gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k];
+            BZAMO2 += gcov_KS[l][m]*data[n]->p[B1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k];
+          }
+        }
+
         double ufac = sqrt(-1./gcon_KS[0][0]*(1 + fabs(UdotU)));
+        double lorentzfac = sqrt(1+fabs(UdotU)); //Lorentz factor of plasma as seen in ZAMO frame
+    
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
+            double vperpL = data[n]->p[U1+l-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+l-1][i][j][k];
+            double vperpM = data[n]->p[U1+m-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+m-1][i][j][k];
+            vperp2 += gcov_KS[l][m]*vperpL*vperpM/(lorentzfac*lorentzfac);
+          }
+        }
+
+        //update Poynting flux
+        data[n]->poynting[i][j][k] = vperp2*BZAMO2*BZAMO2; //S=vperp^2*BZAMO^4
+
 
         double ucon[NDIM] = { 0. };
         ucon[0] = -ufac * gcon_KS[0][0];

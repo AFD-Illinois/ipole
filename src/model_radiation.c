@@ -68,6 +68,7 @@ static double powerlaw_p = 3.25;
 static double powerlaw_eta = 0.02;
 static double eta_anisotropy = 1.0; //anisotropy parameter
 static double intprefac = 1.0; //normalizing factor that's slow to compute
+static double poyntingprefac = 0.0; //u_nt = poyntingprefac * S, where h is read in from model.c
 static int variable_kappa = 0;
 static double variable_kappa_min = 3.1;
 static double variable_kappa_interp_start = 1e20;
@@ -93,6 +94,9 @@ void try_set_radiation_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "eta_anisotropy", &eta_anisotropy, TYPE_DBL);
 
   intprefac = gsl_sf_hyperg_2F1(0.5, powerlaw_p/2.0, 1.5, 1.0-eta_anisotropy);
+  double poyntingnum = (powerlaw_p-2.0)*(pow(powerlaw_gamma_min,1.0-powerlaw_p)-pow(powerlaw_gamma_max,1.0-powerlaw_p));
+  double poyntingdenom = (powerlaw_p-1.0)*(pow(powerlaw_gamma_min,2.0-powerlaw_p)-pow(powerlaw_gamma_max,2.0-powerlaw_p));
+  poyntingprefac = hpoynting*poyntingnum/poyntingdenom/(ME*CL*CL); //last part is me*c^2
 
   set_by_word_val(word, value, "bremss", &do_bremss, TYPE_INT);
   set_by_word_val(word, value, "bremss_type", &bremss_type, TYPE_INT);
@@ -159,6 +163,10 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   // or see integrate_emission for zeroing just jN
 
   double Ne = get_model_ne(X);
+  if (hpoynting != 0.0 && Ne > 0.0) {
+    Ne *= poyntingprefac;
+  }
+  
   double sigmahere = get_model_sigma(X); //sigma (b^2/rho)
   if (splitEDF == 1) dist = (sigmahere < sigma_min) ? 4 : 3; //split disk/jet EDF if requested
 
