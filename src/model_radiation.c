@@ -210,9 +210,16 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     break;
   case E_POWERLAW: // Powerlaw fits (Pandya, no rotativities!)
     paramsM.distribution = paramsM.POWER_LAW;
-    // NOTE WE REPLACE Ne!!
-    get_model_powerlaw_vals(X, &(paramsM.power_law_p), &(paramsM.electron_density),
+    // NOTE WE REPLACE Ne if hpoynting=0!!
+    if (hpoynting == 0.0){
+      get_model_powerlaw_vals(X, &(paramsM.power_law_p), &(paramsM.electron_density),
                             &(paramsM.gamma_min), &(paramsM.gamma_max), &(paramsM.gamma_cutoff));
+    }
+    else{
+      double tempne;
+      get_model_powerlaw_vals(X, &(paramsM.power_law_p), &tempne,
+                            &(paramsM.gamma_min), &(paramsM.gamma_max), &(paramsM.gamma_cutoff));
+    }
     break;
   case E_THERMAL: // Pandya thermal fits
     paramsM.distribution = paramsM.MAXWELL_JUETTNER;
@@ -408,6 +415,7 @@ void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
   *gamma_max = powerlaw_gamma_max;
   *gamma_cut = powerlaw_gamma_cut;
   *p = powerlaw_p;
+
 
   double b = get_model_b(X);
   double u_nth = powerlaw_eta*b*b/2;

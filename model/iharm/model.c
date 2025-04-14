@@ -1701,8 +1701,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         }
 
         //update Poynting flux
-        data[n]->poynting[i][j][k] = vperp2*BZAMO2*BZAMO2; //S=vperp^2*BZAMO^4
-
+        data[n]->poynting[i][j][k] = sqrt(vperp2)*BZAMO2*pow(B_unit, 2.0)/(4.0*M_PI); //S=vperp^2*BZAMO^4
 
         double ucon[NDIM] = { 0. };
         ucon[0] = -ufac * gcon_KS[0][0];
