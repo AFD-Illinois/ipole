@@ -212,8 +212,9 @@ double power_law_rho_Q(struct parameters *params)
   double nuB = echargehere*Bhere / (mehere*chere) / (2.0 * pihere);
   double numin = 1.5*sin(thetaB)*nuB*gammamin*gammamin;
   double rhoperp = nehere * pow(echargehere, 2.0) / (mehere * chere * nuB * sin(thetaB)) * (phere - 1.0) / (pow(gammamin, 1.0-phere)-pow(gammamax, 1.0-phere));
-  double rhoQ = -rhoperp*pow(nuB/nuhere,3.0)*pow(gammamin, 2.0-phere)*(1.0-pow(2.0/3.0*numin/nuhere, phere/2.0-1.0))/(phere/2.0-1.0); //note: there's an ambiguity about whether to use the factor of 2/3 (see arXiv vs. published version of Dexter and the Jones+Odell 1977 paper)
+  double rhoQ = -rhoperp*pow(nuB*sin(thetaB)/nuhere,3.0)*pow(gammamin, 2.0-phere)*(1.0-pow(2.0/3.0*numin/nuhere, phere/2.0-1.0))/(phere/2.0-1.0); //note: there's an ambiguity about whether to use the factor of 2/3 (see arXiv vs. published version of Dexter and the Jones+Odell 1977 paper)
 
+  //note: whether to include the 3/2 in the definition of numin is a bit ambiguous. we follow line 582 of https://github.com/jadexter/grtrans/blob/master/polsynchemis.f90, which disagrees slightly with Eq. 41 of https://arxiv.org/pdf/2108.10359
   return rhoQ;
 }
 
