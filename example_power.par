@@ -3,13 +3,14 @@
 #I/O
 outfile testim.h5
 dump /home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole_tavg50000-100000_rt.h5
+#/home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole_tavg50000-100000_rt.h5
+#ipole2550.h5
+#/home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole_tavg50000-100000_rt.h5
 #a.7_ipole4444.h5
-#a.7_ipole_tavg50000-100000_rt.h5
-#avgdumps/a.5_ipole_tavg50000-100000_rt.h5
 
 # Common
-nx 128
-ny 128
+nx 512
+ny 512
 
 #Cut out disk
 diskcut 90.0
@@ -25,6 +26,7 @@ powerlaw_p 2.5
 powerlaw_gamma_min 30
 powerlaw_gamma_max 1e8
 eta_anisotropy 1.0
+hpoynting 0.0025
 splitEDF 1 #when splitEDF=1, disk is thermal and jet is power-law EDF
 
 # M87 parameters
@@ -36,11 +38,11 @@ freqcgs 230.e9
 # SANE:
 #M_unit 3e26
 # MAD:
-M_unit 6e24
+M_unit 5e25
 
 # e- Temperature, via the Rhigh model described 
-trat_small 1
-trat_large 20
+trat_small 10
+trat_large 160
 # Constant e- temperature ratio
 #tp_over_te 3
 
@@ -54,7 +56,7 @@ refine_cut = 0
 
 # Camera
 rcam 1e8
-# polar_cut_deg 0
+polar_cut_deg 0
 
 #maximum radius of simulation
 rmax_geo 80000
@@ -65,9 +67,9 @@ phicam 0
 rotcam 0
 
 # FOV from Earth
-fovx_dsource 3000
-fovy_dsource 3000
-max_nturns 0
+fovx_dsource 2000
+fovy_dsource 2000
+max_nturns -1
 
 # Geodesic accuracy parameters
 eps 0.005

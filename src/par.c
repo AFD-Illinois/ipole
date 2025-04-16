@@ -65,7 +65,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->ny = 160;
 
   params->diskcut = 90.0; //zero out disk emission
-  params->max_nturns = 1000;
+  params->max_nturns = -1;
 
   params->eps = 0.01;
   params->maxnstep = 50000;

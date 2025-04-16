@@ -132,7 +132,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         zero_emission = 1; 
       }
 
-      if (ti.nturns > params->max_nturns){
+      if (ti.nturns > params->max_nturns && params->max_nturns >= 0){
 	      zero_emission = 1;
       }
 
