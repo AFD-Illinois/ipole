@@ -200,7 +200,7 @@ double power_law_rho_Q(struct parameters *params)
   double echargehere = params->electron_charge;
   double mehere = params->mass_electron;
   double chere = params->speed_light;
-  double pihere = params->speed_light;
+  double pihere = params->pi;
   double Bhere = params->magnetic_field;
   double thetaB = params->observer_angle;
   double nehere = params->electron_density;
@@ -232,7 +232,7 @@ double power_law_rho_V(struct parameters *params)
   double echargehere = params->electron_charge;
   double mehere = params->mass_electron;
   double chere = params->speed_light;
-  double pihere = params->speed_light;
+  double pihere = params->pi;
   double Bhere = params->magnetic_field;
   double thetaB = params->observer_angle;
   double nehere = params->electron_density;

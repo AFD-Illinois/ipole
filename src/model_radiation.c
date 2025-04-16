@@ -452,7 +452,7 @@ void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width) {
   double sigma = get_model_sigma(X);
   double Thetae = get_model_thetae(X);
   double mpoverme = 1836.152674;
-  double eps0 = 0.015; //0.0;
+  double eps0 = 0.0; //0.015;
   double rinj = 10.0; //from Fromm+ 2019
   double epstilde = eps0  / 2. * (1. + tanh(rhere - rinj));
   *kappa_width = (*kappa - 3.) / *kappa * Thetae + epstilde * (*kappa - 3.) / (6. * *kappa) * mpoverme * sigma; //from Davelaar+ 2019
