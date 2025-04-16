@@ -162,13 +162,15 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   // Please use radiating_region instead for model applicability cutoffs,
   // or see integrate_emission for zeroing just jN
 
-  double Ne = get_model_ne(X);
-  if (hpoynting != 0.0 && Ne > 0.0) {
-    Ne *= poyntingprefac;
-  }
-  
   double sigmahere = get_model_sigma(X); //sigma (b^2/rho)
   if (splitEDF == 1) dist = (sigmahere < sigma_min) ? 4 : 3; //split disk/jet EDF if requested
+
+  double Ne = get_model_ne(X);
+  //if nonthermal emission and we are in sigma>sigma_min region, use the poynting flux normalization
+  if (hpoynting != 0.0 && Ne > 0.0 && (dist == 2 || dist == 3)) {
+    Ne = get_model_ne_poynting(X)*poyntingprefac;
+  }
+  
 
   if (Ne <= 0.) {
     // printf("sigma %g sigmamin %g dist %i dist2 %i\n", sigmahere, sigma_min, dist, E_DEXTER_THERMAL);
@@ -368,6 +370,7 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
     *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
     *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
+    // printf("rQ %g rV %g\n", *rQ/fabs(*rQ), *rV/fabs(*rV));
   }
 
 

@@ -546,12 +546,31 @@ double get_model_ne(double X[NDIM])
   int nA, nB;
   double tfac = set_tinterp_ns(X, &nA, &nB);
 
-  if (hpoynting != 0.0){
-    double poyntinghere = interp_scalar_time(X, data[nA]->poynting, data[nB]->poynting, tfac);
-    return poyntinghere;
-  }
-
   return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac) * sigma_smoothfac;
+}
+
+double get_model_ne_poynting(double X[NDIM])
+{
+  if ( X_in_domain(X) == 0 ) return 0.;
+
+  double sigma_smoothfac = 1;
+
+#if USE_GEODESIC_SIGMACUT
+  double sigma = get_model_sigma(X);
+  double sigmacutlocal = sigma_cut;
+  if (sigma_dynamic != 0.0){
+    double rhere, thhere;
+    bl_coord(X, &rhere, &thhere);
+    sigmacutlocal = sigma_dynamic/sqrt(rhere);
+  }
+  if (sigma > sigmacutlocal || (sigma < sigma_min && splitEDF == 0)) return 0.;
+  sigma_smoothfac = get_sigma_smoothfac(sigma, sigmacutlocal);
+#endif
+
+  int nA, nB;
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+  double poyntinghere = interp_scalar_time(X, data[nA]->poynting, data[nB]->poynting, tfac);
+  return poyntinghere;
 }
 
 void set_units()
