@@ -22,7 +22,8 @@ typedef struct params_t {
 
   //new additions
   int max_nturns; //maximum photon ring orbit
-  double diskcut; //cuts out with in \pm discut degrees of midplane
+  double diskcut;
+  double rmaxcut; //cuts out within \pm diskcut degrees of midplane with r>rmaxcut
 
   // Geodesic accuracy
   double eps;

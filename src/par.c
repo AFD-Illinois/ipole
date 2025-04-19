@@ -65,6 +65,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->ny = 160;
 
   params->diskcut = 90.0; //zero out disk emission
+  params->rmaxcut = -1;
   params->max_nturns = -1;
 
   params->eps = 0.01;
@@ -183,6 +184,7 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "max_nturns", &(params->max_nturns), TYPE_INT);
   
   set_by_word_val(word, value, "diskcut", &(params->diskcut), TYPE_DBL);
+  set_by_word_val(word, value, "rmaxcut", &(params->rmaxcut), TYPE_DBL);
 
   set_by_word_val(word, value, "eps", &(params->eps), TYPE_DBL);
   set_by_word_val(word, value, "maxnstep", &(params->maxnstep), TYPE_INT);

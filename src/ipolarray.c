@@ -137,20 +137,20 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       }
 
       //zero emission if we cut out the disk
-      if (th*180.0/M_PI > params->diskcut && th*180.0/M_PI < 180.0 - params->diskcut){
-	zero_emission = 1;
+      if (th*180.0/M_PI > params->diskcut && th*180.0/M_PI < 180.0 - params->diskcut && r > params->rmaxcut && params->rmaxcut > 0.0){
+	      zero_emission = 1;
       }
 
       //zero out unwanted counter-jet emission
       if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
-	if (th > M_PI/2.0){
-	  zero_emission = 1;
-	}
-      
-      } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
-	if (th < M_PI/2.0){
-	  zero_emission = 1;
-	}
+        if (th > M_PI/2.0){
+          zero_emission = 1;
+        }     
+      } 
+      else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
+        if (th < M_PI/2.0){
+          zero_emission = 1;
+        }
       }
 
       // Solve unpolarized transport
@@ -392,6 +392,13 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     jQ = 0.;
     jU = 0.;
     jV = 0.;
+    aI = 0.;
+    aQ = 0.;
+    aU = 0.;
+    aV = 0.;
+    rQ = 0.; 
+    rU = 0.;
+    rV = 0.;
   }
 
   // get fluid parameters at Xf

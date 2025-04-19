@@ -52,7 +52,7 @@ void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
 void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width);
 
 /* Get coeffs from a specific distribution */
-void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
+void jar_calc_dist(int dist0, int pol, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV);
@@ -152,7 +152,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jI, double *aI, Params
  * 
  * 
  */
-void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
+void jar_calc_dist(int dist0, int pol, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV)
@@ -163,7 +163,8 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   // or see integrate_emission for zeroing just jN
 
   double sigmahere = get_model_sigma(X); //sigma (b^2/rho)
-  if (splitEDF == 1) dist = (sigmahere < sigma_min) ? 4 : 3; //split disk/jet EDF if requested
+  int dist = dist0;
+  if (splitEDF == 1 && sigmahere >= sigma_min) dist = 3; //split disk/jet EDF if requested
 
   double Ne = get_model_ne(X);
   //if nonthermal emission and we are in sigma>sigma_min region, use the poynting flux normalization
@@ -171,7 +172,6 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     Ne = get_model_ne_poynting(X)*poyntingprefac;
   }
   
-
   if (Ne <= 0.) {
     // printf("sigma %g sigmamin %g dist %i dist2 %i\n", sigmahere, sigma_min, dist, E_DEXTER_THERMAL);
     *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;

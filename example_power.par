@@ -3,17 +3,19 @@
 #I/O
 outfile testim.h5
 dump /home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole_tavg50000-100000_rt.h5
+#ipole2550.h5
 #/home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole_tavg50000-100000_rt.h5
 #ipole2550.h5
 #/home/zgelles/Accretion/GRMHD/Dumps/MAD/a.7_ipole_tavg50000-100000_rt.h5
 #a.7_ipole4444.h5
 
 # Common
-nx 512
-ny 512
+nx 256
+ny 256
 
 #Cut out disk
 diskcut 90.0
+rmaxcut -1.0
 
 # Emission 1=Pandya, 4=Dexter, others are debug/custom
 emission_type 4
@@ -62,7 +64,7 @@ polar_cut_deg 0
 rmax_geo 80000
 
 # Values in degrees
-thetacam 17
+thetacam 163
 phicam 0
 rotcam 0
 

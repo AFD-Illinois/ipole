@@ -1677,7 +1677,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
     for(int j = 1; j < N2+1; j++) {
 
       double X[NDIM] = { 0. };
-      double gcov[NDIM][NDIM], gcon[NDIM][NDIM], gcov_KS[NDIM][NDIM], gcon_KS[NDIM][NDIM];
+      double gcov[NDIM][NDIM], gcon[NDIM][NDIM], gcov_KS[NDIM][NDIM], gcon_KS[NDIM][NDIM], gcov_BL[NDIM][NDIM], gcon_BL[NDIM][NDIM];
       double g, r, th;
 
       // this assumes axisymmetry in the coordinates
@@ -1692,10 +1692,16 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
       gcov_ks(r, th, gcov_KS);
       gcon_func(gcov_KS, gcon_KS);
 
+      
+      // getBL metric in case we need
+      gcov_bl(r, th, gcov_BL);
+      gcon_func(gcov_BL, gcon_BL);
+
       for(int k = 1; k < N3+1; k++){
 
         ijktoX(i-1,j-1,k,X);
         double UdotU = 0.;
+        double alphalapse = sqrt(-1./gcon_KS[0][0]);
         double UZAMOdotB = 0.; //tilde{u}.mathcal{B}
         double BZAMO2 = 0.; //mathcal{B}.mathcal{B}
         double vperp2 = 0.; //as seen in ZAMO frame
@@ -1703,24 +1709,25 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         for(int l = 1; l < NDIM; l++){
           for(int m = 1; m < NDIM; m++){
             UdotU += gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
-            UZAMOdotB += gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k];
-            BZAMO2 += gcov_KS[l][m]*data[n]->p[B1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k];
+            UZAMOdotB += (gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k])*alphalapse;
+            BZAMO2 += (gcov_KS[l][m]*data[n]->p[B1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k])*alphalapse*alphalapse;
           }
         }
 
         double ufac = sqrt(-1./gcon_KS[0][0]*(1 + fabs(UdotU)));
         double lorentzfac = sqrt(1+fabs(UdotU)); //Lorentz factor of plasma as seen in ZAMO frame
+
     
         for(int l = 1; l < NDIM; l++){
           for(int m = 1; m < NDIM; m++){
-            double vperpL = data[n]->p[U1+l-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+l-1][i][j][k];
-            double vperpM = data[n]->p[U1+m-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+m-1][i][j][k];
-            vperp2 += gcov_KS[l][m]*vperpL*vperpM/(lorentzfac*lorentzfac);
+            double uperpL = data[n]->p[U1+l-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+l-1][i][j][k]*alphalapse;
+            double uperpM = data[n]->p[U1+m-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+m-1][i][j][k]*alphalapse;
+            vperp2 += gcov_KS[l][m]*uperpL*uperpM/(lorentzfac*lorentzfac);
           }
         }
 
-        //update Poynting flux
-        data[n]->poynting[i][j][k] = sqrt(vperp2)*BZAMO2*pow(B_unit, 2.0)/(4.0*M_PI); //S=vperp^2*BZAMO^4
+        // update Poynting flux - KS normal frame
+        // data[n]->poynting[i][j][k] = sqrt(vperp2)*BZAMO2*pow(B_unit, 2.0)/(4.0*M_PI); //S=vperp*BZAMO^2/(4pi) 
 
         double ucon[NDIM] = { 0. };
         ucon[0] = -ufac * gcon_KS[0][0];
@@ -1737,6 +1744,31 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         for (int l = 1; l < NDIM; l++) {
           udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
         }
+
+        
+        // //for testing
+        // double normalcov[4] = {-alphalapse, 0., 0., 0.}; 
+        // double normalcon[4] = {0., 0., 0., 0.}; 
+        // double udotBtilde = 0.;
+        // double vperpmag22 = 0.;
+
+        // for (int l = 0; l < 4; l++){
+        //   for (int m = 0; m < 4; m++){
+        //     normalcon[l] += gcon_KS[l][m]*normalcov[m]; 
+        //   }
+        // }
+
+        // for (int l = 0; l < NDIM; l++) {
+        //   for (int m = 0; m < NDIM; m++){
+        //     double finalfacL = (l == 0) ? 0. : udotB/BZAMO2/lorentzfac*data[n]->p[B1+l-1][i][j][k]*alphalapse*alphalapse;
+        //     double finalfacM = (m == 0) ? 0. : udotB/BZAMO2/lorentzfac*data[n]->p[B1+m-1][i][j][k]*alphalapse*alphalapse;
+        //     double vperp2L = ucon[l]/lorentzfac-normalcon[l]-finalfacL;
+        //     double vperp2M = ucon[m]/lorentzfac-normalcon[m]-finalfacM;
+        //     vperpmag22 += gcov_KS[l][m]*vperp2L*vperp2M;
+        //   }  
+        // }
+
+        // printf("\n vperpmagdiff %g alphalapse %g\n", vperp2-vperpmag22, alphalapse);
       
         double bcon[NDIM] = { 0. };
         double bcov[NDIM] = { 0. };
@@ -1747,6 +1779,54 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_KS, bcov);
 
+        //translate to BL so we can compute Poynting flux in BL normal frame
+        double bcon_BL[NDIM] = { 0. };
+        double bcov_BL[NDIM] = { 0. };
+        double ucon_BL[NDIM] = { 0. };
+        double ucov_BL[NDIM] = { 0. };
+        ks_to_bl(X, bcon, bcon_BL);
+        flip_index(bcon_BL, gcov_BL, bcov_BL);
+        ks_to_bl(X, ucon, ucon_BL);
+        flip_index(ucon_BL, gcov_BL, ucov_BL);
+        double alphaBL = sqrt(-1. / gcon_BL[0][0]);
+        double UZAMO_BL[3] = { 0. };
+        double B_BL[3] = { 0. };
+        
+        for (int l=0; l<3; l++){
+          UZAMO_BL[l] = (gcon_BL[0][l+1]*alphaBL*alphaBL + ucon_BL[l+1]/ucon_BL[0]) * ucon_BL[0];
+          B_BL[l] = ucon_BL[0] * bcon_BL[l+1] - bcon_BL[0] * ucon_BL[l+1];
+        }
+
+        double UdotU_BL = 0.0;
+        double UZAMOdotB_BL = 0.0;
+        double BZAMO2_BL = 0.0;
+        double vperp2_BL = 0.0;
+
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
+            UdotU_BL += gcov_BL[l][m]*UZAMO_BL[l-1]*UZAMO_BL[m-1];
+            UZAMOdotB_BL += (gcov_BL[l][m]*UZAMO_BL[l-1]*B_BL[m-1])*alphaBL;
+            BZAMO2_BL += (gcov_BL[l][m]*B_BL[l-1]*B_BL[m-1])*alphaBL*alphaBL;
+          }
+        }
+        double lorentzfac_BL = sqrt(1+fabs(UdotU_BL)); //Lorentz factor of plasma as seen in ZAMO frame
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
+            double uperpL_BL = UZAMO_BL[l-1]-UZAMOdotB_BL/BZAMO2_BL*B_BL[l-1]*alphaBL;
+            double uperpM_BL = data[n]->p[U1+m-1][i][j][k]-UZAMOdotB_BL/BZAMO2_BL*B_BL[m-1]*alphaBL;
+            vperp2_BL += gcov_BL[l][m]*uperpL_BL*uperpM_BL/(lorentzfac_BL*lorentzfac_BL);
+          }
+        }
+
+        double poyntingBL = sqrt(vperp2_BL)*BZAMO2_BL*pow(B_unit, 2.0)/(4.0*M_PI); //S=vperp*BZAMO^2/(4pi) 
+        data[n]->poynting[i][j][k] = (isnan(poyntingBL) == 1) ? 0.0 : poyntingBL; // can give NaN's inside horizon but that obviously doesn't matter
+
+        // printf("vperpKS %g vperpBL %g alphaKS %g alphaBL %g\n", vperp2, vperp2_BL, alphalapse, alphaBL);
+
+  
+
+
+        //now proceed with ipole
         double bsq = 0.;
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
