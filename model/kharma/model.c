@@ -1250,23 +1250,23 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   /* Allocate memory */
   primitives_buffer = malloc_rank5(num_meshblocks, nx3_mb, nx2_mb, nx1_mb, NVAR);
 
-  /* Read scalar fields */
-  int frank = 4;
-  int mrank = 5;
-  hsize_t fdims_4[4]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb};
-  hsize_t fstart_4[4] = {0, 0, 0, 0};
-  hsize_t fcount_4[4] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb}; // Read the entire dataset
-  /* In the memory buffer, we want to store the file data into the slice corresponding to "rho".
-    So we set mstart such that the last (5th) dimension starts at KRHO, and mcount to read 1 element along that axis. */
-  hsize_t mdims_5[5]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, NVAR};
-  hsize_t mstart_5[5] = {0, 0, 0, 0, KRHO};
-  hsize_t mcount_5[5] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, 1};
-  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.rho", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
-  mstart_5[4] = UU;
-  hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.u", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
-  /* Read vector fields */
   if (strcmp(kharma_format, "new") == 0) {
     fprintf(stderr, "Using latest KHARMA output format\n");
+    /* Read scalar fields */
+    int frank = 4;
+    int mrank = 5;
+    hsize_t fdims_4[4]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb};
+    hsize_t fstart_4[4] = {0, 0, 0, 0};
+    hsize_t fcount_4[4] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb}; // Read the entire dataset
+    /* In the memory buffer, we want to store the file data into the slice corresponding to "rho".
+      So we set mstart such that the last (5th) dimension starts at KRHO, and mcount to read 1 element along that axis. */
+    hsize_t mdims_5[5]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, NVAR};
+    hsize_t mstart_5[5] = {0, 0, 0, 0, KRHO};
+    hsize_t mcount_5[5] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, 1};
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.rho", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    mstart_5[4] = UU;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.u", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    /* Read vector fields */
     frank = 5;
     hsize_t fdims_5[5]  = {num_meshblocks, NDIM-1, nx3_mb, nx2_mb, nx1_mb};
     hsize_t fstart_5[5] = {0, 0, 0, 0, 0};
@@ -1290,6 +1290,21 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
     hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.B", frank, fdims_5, fstart_5, fcount_5, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
   } else if (strcmp(kharma_format, "old") == 0) {
     fprintf(stderr, "Using old (v5) KHARMA output format\n");
+    /* Read scalar fields */
+    int frank = 5;
+    int mrank = 5;
+    hsize_t fdims_4[5]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, 1};
+    hsize_t fstart_4[5] = {0, 0, 0, 0, 0};
+    hsize_t fcount_4[5] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, 1}; // Read the entire dataset
+    /* In the memory buffer, we want to store the file data into the slice corresponding to "rho".
+      So we set mstart such that the last (5th) dimension starts at KRHO, and mcount to read 1 element along that axis. */
+    hsize_t mdims_5[5]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, NVAR};
+    hsize_t mstart_5[5] = {0, 0, 0, 0, KRHO};
+    hsize_t mcount_5[5] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, 1};
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.rho", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    mstart_5[4] = UU;
+    hdf5_read_array_multidim(primitives_buffer[0][0][0][0], "prims.u", frank, fdims_4, fstart_4, fcount_4, mrank, mdims_5, mstart_5, mcount_5, H5T_IEEE_F64LE);
+    /* Read vector fields */
     frank = 5;
     hsize_t fdims_5[5]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, NDIM-1};
     hsize_t fstart_5[5] = {0, 0, 0, 0, 0};
@@ -1314,7 +1329,14 @@ void load_kharma_data(int n, char *fnam, int dumpidx, int verbose)
   }
   if (ELECTRONS == 1) {
     /* Read electron entropy */
-    frank = 4;
+    int frank = 4;
+    int mrank = 5;
+    hsize_t fdims_4[4]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb};
+    hsize_t fstart_4[4] = {0, 0, 0, 0};
+    hsize_t fcount_4[4] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb}; // Read the entire dataset
+    hsize_t mdims_5[5]  = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, NVAR};
+    hsize_t mstart_5[5] = {0, 0, 0, 0, KRHO};
+    hsize_t mcount_5[5] = {num_meshblocks, nx3_mb, nx2_mb, nx1_mb, 1};
     mstart_5[4] = KEL;
     /* Get electron subgrid model enum */
     enum ElectronSubgridModel electron_subgrid_model = get_electron_subgrid_model(electron_subgrid_model_string);
