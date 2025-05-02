@@ -2,16 +2,16 @@
 MODEL = kharma
 
 # Top directory of HDF5, or blank if using h5pcc
-HDF5_DIR = /home/avjoshi2/hdf5
+HDF5_DIR = /home/avjoshi2/local/hdf5
 # Top directory of GSL, or blank if installed to system
-GSL_DIR = /home/avjoshi2/gsl
+GSL_DIR = /home/avjoshi2/local/gsl
 # System /lib equivalent (can be /usr/lib, /lib64, /usr/lib64)
 # Can leave this blank if it's included automatically by GCC
 # SYSTEM_LIBDIR = /lib64
 SYSTEM_LIBDIR =
 
 # Try pointing this to h5pcc or h5cc on your machine, before hunting down libraries
-CC=/home/avjoshi2/hdf5/bin/h5cc
+CC=/home/avjoshi2/local/hdf5/bin/h5cc
 # Example CFLAGS for going fast with GCC
 CFLAGS = -std=gnu99 -O3 -march=native -mtune=native -flto -fopenmp -funroll-loops
 MATH_LIB = -lm
