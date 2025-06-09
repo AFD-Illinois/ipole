@@ -141,7 +141,7 @@ $(EXE): $(ARC_DIR)/$(EXE)
 
 $(ARC_DIR)/$(EXE): $(OBJ)
 	@$(ECHO) "\tLinking $(EXE)"
-	$(LINK) $(LDFLAGS) $(OBJ) $(LIBDIR) $(LIB) -o $(ARC_DIR)/$(EXE)
+	@$(LINK) $(LDFLAGS) $(OBJ) $(LIBDIR) $(LIB) -o $(ARC_DIR)/$(EXE)
 	@rm $(OBJ) # This ensures full recompile
 
 $(ARC_DIR)/%.o: $(ARC_DIR)/%.c $(HEAD_ARC)
