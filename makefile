@@ -51,6 +51,9 @@ endif
 ifneq (,$(findstring delta,$(HOST)))
 	-include $(MAKEFILE_PATH)/machines/delta.make
 endif
+ifneq (,$(findstring callisto,$(HOST)))
+	-include $(MAKEFILE_PATH)/machines/callisto.make
+endif
 # Hack to check only whether host begins with bh*
 ifneq (,$(findstring beginsbh,begins$(HOST)))
         -include $(MAKEFILE_PATH)/machines/bh-cluster.make
