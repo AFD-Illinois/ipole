@@ -51,6 +51,9 @@ endif
 ifneq (,$(findstring delta,$(HOST)))
 	-include $(MAKEFILE_PATH)/machines/delta.make
 endif
+ifneq (,$(findstring callisto,$(HOST)))
+	-include $(MAKEFILE_PATH)/machines/callisto.make
+endif
 # Hack to check only whether host begins with bh*
 ifneq (,$(findstring beginsbh,begins$(HOST)))
         -include $(MAKEFILE_PATH)/machines/bh-cluster.make
@@ -138,7 +141,7 @@ $(EXE): $(ARC_DIR)/$(EXE)
 
 $(ARC_DIR)/$(EXE): $(OBJ)
 	@$(ECHO) "\tLinking $(EXE)"
-	@$(LINK) $(LDFLAGS) $(OBJ) $(LIBDIR) $(LIB) -o $(ARC_DIR)/$(EXE)
+	$(LINK) $(LDFLAGS) $(OBJ) $(LIBDIR) $(LIB) -o $(ARC_DIR)/$(EXE)
 	@rm $(OBJ) # This ensures full recompile
 
 $(ARC_DIR)/%.o: $(ARC_DIR)/%.c $(HEAD_ARC)
