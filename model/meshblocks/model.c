@@ -1074,7 +1074,17 @@ void load_athenak_data(int n, char *fnam, int index, size_t datastart)
   size_t nmb = 0;
 
   // get more info on meshblocks and such
-  while (ftell(fp) < filesize) {
+  long int bytes_read = datastart;
+  size_t total_vals = (size_t)n_variables * mb_nx3 * mb_nx2 * mb_nx1;
+  char *raw_buffer = malloc(varsize * total_vals);
+
+  while (bytes_read < filesize) {
+
+    // increment bytes_read based on number of reads.
+    //    first include integer reads
+    //    then include locsize reads
+    //    and finally variable reads
+    bytes_read += 10 * 4 + 6 * locsize + (n_variables * mb_nx3 * mb_nx2 * mb_nx1) * varsize;
 
     int si = read_int(fp, 4);
     int ei = read_int(fp, 4);
@@ -1113,18 +1123,45 @@ void load_athenak_data(int n, char *fnam, int index, size_t datastart)
     meshblock_geometry[nmb*6 + 4] = zmin;
     meshblock_geometry[nmb*6 + 5] = zmax;
  
-    for (int v=0; v<n_variables; ++v) {
-      for (int k=0; k<mb_nx3; ++k) {
-        for (int j=0; j<mb_nx2; ++j) {
-          for (int i=0; i<mb_nx1; ++i) {
-            data[n]->p[v][nmb][i+1][j+1][k+1] = read_double(fp, varsize);
+    // load meshblock variable data
+    if (fread(raw_buffer, varsize, total_vals, fp) != total_vals) {
+      fprintf(stderr, "Error reading variable data block\n");
+      exit(1);
+    }
+
+    if (varsize == 8) {
+      double *dptr = (double *)raw_buffer;
+      size_t index = 0;
+      for (int v=0; v<n_variables; ++v) {
+        for (int k=0; k<mb_nx3; ++k) {
+          for (int j=0; j<mb_nx2; ++j) {
+            for (int i=0; i<mb_nx1; ++i) {
+              data[n]->p[v][nmb][i+1][j+1][k+1] = dptr[index++];
+            }
           }
         }
       }
+    } else if (varsize == 4) {
+      float *fptr = (float *)raw_buffer;
+      size_t index = 0;
+      for (int v=0; v<n_variables; ++v) {
+        for (int k=0; k<mb_nx3; ++k) {
+          for (int j=0; j<mb_nx2; ++j) {
+            for (int i=0; i<mb_nx1; ++i) {
+              data[n]->p[v][nmb][i+1][j+1][k+1] = (double)fptr[index++];
+            }
+          }
+        }
+      }
+    } else {
+      fprintf(stderr, "Unsupported varsize = %zu\n", varsize);
+      exit(1);
     }
 
     nmb++;
   }
+
+  free(raw_buffer);
 
   fclose(fp);
 
