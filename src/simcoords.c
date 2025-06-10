@@ -294,10 +294,10 @@ void eks_to_simcoord(double eKS[NDIM], double gridcoord[NDIM])
 
   gridcoord[0] = eKS[0];
 
-  gridcoord[1] = simcoords_x1[ ij2oned(ii,jj) ] * (1.-di)*(1.-dj)
+  gridcoord[1] = (ij2oned(ii+1,jj+1)<sc_n1*sc_n2) ? simcoords_x1[ ij2oned(ii,jj) ] * (1.-di)*(1.-dj)
                + simcoords_x1[ ij2oned(ii,jj+1) ] * (1.-di)*dj
                + simcoords_x1[ ij2oned(ii+1,jj) ] * di*(1.-dj)
-               + simcoords_x1[ ij2oned(ii+1,jj+1) ] * di*dj;
+    + simcoords_x1[ ij2oned(ii+1,jj+1) ] * di*dj : simcoords_x1[sc_n1*sc_n2];
 
   gridcoord[2] = simcoords_x2[ ij2oned(ii,jj) ] * (1.-di)*(1.-dj)
                + simcoords_x2[ ij2oned(ii,jj+1) ] * (1.-di)*dj
