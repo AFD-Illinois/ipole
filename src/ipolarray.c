@@ -59,7 +59,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 int integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
                     double complex N_coord[NDIM][NDIM], Params *params,
-                    int print)
+		       int print, int iind, int jind)
 {
   *tauF = 0.;
   // Unpolarized
@@ -151,6 +151,12 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         if (th < M_PI/2.0){
           zero_emission = 1;
         }
+      }
+
+      //set condition that psi thread (or not) the horizon
+      if (params->usepsi != 0){
+	if (params->usepsi == 1 && params->psigrid[iind][jind][countemit] > params->psibound) zero_emission = 1;
+	else if (params->usepsi == -1 && params->psigrid[iind][jind][countemit] < params->psibound) zero_emission = 1;
       }
 
       // Solve unpolarized transport

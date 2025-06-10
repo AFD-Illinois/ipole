@@ -276,7 +276,7 @@ void dump(double image[], double imageS[], double taus[],
  * Given a path, dump a variable computed along that path into a file.
  * Note this is most definitely *not* thread-safe, so it gets called from an 'omp critical'
  */
-void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int ny,
+void dump_var_along(int i0, int j0, int nstep, struct of_traj *traj, int nx, int ny,
                     double scale, double cam[NDIM], double fovx, double fovy, Params *params)
 {
   if (access(params->trace_outf, F_OK) != -1) {
@@ -300,6 +300,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *mu = calloc(nsteps, sizeof(double));
 
   double *sigma = calloc(nsteps, sizeof(double));
+  double *logsigma = calloc(nsteps, sizeof(double));
   double *beta = calloc(nsteps, sizeof(double));
 
   double *dl = calloc(nsteps, sizeof(double));
@@ -350,6 +351,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   double *e2TransportedCov = calloc(NDIM*nsteps,sizeof(double));
 
   int counts = 0;
+  int countspsi = 0;
 
   for (int i=nstep-1; i > 0; --i) {
     //get emissivity 
@@ -358,6 +360,28 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     if (jhere == 0.0 || !radiating_region(traj[i].X)){
       continue; // proceed if there's no emission
     }
+
+    if (params->usepsi != 0){
+      if (params->usepsi == 1 && params->psigrid[i0][j0][countspsi] > params->psibound){
+	countspsi += 1;
+	continue;
+      }
+      else if (params->usepsi == -1 && params->psigrid[i0][j0][countspsi] < params->psibound){
+	countspsi += 1;
+	continue;
+      }
+    }
+    /* if (params->usepsi != 0){ */
+    /*   if (params->usepsi == 1 && params->psigrid[iind][jind][countspsi] > params->psibound){ */
+    /*     countspsi += 1; */
+    /* 	continue; //continue if we're outside the psi range, but update countspsi to ensure we're still reading in the right vals */
+    /*   } */
+    /*   else if (params->usepsi == -1 && params->psigrid[iind][jind][countspsi] < params->psibound){ */
+    /* 	countspsi += 1; */
+    /* 	continue; */
+    /*   } */
+    /* } */
+    
     j_unpol[counts] = jhere;
     k_unpol[counts] = khere;
 
@@ -375,6 +399,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     nu[counts] = get_fluid_nu(traj[i].Kcon, Ucovt);
     mu[counts] = get_bk_angle(traj[i].X, traj[i].Kcon, Ucovt, Bcont, Bcovt);
     sigma[counts] = get_model_sigma(traj[i].X);
+    logsigma[counts] = log10(sigma[counts]);
     beta[counts] = get_model_beta(traj[i].X);
 
     // Record emission coefficients
@@ -433,7 +458,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
               &(stokes_coordinate[i*NDIM+2]), &(stokes_coordinate[i*NDIM+3]), rotcam);
 
     // Integrate and record results
-    int flag = integrate_emission(&(traj[i]), 1, &Intensity, &Tau, &tauF, N_coord, params, 0);
+    int flag = integrate_emission(&(traj[i]), 1, &Intensity, &Tau, &tauF, N_coord, params, 0, i0, j0);
     I_unpol[counts] = Intensity;
     // project_N(traj[i-1].X, traj[i-1].Kcon, N_coord, &(stokes[i*NDIM]), &(stokes[i*NDIM+1]), &(stokes[i*NDIM+2]), &(stokes[i*NDIM+3]),0;
     // any_tensor_to_stokes(N_coord, Gcov, &(stokes_coordinate[i*NDIM]), &(stokes_coordinate[i*NDIM+1]), &(stokes_coordinate[i*NDIM+2]), &(stokes_coordinate[i*NDIM+3]));
@@ -442,8 +467,11 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
     if (flag) printf("Flagged integration when tracing: %d\n", flag);
 
     counts++;
+    countspsi++;
 
   }
+
+  int i = i0, j = j0;
 
   hdf5_set_directory("/");
 
@@ -459,7 +487,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   // SCALARS: Anything with one value for every geodesic step
   hsize_t fdims_s[] = {counts}; //{ nx, ny, params->maxnstep };
-  hsize_t chunk_s[] =  { 200 };
+  hsize_t chunk_s[] =  { 1 };//{ 200 };
   hsize_t fstart_s[] = { 0 };
   hsize_t fcount_s[] = { counts };
   hsize_t mdims_s[] =  { counts };
@@ -483,6 +511,9 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
   char sigmaname[20];
   sprintf(sigmaname, "sigma_%d_%d", i, j);
   hdf5_write_chunked_array(sigma, sigmaname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
+  char logsigmaname[20];
+  sprintf(logsigmaname, "logsigma_%d_%d", i, j);
+  hdf5_write_chunked_array(logsigma, logsigmaname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
   char betaname[20];
   sprintf(betaname, "beta_%d_%d", i, j);
   hdf5_write_chunked_array(beta, betaname, 1, fdims_s, fstart_s, fcount_s, mdims_s, mstart_s, chunk_s, H5T_IEEE_F64LE);
@@ -510,7 +541,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   // VECTORS: Anything with N values per geodesic step
   hsize_t fdims_v[] = { counts, 4 };
-  hsize_t chunk_v[] =  { 200, 4 };
+  hsize_t chunk_v[] =  { 1, 4 }; //{ 200, 4 };
   hsize_t fstart_v[] = {  0, 0 };
   hsize_t fcount_v[] = { counts, 4 };
   hsize_t mdims_v[] =  { counts, 4 };
@@ -544,7 +575,7 @@ void dump_var_along(int i, int j, int nstep, struct of_traj *traj, int nx, int n
 
   // TENSORS: Anything with NxN values per geodesic step
   hsize_t fdims_t[] = { nx, ny, params->maxnstep, 4, 4 };
-  hsize_t chunk_t[] =  { 1, 1, 200, 4, 4 };
+  hsize_t chunk_t[] =  { 1, 1, 1, 4, 4 }; //{ 1, 1, 200, 4, 4 };
   hsize_t fstart_t[] = { i, j, 0, 0, 0 };
   hsize_t fcount_t[] = { 1, 1, nsteps, 4, 4 };
   hsize_t mdims_t[] =  { 1, 1, nsteps, 4, 4 };

@@ -45,6 +45,10 @@ typedef struct params_t {
 
   const char dump[STRLEN];
   const char outf[STRLEN];
+  const char psiarr[STRLEN]; //psiarray
+  int usepsi; //-1 for less, 0 for ignore, 1 for more
+  double psibound;
+  double*** psigrid; //stores all psi values read from hdf5 file
 
   // Subrings
   int target_nturns;
