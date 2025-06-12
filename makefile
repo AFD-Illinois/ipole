@@ -8,6 +8,7 @@ GSL_DIR =
 # System /lib equivalent (can be /usr/lib, /lib64, /usr/lib64)
 # Can leave this blank if it's included automatically by GCC
 SYSTEM_LIBDIR = /lib64
+# SYSTEM_LIBDIR =
 
 # Try pointing this to h5pcc or h5cc on your machine, before hunting down libraries
 CC=h5cc
@@ -46,6 +47,12 @@ ifneq (,$(findstring stampede2,$(HOST)))
 endif
 ifneq (,$(findstring frontera,$(HOST)))
 	-include $(MAKEFILE_PATH)/machines/frontera.make
+endif
+ifneq (,$(findstring delta,$(HOST)))
+	-include $(MAKEFILE_PATH)/machines/delta.make
+endif
+ifneq (,$(findstring callisto,$(HOST)))
+	-include $(MAKEFILE_PATH)/machines/callisto.make
 endif
 # Hack to check only whether host begins with bh*
 ifneq (,$(findstring beginsbh,begins$(HOST)))
