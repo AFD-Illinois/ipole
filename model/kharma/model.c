@@ -788,18 +788,20 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
   double dx1, dx2, dx3;
   /* Temporal parameters */
   double tlim;
-  double rin, rmax;
-  double dt, t, cfl, dt_min;
+  double dt, time, cfl, dt_min;
   int ncycle;
+  /* Physical parameters */
+  double rin, rmax;
+  char bfield_type[256];
 
   char buffer[100];
   /* Read parameters from Info group */
-  dt = read_info_attribute(fname, "dt", TYPE_DBL, &dt, 0);
+  read_info_attribute(fname, "dt", TYPE_DBL, &dt, 0);
   dict_add(model_params, "dt", (snprintf(buffer, sizeof(buffer), "%.8g", dt), buffer));
-  ncycle = read_info_attribute(fname, "NCycle", TYPE_INT, &ncycle, 0);
+  read_info_attribute(fname, "NCycle", TYPE_INT, &ncycle, 0);
   dict_add(model_params, "ncycle", (snprintf(buffer, sizeof(buffer), "%d", ncycle), buffer));
-  t = read_info_attribute(fname, "Time", TYPE_DBL, &t, 0);
-  dict_add(model_params, "t", (snprintf(buffer, sizeof(buffer), "%.8g", t), buffer));
+  read_info_attribute(fname, "Time", TYPE_DBL, &time, 0);
+  dict_add(model_params, "time", (snprintf(buffer, sizeof(buffer), "%.8g", time), buffer));
 
   /* Read parameters from par file */
   get_parameter_value(parfile, "parthenon/job", "problem_id", TYPE_STR, problem_id, sizeof(problem_id));
@@ -809,6 +811,8 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
     dict_add(model_params, "rin", (snprintf(buffer, sizeof(buffer), "%.8g", rin), buffer));
     get_parameter_value(parfile, "torus", "rmax", TYPE_DBL, &rmax, 0);
     dict_add(model_params, "rmax", (snprintf(buffer, sizeof(buffer), "%.8g", rmax), buffer));
+    get_parameter_value(parfile, "b_field", "type", TYPE_STR, bfield_type, sizeof(bfield_type));
+    dict_add(model_params, "bfield_type", bfield_type);
   }
   get_parameter_value(parfile, "parthenon/time", "tlim", TYPE_DBL, &tlim, 0);
   dict_add(model_params, "tlim", (snprintf(buffer, sizeof(buffer), "%.8g", tlim), buffer));
@@ -833,7 +837,7 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
   get_parameter_value(parfile, "GRMHD", "cfl", TYPE_DBL, &cfl, 0);
   dict_add(model_params, "cfl", (snprintf(buffer, sizeof(buffer), "%.8g", cfl), buffer));
   get_parameter_value(parfile, "GRMHD", "gamma", TYPE_DBL, &gam, 0);
-  dict_add(model_params, "gam", (snprintf(buffer, sizeof(buffer), "%.8g", game), buffer));
+  dict_add(model_params, "gam", (snprintf(buffer, sizeof(buffer), "%.8g", gam), buffer));
   get_parameter_value(parfile, "coordinates", "base", TYPE_STR, coordinate_system, sizeof(coordinate_system));
   dict_add(model_params, "base", coordinate_system);
   get_parameter_value(parfile, "coordinates", "transform", TYPE_STR, coordinate_system, sizeof(coordinate_system));
@@ -1937,6 +1941,14 @@ void output_hdf5()
   hdf5_set_directory("/fluid_header/");
   // Get root level parameters
   double a = atof(dict_get(model_params, "a", NULL));
+  const char *bfield_type = dict_get(model_params, "bfield_type", NULL);
+  char bfield_type_str[STRLEN];
+  if (bfield_type) {
+      strncpy(bfield_type_str, bfield_type, STRLEN - 1);
+      bfield_type_str[STRLEN - 1] = '\0';
+  } else {
+      bfield_type_str[0] = '\0';
+  }
   const char *coord_base = dict_get(model_params, "base", NULL);
   char base[STRLEN], metric[STRLEN];
   if (coord_base) {
@@ -2003,7 +2015,7 @@ void output_hdf5()
   double startx1 = atof(dict_get(model_params, "x1min", NULL));
   double startx2 = atof(dict_get(model_params, "x2min", NULL));
   double startx3 = atof(dict_get(model_params, "x3min", NULL));
-  double t = atof(dict_get(model_params, "t", NULL));
+  double time = atof(dict_get(model_params, "time", NULL));
   double tlim = atof(dict_get(model_params, "tlim", NULL));
   double x1min = atof(dict_get(model_params, "x1min", NULL));
   double x1max = atof(dict_get(model_params, "x1max", NULL));
@@ -2017,6 +2029,7 @@ void output_hdf5()
   hid_t str_type = H5Tcopy(H5T_C_S1);
   H5Tset_size(str_type, strlen(base) + 1);
   H5Tset_strpad(str_type, H5T_STR_NULLTERM);
+  hdf5_write_single_val(bfield_type_str, "bfield_type", str_type);
   hdf5_write_single_val(base, "base", str_type);
 
   hdf5_write_single_val(&cfl, "cfl", H5T_IEEE_F64LE);
@@ -2056,7 +2069,7 @@ void output_hdf5()
   hdf5_write_single_val(&startx1, "startx1", H5T_IEEE_F64LE);
   hdf5_write_single_val(&startx2, "startx2", H5T_IEEE_F64LE);
   hdf5_write_single_val(&startx3, "startx3", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&t, "t", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&time, "t", H5T_IEEE_F64LE);
   hdf5_write_single_val(&tlim, "tlim", H5T_IEEE_F64LE);
   hdf5_write_single_val(&x1min, "x1min", H5T_IEEE_F64LE);
   hdf5_write_single_val(&x1max, "x1max", H5T_IEEE_F64LE);
