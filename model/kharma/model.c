@@ -1174,6 +1174,7 @@ void init_physical_quantities(int n, double rescale_factor)
 
         data[n]->b[i][j][k] *= rescale_factor;
 
+
         // here b is in gauss; this takes it back to code units to 
         // calculate beta and sigma
         double bsq = data[n]->b[i][j][k] / B_unit;
