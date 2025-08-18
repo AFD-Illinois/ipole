@@ -1429,6 +1429,20 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
 
   hdf5_read_attr_num(&(data[n]->t), "t", "", H5T_IEEE_F64LE);
 
+  //Reversing B Field
+  if(reverse_field) {
+    double multiplier = -1.0;
+    for(int i=0;i<N1+2;i++){
+      for(int j=0;j<N2+2;j++){
+        for(int k=0;k<N3+2;k++){ 
+          data[n]->p[B1][i][j][k] = multiplier*data[n]->p[B1][i][j][k];
+          data[n]->p[B2][i][j][k] = multiplier*data[n]->p[B2][i][j][k];
+          data[n]->p[B3][i][j][k] = multiplier*data[n]->p[B3][i][j][k];
+        }
+      }
+    }
+  }
+
   hdf5_close();
 
   dMact = Ladv = 0.;
@@ -1684,6 +1698,20 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   if (ELECTRONS == 9) {
     hdf5_read_array(data[n]->p[TFLK][0][0], "te", 3, fdims, fstart, fcount, 
                     mdims, mstart, H5T_IEEE_F64LE); 
+  }
+
+  //Reversing B Field
+  if(reverse_field) {
+    double multiplier = -1.0;
+    for(int i=0;i<N1+2;i++){
+      for(int j=0;j<N2+2;j++){
+        for(int k=0;k<N3+2;k++){ 
+          data[n]->p[B1][i][j][k] = multiplier*data[n]->p[B1][i][j][k];
+          data[n]->p[B2][i][j][k] = multiplier*data[n]->p[B2][i][j][k];
+          data[n]->p[B3][i][j][k] = multiplier*data[n]->p[B3][i][j][k];
+        }
+      }
+    }
   }
 
   hdf5_close();
