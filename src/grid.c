@@ -109,8 +109,9 @@ void ijktoX(int i, int j, int k, double X[NDIM])
  *  center "below" the desired point and del[i] \in [0,1) returns the
  *  offset from that zone center.
  *
- *  Note that this function returns indices from 0 to N-1, to account
- *  for ghost zones, see Xtoijk_ghost
+ *  Note that this function returns indices from 0 to N-1, used for 
+ *  data that does not include ghost zones, such as the emission histogram.
+ *  To account for ghost zones, see Xtoijk_ghost.
  *  0    0.5    1
  *  [     |     ]
  *  A  B  C DE  F
