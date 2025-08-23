@@ -15,6 +15,7 @@
 
 #include "debug_tools.h"
 
+#include <omp.h>
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
@@ -206,7 +207,7 @@ void update_data(double *tA, double *tB)
     printf("Fail! nloaded = %i nloaded mod 3 = %i\n", nloaded, nloaded % 3);
   }
   data[2]->t = data[1]->t + DTd;
-#endif   
+#endif
 }
 
 double get_athenak_dump_time(char *fname)
@@ -247,7 +248,7 @@ double get_athenak_dump_time(char *fname)
   return time;
 }
 
-double get_dump_t(char *fnam, int dumpidx) 
+double get_dump_t(char *fnam, int dumpidx)
 {
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -409,7 +410,7 @@ void set_meshblock_indices(double X[NDIM], int *mbn, int *i, int *j, int *k, dou
   double dx = (xmax - xmin) / mb_nx1;
   double dy = (ymax - ymin) / mb_nx2;
   double dz = (zmax - zmin) / mb_nx3;
-  
+
   // shift to zone centers because that's where variables are most exact.
   *i = (int)((x - xmin) / dx - 0.5 + 1000) - 1000;
   *j = (int)((y - ymin) / dy - 0.5 + 1000) - 1000;
@@ -503,7 +504,7 @@ void read_set_athenak_header(FILE *fp, dict *model_params)
   char *save = NULL;
   char *p = strtok_r(header, "\n", &save);
 
-  do {  
+  do {
     strim(p);
     if (p[0] == '#') continue;
     char *res = NULL;
@@ -554,7 +555,7 @@ void init_physical_quantities(int n, double rescale_factor)
           data[n]->thetae[mb][i][j][k] = fmax(data[n]->thetae[mb][i][j][k], 1.e-3);
           data[n]->sigma[mb][i][j][k] = fmax(sigma_m, SMALL);
           data[n]->beta[mb][i][j][k] = fmax(beta_m, SMALL);
-          
+
           // apply per-zone sigma_cut if desired
           if (sigma_m > sigma_cut && !USE_GEODESIC_SIGMACUT) {
             data[n]->b[mb][i][j][k] = 0.;
@@ -571,6 +572,7 @@ void populate_boundary_conditions_ordered(int n)
 {
   // get whenever we're pulling from zones at or above our refinement
   // level to ensure that we're not pulling from ghost zones
+#pragma omp parallel for
   for (int mb=0; mb<n_meshblocks; ++mb) {
 
     double xmin = meshblock_geometry[mb*6 + 0];
@@ -612,6 +614,7 @@ void populate_boundary_conditions_ordered(int n)
   }
 
   // now set only when we need to read from a larger zone
+#pragma omp parallel for
   for (int mb=0; mb<n_meshblocks; ++mb) {
 
     double xmin = meshblock_geometry[mb*6 + 0];
@@ -660,8 +663,8 @@ void populate_boundary_conditions(int n)
   // function
 
   // simplest version just directly copies
-  if (1==1) {
-    
+  if (0==1) {
+
     for (int mb=0; mb<n_meshblocks; ++mb) {
       // six faces
       for (int j=1; j<=mb_nx2; ++j) {
@@ -734,7 +737,7 @@ void populate_boundary_conditions(int n)
         data[n]->b[mb][0][mb_nx2 + 1][s] = (data[n]->b[mb][1][mb_nx2 + 1][s] + data[n]->b[mb][0][mb_nx2][s]) / 2.;
         data[n]->b[mb][mb_nx1 + 1][mb_nx2 + 1][s] = (data[n]->b[mb][mb_nx1][mb_nx2 + 1][s] + data[n]->b[mb][mb_nx1 + 1][mb_nx2][s]) / 2.;
       }
-      
+
       // corners
       for (int l=0; l < n_variables; ++l) {
         data[n]->p[l][mb][0][0][0] = (data[n]->p[l][mb][1][0][0] + data[n]->p[l][mb][0][1][0] + data[n]->p[l][mb][0][0][1]) / 3.;
@@ -802,7 +805,7 @@ size_t process_athenak_header(char *fnam, int index)
 {
   char fname[256];
   snprintf(fname, 255, fnam, index);
-  
+
   char *res = NULL;
   char *line = NULL;
 
@@ -838,11 +841,11 @@ size_t process_athenak_header(char *fnam, int index)
   n_variables = atoi(res);
   if (read_line(fp, &line, "! unable to read variable names.\n") == -1) return -1;
   // TODO process variable names in "line"?
-  
+
   // deal with header
   read_set_athenak_header(fp, model_params);
   adiabatic_gamma = atof(dict_get(model_params, "gamma", "1.4444444444444"));
- 
+
   size_t datastart = ftell(fp);
   fclose(fp);
 
@@ -854,7 +857,7 @@ size_t process_athenak_header(char *fnam, int index)
   mb_nx3 = atoi(dict_get(model_params, "meshblock/nx3", "32"));
 
   size_t meshblock_bytes = 24 + 16 + 6*locsize + mb_nx1*mb_nx2*mb_nx3*n_variables*varsize;
-  n_meshblocks = (filesize - datastart) / meshblock_bytes; 
+  n_meshblocks = (filesize - datastart) / meshblock_bytes;
 
   // initialize storage
   for (int n = 0; n < NSUP; n++) {
@@ -885,7 +888,7 @@ size_t process_athenak_header(char *fnam, int index)
   double x2max = fabs(atof(dict_get(model_params, "mesh/x2max", "0")));
   double x3min = fabs(atof(dict_get(model_params, "mesh/x3min", "0")));
   double x3max = fabs(atof(dict_get(model_params, "mesh/x3max", "0")));
-    
+
   x1max = x1max > x1min ? x1max : x1min;
   x2max = x2max > x2min ? x2max : x2min;
   x3max = x3max > x3min ? x3max : x3min;
@@ -919,7 +922,7 @@ size_t process_athenak_header(char *fnam, int index)
 
 // returns b in code units
 double convert_ub_prim_cks_eks(double x, double y, double z, double Uprim[3], double Bprim[3])
-{ 
+{
   double gcov_cks[NDIM][NDIM];
   double gcon00 = get_g_cks(x, y, z, gcov_cks);
   double alpha = 1. / sqrt(-gcon00);
@@ -928,7 +931,7 @@ double convert_ub_prim_cks_eks(double x, double y, double z, double Uprim[3], do
   double SMALLISH = 1.e-15;
   if (fabs(x) < SMALLISH) x = SMALLISH;
   if (fabs(y) < SMALLISH) y = SMALLISH;
-  
+
   // construct CKS ucon and ucov
   double ucon_cks[4] = {0.};
   double ucov_cks[4] = {0.};
@@ -940,7 +943,7 @@ double convert_ub_prim_cks_eks(double x, double y, double z, double Uprim[3], do
     }
   }
   double gamma = sqrt(1. + UdotU);
- 
+
   ucon_cks[0] = gamma / alpha;
   ucon_cks[1] = Uprim[0] - gamma * alpha * gcov_cks[0][1];
   ucon_cks[2] = Uprim[1] - gamma * alpha * gcov_cks[0][2];
@@ -952,7 +955,7 @@ double convert_ub_prim_cks_eks(double x, double y, double z, double Uprim[3], do
     for (int i=0; i<4; ++i) udu += ucon_cks[i] * ucov_cks[i];
     fprintf(stderr, "u.u = %g\n", udu);
   }
- 
+
   // construct CKS bcon
   double bcon_cks[4] = {0.};
   bcon_cks[0] = Bprim[0]*ucov_cks[1] + Bprim[1]*ucov_cks[2] + Bprim[2]*ucov_cks[3];
@@ -989,7 +992,7 @@ double convert_ub_prim_cks_eks(double x, double y, double z, double Uprim[3], do
                 ucon_cks[3] * z/r * (r*r+a*a)/sqrt_term;
   ucon_eks[2] = ucon_cks[1] * (x*z)/(r * sqrt_term * sqrt(1.-z*z/r/r) + SMALLISH) +
                 ucon_cks[2] * (y*z)/(r * sqrt_term * sqrt(1.-z*z/r/r) + SMALLISH) +
-                ucon_cks[3] * ( (z*z)*(r*r+a*a)/(r*r*r * sqrt_term * sqrt(1.0-z*z/r/r) + SMALLISH) 
+                ucon_cks[3] * ( (z*z)*(r*r+a*a)/(r*r*r * sqrt_term * sqrt(1.0-z*z/r/r) + SMALLISH)
                        - 1.0/(r*sqrt(1.0-z*z/r/r) + SMALLISH) );
   ucon_eks[3] = ucon_cks[1] * (-y/(x*x+y*y+SMALLISH) + a*r*x/((r*r+a*a)*sqrt_term)) +
                 ucon_cks[2] * (x/(x*x+y*y+SMALLISH) + a*r*y/((r*r+a*a)*sqrt_term)) +
@@ -1002,7 +1005,7 @@ double convert_ub_prim_cks_eks(double x, double y, double z, double Uprim[3], do
                 bcon_cks[3] * z/r * (r*r+a*a)/sqrt_term;
   bcon_eks[2] = bcon_cks[1] * (x*z)/(r * sqrt_term * sqrt(1.0-z*z/r/r) + SMALLISH) +
                 bcon_cks[2] * (y*z)/(r * sqrt_term * sqrt(1.0-z*z/r/r) + SMALLISH) +
-                bcon_cks[3] * ( (z*z)*(r*r+a*a)/(r*r*r * sqrt_term * sqrt(1.0-z*z/r/r) + SMALLISH) 
+                bcon_cks[3] * ( (z*z)*(r*r+a*a)/(r*r*r * sqrt_term * sqrt(1.0-z*z/r/r) + SMALLISH)
                        - 1.0/(r*sqrt(1.0-z*z/r/r) + SMALLISH) );
   bcon_eks[3] = bcon_cks[1] * (-y/(x*x+y*y+SMALLISH) + a*r*x/((r*r+a*a)*sqrt_term)) + \
                 bcon_cks[2] * (x/(x*x+y*y+SMALLISH) + a*r*y/((r*r+a*a)*sqrt_term)) + \
@@ -1074,7 +1077,18 @@ void load_athenak_data(int n, char *fnam, int index, size_t datastart)
   size_t nmb = 0;
 
   // get more info on meshblocks and such
-  while (ftell(fp) < filesize) {
+  long int bytes_read = datastart;
+  size_t total_vals = (size_t)n_variables * mb_nx3 * mb_nx2 * mb_nx1;
+  char *raw_buffer = malloc(varsize * total_vals);
+
+  double t0 = omp_get_wtime();
+  while (bytes_read < filesize) {
+
+    // increment bytes_read based on number of reads.
+    //    first include integer reads
+    //    then include locsize reads
+    //    and finally variable reads
+    bytes_read += 10 * 4 + 6 * locsize + (n_variables * mb_nx3 * mb_nx2 * mb_nx1) * varsize;
 
     int si = read_int(fp, 4);
     int ei = read_int(fp, 4);
@@ -1091,7 +1105,7 @@ void load_athenak_data(int n, char *fnam, int index, size_t datastart)
               nx1_out, nx2_out, nx3_out, mb_nx1, mb_nx2, mb_nx3);
       exit(7);
     }
-   
+
     // logical location (not used)
     int idum = read_int(fp, 4);
     idum = read_int(fp, 4);
@@ -1112,26 +1126,54 @@ void load_athenak_data(int n, char *fnam, int index, size_t datastart)
     meshblock_geometry[nmb*6 + 3] = ymax;
     meshblock_geometry[nmb*6 + 4] = zmin;
     meshblock_geometry[nmb*6 + 5] = zmax;
- 
-    for (int v=0; v<n_variables; ++v) {
-      for (int k=0; k<mb_nx3; ++k) {
-        for (int j=0; j<mb_nx2; ++j) {
-          for (int i=0; i<mb_nx1; ++i) {
-            data[n]->p[v][nmb][i+1][j+1][k+1] = read_double(fp, varsize);
+
+    // load meshblock variable data
+    if (fread(raw_buffer, varsize, total_vals, fp) != total_vals) {
+      fprintf(stderr, "Error reading variable data block\n");
+      exit(1);
+    }
+
+    if (varsize == 8) {
+      double *dptr = (double *)raw_buffer;
+      size_t index = 0;
+      for (int v=0; v<n_variables; ++v) {
+        for (int k=0; k<mb_nx3; ++k) {
+          for (int j=0; j<mb_nx2; ++j) {
+            for (int i=0; i<mb_nx1; ++i) {
+              data[n]->p[v][nmb][i+1][j+1][k+1] = dptr[index++];
+            }
           }
         }
       }
+    } else if (varsize == 4) {
+      float *fptr = (float *)raw_buffer;
+      size_t index = 0;
+      for (int v=0; v<n_variables; ++v) {
+        for (int k=0; k<mb_nx3; ++k) {
+          for (int j=0; j<mb_nx2; ++j) {
+            for (int i=0; i<mb_nx1; ++i) {
+              data[n]->p[v][nmb][i+1][j+1][k+1] = (double)fptr[index++];
+            }
+          }
+        }
+      }
+    } else {
+      fprintf(stderr, "Unsupported varsize = %zu\n", varsize);
+      exit(1);
     }
 
     nmb++;
   }
 
+  free(raw_buffer);
+
   fclose(fp);
 
   // construct four-vector quantities and convert from CKS -> eKS
+  double t1 = omp_get_wtime();
 #pragma omp parallel for
   for (int mb=0; mb<n_meshblocks; ++mb) {
-    
+
     double xmin = meshblock_geometry[mb*6 + 0];
     double xmax = meshblock_geometry[mb*6 + 1];
     double ymin = meshblock_geometry[mb*6 + 2];
@@ -1169,11 +1211,16 @@ void load_athenak_data(int n, char *fnam, int index, size_t datastart)
   }
 
   // populate boundary conditions
+  double t2 = omp_get_wtime();
   populate_boundary_conditions(n);
 
   // initialize scalars
+  double t3 = omp_get_wtime();
   double rescale_factor = 1.0;  // can be used to rescale according to accretion rate
   init_physical_quantities(n, rescale_factor);
+
+  double t4 = omp_get_wtime();
+  // fprintf(stderr, "\n detailed load times: %g %g %g %g\n", t1 - t0, t2 - t1, t3 - t2, t4 - t3);
 
   fprintf(stderr, "done!\n");
 }
@@ -1217,7 +1264,7 @@ void init_model(double *tA, double *tB)
   these supply basic model data to ipole
 */
 
-// Calculate Ucon,Ucov,Bcon,Bcov from primitives at location X using 
+// Calculate Ucon,Ucov,Bcon,Bcov from primitives at location X using
 // interpolation (on the primitives). This has been all wrapped into
 // a single function because some calculations require each other.
 void get_model_fourv(double X[NDIM], double Kcon[NDIM],
@@ -1277,7 +1324,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
 
   // lower (needed for Bcon)
   lower(Ucon, gcov, Ucov);
- 
+
   // Now set Bcon and get Bcov by lowering
 
   // interpolate primitive variables first
@@ -1292,7 +1339,7 @@ void get_model_fourv(double X[NDIM], double Kcon[NDIM],
   Bcon[3] = (Bcon3 + Ucon[3] * Bcon[0]) / Ucon[0];
 
   // lower
-  lower(Bcon, gcov, Bcov); 
+  lower(Bcon, gcov, Bcov);
 }
 
 // get primitives at X (including time). not used to compute
@@ -1422,7 +1469,7 @@ double get_model_ne(double X[NDIM])
 void output_hdf5()
 {
   hdf5_set_directory("/");
-  
+
   hdf5_set_directory("/header/");
   hdf5_make_directory("units");
   hdf5_set_directory("/header/units/");
@@ -1450,7 +1497,7 @@ int radiating_region(double X[NDIM])
 
   if (r < rmax_geo) return 1;
 
-  return 0; 
+  return 0;
 }
 
 // In case we want to mess with emissivities directly
