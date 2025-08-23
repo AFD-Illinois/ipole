@@ -23,6 +23,11 @@ typedef struct params_t {
   double freqcgs;       // ... in cgs
   int old_centering;    // 0 uses k_phi=0 "ZAMO" new centering, 1 uses k^phi=0 old centering
 
+  //new additions
+  int max_nturns; //maximum photon ring orbit
+  double diskcut;
+  double rmaxcut; //cuts out within \pm diskcut degrees of midplane with r>rmaxcut
+
   // Geodesic accuracy
   double eps;
   int maxnstep;
@@ -43,6 +48,10 @@ typedef struct params_t {
 
   const char dump[STRLEN];
   const char outf[STRLEN];
+  const char psiarr[STRLEN]; //psiarray
+  int usepsi; //-1 for less, 0 for ignore, 1 for more
+  double psibound;
+  double*** psigrid; //stores all psi values read from hdf5 file
 
   // Subrings
   int target_nturns;
@@ -61,9 +70,13 @@ typedef struct params_t {
   double img_cadence;
   double restart_int;
 
+  //anisotropy
+  double eta_anisotropy;
+
   // Save out variables along a geodesic
   int trace;
   int trace_stride;
+  int nstride; //spacing of geodesic trace data
   int trace_i, trace_j;
   const char trace_outf[STRLEN];
 

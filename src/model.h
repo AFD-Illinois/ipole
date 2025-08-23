@@ -24,6 +24,7 @@ double get_model_b(double X[NDIM]);
 double get_model_sigma(double X[NDIM]);
 double get_model_beta(double X[NDIM]);
 double get_model_ne(double X[NDIM]);
+double get_model_ne_poynting(double X[NDIM]);
 
 // For exotic or custom distributions
 void get_model_jar(double X[NDIM], double Kcon[NDIM],

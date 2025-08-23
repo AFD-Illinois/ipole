@@ -27,6 +27,10 @@ double power_law_I_abs(struct parameters * params);
 double power_law_Q_abs(struct parameters * params);
 double power_law_V_abs(struct parameters * params);
 
+/* Power-law rotation fits */
+double power_law_rho_Q(struct parameters *params);
+double power_law_rho_V(struct parameters *params);
+
 /* Kappa emissivity fits */
 double kappa_I(struct parameters * params);
 double kappa_Q(struct parameters * params);

@@ -17,7 +17,7 @@
 int integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
                     double complex N_coord[NDIM][NDIM], Params *params,
-                    int print);
+		       int print, int iind, int jind);
 
 // Needed for slow light.  TODO extend above to use instead
 int evolve_N(double Xi[NDIM],double Kconi[NDIM],
