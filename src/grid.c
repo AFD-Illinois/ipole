@@ -170,9 +170,9 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
   // exotic coordinate systems sometime have issues. use this block to enforce
   // reasonable limits on *i,*j and *k. in the normal coordinate systems, this
   // block should never fire.
-  if (*i < -1) *i = 0;
-  if (*j < -1) *j = 0;
-  if (*k < -1) *k = 0;
+  if (*i < 0) *i = 0;
+  if (*j < 0) *j = 0;
+  if (*k < 0) *k = 0;
   if (*i >= N1) *i = N1-1;
   if (*j >= N2) *j = N2-1;
   if (*k >= N3) *k = N3-1;
