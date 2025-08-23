@@ -1,43 +1,34 @@
 """
 
-  Makes images for hdf5 output of ipole.
-  last updated: 2018.11.16 gnw
+  Makes images from hdf5 output of ipole.
+  2019.07.10 gnw
 
-$ python plot.py [-log] [-pol] path/to/images/*h5
+$ python ipole_plot.py path/to/images/*h5
 
 $ ffmpeg -framerate 8 -i dump%*.png -s:v 1280x720 -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p out.mp4
-
 """
 
-print("This is plot.py.")
-print("plot.py is decprecated as of 11 Nov 2019.")
-print("please use plot_pol.py instead")
-
-import sys
-import h5py
-import numpy as np
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
+import numpy as np
+import h5py
+import sys
 
-plt.rc('font', family='serif')
-plt.rcParams['mathtext.fontset'] = 'cm'
 
-# if this is not None, then set this as the maximum (linear) value
-# for the colorbar. otherwise, set maximum color based on the real
-# data.
-MAXCOLOR = None
+## configuration / plot parameters
 
-TIME_IN_DAYS = True         # if False, titles plot with time in M
-timeoffsetindays = 0.       # if using days, subtract this off
-interpolationtype = 'none'  # 'none' or 'bilinear'
+FOV_UNITS = "muas"  # can be set to "muas" or "M" (case sensitive)
 
-COLORMAP = 'afmhot'
-DOLOG = False
-USE_POLARIZED = False
+## EVPA_CONV not yet implemented! this will only work for observer convention!
+EVPA_CONV = "EofN"  # can be set fo "EofN" or "NofW" 
+
+
+
+## no need to touch anything below this line
 
 def colorbar(mappable):
-  """ aligns color bar with right of image """
+  """ the way matplotlib colorbar should have been implemented """
   from mpl_toolkits.axes_grid1 import make_axes_locatable
   ax = mappable.axes
   fig = ax.figure
@@ -47,96 +38,152 @@ def colorbar(mappable):
 
 if __name__ == "__main__":
 
-  if "-pol" in sys.argv: USE_POLARIZED = True
-  if "-log" in sys.argv: DOLOG = True
+  for fname in sys.argv[1:]:
 
-  fnames = sys.argv[1:]
+    if fname[-3:] != ".h5": continue
+    print("plotting {0:s}".format(fname))
 
-  for fname in fnames:
+    do_fullscreen_unpol = False
+    if '--fullscreen' in sys.argv:
+      do_fullscreen_unpol = True
 
-    if fname[-3:] != ".h5" and fname[-4:] != ".dat":
-      continue
-
-    print("processing {0:s}".format(fname))
-
-    # load data
-    hfp = h5py.File(fname,'r') 
-
-    nx = hfp['header']['camera']['nx'][()]
-    ny = hfp['header']['camera']['ny'][()]
+    # load
+    hfp = h5py.File(fname,'r')    
     dx = hfp['header']['camera']['dx'][()]
-    dy = hfp['header']['camera']['dy'][()]
     dsource = hfp['header']['dsource'][()]
+    lunit = hfp['header']['units']['L_unit'][()]
+    fov_muas = dx / dsource * lunit * 2.06265e11
     scale = hfp['header']['scale'][()]
-    Lunit = hfp['header']['units']['L_unit'][()]
-    Munit = hfp['header']['units']['M_unit'][()]
-    freqcgs = hfp['header']['freqcgs'][()]
-
-    image = hfp['unpol'][:,:] * scale
-    try: tau = hfp['tau'][:,:]
-    except: pass
-    imageS0 = hfp['pol'][:,:,0] * scale
-    imageS1 = hfp['pol'][:,:,1] * scale
-    imageS2 = hfp['pol'][:,:,2] * scale
-    imageS3 = hfp['pol'][:,:,3] * scale
-    imageS4 = hfp['pol'][:,:,4] * scale
-
-    fname = fname.replace(".h5",".dat")
-
-    try:
-      timeinm = hfp['header']['t'][()]
-    except:
-      timeinm = -1
-    title = "t = {0:g} M".format(timeinm)
-
+    evpa_0 = 'W'
+    if 'evpa_0' in hfp['header']:
+      evpa_0 = hfp['header']['evpa_0'][()]
+    unpol = np.copy(hfp['unpol']).transpose((1,0))
+    if 'pol' in hfp:
+      no_pol = False
+      do_fullscreen_unpol = False
+      imagep = np.copy(hfp['pol']).transpose((1,0,2))
+      I = imagep[:,:,0]
+      Q = imagep[:,:,1]
+      U = imagep[:,:,2]
+      V = imagep[:,:,3]
+    else:
+      no_pol = True
+      I = unpol
+      Q = np.zeros((1, 1))
+      U = np.zeros((1, 1))
+      V = np.zeros((1, 1))
     hfp.close()
 
-    # process/make image and save
-    if USE_POLARIZED:
-      image = imageS0
-    if DOLOG:
-      image = np.log10(image)
-
-    plt.close('all')
-    fig, (ax) = plt.subplots(1,1)
-
-    fovx_uas = dx * Lunit / dsource * 2.06265e11
-    fovy_uas = dy * Lunit / dsource * 2.06265e11
-    extent = [ -fovx_uas/2., fovx_uas/2., -fovy_uas/2., fovy_uas/2. ]
-
-    if DOLOG:
-      if MAXCOLOR is None: MAXCOLOR = image.max() / 2.
-      im = ax.imshow(image.T,interpolation='none',cmap=COLORMAP,origin='lower',vmin=-2,vmax=np.log10(MAXCOLOR))
-      plt.title(title)
-      colorbar(im)
-      plt.tight_layout()
-      if USE_POLARIZED:
-        plt.savefig(fname.replace('.dat','_log_pol.png'))
-      else:
-        plt.savefig(fname.replace('.dat','_log.png'))
-
+    # set extent (assumption of square image)
+    if FOV_UNITS == "muas":
+      extent = [ -fov_muas/2, fov_muas/2, -fov_muas/2, fov_muas/2 ]
+    elif FOV_UNITS == "M":
+      extent = [ -dx/2, dx/2, -dx/2, dx/2 ]
     else:
-      if MAXCOLOR is None: MAXCOLOR = image.max()
+      print("! unrecognized units for FOV {0:s}. quitting.".format(FOV_UNITS))
 
-      # note that this rotation makes it so the jet comes out to the right
-      im = ax.imshow(image.T,interpolation=interpolationtype,cmap=COLORMAP,origin='lower',vmax=MAXCOLOR,extent=extent)
+    # create plots
+    plt.close('all')
+    plt.figure(figsize=(8, 8))
+    if no_pol:
+      ax1 = plt.subplot(1, 1, 1)
+    else:
+      ax1 = plt.subplot(2, 2, 1)
+      ax2 = plt.subplot(2, 2, 2)
+      ax3 = plt.subplot(2, 2, 3)
+      ax4 = plt.subplot(2, 2, 4)
 
-      if timeinm >= 0:
-        if TIME_IN_DAYS: # plots time in days
-          timeinhours = timeinm * Lunit / 2.998e10 / 3600.
-          timeindays = timeinhours / 24 - timeoffsetindays
-          ttext = "$\mathrm{+\," + "{0:.01f}".format(np.abs(timeindays)) + "\ days}$"
-          plt.suptitle(ttext,fontsize=17)
-        else: # plots time in M
-          ttext = "$\mathrm{t = " + str(int(timeinm)) + "\ M}$"
-          plt.suptitle(ttext,fontsize=17)
+    # get mask for total intensity based on negative values
+    Imaskval = np.abs(I.min()) * 100.
+    Imaskval = np.nanmax(I) / np.power(I.shape[0],5.)
 
-      plt.xlabel(r"$\mathrm{x}\;\;[\mu{}\mathrm{as}]$",fontsize=15)
-      plt.ylabel(r"$\mathrm{y}\;\;[\mu\mathrm{as}]$",fontsize=15)
-      plt.tight_layout(rect=[0,0.03,1,0.95])
+    # total intensity
+    vmax = 1.e-4
+    vmax = I.max() / np.sqrt(1.5)
+    im1 = ax1.imshow(I, cmap='afmhot', vmin=0., vmax=vmax, origin='lower', extent=extent)
+    if not do_fullscreen_unpol:
+      colorbar(im1)
 
-      if USE_POLARIZED:
-        plt.savefig(fname.replace('.dat','_pol.png'))
-      else:
-        plt.savefig(fname.replace('.dat','.png'),dpi=200)
+    if not no_pol:
+      # linear polarization fraction
+      lpfrac = 100.*np.sqrt(Q*Q+U*U)/I
+      lpfrac[np.abs(I)<Imaskval] = np.nan
+      ax2.set_facecolor('black')
+      im2 = ax2.imshow(lpfrac, cmap='jet', vmin=0., vmax=100., origin='lower', extent=extent)
+      colorbar(im2)
+
+      # circular polarization fraction
+      cpfrac = 100.*V/I
+      cpfrac[np.abs(I)<Imaskval] = np.nan
+      vext = max(np.abs(np.nanmin(cpfrac)),np.abs(np.nanmax(cpfrac)))
+      vext = max(vext, 1.)
+      if np.isnan(vext): vext = 10.
+      ax4.set_facecolor('black')
+      im4 = ax4.imshow(cpfrac, cmap='seismic', vmin=-vext, vmax=vext, origin='lower', extent=extent)
+      colorbar(im4)
+
+      # evpa
+      evpa = (180./3.14159)*0.5*np.arctan2(U,Q)
+      if evpa_0 == "W":
+        evpa += 90.
+        evpa[evpa > 90.] -= 180.
+      if EVPA_CONV == "NofW":
+        evpa += 90.
+        evpa[evpa > 90.] -= 180.
+      evpa2 = np.copy(evpa)
+      evpa2[np.abs(I)<Imaskval] = np.nan
+      ax3.set_facecolor('black')
+      im3 = ax3.imshow(evpa2, cmap='hsv', vmin=-90., vmax=90., origin='lower', extent=extent, interpolation='none')
+      colorbar(im3)
+
+      # quiver on intensity
+      npix = I.shape[0]
+      xs = np.linspace(extent[0], extent[1], npix)
+      Xs,Ys = np.meshgrid(xs,xs)
+      lpscal = np.max(np.sqrt(Q*Q+U*U))
+      vxp = np.sqrt(Q*Q+U*U)*np.sin(evpa*3.14159/180.)/lpscal
+      vyp = -np.sqrt(Q*Q+U*U)*np.cos(evpa*3.14159/180.)/lpscal
+      skip = int(npix/32) 
+      ax1.quiver(Xs[::skip,::skip],Ys[::skip,::skip],vxp[::skip,::skip],vyp[::skip,::skip], 
+        headwidth=1, headlength=1, 
+        width=0.005,
+        color='#00ff00', 
+        units='width', 
+        scale=4,
+        pivot='mid')
+
+    # command line output
+    print("Flux [Jy]:    {0:g} {1:g}".format(I.sum()*scale, unpol.sum()*scale))
+    print("I,Q,U,V [Jy]: {0:g} {1:g} {2:g} {3:g}".format(I.sum()*scale,Q.sum()*scale,U.sum()*scale,V.sum()*scale))
+    print("LP [%]:       {0:g}".format(100.*np.sqrt(Q.sum()**2+U.sum()**2)/I.sum()))
+    print("CP [%]:       {0:g}".format(100.*V.sum()/I.sum()))
+    evpatot = 180./3.14159*0.5*np.arctan2(U.sum(),Q.sum())
+    if evpa_0 == "W":
+      evpatot += 90. 
+      if evpatot > 90.:
+        evpatot -= 180
+    if EVPA_CONV == "NofW":
+      evpatot += 90.
+      if evpatot > 90.:
+        evpatot -= 180
+    print("EVPA [deg]:   {0:g}".format(evpatot))
+
+    # formatting and text
+    ax1.set_title("Stokes I [cgs]")
+    ax1.set_aspect('equal')
+    ax1.set_ylabel(FOV_UNITS)
+    if not no_pol:
+      ax2.set_title("LP [%]")
+      ax3.set_title("EVPA [deg]")
+      ax4.set_title("CP [%]")
+      ax2.set_aspect('equal')
+      ax3.set_aspect('equal')
+      ax4.set_aspect('equal')
+      ax3.set_ylabel(FOV_UNITS)
+      ax3.set_xlabel(FOV_UNITS)
+      ax4.set_xlabel(FOV_UNITS)
+
+    # saving
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(fname.replace(".h5",".png"))
 
