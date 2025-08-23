@@ -274,9 +274,9 @@ void Xtoijk_ghost(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
   }
 
   // since we read from data, adjust i,j,k for ghost zones
-  i += 1;
-  j += 1;
-  k += 1;
+  *i += 1;
+  *j += 1;
+  *k += 1;
 
 
 }
