@@ -779,14 +779,45 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
   /* Declaring necessary parameters */
   /* Thermodynamic parameters*/
   char has_electrons[20];
+  char problem_id[20];
   /* Grid parameter*/
-  char coordinate_system[256];
+  char coordinate_system[256], base[256];
   int nx1_mb, nx2_mb, nx3_mb; // Meshblock size
   int nghost;
   double x1min, x1max, x2min, x2max, x3min, x3max; // Domain limits
+  double dx1, dx2, dx3;
+  /* Temporal parameters */
+  double tlim;
+  double dt, time, cfl, dt_min;
+  int ncycle;
+  /* Physical parameters */
+  double rin, rmax;
+  char bfield_type[256];
+
+  char buffer[100];
+  /* Read parameters from Info group */
+  read_info_attribute(fname, "dt", TYPE_DBL, &dt, 0);
+  dict_add(model_params, "dt", (snprintf(buffer, sizeof(buffer), "%.8g", dt), buffer));
+  read_info_attribute(fname, "NCycle", TYPE_INT, &ncycle, 0);
+  dict_add(model_params, "ncycle", (snprintf(buffer, sizeof(buffer), "%d", ncycle), buffer));
+  read_info_attribute(fname, "Time", TYPE_DBL, &time, 0);
+  dict_add(model_params, "time", (snprintf(buffer, sizeof(buffer), "%.8g", time), buffer));
 
   /* Read parameters from par file */
-  char buffer[100];
+  get_parameter_value(parfile, "parthenon/job", "problem_id", TYPE_STR, problem_id, sizeof(problem_id));
+  dict_add(model_params, "problem_id", problem_id);
+  if (strcmp(problem_id, "torus") == 0) {
+    get_parameter_value(parfile, "torus", "rin", TYPE_DBL, &rin, 0);
+    dict_add(model_params, "rin", (snprintf(buffer, sizeof(buffer), "%.8g", rin), buffer));
+    get_parameter_value(parfile, "torus", "rmax", TYPE_DBL, &rmax, 0);
+    dict_add(model_params, "rmax", (snprintf(buffer, sizeof(buffer), "%.8g", rmax), buffer));
+    get_parameter_value(parfile, "b_field", "type", TYPE_STR, bfield_type, sizeof(bfield_type));
+    dict_add(model_params, "bfield_type", bfield_type);
+  }
+  get_parameter_value(parfile, "parthenon/time", "tlim", TYPE_DBL, &tlim, 0);
+  dict_add(model_params, "tlim", (snprintf(buffer, sizeof(buffer), "%.8g", tlim), buffer));
+  get_parameter_value(parfile, "parthenon/time", "dt_min", TYPE_DBL, &dt_min, 0);
+  dict_add(model_params, "dt_min", (snprintf(buffer, sizeof(buffer), "%.8g", dt_min), buffer));
   get_parameter_value(parfile, "electrons", "on", TYPE_STR, has_electrons, sizeof(has_electrons));
   dict_add(model_params, "has_electrons", has_electrons);
   if (strncmp(has_electrons, "true", 19) == 0) {
@@ -803,8 +834,12 @@ int read_parameters_and_allocate_memory(char *fnam, int dumpidx)
   }
   Te_unit = Thetae_unit;
 
+  get_parameter_value(parfile, "GRMHD", "cfl", TYPE_DBL, &cfl, 0);
+  dict_add(model_params, "cfl", (snprintf(buffer, sizeof(buffer), "%.8g", cfl), buffer));
   get_parameter_value(parfile, "GRMHD", "gamma", TYPE_DBL, &gam, 0);
-  dict_add(model_params, "gam", (snprintf(buffer, sizeof(buffer), "%.8g", game), buffer));
+  dict_add(model_params, "gam", (snprintf(buffer, sizeof(buffer), "%.8g", gam), buffer));
+  get_parameter_value(parfile, "coordinates", "base", TYPE_STR, coordinate_system, sizeof(coordinate_system));
+  dict_add(model_params, "base", coordinate_system);
   get_parameter_value(parfile, "coordinates", "transform", TYPE_STR, coordinate_system, sizeof(coordinate_system));
   dict_add(model_params, "coordinate_system", coordinate_system);
   if (strncmp(coordinate_system, "fmks", 19) == 0) {
@@ -1139,6 +1174,9 @@ void init_physical_quantities(int n, double rescale_factor)
 
         data[n]->b[i][j][k] *= rescale_factor;
 
+
+        // here b is in gauss; this takes it back to code units to 
+        // calculate beta and sigma
         double bsq = data[n]->b[i][j][k] / B_unit;
         bsq = bsq*bsq;
 
@@ -1589,6 +1627,9 @@ void init_model(double *tA, double *tB)
   data[1] = &dataB;
   data[2] = &dataC;
 
+  /* Create parameter dictionary */
+  model_params = dict_new();
+
   /* Read relevant parameters from dump file and allocate memory for data struct */
   fprintf(stderr, "Reading parameters, allocating memory...\n");
   read_parameters_and_allocate_memory(fnam, dumpmin);
@@ -1893,11 +1934,190 @@ void output_hdf5()
 {
   hdf5_set_directory("/");
 
-  // hdf5_write_blob(fluid_header, "/fluid_header");
-
   hdf5_write_single_val(&Mdot_dump, "Mdot", H5T_IEEE_F64LE);
   hdf5_write_single_val(&MdotEdd_dump, "MdotEdd", H5T_IEEE_F64LE);
   hdf5_write_single_val(&Ladv_dump, "Ladv", H5T_IEEE_F64LE);
+
+  // Write fluid header
+  // Obtain values from the dictionary `model_params`
+  hdf5_make_directory("fluid_header");
+  hdf5_set_directory("/fluid_header/");
+  // Get root level parameters
+  double a = atof(dict_get(model_params, "a", NULL));
+  const char *bfield_type = dict_get(model_params, "bfield_type", NULL);
+  char bfield_type_str[STRLEN];
+  if (bfield_type) {
+      strncpy(bfield_type_str, bfield_type, STRLEN - 1);
+      bfield_type_str[STRLEN - 1] = '\0';
+  } else {
+      bfield_type_str[0] = '\0';
+  }
+  const char *coord_base = dict_get(model_params, "base", NULL);
+  char base[STRLEN], metric[STRLEN];
+  if (coord_base) {
+      strncpy(base, coord_base, STRLEN - 1);
+      base[STRLEN - 1] = '\0';
+  } else {
+      base[0] = '\0';
+  }
+  double cfl = atof(dict_get(model_params, "cfl", NULL));
+  double cour = atof(dict_get(model_params, "cfl", NULL));
+  double dt = atof(dict_get(model_params, "dt", NULL));
+  double dt_min = atof(dict_get(model_params, "dt_min", NULL));
+  // double dx1 = atof(dict_get(model_params, "dx1", NULL));
+  // double dx2 = atof(dict_get(model_params, "dx2", NULL));
+  // double dx3 = atof(dict_get(model_params, "dx3", NULL));
+  double gam = atof(dict_get(model_params, "gam", NULL));
+  double gamma = atof(dict_get(model_params, "gam", NULL));
+  const char *electrons_on = dict_get(model_params, "has_electrons", NULL);
+  char has_electrons[STRLEN];
+  if (electrons_on) {
+      strncpy(has_electrons, electrons_on, STRLEN - 1);
+      has_electrons[STRLEN - 1] = '\0';
+  } else {
+      has_electrons[0] = '\0';
+  }
+  if (strncmp(has_electrons, "true", 19) == 0) {
+    double game = atof(dict_get(model_params, "game", NULL));
+    double gamp = atof(dict_get(model_params, "gamp", NULL));
+  }
+  double hslope = atof(dict_get(model_params, "hslope", NULL));
+
+  const char *coord_system = dict_get(model_params, "coordinate_system", NULL);
+  if (coord_system) {
+      strncpy(metric, coord_system, STRLEN - 1);
+      metric[STRLEN - 1] = '\0';
+  } else {
+      metric[0] = '\0';
+  }
+  double mks_smooth = atof(dict_get(model_params, "mks_smooth", NULL));
+  int ncycle = atoi(dict_get(model_params, "ncycle", NULL));
+  int nghost = atoi(dict_get(model_params, "nghost", NULL));
+  int nx1 = atoi(dict_get(model_params, "nx1", NULL));
+  int nx2 = atoi(dict_get(model_params, "nx2", NULL));
+  int nx3 = atoi(dict_get(model_params, "nx3", NULL));
+  int nx1_mb = atoi(dict_get(model_params, "nx1_mb", NULL));
+  int nx2_mb = atoi(dict_get(model_params, "nx2_mb", NULL));
+  int nx3_mb = atoi(dict_get(model_params, "nx3_mb", NULL));
+  double poly_alpha = atof(dict_get(model_params, "poly_alpha", NULL));
+  double poly_xt = atof(dict_get(model_params, "poly_xt", NULL));
+  const char *problem_id = dict_get(model_params, "problem_id", NULL);
+  char problem[STRLEN];
+  if (problem_id) {
+      strncpy(problem, problem_id, STRLEN - 1);
+      problem[STRLEN - 1] = '\0';
+  } else {
+      problem[0] = '\0';
+  }
+  double r_eh = 1. + sqrt(1. - a * a);
+  double r_in = atof(dict_get(model_params, "r_in", NULL));
+  double r_out = atof(dict_get(model_params, "r_out", NULL));
+  double rhor = r_eh;
+  double rin = atof(dict_get(model_params, "rin", NULL));
+  double rmax = atof(dict_get(model_params, "rmax", NULL));
+  double startx1 = atof(dict_get(model_params, "x1min", NULL));
+  double startx2 = atof(dict_get(model_params, "x2min", NULL));
+  double startx3 = atof(dict_get(model_params, "x3min", NULL));
+  double time = atof(dict_get(model_params, "time", NULL));
+  double tlim = atof(dict_get(model_params, "tlim", NULL));
+  double x1min = atof(dict_get(model_params, "x1min", NULL));
+  double x1max = atof(dict_get(model_params, "x1max", NULL));
+  double x2min = atof(dict_get(model_params, "x2min", NULL));
+  double x2max = atof(dict_get(model_params, "x2max", NULL));
+  double x3min = atof(dict_get(model_params, "x3min", NULL));
+  double x3max = atof(dict_get(model_params, "x3max", NULL));
+  // Write base fluid header
+  hdf5_write_single_val(&a, "a", H5T_IEEE_F64LE);
+
+  hid_t str_type = H5Tcopy(H5T_C_S1);
+  H5Tset_size(str_type, strlen(base) + 1);
+  H5Tset_strpad(str_type, H5T_STR_NULLTERM);
+  hdf5_write_single_val(bfield_type_str, "bfield_type", str_type);
+  hdf5_write_single_val(base, "base", str_type);
+
+  hdf5_write_single_val(&cfl, "cfl", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&cour, "cour", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&dt, "dt", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&dt_min, "dt_min", H5T_IEEE_F64LE);
+  // hdf5_write_single_val(&dx1, "dx1", H5T_IEEE_F64LE);
+  // hdf5_write_single_val(&dx2, "dx2", H5T_IEEE_F64LE);
+  // hdf5_write_single_val(&dx3, "dx3", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&gam, "gam", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&game, "game", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&gamp, "gamp", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&gamma, "gamma", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&ncycle, "ncycle", H5T_STD_I32LE);
+  hdf5_write_single_val(&nghost, "nghost", H5T_STD_I32LE);
+  hdf5_write_single_val(&nx1, "nx1", H5T_STD_I32LE);
+  hdf5_write_single_val(&nx2, "nx2", H5T_STD_I32LE);
+  hdf5_write_single_val(&nx3, "nx3", H5T_STD_I32LE);
+  hdf5_write_single_val(&nx1_mb, "nx1_mb", H5T_STD_I32LE);
+  hdf5_write_single_val(&nx2_mb, "nx2_mb", H5T_STD_I32LE);
+  hdf5_write_single_val(&nx3_mb, "nx3_mb", H5T_STD_I32LE);
+  hdf5_write_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
+
+  H5Tset_size(str_type, strlen(problem) + 1);
+  H5Tset_strpad(str_type, H5T_STR_NULLTERM);
+  hdf5_write_single_val(problem, "problem", str_type);
+
+  hdf5_write_single_val(&r_eh, "r_eh", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&r_in, "r_in", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&r_out, "r_out", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&rhor, "rhor", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&rin, "rin", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&rmax, "rmax", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&startx1, "startx1", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&startx2, "startx2", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&startx3, "startx3", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&time, "t", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&tlim, "tlim", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&x1min, "x1min", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&x1max, "x1max", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&x2min, "x2min", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&x2max, "x2max", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&x3min, "x3min", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&x3max, "x3max", H5T_IEEE_F64LE);
+
+  // Get geom parameters in fluid header
+  hdf5_make_directory("geom");
+  hdf5_set_directory("/fluid_header/geom/");
+  // Write geom parameters in fluid header
+  // hdf5_write_single_val(&dx1, "dx1", H5T_IEEE_F64LE);
+  // hdf5_write_single_val(&dx2, "dx2", H5T_IEEE_F64LE);
+  // hdf5_write_single_val(&dx3, "dx3", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&startx1, "startx1", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&startx2, "startx2", H5T_IEEE_F64LE);
+  hdf5_write_single_val(&startx3, "startx3", H5T_IEEE_F64LE);
+
+  // Write FMKS parameters in geom
+  if (strcmp(metric, "fmks") == 0) {
+    hdf5_make_directory("fmks");
+    hdf5_set_directory("/fluid_header/geom/fmks/");
+
+    hdf5_write_single_val(&a, "a", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&r_eh, "r_eh", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&r_in, "r_in", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&r_out, "r_out", H5T_IEEE_F64LE);
+
+    hdf5_set_directory("/fluid_header/geom/");
+    hdf5_make_directory("mmks");
+    hdf5_set_directory("/fluid_header/geom/mmks/");
+    hdf5_write_single_val(&a, "a", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&r_eh, "r_eh", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&r_in, "r_in", H5T_IEEE_F64LE);
+    hdf5_write_single_val(&r_out, "r_out", H5T_IEEE_F64LE);
+  }
 
   hdf5_set_directory("/header/");
 #if SLOW_LIGHT
