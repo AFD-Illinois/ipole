@@ -1220,7 +1220,9 @@ void load_athenak_data(int n, char *fnam, int index, size_t datastart)
   init_physical_quantities(n, rescale_factor);
 
   double t4 = omp_get_wtime();
-  // fprintf(stderr, "\n detailed load times: %g %g %g %g\n", t1 - t0, t2 - t1, t3 - t2, t4 - t3);
+  if (1 == 0) {
+    fprintf(stderr, "\n detailed load times: %g %g %g %g\n", t1 - t0, t2 - t1, t3 - t2, t4 - t3);
+  }
 
   fprintf(stderr, "done!\n");
 }
