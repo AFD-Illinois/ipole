@@ -37,9 +37,7 @@
 #define E_LEUNG          5
 #define E_CUSTOM        10
 // Rotation
-#define ROT_OLD         11
-#define ROT_PIECEWISE   12
-#define ROT_SHCHERBAKOV 13
+#define ROT_DEXTER      11
 // Debugging/internal
 #define E_UNPOL         15
 
@@ -298,7 +296,9 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     }
 
     // ROTATIVITIES
-    paramsM.dexter_fit = 0;  // Don't use the Dexter rhoV, as it's unstable at low temperature
+    if (dist != ROT_DEXTER) {
+      paramsM.dexter_fit = 0;  // Don't use the Dexter rhoV, as it's unstable at low temperature
+    }
     *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
     *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
     *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
