@@ -10,6 +10,7 @@
 
 #include "decs.h"
 #include "par.h"
+#include "constants.h"
 
 void try_set_radiation_parameter(const char *word, const char *value);
 
@@ -22,3 +23,4 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jI, double *aI, Params *params);
 
 #endif /* MODEL_RADIATION_H */
+

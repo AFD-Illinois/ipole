@@ -429,7 +429,7 @@ int hdf5_write_chunked_array(const void *data, const char *name, size_t rank,
   if (!hdf5_exists(path)) {
     plist_id = H5Pcreate(H5P_DATASET_CREATE);
     H5Pset_chunk(plist_id, rank, chunk_size);
-    //H5Pset_deflate(plist_id, 1);
+    H5Pset_deflate(plist_id, 9);
     dset_id = H5Dcreate(file_id, path, hdf5_type, filespace, H5P_DEFAULT,
       plist_id, H5P_DEFAULT);
     H5Pclose(plist_id);

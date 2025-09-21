@@ -64,6 +64,10 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->nx = 160;
   params->ny = 160;
 
+  params->diskcut = 90.0; //zero out disk emission
+  params->rmaxcut = -1;
+  params->max_nturns = -1;
+
   params->eps = 0.01;
   params->maxnstep = 50000;
 
@@ -86,10 +90,17 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->xoff = 0.0;
   params->yoff = 0.0;
 
+  //anisotropy
+  params->eta_anisotropy = 1.0;
+
   params->trace = 0;
   params->trace_stride = 1;
+  params->nstride = 1;
   params->trace_i = -1;
   params->trace_j = -1;
+
+  params->usepsi = 0;
+  params->psibound = 0.0;
 
   // I'm not sure there's still any advantage to "const" if we do this,
   // but hey, no warnings
@@ -178,6 +189,10 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
 
   set_by_word_val(word, value, "target_nturns", &(params->target_nturns), TYPE_INT);
   set_by_word_val(word, value, "subring_dtheta", &(params->subring_dtheta), TYPE_INT);
+  set_by_word_val(word, value, "max_nturns", &(params->max_nturns), TYPE_INT);
+  
+  set_by_word_val(word, value, "diskcut", &(params->diskcut), TYPE_DBL);
+  set_by_word_val(word, value, "rmaxcut", &(params->rmaxcut), TYPE_DBL);
 
   set_by_word_val(word, value, "eps", &(params->eps), TYPE_DBL);
   set_by_word_val(word, value, "maxnstep", &(params->maxnstep), TYPE_INT);
@@ -191,9 +206,13 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "img_cadence", &(params->img_cadence), TYPE_DBL);
   set_by_word_val(word, value, "restart_int", &(params->restart_int), TYPE_DBL);
 
+  //anisotropy
+  set_by_word_val(word, value, "eta_anisotropy", &(params->eta_anisotropy), TYPE_DBL);
+
   // Save out variables along paths
   set_by_word_val(word, value, "trace", &(params->trace), TYPE_INT);
   set_by_word_val(word, value, "trace_stride", &(params->trace_stride), TYPE_INT);
+  set_by_word_val(word, value, "nstride", &(params->nstride), TYPE_INT);
   set_by_word_val(word, value, "trace_i", &(params->trace_i), TYPE_INT);
   set_by_word_val(word, value, "trace_j", &(params->trace_j), TYPE_INT);
   set_by_word_val(word, value, "trace_outf", (void *)(params->trace_outf), TYPE_STR);
@@ -201,6 +220,11 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "histo", &(params->histo), TYPE_INT);
   set_by_word_val(word, value, "histo_polar", &(params->histo_polar), TYPE_INT);
   set_by_word_val(word, value, "histo_outf", (void *)(params->histo_outf), TYPE_STR);
+
+  //psi comparison
+  set_by_word_val(word, value, "psiarr", (void *)(params->psiarr), TYPE_STR);
+  set_by_word_val(word, value, "usepsi", &(params->usepsi), TYPE_INT);
+  set_by_word_val(word, value, "psibound", &(params->psibound), TYPE_DBL);
 
   // Let models add/parse their own parameters we don't understand
   try_set_model_parameter(word, value);
