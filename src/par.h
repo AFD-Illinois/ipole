@@ -7,6 +7,9 @@
 #define TYPE_DBL (2)
 #define TYPE_STR (3)
 
+#define TYPE_INT_ARRAY (4)
+#define TYPE_DBL_ARRAY (5)
+
 // feel free to change any part of this structure
 typedef struct params_t {
   double rcam;          // Camera radius in r_g
@@ -43,6 +46,7 @@ typedef struct params_t {
 
   // Subrings
   int target_nturns;
+  int subring_dtheta;
 
   // Adaptive tracing
   int nx_min, ny_min;   // dimensions of lowest resolution image
@@ -62,6 +66,10 @@ typedef struct params_t {
   int trace_stride;
   int trace_i, trace_j;
   const char trace_outf[STRLEN];
+
+  // Histogram observer-visible emission from each zone
+  int histo, histo_polar;
+  const char histo_outf[STRLEN];
 } Params;
 
 // modify this to set default values

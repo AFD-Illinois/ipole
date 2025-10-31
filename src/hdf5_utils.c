@@ -527,7 +527,7 @@ int hdf5_read_array_multidim(void *data, const char *name,
   H5Sselect_hyperslab(filespace, H5S_SELECT_SET, fstart, NULL, fcount,
     NULL);
   hid_t memspace = H5Screate_simple(mrank, mdims, NULL);
-  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, mstart, NULL, fcount,
+  H5Sselect_hyperslab(memspace, H5S_SELECT_SET, mstart, NULL, mcount,
     NULL);
 
   char path[STRLEN];
@@ -561,4 +561,15 @@ int hdf5_read_full_array(void *data, const char *name, size_t rank, hsize_t *dim
   hsize_t start[rank];
   for (int i=0; i<rank; i++) start[i] = 0;
   return hdf5_write_array(data, name, rank, dims, start, dims, dims, start, hdf5_type);
+}
+
+// Ripped from old h5io.c, for histogramming
+void h5io_add_data_dbl_3ds(hid_t fid, const char *path, hsize_t n1, hsize_t n2, hsize_t n3, double data[])
+{
+  hsize_t dims[3] = { n1, n2, n3 };
+  hid_t dataspace_id = H5Screate_simple(3, dims, NULL);
+  hid_t dataset_id = H5Dcreate2(fid, path, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+  H5Dclose(dataset_id);
+  H5Sclose(dataspace_id);
 }

@@ -72,6 +72,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->restart_int = -1.;
 
   params->target_nturns = -1;
+  params->subring_dtheta = 0;
 
   params->nx_min = -1;
   params->ny_min = -1;
@@ -93,6 +94,10 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   // I'm not sure there's still any advantage to "const" if we do this,
   // but hey, no warnings
   sscanf("trace.h5", "%s", (char *) (void *) params->trace_outf);
+
+  params->histo = 0;
+  params->histo_polar = 0;
+  sscanf("histo.h5", "%s", (char *) (void *) params->histo_outf);
 
   // process each command line argument
   for (int i=0; i<argc; ++i) {
@@ -122,6 +127,11 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
       load_par(argv[i+1], params);
     }
 
+  }
+
+  if (params->histo != 0 || params->histo_polar != 0) {
+    fprintf(stderr, "histogramming emission is nuanced. please either use the trace feature or uncomment this exit() at your own risk.\n");
+    exit(42);
   }
 }
 
@@ -167,6 +177,7 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "use_nearest_neighbor", &(params->nearest_neighbor), TYPE_INT);
 
   set_by_word_val(word, value, "target_nturns", &(params->target_nturns), TYPE_INT);
+  set_by_word_val(word, value, "subring_dtheta", &(params->subring_dtheta), TYPE_INT);
 
   set_by_word_val(word, value, "eps", &(params->eps), TYPE_DBL);
   set_by_word_val(word, value, "maxnstep", &(params->maxnstep), TYPE_INT);
@@ -186,6 +197,10 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "trace_i", &(params->trace_i), TYPE_INT);
   set_by_word_val(word, value, "trace_j", &(params->trace_j), TYPE_INT);
   set_by_word_val(word, value, "trace_outf", (void *)(params->trace_outf), TYPE_STR);
+
+  set_by_word_val(word, value, "histo", &(params->histo), TYPE_INT);
+  set_by_word_val(word, value, "histo_polar", &(params->histo_polar), TYPE_INT);
+  set_by_word_val(word, value, "histo_outf", (void *)(params->histo_outf), TYPE_STR);
 
   // Let models add/parse their own parameters we don't understand
   try_set_model_parameter(word, value);

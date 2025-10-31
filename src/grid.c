@@ -18,12 +18,7 @@ double interp_scalar(double X[NDIM], double ***var)
   int i = 0, j = 0, k = 0, ip1 = 0, jp1 = 0, kp1 = 0;
 
   // zone and offset from X
-  Xtoijk(X, &i, &j, &k, del);
-
-  // since we read from data, adjust i,j,k for ghost zones
-  i += 1;
-  j += 1;
-  k += 1;
+  Xtoijk_ghost(X, &i, &j, &k, del);
 
   ip1 = i+1;
   jp1 = j+1;
@@ -114,6 +109,9 @@ void ijktoX(int i, int j, int k, double X[NDIM])
  *  center "below" the desired point and del[i] \in [0,1) returns the
  *  offset from that zone center.
  *
+ *  Note that this function returns indices from 0 to N-1, used for 
+ *  data that does not include ghost zones, such as the emission histogram.
+ *  To account for ghost zones, see Xtoijk_ghost.
  *  0    0.5    1
  *  [     |     ]
  *  A  B  C DE  F
@@ -130,6 +128,92 @@ void ijktoX(int i, int j, int k, double X[NDIM])
  *
  */
 void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
+{
+  // unless we're reading from data, i,j,k are the normal expected thing
+  double phi = 0;
+  double XG[4] = {0};
+
+  if (use_eKS_internal) {
+    // the geodesics are evolved in eKS so invert through KS -> zone coordinates
+    double r, th;
+    bl_coord(X, &r, &th);
+    double Xks[4] = { X[0], r, th, X[3] };
+    if (metric == METRIC_MKS3) {
+      double H0 = mks3H0, MY1 = mks3MY1, MY2 = mks3MY2, MP0 = mks3MP0;
+      double KSx1 = Xks[1], KSx2 = Xks[2];
+      XG[0] = Xks[0];
+      XG[1] = log(Xks[1] - mks3R0);
+      XG[2] = (-(H0*pow(KSx1,MP0)*M_PI) - pow(2.,1. + MP0)*H0*MY1*M_PI +
+        2.*H0*pow(KSx1,MP0)*MY1*M_PI + pow(2.,1. + MP0)*H0*MY2*M_PI +
+        2.*pow(KSx1,MP0)*atan(((-2.*KSx2 + M_PI)*tan((H0*M_PI)/2.))/M_PI))/(2.*
+        H0*(-pow(KSx1,MP0) - pow(2.,1 + MP0)*MY1 + 2.*pow(KSx1,MP0)*MY1 +
+          pow(2.,1. + MP0)*MY2)*M_PI);
+      XG[3] = Xks[3];
+    }
+  } else if (use_simcoords) {
+    // the geodesics are in eKS, so invert through simcoords -> zone coordinates
+    eks_to_simcoord(X, XG);
+  } else {
+    MULOOP XG[mu] = X[mu];
+  }
+
+  // the X[3] coordinate is allowed to vary so first map it to [0, cstopx[3])
+  phi = fmod(XG[3], cstopx[3]);
+  if(phi < 0.0) phi = cstopx[3]+phi;
+
+  // get provisional zone index. see note above function for details. note we
+  // shift to zone centers because that's where variables are most exact.
+  *i = (int) ((XG[1] - startx[1]) / dx[1] - 0.5 + 1000) - 1000;
+  *j = (int) ((XG[2] - startx[2]) / dx[2] - 0.5 + 1000) - 1000;
+  *k = (int) ((phi  - startx[3]) / dx[3] - 0.5 + 1000) - 1000;
+
+  // exotic coordinate systems sometime have issues. use this block to enforce
+  // reasonable limits on *i,*j and *k. in the normal coordinate systems, this
+  // block should never fire.
+  if (*i < 0) *i = 0;
+  if (*j < 0) *j = 0;
+  if (*k < 0) *k = 0;
+  if (*i >= N1) *i = N1-1;
+  if (*j >= N2) *j = N2-1;
+  if (*k >= N3) *k = N3-1;
+
+  // now construct del
+  del[1] = (XG[1] - ((*i + 0.5) * dx[1] + startx[1])) / dx[1];
+  del[2] = (XG[2] - ((*j + 0.5) * dx[2] + startx[2])) / dx[2];
+  del[3] = (phi - ((*k + 0.5) * dx[3] + startx[3])) / dx[3];
+
+  // and enforce limits on del (for exotic coordinate systems)
+  for (int i=0; i<4; ++i) {
+    if (del[i] < 0.) del[i] = 0.;
+    if (del[i] >= 1.) del[i] = 1.;
+  }
+
+}
+
+/*
+ *  translates geodesic coordinates to a grid zone and returns offset
+ *  for interpolation purposes. integer index corresponds to the zone
+ *  center "below" the desired point and del[i] \in [0,1) returns the
+ *  offset from that zone center.
+ *
+ *  This function returns indices from 0 to N, accounting for ghost
+ *  zones in the data
+ *  0    0.5    1
+ *  [     |     ]
+ *  A  B  C DE  F
+ *
+ *  startx = 0.
+ *  dx = 0.5
+ *
+ *  A -> (-1, 0.5)
+ *  B -> ( 0, 0.0)
+ *  C -> ( 0, 0.5)
+ *  D -> ( 0, 0.9)
+ *  E -> ( 1, 0.0)
+ *  F -> ( 1, 0.5)
+ *
+ */
+void Xtoijk_ghost(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
 {
   // unless we're reading from data, i,j,k are the normal expected thing
   double phi = 0;
@@ -189,6 +273,12 @@ void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM])
     if (del[i] < 0.) del[i] = 0.;
     if (del[i] >= 1.) del[i] = 1.;
   }
+
+  // since we read from data, adjust i,j,k for ghost zones
+  *i += 1;
+  *j += 1;
+  *k += 1;
+
 
 }
 
