@@ -13,6 +13,7 @@ typedef struct params_t {
   double thetacam;      // in degrees from the pole
   double phicam;        // in degrees
   double rotcam;        // in degrees
+  double frontcut;
   double dx, dy;        // FOV in-plane in r_g
   double fovx_dsource, fovy_dsource; // FOV (from Earth) in muas
   int nx, ny;           // image dimensions in px
