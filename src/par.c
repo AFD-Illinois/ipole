@@ -60,6 +60,7 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->rcam = 1000.;
   params->thetacam = 90.;
   params->phicam = 0.;
+  params->frontcut = 0;
   params->rotcam = 0.;
   params->nx = 160;
   params->ny = 160;
@@ -159,6 +160,7 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "rcam", &(params->rcam), TYPE_DBL);
   set_by_word_val(word, value, "thetacam", &(params->thetacam), TYPE_DBL);
   set_by_word_val(word, value, "phicam", &(params->phicam), TYPE_DBL);
+  set_by_word_val(word, value, "frontcut", &(params->frontcut), TYPE_INT);
   set_by_word_val(word, value, "rotcam", &(params->rotcam), TYPE_DBL);
   set_by_word_val(word, value, "dsource", &(params->dsource), TYPE_DBL);
 

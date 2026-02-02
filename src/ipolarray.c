@@ -141,6 +141,11 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 	      zero_emission = 1;
       }
 
+      //frontcut dictates whether we cut out foreground or background emission
+      if (params->frontcut == 1 && cos(tf.X[3])>=0) zero_emission = 1; //cuts out foreground (assuming observer at phicam=0)
+      if (params->frontcut == 2 && cos(tf.X[3])<=0) zero_emission = 1; //cuts out background (assuming observer at phicam=0)
+
+
       //zero out unwanted counter-jet emission
       if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
         if (th > M_PI/2.0){

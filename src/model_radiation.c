@@ -77,6 +77,7 @@ static double max_pol_frac_e = 0.99;
 static double max_pol_frac_a = 0.99;
 static int do_bremss = 0;
 static int bremss_type = 2;
+static double Zminpower = -1.0;
 
 void try_set_radiation_parameter(const char *word, const char *value)
 {
@@ -92,11 +93,12 @@ void try_set_radiation_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
   set_by_word_val(word, value, "eta_anisotropy", &eta_anisotropy, TYPE_DBL);
+  set_by_word_val(word, value, "Zminpower", &Zminpower, TYPE_DBL);
 
   intprefac = gsl_sf_hyperg_2F1(0.5, powerlaw_p/2.0, 1.5, 1.0-eta_anisotropy);
   double poyntingnum = (powerlaw_p-2.0)*(pow(powerlaw_gamma_min,1.0-powerlaw_p)-pow(powerlaw_gamma_max,1.0-powerlaw_p));
   double poyntingdenom = (powerlaw_p-1.0)*(pow(powerlaw_gamma_min,2.0-powerlaw_p)-pow(powerlaw_gamma_max,2.0-powerlaw_p));
-  poyntingprefac = hpoynting*poyntingnum/poyntingdenom/(ME*CL*CL); //last part is me*c^2
+  poyntingprefac = hpoynting*poyntingnum/poyntingdenom/(ME*CL*CL); //hpoynting*poyntingnum/poyntingdenom/(ME*CL*CL); //last part is me*c^2
 
   set_by_word_val(word, value, "bremss", &do_bremss, TYPE_INT);
   set_by_word_val(word, value, "bremss_type", &bremss_type, TYPE_INT);
@@ -170,8 +172,13 @@ void jar_calc_dist(int dist0, int pol, double X[NDIM], double Kcon[NDIM],
   //if nonthermal emission and we are in sigma>sigma_min region, use the poynting flux normalization
   if (hpoynting != 0.0 && Ne > 0.0 && (dist == 2 || dist == 3)) {
     Ne = get_model_ne_poynting(X)*poyntingprefac;
+    double r, th;
+    bl_coord(X, &r, &th);
+    double Zhere = r * cos(th);
+    if (fabs(Zhere) <= Zminpower) Ne = 0;
   }
   
+
   if (Ne <= 0.) {
     // printf("sigma %g sigmamin %g dist %i dist2 %i\n", sigmahere, sigma_min, dist, E_DEXTER_THERMAL);
     *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
@@ -214,11 +221,14 @@ void jar_calc_dist(int dist0, int pol, double X[NDIM], double Kcon[NDIM],
     paramsM.distribution = paramsM.POWER_LAW;
     // NOTE WE REPLACE Ne if hpoynting=0!!
     if (hpoynting == 0.0){
-      get_model_powerlaw_vals(X, &(paramsM.power_law_p), &(paramsM.electron_density),
+      double tempne = 0.0;
+      get_model_powerlaw_vals(X, &(paramsM.power_law_p), &tempne,
                             &(paramsM.gamma_min), &(paramsM.gamma_max), &(paramsM.gamma_cutoff));
+      // get_model_powerlaw_vals(X, &(paramsM.power_law_p), &(paramsM.electron_density),
+      //                       &(paramsM.gamma_min), &(paramsM.gamma_max), &(paramsM.gamma_cutoff));
     }
     else{
-      double tempne;
+      double tempne = 0.0;
       get_model_powerlaw_vals(X, &(paramsM.power_law_p), &tempne,
                             &(paramsM.gamma_min), &(paramsM.gamma_max), &(paramsM.gamma_cutoff));
     }

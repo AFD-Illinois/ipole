@@ -1745,31 +1745,6 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
           udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
         }
 
-        
-        // //for testing
-        // double normalcov[4] = {-alphalapse, 0., 0., 0.}; 
-        // double normalcon[4] = {0., 0., 0., 0.}; 
-        // double udotBtilde = 0.;
-        // double vperpmag22 = 0.;
-
-        // for (int l = 0; l < 4; l++){
-        //   for (int m = 0; m < 4; m++){
-        //     normalcon[l] += gcon_KS[l][m]*normalcov[m]; 
-        //   }
-        // }
-
-        // for (int l = 0; l < NDIM; l++) {
-        //   for (int m = 0; m < NDIM; m++){
-        //     double finalfacL = (l == 0) ? 0. : udotB/BZAMO2/lorentzfac*data[n]->p[B1+l-1][i][j][k]*alphalapse*alphalapse;
-        //     double finalfacM = (m == 0) ? 0. : udotB/BZAMO2/lorentzfac*data[n]->p[B1+m-1][i][j][k]*alphalapse*alphalapse;
-        //     double vperp2L = ucon[l]/lorentzfac-normalcon[l]-finalfacL;
-        //     double vperp2M = ucon[m]/lorentzfac-normalcon[m]-finalfacM;
-        //     vperpmag22 += gcov_KS[l][m]*vperp2L*vperp2M;
-        //   }  
-        // }
-
-        // printf("\n vperpmagdiff %g alphalapse %g\n", vperp2-vperpmag22, alphalapse);
-      
         double bcon[NDIM] = { 0. };
         double bcov[NDIM] = { 0. };
 
@@ -1813,18 +1788,13 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         for(int l = 1; l < NDIM; l++){
           for(int m = 1; m < NDIM; m++){
             double uperpL_BL = UZAMO_BL[l-1]-UZAMOdotB_BL/BZAMO2_BL*B_BL[l-1]*alphaBL;
-            double uperpM_BL = data[n]->p[U1+m-1][i][j][k]-UZAMOdotB_BL/BZAMO2_BL*B_BL[m-1]*alphaBL;
+            double uperpM_BL = UZAMO_BL[m-1]-UZAMOdotB_BL/BZAMO2_BL*B_BL[m-1]*alphaBL;
             vperp2_BL += gcov_BL[l][m]*uperpL_BL*uperpM_BL/(lorentzfac_BL*lorentzfac_BL);
           }
         }
 
-        double poyntingBL = sqrt(vperp2_BL)*BZAMO2_BL*pow(B_unit, 2.0)/(4.0*M_PI); //S=vperp*BZAMO^2/(4pi) 
+        double poyntingBL = sqrt(vperp2_BL)*BZAMO2_BL*B_unit*B_unit;// /(4.0*M_PI) //S=vperp*BZAMO^2 
         data[n]->poynting[i][j][k] = (isnan(poyntingBL) == 1) ? 0.0 : poyntingBL; // can give NaN's inside horizon but that obviously doesn't matter
-
-        // printf("vperpKS %g vperpBL %g alphaKS %g alphaBL %g\n", vperp2, vperp2_BL, alphalapse, alphaBL);
-
-  
-
 
         //now proceed with ipole
         double bsq = 0.;
@@ -1836,8 +1806,6 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
 
         // trust ...
-        //double udb1 = 0., udu1 = 0., bdb1 = 0.;
-        //MULOOP { udb1 += ucon[mu]*bcov[mu]; udu1 += ucon[mu]*ucov[mu]; bdb1 += bcon[mu]*bcov[mu]; }
 
         // now translate from KS (outcoords) -> MKS:hslope=1
         ucon[1] /= r;

@@ -179,6 +179,7 @@ void write_header(double scale, double cam[NDIM],
   hdf5_write_single_val(&(params->rotcam), "rotcam", H5T_IEEE_F64LE);
   hdf5_write_single_val(&fovx, "fovx", H5T_IEEE_F64LE);
   hdf5_write_single_val(&fovy, "fovy", H5T_IEEE_F64LE);
+  printf("fovx,fovy = %g, %g\n", fovx, fovy);
   hdf5_write_single_val(&(params->xoff), "xoff", H5T_IEEE_F64LE);
   hdf5_write_single_val(&(params->yoff), "yoff", H5T_IEEE_F64LE);
   hsize_t vec_dim[1] = {NDIM};
