@@ -1793,7 +1793,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
           }
         }
 
-        double poyntingBL = sqrt(vperp2_BL)*BZAMO2_BL*B_unit*B_unit;// /(4.0*M_PI) //S=vperp*BZAMO^2 
+        double poyntingBL = sqrt(vperp2_BL)*BZAMO2_BL*B_unit*B_unit / (4.0*M_PI); //S=vperp*BZAMO^2 
         data[n]->poynting[i][j][k] = (isnan(poyntingBL) == 1) ? 0.0 : poyntingBL; // can give NaN's inside horizon but that obviously doesn't matter
 
         //now proceed with ipole
