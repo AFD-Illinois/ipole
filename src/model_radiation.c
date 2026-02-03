@@ -175,7 +175,9 @@ void jar_calc_dist(int dist0, int pol, double X[NDIM], double Kcon[NDIM],
     double r, th;
     bl_coord(X, &r, &th);
     double Zhere = r * cos(th);
-    if (fabs(Zhere) <= Zminpower) Ne = 0;
+    double Zprefac = 1.0 - exp(-fabs(Zhere/Zminpower));
+    if (Zminpower > 0.0) Ne *= Zprefac;
+    /* if (fabs(Zhere) <= Zminpower) Ne = 0; */
   }
   
 
