@@ -1981,7 +1981,6 @@ void output_hdf5()
     double game = atof(dict_get(model_params, "game", NULL));
     double gamp = atof(dict_get(model_params, "gamp", NULL));
   }
-  double hslope = atof(dict_get(model_params, "hslope", NULL));
 
   const char *coord_system = dict_get(model_params, "coordinate_system", NULL);
   if (coord_system) {
@@ -1990,7 +1989,14 @@ void output_hdf5()
   } else {
       metric[0] = '\0';
   }
-  double mks_smooth = atof(dict_get(model_params, "mks_smooth", NULL));
+  if (strcmp(metric, "mks") == 0) {
+    double hslope = atof(dict_get(model_params, "hslope", NULL));
+  }
+  if (strcmp(metric, "fmks") == 0) {
+    double mks_smooth = atof(dict_get(model_params, "mks_smooth", NULL));
+    double poly_alpha = atof(dict_get(model_params, "poly_alpha", NULL));
+    double poly_xt = atof(dict_get(model_params, "poly_xt", NULL));
+  }
   int ncycle = atoi(dict_get(model_params, "ncycle", NULL));
   int nghost = atoi(dict_get(model_params, "nghost", NULL));
   int nx1 = atoi(dict_get(model_params, "nx1", NULL));
@@ -1999,8 +2005,6 @@ void output_hdf5()
   int nx1_mb = atoi(dict_get(model_params, "nx1_mb", NULL));
   int nx2_mb = atoi(dict_get(model_params, "nx2_mb", NULL));
   int nx3_mb = atoi(dict_get(model_params, "nx3_mb", NULL));
-  double poly_alpha = atof(dict_get(model_params, "poly_alpha", NULL));
-  double poly_xt = atof(dict_get(model_params, "poly_xt", NULL));
   const char *problem_id = dict_get(model_params, "problem_id", NULL);
   char problem[STRLEN];
   if (problem_id) {
@@ -2046,8 +2050,14 @@ void output_hdf5()
   hdf5_write_single_val(&game, "game", H5T_IEEE_F64LE);
   hdf5_write_single_val(&gamp, "gamp", H5T_IEEE_F64LE);
   hdf5_write_single_val(&gamma, "gamma", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
+  if (strcmp(metric, "mks") == 0) {
+      hdf5_write_single_val(&hslope, "hslope", H5T_IEEE_F64LE);
+  }
+  if (strcmp(metric, "fmks") == 0) {
+      hdf5_write_single_val(&mks_smooth, "mks_smooth", H5T_IEEE_F64LE);
+      hdf5_write_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
+      hdf5_write_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
+  }
   hdf5_write_single_val(&ncycle, "ncycle", H5T_STD_I32LE);
   hdf5_write_single_val(&nghost, "nghost", H5T_STD_I32LE);
   hdf5_write_single_val(&nx1, "nx1", H5T_STD_I32LE);
@@ -2056,8 +2066,6 @@ void output_hdf5()
   hdf5_write_single_val(&nx1_mb, "nx1_mb", H5T_STD_I32LE);
   hdf5_write_single_val(&nx2_mb, "nx2_mb", H5T_STD_I32LE);
   hdf5_write_single_val(&nx3_mb, "nx3_mb", H5T_STD_I32LE);
-  hdf5_write_single_val(&poly_alpha, "poly_alpha", H5T_IEEE_F64LE);
-  hdf5_write_single_val(&poly_xt, "poly_xt", H5T_IEEE_F64LE);
 
   H5Tset_size(str_type, strlen(problem) + 1);
   H5Tset_strpad(str_type, H5T_STR_NULLTERM);
