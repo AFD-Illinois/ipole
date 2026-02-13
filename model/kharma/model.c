@@ -114,7 +114,7 @@ static double Ladv_dump;
 
 // Other parameters
 static int reverse_field = 0;
-double tf;
+extern double tf;
 static hdf5_blob fluid_header = {0};
 
 
