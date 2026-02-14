@@ -28,6 +28,7 @@
 
 #include <omp.h>
 #include <gsl/gsl_sf_bessel.h>
+#include <gsl/gsl_sf_hyperg.h>
 
 // Emission prescriptions, described below
 #define E_THERMAL        1
@@ -51,7 +52,7 @@ void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
 void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width);
 
 /* Get coeffs from a specific distribution */
-void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
+void jar_calc_dist(int dist0, int pol, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV);
@@ -65,6 +66,9 @@ static double powerlaw_gamma_min = 1e2;
 static double powerlaw_gamma_max = 1e5;
 static double powerlaw_p = 3.25;
 static double powerlaw_eta = 0.02;
+static double eta_anisotropy = 1.0; //anisotropy parameter
+static double intprefac = 1.0; //normalizing factor that's slow to compute
+static double poyntingprefac = 0.0; //u_nt = poyntingprefac * S, where h is read in from model.c
 static int variable_kappa = 0;
 static double variable_kappa_min = 3.1;
 static double variable_kappa_interp_start = 1e20;
@@ -73,6 +77,7 @@ static double max_pol_frac_e = 0.99;
 static double max_pol_frac_a = 0.99;
 static int do_bremss = 0;
 static int bremss_type = 2;
+static double Zminpower = -1.0;
 
 void try_set_radiation_parameter(const char *word, const char *value)
 {
@@ -87,6 +92,13 @@ void try_set_radiation_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "powerlaw_gamma_max", &powerlaw_gamma_max, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_p", &powerlaw_p, TYPE_DBL);
   set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
+  set_by_word_val(word, value, "eta_anisotropy", &eta_anisotropy, TYPE_DBL);
+  set_by_word_val(word, value, "Zminpower", &Zminpower, TYPE_DBL);
+
+  intprefac = gsl_sf_hyperg_2F1(0.5, powerlaw_p/2.0, 1.5, 1.0-eta_anisotropy);
+  double poyntingnum = (powerlaw_p-2.0)*(pow(powerlaw_gamma_min,1.0-powerlaw_p)-pow(powerlaw_gamma_max,1.0-powerlaw_p));
+  double poyntingdenom = (powerlaw_p-1.0)*(pow(powerlaw_gamma_min,2.0-powerlaw_p)-pow(powerlaw_gamma_max,2.0-powerlaw_p));
+  poyntingprefac = hpoynting*poyntingnum/poyntingdenom/(ME*CL*CL); //hpoynting*poyntingnum/poyntingdenom/(ME*CL*CL); //last part is me*c^2
 
   set_by_word_val(word, value, "bremss", &do_bremss, TYPE_INT);
   set_by_word_val(word, value, "bremss_type", &bremss_type, TYPE_INT);
@@ -142,7 +154,7 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jI, double *aI, Params
  * 
  * 
  */
-void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
+void jar_calc_dist(int dist0, int pol, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV)
@@ -151,8 +163,26 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   // This was also used as shorthand in some models to cut off emission
   // Please use radiating_region instead for model applicability cutoffs,
   // or see integrate_emission for zeroing just jN
+
+  double sigmahere = get_model_sigma(X); //sigma (b^2/rho)
+  int dist = dist0;
+  if (splitEDF == 1 && sigmahere >= sigma_min) dist = 3; //split disk/jet EDF if requested
+
   double Ne = get_model_ne(X);
+  //if nonthermal emission and we are in sigma>sigma_min region, use the poynting flux normalization
+  if (hpoynting != 0.0 && Ne > 0.0 && (dist == 2 || dist == 3)) {
+    Ne = get_model_ne_poynting(X)*poyntingprefac;
+    double r, th;
+    bl_coord(X, &r, &th);
+    double Zhere = r * cos(th);
+    double Zprefac = 1.0 - exp(-fabs(Zhere/Zminpower));
+    if (Zminpower > 0.0) Ne *= Zprefac;
+    /* if (fabs(Zhere) <= Zminpower) Ne = 0; */
+  }
+  
+
   if (Ne <= 0.) {
+    // printf("sigma %g sigmamin %g dist %i dist2 %i\n", sigmahere, sigma_min, dist, E_DEXTER_THERMAL);
     *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
     *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
     *rQ = 0; *rU = 0; *rV = 0;
@@ -191,9 +221,19 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     break;
   case E_POWERLAW: // Powerlaw fits (Pandya, no rotativities!)
     paramsM.distribution = paramsM.POWER_LAW;
-    // NOTE WE REPLACE Ne!!
-    get_model_powerlaw_vals(X, &(paramsM.power_law_p), &(paramsM.electron_density),
+    // NOTE WE REPLACE Ne if hpoynting=0!!
+    if (hpoynting == 0.0){
+      double tempne = 0.0;
+      get_model_powerlaw_vals(X, &(paramsM.power_law_p), &tempne,
                             &(paramsM.gamma_min), &(paramsM.gamma_max), &(paramsM.gamma_cutoff));
+      // get_model_powerlaw_vals(X, &(paramsM.power_law_p), &(paramsM.electron_density),
+      //                       &(paramsM.gamma_min), &(paramsM.gamma_max), &(paramsM.gamma_cutoff));
+    }
+    else{
+      double tempne = 0.0;
+      get_model_powerlaw_vals(X, &(paramsM.power_law_p), &tempne,
+                            &(paramsM.gamma_min), &(paramsM.gamma_max), &(paramsM.gamma_cutoff));
+    }
     break;
   case E_THERMAL: // Pandya thermal fits
     paramsM.distribution = paramsM.MAXWELL_JUETTNER;
@@ -209,12 +249,13 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
 
   // First, enforce no emission/absorption along field lines,
   // but allow Faraday rotation in polarized context
+  // also if sigma is too small
   // TODO this skips any rho_V NaN/other checks
   if (theta <= 0.0 || theta >= M_PI) {
     *jI = 0.0; *jQ = 0.0; *jU = 0.0; *jV = 0.0;
     *aI = 0.0; *aQ = 0.0; *aU = 0.0; *aV = 0.0;
     *rQ = 0.0; *rU = 0.0;
-    if (pol && !(dist == E_UNPOL)) {
+    if (pol && !(dist == E_UNPOL) && !(dist == E_POWERLAW)) {
       *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
     } else {
       *rV = 0.0;
@@ -239,6 +280,17 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
       paramsM.dexter_fit = 2; // Signal symphony fits to use Leung+ as fallback
       *jI = j_nu_fit(&paramsM, paramsM.STOKES_I) / nusq;
       *aI = alpha_nu_fit(&paramsM, paramsM.STOKES_I) * nu;
+      if (paramsM.distribution == paramsM.POWER_LAW && eta_anisotropy != 1.0){
+        //implement anisotropy using Eqs. 15-28 of Tsunetoe+ (2025)
+        double phere = paramsM.power_law_p;
+        double cos2theta = cos(theta)*cos(theta);
+        double sin2theta = sin(theta)*sin(theta);
+        double phifunc = pow(1.0+(eta_anisotropy-1.0)*cos2theta, -phere/2.0) / intprefac;
+        double gfunc = phere*(eta_anisotropy-1.0)*sin2theta / (1.0+(eta_anisotropy-1.0)*cos2theta);
+    
+        *jI *= phifunc;
+        *aI *= phifunc;
+      }
     }
   } else { // Finally, calculate all coefficients normally
     // EMISSIVITIES
@@ -252,6 +304,20 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     *jQ = -j_nu_fit(&paramsM, paramsM.STOKES_Q) / nusq;
     *jU = -j_nu_fit(&paramsM, paramsM.STOKES_U) / nusq;
     *jV = j_nu_fit(&paramsM, paramsM.STOKES_V) / nusq;
+
+    if (dist == E_POWERLAW && eta_anisotropy != 1.0){
+      //implement anisotropy using Eqs. 15-28 of Tsunetoe+ (2025)
+      double phere = paramsM.power_law_p;
+      double cos2theta = cos(theta)*cos(theta);
+      double sin2theta = sin(theta)*sin(theta);
+      double phifunc = pow(1.0+(eta_anisotropy-1.0)*cos2theta, -phere/2.0) / intprefac;
+      double gfunc = phere*(eta_anisotropy-1.0)*sin2theta / (1.0+(eta_anisotropy-1.0)*cos2theta);
+  
+      *jI *= phifunc;
+      *jQ *= phifunc;
+      *jV *= phifunc*(1.0+gfunc/(phere+2.0));
+    }
+
     // Check basic relationships
     double jP = sqrt(*jQ * *jQ + *jU * *jU + *jV * *jV);
     if (*jI  < jP/max_pol_frac_e) {
@@ -286,6 +352,19 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
       *aU = -alpha_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
       *aV = alpha_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
 
+      if (dist == E_POWERLAW && eta_anisotropy != 1.0){
+        //implement anisotropy using Eqs. 15-28 of Tsunetoe+ (2025)
+        double phere = paramsM.power_law_p;
+        double cos2theta = cos(theta)*cos(theta);
+        double sin2theta = sin(theta)*sin(theta);
+        double phifunc = pow(1.0+(eta_anisotropy-1.0)*cos2theta, -phere/2.0) / intprefac;
+        double gfunc = phere*(eta_anisotropy-1.0)*sin2theta / (1.0+(eta_anisotropy-1.0)*cos2theta);
+    
+        *aI *= phifunc;
+        *aQ *= phifunc;
+        *aV *= phifunc*(1.0+gfunc/(phere+2.0));
+      }
+
       // Check basic relationships
       double aP = sqrt(*aQ * *aQ + *aU * *aU + *aV * *aV);
       if (*aI < aP/max_pol_frac_a) {
@@ -297,12 +376,19 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
       }
     }
 
+
     // ROTATIVITIES
     paramsM.dexter_fit = 0;  // Don't use the Dexter rhoV, as it's unstable at low temperature
     *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
     *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
     *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
+    // printf("rQ %g rV %g\n", *rQ/fabs(*rQ), *rV/fabs(*rV));
   }
+
+
+  // if (dist == E_POWERLAW && params){
+  //   double get_bk_angle(double X[NDIM], double Kcon[NDIM], double Ucov[NDIM], double Bcon[NDIM], double Bcov[NDIM])
+  // }
 
 #if DEBUG
   // Check for NaN coefficients
@@ -345,6 +431,7 @@ void get_model_powerlaw_vals(double X[NDIM], double *p, double *n,
   *gamma_cut = powerlaw_gamma_cut;
   *p = powerlaw_p;
 
+
   double b = get_model_b(X);
   double u_nth = powerlaw_eta*b*b/2;
   // Number density of nonthermals
@@ -375,8 +462,15 @@ void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width) {
     *kappa = model_kappa;
   }
 
+  double rhere, thhere;
+  bl_coord(X, &rhere, &thhere);
+  double sigma = get_model_sigma(X);
   double Thetae = get_model_thetae(X);
-  *kappa_width = (*kappa - 3.) / *kappa * Thetae;
+  double mpoverme = 1836.152674;
+  double eps0 = 0.0; //0.015;
+  double rinj = 10.0; //from Fromm+ 2019
+  double epstilde = eps0  / 2. * (1. + tanh(rhere - rinj));
+  *kappa_width = (*kappa - 3.) / *kappa * Thetae + epstilde * (*kappa - 3.) / (6. * *kappa) * mpoverme * sigma; //from Davelaar+ 2019
 #if DEBUG
   if (isnan(*kappa_width) || isnan(*kappa)) {
     fprintf(stderr, "NaN kappa val! kappa, kappa_width, Thetae: %g %g %g\n", *kappa, *kappa_width, Thetae);

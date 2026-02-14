@@ -225,8 +225,12 @@ double rho_nu_fit(struct parameters *params, int polarization)
       return maxwell_juettner_rho_V(params);
   }
 } else if(params->distribution == params->POWER_LAW) {
-  fprintf(stderr, "\nNo rotativity fits are implemented for power-law diestributions!!\n");
-  exit(-1);
+  //not including power-law Faraday rotation
+    if     (params->polarization == params->STOKES_Q) return 0.; //power_law_rho_Q(params);
+    else if(params->polarization == params->STOKES_U) return 0.;
+    else if(params->polarization == params->STOKES_V) return 0.; //power_law_rho_V(params);
+  // fprintf(stderr, "\nNo rotativity fits are implemented for power-law diestributions!!\n");
+  // exit(-1);
 }
 
   return 0.;

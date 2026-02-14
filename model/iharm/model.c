@@ -49,6 +49,10 @@ double DTd;
 double sigma_cut = 1.;
 double beta_crit = 1.0;
 double sigma_cut_high = -1.0;
+double sigma_dynamic = 0.0; //anisotropy parameter (sigmacut=sigma_dynamic/sqrt(rBL))
+double sigma_min = 0.0; //serves as minimum on sigma if splitEDF=0, else delineates the boundary between jet/disk
+double hpoynting = 0.0;
+int splitEDF = 0; //1 if power EDF in jet and thermal EDF in disk, 0 otherwise
 
 // MODEL PARAMETERS: PRIVATE
 static char fnam[STRLEN] = "dump.h5";
@@ -109,6 +113,7 @@ struct of_data {
   double ***b;
   double ***sigma;
   double ***beta;
+  double ***poynting; //magnitude of Poynting flux
 };
 static struct of_data dataA, dataB, dataC;
 static struct of_data *data[NSUP];
@@ -144,6 +149,10 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut_high", &sigma_cut_high, TYPE_DBL);
+  set_by_word_val(word, value, "sigma_dynamic", &sigma_dynamic, TYPE_DBL); //anisotropy parameter
+  set_by_word_val(word, value, "sigma_min", &sigma_min, TYPE_DBL); //minimum sigma to cut beneath
+  set_by_word_val(word, value, "hpoynting", &hpoynting, TYPE_DBL); //normalization factor for nonthermal injection rate
+  set_by_word_val(word, value, "splitEDF", &splitEDF, TYPE_INT); //minimum sigma to cut beneath
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
   set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
 
@@ -564,14 +573,14 @@ double get_model_beta(double X[NDIM])
   return tfac*betaA + (1. - tfac)*betaB;
 }
 
-double get_sigma_smoothfac(double sigma)
+double get_sigma_smoothfac(double sigma, double sigmacutlocal)
 {
-  double sigma_above = sigma_cut;
+  double sigma_above = sigmacutlocal;
   if (sigma_cut_high > 0) sigma_above = sigma_cut_high;
-  if (sigma < sigma_cut) return 1;
+  if (sigma < sigmacutlocal) return 1;
   if (sigma >= sigma_above) return 0;
-  double dsig = sigma_above - sigma_cut;
-  return cos(M_PI / 2. / dsig * (sigma - sigma_cut));
+  double dsig = sigma_above - sigmacutlocal;
+  return cos(M_PI / 2. / dsig * (sigma - sigmacutlocal));
 }
 
 double get_model_ne(double X[NDIM])
@@ -582,14 +591,44 @@ double get_model_ne(double X[NDIM])
 
 #if USE_GEODESIC_SIGMACUT
   double sigma = get_model_sigma(X);
-  if (sigma > sigma_cut) return 0.;
-  sigma_smoothfac = get_sigma_smoothfac(sigma);
+  double sigmacutlocal = sigma_cut;
+  if (sigma_dynamic != 0.0){
+    double rhere, thhere;
+    bl_coord(X, &rhere, &thhere);
+    sigmacutlocal = sigma_dynamic/sqrt(rhere);
+  }
+  if (sigma > sigmacutlocal || (sigma < sigma_min && splitEDF == 0)) return 0.;
+  sigma_smoothfac = get_sigma_smoothfac(sigma, sigmacutlocal);
 #endif
 
   int nA, nB;
   double tfac = set_tinterp_ns(X, &nA, &nB);
 
   return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac) * sigma_smoothfac;
+}
+
+double get_model_ne_poynting(double X[NDIM])
+{
+  if ( X_in_domain(X) == 0 ) return 0.;
+
+  double sigma_smoothfac = 1;
+
+#if USE_GEODESIC_SIGMACUT
+  double sigma = get_model_sigma(X);
+  double sigmacutlocal = sigma_cut;
+  if (sigma_dynamic != 0.0){
+    double rhere, thhere;
+    bl_coord(X, &rhere, &thhere);
+    sigmacutlocal = sigma_dynamic/sqrt(rhere);
+  }
+  if (sigma > sigmacutlocal || (sigma < sigma_min && splitEDF == 0)) return 0.;
+  sigma_smoothfac = get_sigma_smoothfac(sigma, sigmacutlocal);
+#endif
+
+  int nA, nB;
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+  double poyntinghere = interp_scalar_time(X, data[nA]->poynting, data[nB]->poynting, tfac);
+  return poyntinghere;
 }
 
 void set_units()
@@ -726,6 +765,7 @@ void init_storage(void)
     data[n]->b = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->sigma = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->beta = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->poynting = malloc_rank3(N1+2,N2+2,N3+2);
   }
 }
 
@@ -1697,7 +1737,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
     for(int j = 1; j < N2+1; j++) {
 
       double X[NDIM] = { 0. };
-      double gcov[NDIM][NDIM], gcon[NDIM][NDIM], gcov_KS[NDIM][NDIM], gcon_KS[NDIM][NDIM];
+      double gcov[NDIM][NDIM], gcon[NDIM][NDIM], gcov_KS[NDIM][NDIM], gcon_KS[NDIM][NDIM], gcov_BL[NDIM][NDIM], gcon_BL[NDIM][NDIM];
       double g, r, th;
 
       // this assumes axisymmetry in the coordinates
@@ -1712,15 +1752,42 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
       gcov_ks(r, th, gcov_KS);
       gcon_func(gcov_KS, gcon_KS);
 
+      
+      // getBL metric in case we need
+      gcov_bl(r, th, gcov_BL);
+      gcon_func(gcov_BL, gcon_BL);
+
       for(int k = 1; k < N3+1; k++){
 
         ijktoX(i-1,j-1,k,X);
         double UdotU = 0.;
+        double alphalapse = sqrt(-1./gcon_KS[0][0]);
+        double UZAMOdotB = 0.; //tilde{u}.mathcal{B}
+        double BZAMO2 = 0.; //mathcal{B}.mathcal{B}
+        double vperp2 = 0.; //as seen in ZAMO frame
         
-        for(int l = 1; l < NDIM; l++) 
-          for(int m = 1; m < NDIM; m++) 
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
             UdotU += gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
+            UZAMOdotB += (gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k])*alphalapse;
+            BZAMO2 += (gcov_KS[l][m]*data[n]->p[B1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k])*alphalapse*alphalapse;
+          }
+        }
+
         double ufac = sqrt(-1./gcon_KS[0][0]*(1 + fabs(UdotU)));
+        double lorentzfac = sqrt(1+fabs(UdotU)); //Lorentz factor of plasma as seen in ZAMO frame
+
+    
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
+            double uperpL = data[n]->p[U1+l-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+l-1][i][j][k]*alphalapse;
+            double uperpM = data[n]->p[U1+m-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+m-1][i][j][k]*alphalapse;
+            vperp2 += gcov_KS[l][m]*uperpL*uperpM/(lorentzfac*lorentzfac);
+          }
+        }
+
+        // update Poynting flux - KS normal frame
+        // data[n]->poynting[i][j][k] = sqrt(vperp2)*BZAMO2*pow(B_unit, 2.0)/(4.0*M_PI); //S=vperp*BZAMO^2/(4pi) 
 
         double ucon[NDIM] = { 0. };
         ucon[0] = -ufac * gcon_KS[0][0];
@@ -1737,7 +1804,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         for (int l = 1; l < NDIM; l++) {
           udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
         }
-      
+
         double bcon[NDIM] = { 0. };
         double bcov[NDIM] = { 0. };
 
@@ -1747,6 +1814,49 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_KS, bcov);
 
+        //translate to BL so we can compute Poynting flux in BL normal frame
+        double bcon_BL[NDIM] = { 0. };
+        double bcov_BL[NDIM] = { 0. };
+        double ucon_BL[NDIM] = { 0. };
+        double ucov_BL[NDIM] = { 0. };
+        ks_to_bl(X, bcon, bcon_BL);
+        flip_index(bcon_BL, gcov_BL, bcov_BL);
+        ks_to_bl(X, ucon, ucon_BL);
+        flip_index(ucon_BL, gcov_BL, ucov_BL);
+        double alphaBL = sqrt(-1. / gcon_BL[0][0]);
+        double UZAMO_BL[3] = { 0. };
+        double B_BL[3] = { 0. };
+        
+        for (int l=0; l<3; l++){
+          UZAMO_BL[l] = (gcon_BL[0][l+1]*alphaBL*alphaBL + ucon_BL[l+1]/ucon_BL[0]) * ucon_BL[0];
+          B_BL[l] = ucon_BL[0] * bcon_BL[l+1] - bcon_BL[0] * ucon_BL[l+1];
+        }
+
+        double UdotU_BL = 0.0;
+        double UZAMOdotB_BL = 0.0;
+        double BZAMO2_BL = 0.0;
+        double vperp2_BL = 0.0;
+
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
+            UdotU_BL += gcov_BL[l][m]*UZAMO_BL[l-1]*UZAMO_BL[m-1];
+            UZAMOdotB_BL += (gcov_BL[l][m]*UZAMO_BL[l-1]*B_BL[m-1])*alphaBL;
+            BZAMO2_BL += (gcov_BL[l][m]*B_BL[l-1]*B_BL[m-1])*alphaBL*alphaBL;
+          }
+        }
+        double lorentzfac_BL = sqrt(1+fabs(UdotU_BL)); //Lorentz factor of plasma as seen in ZAMO frame
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
+            double uperpL_BL = UZAMO_BL[l-1]-UZAMOdotB_BL/BZAMO2_BL*B_BL[l-1]*alphaBL;
+            double uperpM_BL = UZAMO_BL[m-1]-UZAMOdotB_BL/BZAMO2_BL*B_BL[m-1]*alphaBL;
+            vperp2_BL += gcov_BL[l][m]*uperpL_BL*uperpM_BL/(lorentzfac_BL*lorentzfac_BL);
+          }
+        }
+
+        double poyntingBL = sqrt(vperp2_BL)*BZAMO2_BL*B_unit*B_unit / (4.0*M_PI); //S=vperp*BZAMO^2 
+        data[n]->poynting[i][j][k] = (isnan(poyntingBL) == 1) ? 0.0 : poyntingBL; // can give NaN's inside horizon but that obviously doesn't matter
+
+        //now proceed with ipole
         double bsq = 0.;
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
@@ -1756,8 +1866,6 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
 
         // trust ...
-        //double udb1 = 0., udu1 = 0., bdb1 = 0.;
-        //MULOOP { udb1 += ucon[mu]*bcov[mu]; udu1 += ucon[mu]*ucov[mu]; bdb1 += bcon[mu]*bcov[mu]; }
 
         // now translate from KS (outcoords) -> MKS:hslope=1
         ucon[1] /= r;
