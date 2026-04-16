@@ -4,16 +4,13 @@
 #include "geometry.h"
 #include "debug_tools.h"
 //personal note, try to implement max EH 
-int theory = 1; //Theory of Gravity: 0. for General Relativity, 1. for EdGB, and 2. for DCS
-double zeta = 0.1; //Deviation from Gravity: Should be between 0. and 0.3
+extern int theory; // Defined in coordinates.c
+extern double zeta; // Defined in coordinates.c
 int cano_solution = 0; //choose 1 to use the cano solution for the modified metrics or 0 for the regular solution
 //the main difference is that the cano solution is up to 31st order in spin and therefore takes much longer to run
 //the regular solution is only up to 5th order in spin
 
 /*Because of the length of the cano solutions it's likely easiest to navigate this file via searching for the function you want*/
-
-double a;
-double Rh;
 
 void gcov_EdGB_ks(double r, double th, double gcov[NDIM][NDIM]){
 //Return the Einstein dilaton Gauss Bonet metric in KS coordinates
@@ -67,7 +64,7 @@ void gcov_EdGB_ks(double r, double th, double gcov[NDIM][NDIM]){
     M[2][1]=0.;
     M[2][2]=(r*(-0.2456694322274893 + 0.11802793355278088*u2 - 
       0.06388746774868627*u4 + r*(0.11088665306540471 - 
-        0.06020804162310437*u2 + 0.033009174906014245*u4)))*sin(th)*sin(th);
+        0.06020804162310437*u2 + 0.033009174906014245*u4)));
     M[2][3]=0.;
 
     M[3][0]=0.;
@@ -171,7 +168,7 @@ void gcov_EdGB_ks(double r, double th, double gcov[NDIM][NDIM]){
         0.010559999053525839*u2 + 0.00445260686733901*u4) + 
       pow(r,4.)*(-0.5106316084099219 + 0.19908686704982395*u2 + 
         0.028473515888031427*u4) + pow(r,3.)*(0.028197926131824688 + 
-        0.6750414186358245*u2 + 0.08076936297872989*u4))/pow(r,10.))*sin(th)*sin(th);
+        0.6750414186358245*u2 + 0.08076936297872989*u4))/pow(r,10.));
         M[2][3]= 0.;
 
         M[3][0] = 0.;
@@ -290,7 +287,7 @@ void gcov_DCS_ks(double r, double th, double gcov[NDIM][NDIM]){
         M[2][0] = 0.;
         M[2][1] =0. ;
         M[2][2] =(r*(-0.005891088388619743 - 0.08213157970162656*u2 + 0.04869729617963716*u4 + r*(0.0012258296731578948 + 
-        0.04059152589803598*u2 - 0.022648614125266385*u4)))*sin(th)*sin(th);
+        0.04059152589803598*u2 - 0.022648614125266385*u4)));
         M[2][3]=0.;
 
         M[3][0] = 0.;
@@ -393,7 +390,7 @@ void gcov_DCS_ks(double r, double th, double gcov[NDIM][NDIM]){
         pow(r,9.)*(-0.019512591789299767 + 0.02926262957652467*u2 + 
         0.010298255966503736*u4) + pow(r,2.)*(0.000149323899600326 - 
         1.2358144829850521*u2 + 0.18861356442701813*u4) + 
-        r*(-0.0016613798015832518*u2 + 0.7709044110221688*u4))/pow(r,10.))*sin(th)*sin(th);
+        r*(-0.0016613798015832518*u2 + 0.7709044110221688*u4))/pow(r,10.));
         M[2][3]= 0.;
 
         M[3][0] = 0.;
