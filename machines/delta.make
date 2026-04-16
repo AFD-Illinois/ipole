@@ -5,7 +5,7 @@
 # `module load gsl`
 #
 # 2. Update LD_LIBRARY_PATH so that ipole knows where to look for shared libraries.
-# `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/gsl-2.7.1-ytg74v2/lib`
+# `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/rh9.4/spack/v1.0.0/sw/linux-x86_64_v2/gsl-2.8-zty4u3k/lib`
 #
 # 3. Download and compile your own HDF5 (Delta's HDF5 is perpetually broken).
 # `mkdir -p ~/software/hdf5; cd ~/software/hdf5`
@@ -25,7 +25,7 @@
 # `export LD_LIBRARY_PATH=$HDF5_DIR/lib:$LD_LIBRARY_PATH`
 # `export CPATH=$HDF5_DIR/include:$CPATH`
 
-CC=h5cc
+CC=h5pcc
 GSL_DIR=$(GSL_HOME)
 #assumes you have loaded cray-hdf5 module which automatically sets HDF5_DIR
 HDF5_DIR=$(HDF5_ROOT)
