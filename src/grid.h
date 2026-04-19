@@ -9,6 +9,8 @@ double gdet_zone(int i, int j, int k);
 
 void ijktoX(int i, int j, int k, double X[NDIM]);
 void Xtoijk(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
+void Xtoijk_ghost(double X[NDIM], int *i, int *j, int *k, double del[NDIM]);
+
 
 int X_in_domain(double X[NDIM]);
 

@@ -36,7 +36,7 @@
  * * In this function, dl is the length of the step *to* point N;
  *   afterward it is *from* point N onward
  */
-int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, double eps, int step_max, double Xcam[NDIM], int print)
+int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, double eps, int step_max, double Xcam[NDIM], Params *params, int print)
 {
   //fprintf(stderr, "Begin trace geodesic");
   double X[NDIM], Kcon[NDIM];
@@ -142,22 +142,23 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
     } else {
       // ignore first few steps to deal with ever-changing initial condition
       if (nstep > 3) {
-        // check for turning points in z for geodesics that will
-        // strike midplane at infinity
-        double ra, rb, rc;
-        double ha, hb, hc;
-        bl_coord(traj[nstep-2].X, &ra, &ha);
-        bl_coord(traj[nstep-1].X, &rb, &hb);
-        bl_coord(traj[nstep-0].X, &rc, &hc);
-        double dz_1 = rb * cos(hb) - ra * cos(ha);
-        double dz_2 = rc * cos(hc) - rb * cos(hb);
-        if (dz_1 * dz_2 < 0) nturns++;
-        /*
-        // legacy support for turning points in theta
-        double dX2a = traj[nstep-1].X[2] - traj[nstep-2].X[2];
-        double dX2b = traj[nstep].X[2] - traj[nstep-1].X[2];
-        if (dX2a * dX2b < 0) nturns++;
-         */
+        if (params->subring_dtheta == 1) {
+          // legacy support for turning points in theta
+          double dX2a = traj[nstep-1].X[2] - traj[nstep-2].X[2];
+          double dX2b = traj[nstep].X[2] - traj[nstep-1].X[2];
+          if (dX2a * dX2b < 0) nturns++;
+        } else {
+          // check for turning points in z for geodesics that will
+          // strike midplane at infinity
+          double ra, rb, rc;
+          double ha, hb, hc;
+          bl_coord(traj[nstep-2].X, &ra, &ha);
+          bl_coord(traj[nstep-1].X, &rb, &hb);
+          bl_coord(traj[nstep-0].X, &rc, &hc);
+          double dz_1 = rb * cos(hb) - ra * cos(ha);
+          double dz_2 = rc * cos(hc) - rb * cos(hb);
+          if (dz_1 * dz_2 < 0) nturns++;
+        }
       }
     }
 
@@ -226,7 +227,7 @@ int stop_backward_integration(double X[NDIM], double Xhalf[NDIM], double Kcon[ND
   double r, th;
   bl_coord(X, &r, &th);
   if ((r > rmax_geo && Kcon[1] < 0.) || // Stop either beyond rmax_geo
-      r <= (Rh +0.0005)/*|| r < rmin_geo*/){ // Or right near the horizon
+    r <= (Rh +0.0005)/*|| r < rmin_geo*/){ // Or right near the horizon
 #if THIN_DISK
     // If we stopped during the thin disk timer, remember to reset it!
     n_left = -1;

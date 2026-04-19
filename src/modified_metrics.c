@@ -34,7 +34,7 @@ void gcov_EdGB_ks(double r, double th, double gcov[NDIM][NDIM]){
     expM[mu][nu]=0.;
     expMT[mu][nu]=0.;
     MT[mu][nu]=0.;
-  } 
+  }
 
   if(r<=Rh){
     fprintf(stderr,"trying to go inside the EH!!! \n");

@@ -54,4 +54,7 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
     double Econ[NDIM][NDIM],
     double complex T_coord[NDIM][NDIM]);
 
+// Pointer for keeping/writing a histogram of zone contents
+extern double *visible_emission_histogram;
+
 #endif /* IPOLARRAY_H */

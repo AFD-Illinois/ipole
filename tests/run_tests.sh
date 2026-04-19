@@ -17,6 +17,7 @@ fi
 for folder in */
 do
   folder=$(echo $folder | sed 's/.$//')
+	echo $folder
   if [[ "$folder" != "test-resources" ]]; then
     cd $folder
     if [[ $folder == *"analytic"* ]]; then
@@ -25,6 +26,7 @@ do
       make -f ../../makefile -j8 MODEL=thin_disk
     elif [[ $folder == *"isothermal_sphere"* ]]; then
       echo "NOT TESTING ISOTHERMAL SPHERE"
+			cd -
       continue
     else
       make -f ../../makefile -j8 MODEL=iharm

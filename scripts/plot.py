@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
       # quiver on intensity
       npix = I.shape[0]
-      xs = np.linspace(-fov_muas/2,fov_muas/2,npix)
+      xs = np.linspace(extent[0], extent[1], npix)
       Xs,Ys = np.meshgrid(xs,xs)
       lpscal = np.max(np.sqrt(Q*Q+U*U))
       vxp = np.sqrt(Q*Q+U*U)*np.sin(evpa*3.14159/180.)/lpscal

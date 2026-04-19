@@ -7,7 +7,8 @@ HDF5_DIR =
 GSL_DIR =
 # System /lib equivalent (can be /usr/lib, /lib64, /usr/lib64)
 # Can leave this blank if it's included automatically by GCC
-SYSTEM_LIBDIR = /lib64
+#SYSTEM_LIBDIR = /lib64
+SYSTEM_LIBDIR =
 
 # Try pointing this to h5pcc or h5cc on your machine, before hunting down libraries
 CC=h5cc
@@ -27,10 +28,10 @@ ECHO=echo -e
 
 # Overrides of the above for macOS
 ifneq (,$(findstring Darwin,$(shell uname)))
-	export HDF5_CC = /usr/local/opt/llvm/bin/clang
-	export HDF5_CLINKER = /usr/local/opt/llvm/bin/clang
+	export HDF5_CC = /opt/homebrew/bin/gcc-13
+	export HDF5_CLINKER = /opt/homebrew/bin/gcc-13
 
-	GSL_DIR=/usr/local
+	GSL_DIR=/opt/homebrew/opt/gsl
 	SYSTEM_LIBDIR=
 
 	MD5=md5
@@ -46,6 +47,12 @@ ifneq (,$(findstring stampede2,$(HOST)))
 endif
 ifneq (,$(findstring frontera,$(HOST)))
 	-include $(MAKEFILE_PATH)/machines/frontera.make
+endif
+ifneq (,$(findstring delta,$(HOST)))
+	-include $(MAKEFILE_PATH)/machines/delta.make
+endif
+ifneq (,$(findstring callisto,$(HOST)))
+	-include $(MAKEFILE_PATH)/machines/callisto.make
 endif
 # Hack to check only whether host begins with bh*
 ifneq (,$(findstring beginsbh,begins$(HOST)))
