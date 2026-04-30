@@ -12,6 +12,7 @@
 #include "simcoords.h"  // For interpolating arbitrary grids
 #include "par.h"
 #include "utils.h"
+#include "model_params.h"
 
 #include "debug_tools.h"
 
@@ -477,7 +478,7 @@ double mb_interp_scalar_time(int mb, double x, double y, double z, double ****va
 {
   double vA = mb_interp_scalar(mb, x, y, z, varA);
 
-#if SLOWLIGHT
+#if SLOW_LIGHT
   double vB = mb_interp_scalar(mb, x, y, z, varB);
   return tfac*vA + (1. - tfac)*vB;
 #endif
