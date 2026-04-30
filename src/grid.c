@@ -4,6 +4,7 @@
 #include "simcoords.h"
 #include "geometry.h"
 #include <math.h>
+#include "model_params.h"
 
 int N1, N2, N3;
 
@@ -48,7 +49,7 @@ double interp_scalar_time(double X[NDIM], double ***varA, double ***varB, double
 {
   double vA = interp_scalar(X, varA);
 
-#if SLOWLIGHT
+#if SLOW_LIGHT
   double vB = interp_scalar(X, varB);
   return tfac*vA + (1. - tfac)*vB;
 #endif
