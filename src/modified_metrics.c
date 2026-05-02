@@ -64,7 +64,7 @@ void gcov_EdGB_ks(double r, double th, double gcov[NDIM][NDIM]){
     M[2][1]=0.;
     M[2][2]=(r*(-0.2456694322274893 + 0.11802793355278088*u2 - 
       0.06388746774868627*u4 + r*(0.11088665306540471 - 
-        0.06020804162310437*u2 + 0.033009174906014245*u4))) * (1. - u2);
+        0.06020804162310437*u2 + 0.033009174906014245*u4)));
     M[2][3]=0.;
 
     M[3][0]=0.;
@@ -168,7 +168,7 @@ void gcov_EdGB_ks(double r, double th, double gcov[NDIM][NDIM]){
         0.010559999053525839*u2 + 0.00445260686733901*u4) + 
       pow(r,4.)*(-0.5106316084099219 + 0.19908686704982395*u2 + 
         0.028473515888031427*u4) + pow(r,3.)*(0.028197926131824688 + 
-        0.6750414186358245*u2 + 0.08076936297872989*u4))/pow(r,10.)) * (1. - u2);
+        0.6750414186358245*u2 + 0.08076936297872989*u4))/pow(r,10.));
         M[2][3]= 0.;
 
         M[3][0] = 0.;
@@ -287,7 +287,7 @@ void gcov_DCS_ks(double r, double th, double gcov[NDIM][NDIM]){
         M[2][0] = 0.;
         M[2][1] =0. ;
         M[2][2] =(r*(-0.005891088388619743 - 0.08213157970162656*u2 + 0.04869729617963716*u4 + r*(0.0012258296731578948 + 
-        0.04059152589803598*u2 - 0.022648614125266385*u4))) * (1. - u2);
+        0.04059152589803598*u2 - 0.022648614125266385*u4)));
         M[2][3]=0.;
 
         M[3][0] = 0.;
@@ -390,7 +390,7 @@ void gcov_DCS_ks(double r, double th, double gcov[NDIM][NDIM]){
         pow(r,9.)*(-0.019512591789299767 + 0.02926262957652467*u2 + 
         0.010298255966503736*u4) + pow(r,2.)*(0.000149323899600326 - 
         1.2358144829850521*u2 + 0.18861356442701813*u4) + 
-        r*(-0.0016613798015832518*u2 + 0.7709044110221688*u4))/pow(r,10.)) * (1. - u2);
+        r*(-0.0016613798015832518*u2 + 0.7709044110221688*u4))/pow(r,10.));
         M[2][3]= 0.;
 
         M[3][0] = 0.;
@@ -504,7 +504,7 @@ void matrix_multiply(double A[NDIM][NDIM], double B[NDIM][NDIM], double result[N
 
 
 
-// Function to calculate the matrix exponential using 4th-order Taylor approximation
+// Function to calculate the matrix exponential using 8th-order Taylor approximation
 void matrix_exponential(double A[NDIM][NDIM], double expA[NDIM][NDIM]) {
     
     MULOOP expA[mu][mu]=1.0;
@@ -529,6 +529,26 @@ void matrix_exponential(double A[NDIM][NDIM], double expA[NDIM][NDIM]) {
     // A^4 / 4!
     matrix_multiply(A_pow, A, A_pow);
     MUNULOOP temp[mu][nu] = A_pow[mu][nu]/24.;
+    MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
+
+    // A^5 / 5!
+    matrix_multiply(A_pow, A, A_pow);
+    MUNULOOP temp[mu][nu] = A_pow[mu][nu]/120.;
+    MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
+
+    // A^6 / 6!
+    matrix_multiply(A_pow, A, A_pow);
+    MUNULOOP temp[mu][nu] = A_pow[mu][nu]/720.;
+    MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
+
+    // A^7 / 7!
+    matrix_multiply(A_pow, A, A_pow);
+    MUNULOOP temp[mu][nu] = A_pow[mu][nu]/5040.;
+    MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
+
+    // A^8 / 8!
+    matrix_multiply(A_pow, A, A_pow);
+    MUNULOOP temp[mu][nu] = A_pow[mu][nu]/40320.;
     MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
 }
 
