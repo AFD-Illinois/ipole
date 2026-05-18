@@ -531,24 +531,24 @@ void matrix_exponential(double A[NDIM][NDIM], double expA[NDIM][NDIM]) {
     MUNULOOP temp[mu][nu] = A_pow[mu][nu]/24.;
     MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
 
-    // A^5 / 5!
-    matrix_multiply(A_pow, A, A_pow);
-    MUNULOOP temp[mu][nu] = A_pow[mu][nu]/120.;
-    MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
+    // // A^5 / 5!
+    // matrix_multiply(A_pow, A, A_pow);
+    // MUNULOOP temp[mu][nu] = A_pow[mu][nu]/120.;
+    // MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
 
-    // A^6 / 6!
-    matrix_multiply(A_pow, A, A_pow);
-    MUNULOOP temp[mu][nu] = A_pow[mu][nu]/720.;
-    MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
+    // // A^6 / 6!
+    // matrix_multiply(A_pow, A, A_pow);
+    // MUNULOOP temp[mu][nu] = A_pow[mu][nu]/720.;
+    // MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
 
-    // A^7 / 7!
-    matrix_multiply(A_pow, A, A_pow);
-    MUNULOOP temp[mu][nu] = A_pow[mu][nu]/5040.;
-    MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
+    // // A^7 / 7!
+    // matrix_multiply(A_pow, A, A_pow);
+    // MUNULOOP temp[mu][nu] = A_pow[mu][nu]/5040.;
+    // MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
 
-    // A^8 / 8!
-    matrix_multiply(A_pow, A, A_pow);
-    MUNULOOP temp[mu][nu] = A_pow[mu][nu]/40320.;
-    MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
+    // // A^8 / 8!
+    // matrix_multiply(A_pow, A, A_pow);
+    // MUNULOOP temp[mu][nu] = A_pow[mu][nu]/40320.;
+    // MUNULOOP expA[mu][nu]=temp[mu][nu]+expA[mu][nu];
 }
 
