@@ -75,6 +75,7 @@ static double Ladv_dump;
 
 static int reverse_field = 0;
 static double xiboost = 0.;
+static double xiboost_sigma_min = -1.;
 
 double tf;
 
@@ -128,31 +129,62 @@ void init_hamr_grid(char *fnam, int dumpidx);
 void init_physical_quantities(int n, double rescale_factor);
 void init_storage(void);
 
-// Boost the fluid four-velocity parallel to the unit comoving magnetic field:
-//   u'^mu = (u^mu + xi_local b^mu/sqrt(b^2)) / sqrt(1 - xi_local^2),
-// where xi_local = xiboost*sign(cos(theta)).  The magnetic field reverses
-// across the equator, so this accelerates both jets in the same physical
-// direction along their (undirected) field lines.
-// The caller must reconstruct b^mu from the unchanged constrained-transport
-// magnetic primitives after this function updates u^mu.
-static int boost_fourvelocity_along_field(double theta,
-                                          double gcov[NDIM][NDIM],
+// Boost the fluid four-velocity in the outward radial direction measured by
+// the normal (ZAMO) observer.  The ZAMO-spatial radial unit vector follows the
+// positive coordinate-r line,
+//
+//   n^mu       = -alpha g^{mu t},
+//   e_rhat^mu  = delta_r^mu/sqrt(g_rr),
+//   Gamma      = -u.n,
+//   U_rhat     =  u.e_rhat,
+//
+// and the only boosted tetrad components are
+//
+//   Gamma'  = gamma_xi (Gamma  + xi U_rhat),
+//   U_rhat' = gamma_xi (U_rhat + xi Gamma).
+//
+// Positive xiboost is outward in both hemispheres.  The caller must
+// reconstruct b^mu from the unchanged constrained-transport magnetic
+// primitives after this function updates u^mu.
+static int boost_fourvelocity_zamo_radial(double gcov[NDIM][NDIM],
+                                          double gcon[NDIM][NDIM],
+                                          double rho,
                                           double ucon[NDIM],
                                           const double bcon[NDIM])
 {
   if (xiboost == 0.) return 0;
 
-  double xi_local = xiboost*sign(cos(theta));
-  if (xi_local == 0.) return 0;
+  if (xiboost_sigma_min >= 0.) {
+    double bsq = 0.;
+    MUNULOOP bsq += bcon[mu] * gcov[mu][nu] * bcon[nu];
+    if (!isfinite(bsq) || !isfinite(rho) || rho <= 0.) return 1;
+    if (bsq/rho < xiboost_sigma_min) return 0;
+  }
 
-  double bsq = 0.;
-  MUNULOOP bsq += bcon[mu] * gcov[mu][nu] * bcon[nu];
+  double alpha_sq = -1./gcon[0][0];
+  if (!isfinite(alpha_sq) || alpha_sq <= 0.
+      || !isfinite(gcov[1][1]) || gcov[1][1] <= 0.) return 1;
 
-  if (!isfinite(bsq) || bsq <= 0.) return 1;
+  double alpha = sqrt(alpha_sq);
+  double radial_norm = sqrt(gcov[1][1]);
+  double ucov[NDIM] = { 0. };
+  flip_index(ucon, gcov, ucov);
 
-  double field_norm = sqrt(bsq);
-  double boost_norm = 1./sqrt(1. - xi_local*xi_local);
-  MULOOP ucon[mu] = (ucon[mu] + xi_local*bcon[mu]/field_norm) * boost_norm;
+  double Gamma = alpha*ucon[0];
+  double U_rhat = ucov[1]/radial_norm;
+  double gamma_xi = 1./sqrt(1. - xiboost*xiboost);
+  double Gamma_new = gamma_xi*(Gamma + xiboost*U_rhat);
+  double U_rhat_new = gamma_xi*(U_rhat + xiboost*Gamma);
+
+  if (!isfinite(Gamma) || !isfinite(U_rhat)
+      || !isfinite(Gamma_new) || !isfinite(U_rhat_new)) return 1;
+
+  MULOOP {
+    double ncon = -alpha*gcon[mu][0];
+    double ercon = (mu == 1) ? 1./radial_norm : 0.;
+    ucon[mu] += (Gamma_new - Gamma)*ncon
+              + (U_rhat_new - U_rhat)*ercon;
+  }
 
   return 0;
 }
@@ -186,6 +218,7 @@ void try_set_model_parameter(const char *word, const char *value)
 
   set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
   set_by_word_val(word, value, "xiboost", &xiboost, TYPE_DBL);
+  set_by_word_val(word, value, "xiboost_sigma_min", &xiboost_sigma_min, TYPE_DBL);
   // allow cutting out the spine
   set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
 
@@ -334,8 +367,12 @@ void init_model(double *tA, double *tB)
     exit(7);
   }
   if (xiboost != 0.) {
-    fprintf(stderr, "Applying hemispheric field-aligned xiboost=%g (relative gamma=%g)\n",
+    fprintf(stderr, "Applying outward ZAMO-radial xiboost=%g (boost gamma=%g)\n",
             xiboost, 1./sqrt(1. - xiboost*xiboost));
+    if (xiboost_sigma_min >= 0.) {
+      fprintf(stderr, "Restricting xiboost to source cells with sigma >= %g\n",
+              xiboost_sigma_min);
+    }
   }
 
   // set up initial ordering of data[]
@@ -1309,6 +1346,7 @@ void output_hdf5()
   hdf5_set_directory("/header/");
   hdf5_write_single_val(&reverse_field,"field_config",H5T_STD_I32LE);
   hdf5_write_single_val(&xiboost,"xiboost",H5T_IEEE_F64LE);
+  hdf5_write_single_val(&xiboost_sigma_min,"xiboost_sigma_min",H5T_IEEE_F64LE);
   hdf5_make_directory("units");
   hdf5_set_directory("/header/units/");
   hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
@@ -1541,7 +1579,8 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_hamr, bcov);
 
-        invalid_boost_cells += boost_fourvelocity_along_field(th, gcov_hamr, ucon, bcon);
+        invalid_boost_cells += boost_fourvelocity_zamo_radial(
+            gcov_hamr, gcon_hamr, data[n]->p[KRHO][i][j][k], ucon, bcon);
         if (xiboost != 0.) {
           flip_index(ucon, gcov_hamr, ucov);
           udotB = 0.;
@@ -1620,7 +1659,7 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   if (invalid_boost_cells > 0) {
-    fprintf(stderr, "! xiboost=%g encountered non-positive or non-finite b^2 in %d cells. Exiting.\n",
+    fprintf(stderr, "! xiboost=%g encountered invalid ZAMO-radial boost geometry in %d cells. Exiting.\n",
             xiboost, invalid_boost_cells);
     exit(7);
   }
@@ -1817,7 +1856,8 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_KS, bcov);
 
-        invalid_boost_cells += boost_fourvelocity_along_field(th, gcov_KS, ucon, bcon);
+        invalid_boost_cells += boost_fourvelocity_zamo_radial(
+            gcov_KS, gcon_KS, data[n]->p[KRHO][i][j][k], ucon, bcon);
         if (xiboost != 0.) {
           flip_index(ucon, gcov_KS, ucov);
           udotB = 0.;
@@ -1910,7 +1950,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   if (invalid_boost_cells > 0) {
-    fprintf(stderr, "! xiboost=%g encountered non-positive or non-finite b^2 in %d cells. Exiting.\n",
+    fprintf(stderr, "! xiboost=%g encountered invalid ZAMO-radial boost geometry in %d cells. Exiting.\n",
             xiboost, invalid_boost_cells);
     exit(7);
   }
@@ -2137,7 +2177,8 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov, bcov);
 
-        invalid_boost_cells += boost_fourvelocity_along_field(th, gcov, ucon, bcon);
+        invalid_boost_cells += boost_fourvelocity_zamo_radial(
+            gcov, gcon, data[n]->p[KRHO][i][j][k], ucon, bcon);
         if (xiboost != 0.) {
           flip_index(ucon, gcov, ucov);
           udotB = 0.;
@@ -2195,7 +2236,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   if (invalid_boost_cells > 0) {
-    fprintf(stderr, "! xiboost=%g encountered non-positive or non-finite b^2 in %d cells. Exiting.\n",
+    fprintf(stderr, "! xiboost=%g encountered invalid ZAMO-radial boost geometry in %d cells. Exiting.\n",
             xiboost, invalid_boost_cells);
     exit(7);
   }

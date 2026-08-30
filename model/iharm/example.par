@@ -59,6 +59,10 @@ quench_output 0
 add_ppm 0
 # Only calculate the unpolarized image
 only_unpolarized 0
+# Outward radial Lorentz boost in the ZAMO frame; positive is outward, |xiboost|<1
+xiboost 0
+# Apply xiboost only at or above this source magnetization; negative boosts all cells
+xiboost_sigma_min -1
 # 1 to emit only for th>PI/2, 2 for other hemisphere
 # 0 emits everywhere
 counterjet 0
