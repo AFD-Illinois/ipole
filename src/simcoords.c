@@ -50,11 +50,25 @@ void load_simcoord_info_from_file(const char *fname)
     exit(-1);
   }
 
-  size_t n3;
+  // KORAL stores these dimensions as 32-bit integers.  Reading one directly
+  // into size_t only initializes 32 bits of the value on 64-bit systems; in
+  // particular, the uninitialized upper bytes of the stack-local n3 caused
+  // bogus HDF5 hyperslab strides on macOS.
+  int n1_file = 0;
+  int n2_file = 0;
+  int n3_file = 0;
   hdf5_set_directory("/header/");
-  hdf5_read_single_val(&n1, "n1", H5T_STD_I32LE);
-  hdf5_read_single_val(&n2, "n2", H5T_STD_I32LE);
-  hdf5_read_single_val(&n3, "n3", H5T_STD_I32LE);
+  hdf5_read_single_val(&n1_file, "n1", H5T_NATIVE_INT);
+  hdf5_read_single_val(&n2_file, "n2", H5T_NATIVE_INT);
+  hdf5_read_single_val(&n3_file, "n3", H5T_NATIVE_INT);
+  if (n1_file <= 0 || n2_file <= 0 || n3_file <= 0) {
+    fprintf(stderr, "! invalid simulation grid dimensions %d %d %d\n",
+            n1_file, n2_file, n3_file);
+    exit(-1);
+  }
+  n1 = (size_t)n1_file;
+  n2 = (size_t)n2_file;
+  size_t n3 = (size_t)n3_file;
 
   hdf5_set_directory("/header/geom/");
   hdf5_read_single_val(&startx1, "startx1", H5T_IEEE_F64LE);
@@ -390,4 +404,3 @@ static int rev_KORAL_MKS3(double *xKS, double *xMKS)
 
   return 0;
 }
-

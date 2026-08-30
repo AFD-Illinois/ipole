@@ -74,6 +74,7 @@ static double MdotEdd_dump;
 static double Ladv_dump;
 
 static int reverse_field = 0;
+static double xiboost = 0.;
 
 double tf;
 
@@ -127,6 +128,35 @@ void init_hamr_grid(char *fnam, int dumpidx);
 void init_physical_quantities(int n, double rescale_factor);
 void init_storage(void);
 
+// Boost the fluid four-velocity parallel to the unit comoving magnetic field:
+//   u'^mu = (u^mu + xi_local b^mu/sqrt(b^2)) / sqrt(1 - xi_local^2),
+// where xi_local = xiboost*sign(cos(theta)).  The magnetic field reverses
+// across the equator, so this accelerates both jets in the same physical
+// direction along their (undirected) field lines.
+// The caller must reconstruct b^mu from the unchanged constrained-transport
+// magnetic primitives after this function updates u^mu.
+static int boost_fourvelocity_along_field(double theta,
+                                          double gcov[NDIM][NDIM],
+                                          double ucon[NDIM],
+                                          const double bcon[NDIM])
+{
+  if (xiboost == 0.) return 0;
+
+  double xi_local = xiboost*sign(cos(theta));
+  if (xi_local == 0.) return 0;
+
+  double bsq = 0.;
+  MUNULOOP bsq += bcon[mu] * gcov[mu][nu] * bcon[nu];
+
+  if (!isfinite(bsq) || bsq <= 0.) return 1;
+
+  double field_norm = sqrt(bsq);
+  double boost_norm = 1./sqrt(1. - xi_local*xi_local);
+  MULOOP ucon[mu] = (ucon[mu] + xi_local*bcon[mu]/field_norm) * boost_norm;
+
+  return 0;
+}
+
 void try_set_model_parameter(const char *word, const char *value)
 {
   // TODO remember to set defaults!
@@ -155,6 +185,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
   set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
+  set_by_word_val(word, value, "xiboost", &xiboost, TYPE_DBL);
   // allow cutting out the spine
   set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
 
@@ -298,6 +329,15 @@ void get_dumpfile_type(char *fnam, int dumpidx)
 
 void init_model(double *tA, double *tB)
 {
+  if (!isfinite(xiboost) || fabs(xiboost) >= 1.) {
+    fprintf(stderr, "! xiboost must satisfy |xiboost| < 1. Exiting.\n");
+    exit(7);
+  }
+  if (xiboost != 0.) {
+    fprintf(stderr, "Applying hemispheric field-aligned xiboost=%g (relative gamma=%g)\n",
+            xiboost, 1./sqrt(1. - xiboost*xiboost));
+  }
+
   // set up initial ordering of data[]
   data[0] = &dataA;
   data[1] = &dataB;
@@ -1268,6 +1308,7 @@ void output_hdf5()
 
   hdf5_set_directory("/header/");
   hdf5_write_single_val(&reverse_field,"field_config",H5T_STD_I32LE);
+  hdf5_write_single_val(&xiboost,"xiboost",H5T_IEEE_F64LE);
   hdf5_make_directory("units");
   hdf5_set_directory("/header/units/");
   hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
@@ -1413,9 +1454,10 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_close();
 
   dMact = Ladv = 0.;
+  int invalid_boost_cells = 0;
 
   // construct four-vectors over "real" zones
-#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv)
+#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv,invalid_boost_cells)
   for(int i = 1; i < N1+1; i++) {
     for(int j = 1; j < N2+1; j++) {
 
@@ -1499,6 +1541,20 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_hamr, bcov);
 
+        invalid_boost_cells += boost_fourvelocity_along_field(th, gcov_hamr, ucon, bcon);
+        if (xiboost != 0.) {
+          flip_index(ucon, gcov_hamr, ucov);
+          udotB = 0.;
+          for (int l = 1; l < NDIM; l++) {
+            udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k] / alpha;
+          }
+          bcon[0] = udotB;
+          for (int l = 1; l < NDIM; l++) {
+            bcon[l] = (data[n]->p[B1+l-1][i][j][k]/alpha + ucon[l]*udotB)/ucon[0];
+          }
+          flip_index(bcon, gcov_hamr, bcov);
+        }
+
         double bsq = 0.;
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
@@ -1561,6 +1617,12 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
         if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0] ;
       }
     }
+  }
+
+  if (invalid_boost_cells > 0) {
+    fprintf(stderr, "! xiboost=%g encountered non-positive or non-finite b^2 in %d cells. Exiting.\n",
+            xiboost, invalid_boost_cells);
+    exit(7);
   }
 
   // now copy primitives and four-vectors according to boundary conditions
@@ -1670,9 +1732,10 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_close();
 
   dMact = Ladv = 0.;
+  int invalid_boost_cells = 0;
 
   // construct four-vectors over "real" zones
-#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv)
+#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv,invalid_boost_cells)
   for(int i = 1; i < N1+1; i++) {
     for(int j = 1; j < N2+1; j++) {
 
@@ -1754,6 +1817,20 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_KS, bcov);
 
+        invalid_boost_cells += boost_fourvelocity_along_field(th, gcov_KS, ucon, bcon);
+        if (xiboost != 0.) {
+          flip_index(ucon, gcov_KS, ucov);
+          udotB = 0.;
+          for (int l = 1; l < NDIM; l++) {
+            udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
+          }
+          bcon[0] = udotB;
+          for (int l = 1; l < NDIM; l++) {
+            bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
+          }
+          flip_index(bcon, gcov_KS, bcov);
+        }
+
         //translate to BL so we can compute Poynting flux in BL normal frame
         double bcon_BL[NDIM] = { 0. };
         double bcov_BL[NDIM] = { 0. };
@@ -1830,6 +1907,12 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         //fprintf(stderr, "u.u %g %g   u.b %g %g   b.b %g %g\n", udu1,udu2, udb1,udb2, bdb1,bdb2);
       }
     }
+  }
+
+  if (invalid_boost_cells > 0) {
+    fprintf(stderr, "! xiboost=%g encountered non-positive or non-finite b^2 in %d cells. Exiting.\n",
+            xiboost, invalid_boost_cells);
+    exit(7);
   }
 
   // now copy primitives and four-vectors according to boundary conditions
@@ -1997,9 +2080,10 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_close();
 
   dMact = Ladv = 0.;
+  int invalid_boost_cells = 0;
 
   // construct four-vectors over "real" zones
-#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv)
+#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv,invalid_boost_cells)
   for(int i = 1; i < N1+1; i++) {
     for(int j = 1; j < N2+1; j++) {
 
@@ -2053,6 +2137,25 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov, bcov);
 
+        invalid_boost_cells += boost_fourvelocity_along_field(th, gcov, ucon, bcon);
+        if (xiboost != 0.) {
+          flip_index(ucon, gcov, ucov);
+          udotB = 0.;
+          for (int l = 1; l < NDIM; l++) {
+            udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
+          }
+          bcon[0] = udotB;
+          for (int l = 1; l < NDIM; l++) {
+            bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
+          }
+          flip_index(bcon, gcov, bcov);
+
+          double alpha = sqrt(-1. / gcon[0][0]);
+          data[n]->p[U1][i][j][k] = (gcon[0][1]*alpha*alpha + ucon[1]/ucon[0]) * ucon[0];
+          data[n]->p[U2][i][j][k] = (gcon[0][2]*alpha*alpha + ucon[2]/ucon[0]) * ucon[0];
+          data[n]->p[U3][i][j][k] = (gcon[0][3]*alpha*alpha + ucon[3]/ucon[0]) * ucon[0];
+        }
+
         double bsq = 0.;
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
@@ -2089,6 +2192,12 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         }
       }
     }
+  }
+
+  if (invalid_boost_cells > 0) {
+    fprintf(stderr, "! xiboost=%g encountered non-positive or non-finite b^2 in %d cells. Exiting.\n",
+            xiboost, invalid_boost_cells);
+    exit(7);
   }
 
   // now copy primitives and four-vectors according to boundary conditions
