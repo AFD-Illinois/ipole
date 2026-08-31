@@ -74,6 +74,7 @@ static double MdotEdd_dump;
 static double Ladv_dump;
 
 static int reverse_field = 0;
+static double Astretch = 1.;
 static double xiboost = 0.;
 static double xiboost_sigma_min = -1.;
 
@@ -109,7 +110,7 @@ struct of_data {
   double ***thetae;
   double ***b;
   double ***sigma;
-  int sigma_preboost_valid;
+  int sigma_source_valid;
   double ***beta;
   double ***poynting; //magnitude of Poynting flux
 };
@@ -129,6 +130,46 @@ void init_koral_grid(char *fnam, int dumpidx);
 void init_hamr_grid(char *fnam, int dumpidx);
 void init_physical_quantities(int n, double rescale_factor);
 void init_storage(void);
+
+// Stretch the magnitude of the fluid velocity measured by the normal (ZAMO)
+// observer while preserving its ZAMO-spatial direction.  Decompose
+//
+//   u^mu = Gamma n^mu + U^mu,        n_mu U^mu = 0,
+//
+// set Gamma' = 1 + Astretch (Gamma - 1), and rescale U^mu so that the new
+// four-velocity remains normalized.  The algebraic expression for spatial
+// scale_sq below is equivalent to (Gamma'^2 - 1)/(Gamma^2 - 1), but remains
+// finite as Gamma -> 1, where it approaches Astretch.
+static int stretch_fourvelocity_zamo(double gcon[NDIM][NDIM],
+                                     double ucon[NDIM])
+{
+  if (Astretch == 1.) return 0;
+
+  double alpha_sq = -1./gcon[0][0];
+  if (!isfinite(alpha_sq) || alpha_sq <= 0.) return 1;
+
+  double alpha = sqrt(alpha_sq);
+  double Gamma = alpha*ucon[0];
+  if (!isfinite(Gamma) || Gamma < 1. - 1.e-12) return 1;
+  // A normalized timelike four-velocity has Gamma >= 1.  Tolerate a tiny
+  // undershoot from roundoff before evaluating the Gamma -> 1 limit.
+  if (Gamma < 1.) Gamma = 1.;
+
+  double dGamma = Gamma - 1.;
+  double Gamma_new = 1. + Astretch*dGamma;
+  double scale_sq = Astretch*(2. + Astretch*dGamma)/(Gamma + 1.);
+  if (!isfinite(Gamma_new) || Gamma_new < 1.
+      || !isfinite(scale_sq) || scale_sq < 0.) return 1;
+
+  double spatial_scale = sqrt(scale_sq);
+  MULOOP {
+    double ncon = -alpha*gcon[mu][0];
+    double Ucon = ucon[mu] - Gamma*ncon;
+    ucon[mu] = Gamma_new*ncon + spatial_scale*Ucon;
+  }
+
+  return 0;
+}
 
 // Boost the fluid four-velocity in the outward radial direction measured by
 // the normal (ZAMO) observer.  The ZAMO-spatial radial unit vector follows the
@@ -218,6 +259,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
   set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
+  set_by_word_val(word, value, "Astretch", &Astretch, TYPE_DBL);
   set_by_word_val(word, value, "xiboost", &xiboost, TYPE_DBL);
   set_by_word_val(word, value, "xiboost_sigma_min", &xiboost_sigma_min, TYPE_DBL);
   // allow cutting out the spine
@@ -363,6 +405,14 @@ void get_dumpfile_type(char *fnam, int dumpidx)
 
 void init_model(double *tA, double *tB)
 {
+  if (!isfinite(Astretch) || Astretch < 0.) {
+    fprintf(stderr, "! Astretch must be finite and non-negative. Exiting.\n");
+    exit(7);
+  }
+  if (Astretch != 1.) {
+    fprintf(stderr, "Applying ZAMO gamma stretch Astretch=%g: Gamma' = 1 + Astretch*(Gamma - 1)\n",
+            Astretch);
+  }
   if (!isfinite(xiboost) || fabs(xiboost) >= 1.) {
     fprintf(stderr, "! xiboost must satisfy |xiboost| < 1. Exiting.\n");
     exit(7);
@@ -686,16 +736,16 @@ void init_physical_quantities(int n, double rescale_factor)
         double bsq = data[n]->b[i][j][k] / B_unit;
         bsq = bsq*bsq;
 
-        double sigma_m_postboost = bsq/data[n]->p[KRHO][i][j][k];
-        // For an on-read xiboost (or a marked pre-boosted KORAL copy),
+        double sigma_m_posttransform = bsq/data[n]->p[KRHO][i][j][k];
+        // For an on-read velocity transform (or a marked pre-boosted KORAL copy),
         // data[n]->sigma holds the value from before u^mu was changed and
         // b^mu was reconstructed.  Continue to use that original sigma for
         // all sigma-based masks, including the splitEDF disk/jet boundary,
-        // while data[n]->b retains the reconstructed post-boost field used
+        // while data[n]->b retains the reconstructed post-transform field used
         // by the radiative coefficients.
-        double sigma_m = data[n]->sigma_preboost_valid
+        double sigma_m = data[n]->sigma_source_valid
                        ? data[n]->sigma[i][j][k]
-                       : sigma_m_postboost;
+                       : sigma_m_posttransform;
         double beta_m = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
 #if DEBUG
         if(isnan(sigma_m)) {
@@ -1355,6 +1405,7 @@ void output_hdf5()
 
   hdf5_set_directory("/header/");
   hdf5_write_single_val(&reverse_field,"field_config",H5T_STD_I32LE);
+  hdf5_write_single_val(&Astretch,"Astretch",H5T_IEEE_F64LE);
   hdf5_write_single_val(&xiboost,"xiboost",H5T_IEEE_F64LE);
   hdf5_write_single_val(&xiboost_sigma_min,"xiboost_sigma_min",H5T_IEEE_F64LE);
   hdf5_make_directory("units");
@@ -1392,7 +1443,7 @@ void populate_boundary_conditions(int n)
       }
       data[n]->b[0][j][k] = data[n]->b[1][j][k];
       data[n]->b[N1+1][j][k] = data[n]->b[N1][j][k];
-      if (data[n]->sigma_preboost_valid) {
+      if (data[n]->sigma_source_valid) {
         data[n]->sigma[0][j][k] = data[n]->sigma[1][j][k];
         data[n]->sigma[N1+1][j][k] = data[n]->sigma[N1][j][k];
       }
@@ -1411,7 +1462,7 @@ void populate_boundary_conditions(int n)
         }
         data[n]->b[i][0][k] = data[n]->b[i][1][kflip];
         data[n]->b[i][N2+1][k] = data[n]->b[i][N2][kflip];
-        if (data[n]->sigma_preboost_valid) {
+        if (data[n]->sigma_source_valid) {
           data[n]->sigma[i][0][k] = data[n]->sigma[i][1][kflip];
           data[n]->sigma[i][N2+1][k] = data[n]->sigma[i][N2][kflip];
         }
@@ -1428,7 +1479,7 @@ void populate_boundary_conditions(int n)
                                  + data[n]->b[i][1][kflip2] ) / 2.;
         data[n]->b[i][N2+1][k] = ( data[n]->b[i][N2][kflip1]
                                  + data[n]->b[i][N2][kflip2] ) / 2.;
-        if (data[n]->sigma_preboost_valid) {
+        if (data[n]->sigma_source_valid) {
           data[n]->sigma[i][0][k] = ( data[n]->sigma[i][1][kflip1]
                                     + data[n]->sigma[i][1][kflip2] ) / 2.;
           data[n]->sigma[i][N2+1][k] = ( data[n]->sigma[i][N2][kflip1]
@@ -1448,7 +1499,7 @@ void populate_boundary_conditions(int n)
       }
       data[n]->b[i][j][0] = data[n]->b[i][j][N3];
       data[n]->b[i][j][N3+1] = data[n]->b[i][j][1];
-      if (data[n]->sigma_preboost_valid) {
+      if (data[n]->sigma_source_valid) {
         data[n]->sigma[i][j][0] = data[n]->sigma[i][j][N3];
         data[n]->sigma[i][j][N3+1] = data[n]->sigma[i][j][1];
       }
@@ -1471,7 +1522,8 @@ void remap_hamr(double *buffer, double ***memory, int n1, int n2, int n3, int ng
 void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
 {
   double dMact, Ladv;
-  data[n]->sigma_preboost_valid = (xiboost != 0.);
+  int transform_velocity = (Astretch != 1. || xiboost != 0.);
+  data[n]->sigma_source_valid = transform_velocity;
 
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -1608,15 +1660,16 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_hamr, bcov);
 
-        if (xiboost != 0.) {
-          double bsq_preboost = 0.;
-          for (int l=0; l<NDIM; ++l) bsq_preboost += bcon[l] * bcov[l];
-          data[n]->sigma[i][j][k] = bsq_preboost/data[n]->p[KRHO][i][j][k];
+        if (transform_velocity) {
+          double bsq_source = 0.;
+          for (int l=0; l<NDIM; ++l) bsq_source += bcon[l] * bcov[l];
+          data[n]->sigma[i][j][k] = bsq_source/data[n]->p[KRHO][i][j][k];
         }
 
+        invalid_boost_cells += stretch_fourvelocity_zamo(gcon_hamr, ucon);
         invalid_boost_cells += boost_fourvelocity_zamo_radial(
             gcov_hamr, gcon_hamr, data[n]->p[KRHO][i][j][k], ucon, bcon);
-        if (xiboost != 0.) {
+        if (transform_velocity) {
           flip_index(ucon, gcov_hamr, ucov);
           udotB = 0.;
           for (int l = 1; l < NDIM; l++) {
@@ -1694,8 +1747,8 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   if (invalid_boost_cells > 0) {
-    fprintf(stderr, "! xiboost=%g encountered invalid ZAMO-radial boost geometry in %d cells. Exiting.\n",
-            xiboost, invalid_boost_cells);
+    fprintf(stderr, "! Astretch=%g, xiboost=%g encountered invalid ZAMO velocity-transform geometry in %d cells. Exiting.\n",
+            Astretch, xiboost, invalid_boost_cells);
     exit(7);
   }
 
@@ -1751,7 +1804,9 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   // to the n'th copy of data (e.g., for slow light)
 
   double dMact, Ladv;
-  data[n]->sigma_preboost_valid = (xiboost != 0.);
+  int transform_velocity = (Astretch != 1. || xiboost != 0.);
+  int use_stored_source_sigma = 0;
+  data[n]->sigma_source_valid = transform_velocity;
 
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -1766,11 +1821,13 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_set_directory("/");
   hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
 
-  // boost-koral-dump.py marks transformed copies and intentionally leaves
-  // sigma_plasma unchanged.  When no additional on-read boost is requested,
-  // that stored dataset is the original sigma mask we want to retain.
+  // The dump-transform script marks transformed copies and intentionally
+  // leaves sigma_plasma unchanged.  When no additional on-read boost is
+  // requested, that stored dataset is the original sigma mask we want to
+  // retain.
   hdf5_set_directory("/header/");
-  int has_stored_preboost_sigma = hdf5_exists("xiboost_zamo_radial");
+  int has_stored_source_sigma = hdf5_exists("xiboost_zamo_radial")
+                             || hdf5_exists("Astretch_zamo_gamma");
 
   hdf5_set_directory("/quants/");
 
@@ -1805,13 +1862,14 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_read_array(data[n]->p[B3][0][0], "B3", 3, fdims, fstart, fcount, 
                   mdims, mstart, H5T_IEEE_F64LE); 
 
-  if (xiboost == 0. && has_stored_preboost_sigma
+  if (xiboost == 0. && has_stored_source_sigma
       && hdf5_exists("sigma_plasma")) {
     hdf5_read_array(data[n]->sigma[0][0], "sigma_plasma", 3,
                     fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
-    data[n]->sigma_preboost_valid = 1;
+    data[n]->sigma_source_valid = 1;
+    use_stored_source_sigma = 1;
     if (verbose) {
-      fprintf(stderr, "Using stored pre-boost sigma_plasma for sigma masks.\n");
+      fprintf(stderr, "Using stored source sigma_plasma for sigma masks.\n");
     }
   }
 
@@ -1908,15 +1966,16 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_KS, bcov);
 
-        if (xiboost != 0.) {
-          double bsq_preboost = 0.;
-          for (int l=0; l<NDIM; ++l) bsq_preboost += bcon[l] * bcov[l];
-          data[n]->sigma[i][j][k] = bsq_preboost/data[n]->p[KRHO][i][j][k];
+        if (transform_velocity && !use_stored_source_sigma) {
+          double bsq_source = 0.;
+          for (int l=0; l<NDIM; ++l) bsq_source += bcon[l] * bcov[l];
+          data[n]->sigma[i][j][k] = bsq_source/data[n]->p[KRHO][i][j][k];
         }
 
+        invalid_boost_cells += stretch_fourvelocity_zamo(gcon_KS, ucon);
         invalid_boost_cells += boost_fourvelocity_zamo_radial(
             gcov_KS, gcon_KS, data[n]->p[KRHO][i][j][k], ucon, bcon);
-        if (xiboost != 0.) {
+        if (transform_velocity) {
           flip_index(ucon, gcov_KS, ucov);
           udotB = 0.;
           for (int l = 1; l < NDIM; l++) {
@@ -2008,8 +2067,8 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   if (invalid_boost_cells > 0) {
-    fprintf(stderr, "! xiboost=%g encountered invalid ZAMO-radial boost geometry in %d cells. Exiting.\n",
-            xiboost, invalid_boost_cells);
+    fprintf(stderr, "! Astretch=%g, xiboost=%g encountered invalid ZAMO velocity-transform geometry in %d cells. Exiting.\n",
+            Astretch, xiboost, invalid_boost_cells);
     exit(7);
   }
 
@@ -2108,7 +2167,8 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   // to the n'th copy of data (e.g., for slow light)
 
   double dMact, Ladv;
-  data[n]->sigma_preboost_valid = (xiboost != 0.);
+  int transform_velocity = (Astretch != 1. || xiboost != 0.);
+  data[n]->sigma_source_valid = transform_velocity;
 
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -2236,15 +2296,16 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov, bcov);
 
-        if (xiboost != 0.) {
-          double bsq_preboost = 0.;
-          for (int l=0; l<NDIM; ++l) bsq_preboost += bcon[l] * bcov[l];
-          data[n]->sigma[i][j][k] = bsq_preboost/data[n]->p[KRHO][i][j][k];
+        if (transform_velocity) {
+          double bsq_source = 0.;
+          for (int l=0; l<NDIM; ++l) bsq_source += bcon[l] * bcov[l];
+          data[n]->sigma[i][j][k] = bsq_source/data[n]->p[KRHO][i][j][k];
         }
 
+        invalid_boost_cells += stretch_fourvelocity_zamo(gcon, ucon);
         invalid_boost_cells += boost_fourvelocity_zamo_radial(
             gcov, gcon, data[n]->p[KRHO][i][j][k], ucon, bcon);
-        if (xiboost != 0.) {
+        if (transform_velocity) {
           flip_index(ucon, gcov, ucov);
           udotB = 0.;
           for (int l = 1; l < NDIM; l++) {
@@ -2301,8 +2362,8 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   }
 
   if (invalid_boost_cells > 0) {
-    fprintf(stderr, "! xiboost=%g encountered invalid ZAMO-radial boost geometry in %d cells. Exiting.\n",
-            xiboost, invalid_boost_cells);
+    fprintf(stderr, "! Astretch=%g, xiboost=%g encountered invalid ZAMO velocity-transform geometry in %d cells. Exiting.\n",
+            Astretch, xiboost, invalid_boost_cells);
     exit(7);
   }
 
