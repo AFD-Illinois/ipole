@@ -109,6 +109,7 @@ struct of_data {
   double ***thetae;
   double ***b;
   double ***sigma;
+  int sigma_preboost_valid;
   double ***beta;
   double ***poynting; //magnitude of Poynting flux
 };
@@ -685,7 +686,16 @@ void init_physical_quantities(int n, double rescale_factor)
         double bsq = data[n]->b[i][j][k] / B_unit;
         bsq = bsq*bsq;
 
-        double sigma_m = bsq/data[n]->p[KRHO][i][j][k];
+        double sigma_m_postboost = bsq/data[n]->p[KRHO][i][j][k];
+        // For an on-read xiboost (or a marked pre-boosted KORAL copy),
+        // data[n]->sigma holds the value from before u^mu was changed and
+        // b^mu was reconstructed.  Continue to use that original sigma for
+        // all sigma-based masks, including the splitEDF disk/jet boundary,
+        // while data[n]->b retains the reconstructed post-boost field used
+        // by the radiative coefficients.
+        double sigma_m = data[n]->sigma_preboost_valid
+                       ? data[n]->sigma[i][j][k]
+                       : sigma_m_postboost;
         double beta_m = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
 #if DEBUG
         if(isnan(sigma_m)) {
@@ -1382,6 +1392,10 @@ void populate_boundary_conditions(int n)
       }
       data[n]->b[0][j][k] = data[n]->b[1][j][k];
       data[n]->b[N1+1][j][k] = data[n]->b[N1][j][k];
+      if (data[n]->sigma_preboost_valid) {
+        data[n]->sigma[0][j][k] = data[n]->sigma[1][j][k];
+        data[n]->sigma[N1+1][j][k] = data[n]->sigma[N1][j][k];
+      }
     }
   }
 
@@ -1397,6 +1411,10 @@ void populate_boundary_conditions(int n)
         }
         data[n]->b[i][0][k] = data[n]->b[i][1][kflip];
         data[n]->b[i][N2+1][k] = data[n]->b[i][N2][kflip];
+        if (data[n]->sigma_preboost_valid) {
+          data[n]->sigma[i][0][k] = data[n]->sigma[i][1][kflip];
+          data[n]->sigma[i][N2+1][k] = data[n]->sigma[i][N2][kflip];
+        }
       } else {
         int kflip1 = ( k + (N3/2) ) % N3;
         int kflip2 = ( k + (N3/2) + 1 ) % N3;
@@ -1410,6 +1428,12 @@ void populate_boundary_conditions(int n)
                                  + data[n]->b[i][1][kflip2] ) / 2.;
         data[n]->b[i][N2+1][k] = ( data[n]->b[i][N2][kflip1]
                                  + data[n]->b[i][N2][kflip2] ) / 2.;
+        if (data[n]->sigma_preboost_valid) {
+          data[n]->sigma[i][0][k] = ( data[n]->sigma[i][1][kflip1]
+                                    + data[n]->sigma[i][1][kflip2] ) / 2.;
+          data[n]->sigma[i][N2+1][k] = ( data[n]->sigma[i][N2][kflip1]
+                                       + data[n]->sigma[i][N2][kflip2] ) / 2.;
+        }
       }
     }
   }
@@ -1424,6 +1448,10 @@ void populate_boundary_conditions(int n)
       }
       data[n]->b[i][j][0] = data[n]->b[i][j][N3];
       data[n]->b[i][j][N3+1] = data[n]->b[i][j][1];
+      if (data[n]->sigma_preboost_valid) {
+        data[n]->sigma[i][j][0] = data[n]->sigma[i][j][N3];
+        data[n]->sigma[i][j][N3+1] = data[n]->sigma[i][j][1];
+      }
     }
   }
 }
@@ -1443,6 +1471,7 @@ void remap_hamr(double *buffer, double ***memory, int n1, int n2, int n3, int ng
 void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
 {
   double dMact, Ladv;
+  data[n]->sigma_preboost_valid = (xiboost != 0.);
 
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -1578,6 +1607,12 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
           bcon[l] = (data[n]->p[B1+l-1][i][j][k]/alpha + ucon[l]*udotB)/ucon[0];  // note alpha!
         }
         flip_index(bcon, gcov_hamr, bcov);
+
+        if (xiboost != 0.) {
+          double bsq_preboost = 0.;
+          for (int l=0; l<NDIM; ++l) bsq_preboost += bcon[l] * bcov[l];
+          data[n]->sigma[i][j][k] = bsq_preboost/data[n]->p[KRHO][i][j][k];
+        }
 
         invalid_boost_cells += boost_fourvelocity_zamo_radial(
             gcov_hamr, gcon_hamr, data[n]->p[KRHO][i][j][k], ucon, bcon);
@@ -1716,6 +1751,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   // to the n'th copy of data (e.g., for slow light)
 
   double dMact, Ladv;
+  data[n]->sigma_preboost_valid = (xiboost != 0.);
 
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -1729,6 +1765,12 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
 
   hdf5_set_directory("/");
   hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
+
+  // boost-koral-dump.py marks transformed copies and intentionally leaves
+  // sigma_plasma unchanged.  When no additional on-read boost is requested,
+  // that stored dataset is the original sigma mask we want to retain.
+  hdf5_set_directory("/header/");
+  int has_stored_preboost_sigma = hdf5_exists("xiboost_zamo_radial");
 
   hdf5_set_directory("/quants/");
 
@@ -1762,6 +1804,16 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
 
   hdf5_read_array(data[n]->p[B3][0][0], "B3", 3, fdims, fstart, fcount, 
                   mdims, mstart, H5T_IEEE_F64LE); 
+
+  if (xiboost == 0. && has_stored_preboost_sigma
+      && hdf5_exists("sigma_plasma")) {
+    hdf5_read_array(data[n]->sigma[0][0], "sigma_plasma", 3,
+                    fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+    data[n]->sigma_preboost_valid = 1;
+    if (verbose) {
+      fprintf(stderr, "Using stored pre-boost sigma_plasma for sigma masks.\n");
+    }
+  }
 
   if (ELECTRONS == 9) {
     hdf5_read_array(data[n]->p[TFLK][0][0], "te", 3, fdims, fstart, fcount, 
@@ -1855,6 +1907,12 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
           bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
         }
         flip_index(bcon, gcov_KS, bcov);
+
+        if (xiboost != 0.) {
+          double bsq_preboost = 0.;
+          for (int l=0; l<NDIM; ++l) bsq_preboost += bcon[l] * bcov[l];
+          data[n]->sigma[i][j][k] = bsq_preboost/data[n]->p[KRHO][i][j][k];
+        }
 
         invalid_boost_cells += boost_fourvelocity_zamo_radial(
             gcov_KS, gcon_KS, data[n]->p[KRHO][i][j][k], ucon, bcon);
@@ -2050,6 +2108,7 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   // to the n'th copy of data (e.g., for slow light)
 
   double dMact, Ladv;
+  data[n]->sigma_preboost_valid = (xiboost != 0.);
 
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -2176,6 +2235,12 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
           bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
         }
         flip_index(bcon, gcov, bcov);
+
+        if (xiboost != 0.) {
+          double bsq_preboost = 0.;
+          for (int l=0; l<NDIM; ++l) bsq_preboost += bcon[l] * bcov[l];
+          data[n]->sigma[i][j][k] = bsq_preboost/data[n]->p[KRHO][i][j][k];
+        }
 
         invalid_boost_cells += boost_fourvelocity_zamo_radial(
             gcov, gcon, data[n]->p[KRHO][i][j][k], ucon, bcon);
