@@ -11,7 +11,7 @@ GSL_DIR =
 SYSTEM_LIBDIR =
 
 # Try pointing this to h5pcc or h5cc on your machine, before hunting down libraries
-CC=h5cc
+CC=h5pcc
 # Example CFLAGS for going fast with GCC
 CFLAGS = -std=gnu99 -O3 -march=native -mtune=native -flto -fopenmp -funroll-loops
 MATH_LIB = -lm

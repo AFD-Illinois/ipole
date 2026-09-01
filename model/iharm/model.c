@@ -49,6 +49,10 @@ double DTd;
 double sigma_cut = 1.;
 double beta_crit = 1.0;
 double sigma_cut_high = -1.0;
+double sigma_dynamic = 0.0; //anisotropy parameter (sigmacut=sigma_dynamic/sqrt(rBL))
+double sigma_min = 0.0; //serves as minimum on sigma if splitEDF=0, else delineates the boundary between jet/disk
+double hpoynting = 0.0;
+int splitEDF = 0; //1 if power EDF in jet and thermal EDF in disk, 0 otherwise
 
 // MODEL PARAMETERS: PRIVATE
 static char fnam[STRLEN] = "dump.h5";
@@ -70,6 +74,9 @@ static double MdotEdd_dump;
 static double Ladv_dump;
 
 static int reverse_field = 0;
+static double Astretch = 1.;
+static double xiboost = 0.;
+static double xiboost_sigma_min = -1.;
 
 // Need to share this with main.c!
 extern double tf;
@@ -108,7 +115,9 @@ struct of_data {
   double ***thetae;
   double ***b;
   double ***sigma;
+  int sigma_source_valid;
   double ***beta;
+  double ***poynting; //magnitude of Poynting flux
 };
 static struct of_data dataA, dataB, dataC;
 static struct of_data *data[NSUP];
@@ -127,6 +136,106 @@ void init_hamr_grid(char *fnam, int dumpidx);
 void init_physical_quantities(int n, double rescale_factor);
 void init_storage(void);
 
+// Stretch the magnitude of the fluid velocity measured by the normal (ZAMO)
+// observer while preserving its ZAMO-spatial direction.  Decompose
+//
+//   u^mu = Gamma n^mu + U^mu,        n_mu U^mu = 0,
+//
+// set Gamma' = 1 + Astretch (Gamma - 1), and rescale U^mu so that the new
+// four-velocity remains normalized.  The algebraic expression for spatial
+// scale_sq below is equivalent to (Gamma'^2 - 1)/(Gamma^2 - 1), but remains
+// finite as Gamma -> 1, where it approaches Astretch.
+static int stretch_fourvelocity_zamo(double gcon[NDIM][NDIM],
+                                     double ucon[NDIM])
+{
+  if (Astretch == 1.) return 0;
+
+  double alpha_sq = -1./gcon[0][0];
+  if (!isfinite(alpha_sq) || alpha_sq <= 0.) return 1;
+
+  double alpha = sqrt(alpha_sq);
+  double Gamma = alpha*ucon[0];
+  if (!isfinite(Gamma) || Gamma < 1. - 1.e-12) return 1;
+  // A normalized timelike four-velocity has Gamma >= 1.  Tolerate a tiny
+  // undershoot from roundoff before evaluating the Gamma -> 1 limit.
+  if (Gamma < 1.) Gamma = 1.;
+
+  double dGamma = Gamma - 1.;
+  double Gamma_new = 1. + Astretch*dGamma;
+  double scale_sq = Astretch*(2. + Astretch*dGamma)/(Gamma + 1.);
+  if (!isfinite(Gamma_new) || Gamma_new < 1.
+      || !isfinite(scale_sq) || scale_sq < 0.) return 1;
+
+  double spatial_scale = sqrt(scale_sq);
+  MULOOP {
+    double ncon = -alpha*gcon[mu][0];
+    double Ucon = ucon[mu] - Gamma*ncon;
+    ucon[mu] = Gamma_new*ncon + spatial_scale*Ucon;
+  }
+
+  return 0;
+}
+
+// Boost the fluid four-velocity in the outward radial direction measured by
+// the normal (ZAMO) observer.  The ZAMO-spatial radial unit vector follows the
+// positive coordinate-r line,
+//
+//   n^mu       = -alpha g^{mu t},
+//   e_rhat^mu  = delta_r^mu/sqrt(g_rr),
+//   Gamma      = -u.n,
+//   U_rhat     =  u.e_rhat,
+//
+// and the only boosted tetrad components are
+//
+//   Gamma'  = gamma_xi (Gamma  + xi U_rhat),
+//   U_rhat' = gamma_xi (U_rhat + xi Gamma).
+//
+// Positive xiboost is outward in both hemispheres.  The caller must
+// reconstruct b^mu from the unchanged constrained-transport magnetic
+// primitives after this function updates u^mu.
+static int boost_fourvelocity_zamo_radial(double gcov[NDIM][NDIM],
+                                          double gcon[NDIM][NDIM],
+                                          double rho,
+                                          double ucon[NDIM],
+                                          const double bcon[NDIM])
+{
+  if (xiboost == 0.) return 0;
+
+  if (xiboost_sigma_min >= 0.) {
+    double bsq = 0.;
+    MUNULOOP bsq += bcon[mu] * gcov[mu][nu] * bcon[nu];
+    if (!isfinite(bsq) || !isfinite(rho) || rho <= 0.) return 1;
+    if (bsq/rho < xiboost_sigma_min) return 0;
+  }
+
+  double alpha_sq = -1./gcon[0][0];
+  if (!isfinite(alpha_sq) || alpha_sq <= 0.
+      || !isfinite(gcov[1][1]) || gcov[1][1] <= 0.) return 1;
+
+  double alpha = sqrt(alpha_sq);
+  double radial_norm = sqrt(gcov[1][1]);
+  double ucov[NDIM] = { 0. };
+  flip_index(ucon, gcov, ucov);
+
+  double Gamma = alpha*ucon[0];
+  double U_rhat = ucov[1]/radial_norm;
+  double gamma_xi = 1./sqrt(1. - xiboost*xiboost);
+  double Gamma_new = gamma_xi*(Gamma + xiboost*U_rhat);
+  double U_rhat_new = gamma_xi*(U_rhat + xiboost*Gamma);
+
+  if (!isfinite(Gamma) || !isfinite(U_rhat)
+      || !isfinite(Gamma_new) || !isfinite(U_rhat_new)) return 1;
+
+  MULOOP {
+    double ncon = -alpha*gcon[mu][0];
+    double ercon = (mu == 1) ? 1./radial_norm : 0.;
+    ucon[mu] += (Gamma_new - Gamma)*ncon
+              + (U_rhat_new - U_rhat)*ercon;
+  }
+
+  return 0;
+}
+
 void try_set_model_parameter(const char *word, const char *value)
 {
   // TODO remember to set defaults!
@@ -144,6 +253,10 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "trat_large", &trat_large, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut", &sigma_cut, TYPE_DBL);
   set_by_word_val(word, value, "sigma_cut_high", &sigma_cut_high, TYPE_DBL);
+  set_by_word_val(word, value, "sigma_dynamic", &sigma_dynamic, TYPE_DBL); //anisotropy parameter
+  set_by_word_val(word, value, "sigma_min", &sigma_min, TYPE_DBL); //minimum sigma to cut beneath
+  set_by_word_val(word, value, "hpoynting", &hpoynting, TYPE_DBL); //normalization factor for nonthermal injection rate
+  set_by_word_val(word, value, "splitEDF", &splitEDF, TYPE_INT); //minimum sigma to cut beneath
   set_by_word_val(word, value, "beta_crit", &beta_crit, TYPE_DBL);
   set_by_word_val(word, value, "cooling_dynamical_times", &cooling_dynamical_times, TYPE_DBL);
 
@@ -151,6 +264,9 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "rmin_geo", &rmin_geo, TYPE_DBL);
 
   set_by_word_val(word, value, "reverse_field", &reverse_field, TYPE_INT);
+  set_by_word_val(word, value, "Astretch", &Astretch, TYPE_DBL);
+  set_by_word_val(word, value, "xiboost", &xiboost, TYPE_DBL);
+  set_by_word_val(word, value, "xiboost_sigma_min", &xiboost_sigma_min, TYPE_DBL);
   // allow cutting out the spine
   set_by_word_val(word, value, "polar_cut_deg", &polar_cut, TYPE_DBL);
 
@@ -294,6 +410,27 @@ void get_dumpfile_type(char *fnam, int dumpidx)
 
 void init_model(double *tA, double *tB)
 {
+  if (!isfinite(Astretch) || Astretch < 0.) {
+    fprintf(stderr, "! Astretch must be finite and non-negative. Exiting.\n");
+    exit(7);
+  }
+  if (Astretch != 1.) {
+    fprintf(stderr, "Applying ZAMO gamma stretch Astretch=%g: Gamma' = 1 + Astretch*(Gamma - 1)\n",
+            Astretch);
+  }
+  if (!isfinite(xiboost) || fabs(xiboost) >= 1.) {
+    fprintf(stderr, "! xiboost must satisfy |xiboost| < 1. Exiting.\n");
+    exit(7);
+  }
+  if (xiboost != 0.) {
+    fprintf(stderr, "Applying outward ZAMO-radial xiboost=%g (boost gamma=%g)\n",
+            xiboost, 1./sqrt(1. - xiboost*xiboost));
+    if (xiboost_sigma_min >= 0.) {
+      fprintf(stderr, "Restricting xiboost to source cells with sigma >= %g\n",
+              xiboost_sigma_min);
+    }
+  }
+
   // set up initial ordering of data[]
   data[0] = &dataA;
   data[1] = &dataB;
@@ -564,14 +701,14 @@ double get_model_beta(double X[NDIM])
   return tfac*betaA + (1. - tfac)*betaB;
 }
 
-double get_sigma_smoothfac(double sigma)
+double get_sigma_smoothfac(double sigma, double sigmacutlocal)
 {
-  double sigma_above = sigma_cut;
+  double sigma_above = sigmacutlocal;
   if (sigma_cut_high > 0) sigma_above = sigma_cut_high;
-  if (sigma < sigma_cut) return 1;
+  if (sigma < sigmacutlocal) return 1;
   if (sigma >= sigma_above) return 0;
-  double dsig = sigma_above - sigma_cut;
-  return cos(M_PI / 2. / dsig * (sigma - sigma_cut));
+  double dsig = sigma_above - sigmacutlocal;
+  return cos(M_PI / 2. / dsig * (sigma - sigmacutlocal));
 }
 
 double get_model_ne(double X[NDIM])
@@ -582,14 +719,44 @@ double get_model_ne(double X[NDIM])
 
 #if USE_GEODESIC_SIGMACUT
   double sigma = get_model_sigma(X);
-  if (sigma > sigma_cut) return 0.;
-  sigma_smoothfac = get_sigma_smoothfac(sigma);
+  double sigmacutlocal = sigma_cut;
+  if (sigma_dynamic != 0.0){
+    double rhere, thhere;
+    bl_coord(X, &rhere, &thhere);
+    sigmacutlocal = sigma_dynamic/sqrt(rhere);
+  }
+  if (sigma > sigmacutlocal || (sigma < sigma_min && splitEDF == 0)) return 0.;
+  sigma_smoothfac = get_sigma_smoothfac(sigma, sigmacutlocal);
 #endif
 
   int nA, nB;
   double tfac = set_tinterp_ns(X, &nA, &nB);
 
   return interp_scalar_time(X, data[nA]->ne, data[nB]->ne, tfac) * sigma_smoothfac;
+}
+
+double get_model_ne_poynting(double X[NDIM])
+{
+  if ( X_in_domain(X) == 0 ) return 0.;
+
+  double sigma_smoothfac = 1;
+
+#if USE_GEODESIC_SIGMACUT
+  double sigma = get_model_sigma(X);
+  double sigmacutlocal = sigma_cut;
+  if (sigma_dynamic != 0.0){
+    double rhere, thhere;
+    bl_coord(X, &rhere, &thhere);
+    sigmacutlocal = sigma_dynamic/sqrt(rhere);
+  }
+  if (sigma > sigmacutlocal || (sigma < sigma_min && splitEDF == 0)) return 0.;
+  sigma_smoothfac = get_sigma_smoothfac(sigma, sigmacutlocal);
+#endif
+
+  int nA, nB;
+  double tfac = set_tinterp_ns(X, &nA, &nB);
+  double poyntinghere = interp_scalar_time(X, data[nA]->poynting, data[nB]->poynting, tfac);
+  return poyntinghere;
 }
 
 void set_units()
@@ -629,7 +796,16 @@ void init_physical_quantities(int n, double rescale_factor)
         double bsq = data[n]->b[i][j][k] / B_unit;
         bsq = bsq*bsq;
 
-        double sigma_m = bsq/data[n]->p[KRHO][i][j][k];
+        double sigma_m_posttransform = bsq/data[n]->p[KRHO][i][j][k];
+        // For an on-read velocity transform (or a marked pre-boosted KORAL copy),
+        // data[n]->sigma holds the value from before u^mu was changed and
+        // b^mu was reconstructed.  Continue to use that original sigma for
+        // all sigma-based masks, including the splitEDF disk/jet boundary,
+        // while data[n]->b retains the reconstructed post-transform field used
+        // by the radiative coefficients.
+        double sigma_m = data[n]->sigma_source_valid
+                       ? data[n]->sigma[i][j][k]
+                       : sigma_m_posttransform;
         double beta_m = data[n]->p[UU][i][j][k]*(gam-1.)/0.5/bsq;
 #if DEBUG
         if(isnan(sigma_m)) {
@@ -726,6 +902,7 @@ void init_storage(void)
     data[n]->b = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->sigma = malloc_rank3(N1+2,N2+2,N3+2);
     data[n]->beta = malloc_rank3(N1+2,N2+2,N3+2);
+    data[n]->poynting = malloc_rank3(N1+2,N2+2,N3+2);
   }
 }
 
@@ -1288,6 +1465,9 @@ void output_hdf5()
 
   hdf5_set_directory("/header/");
   hdf5_write_single_val(&reverse_field,"field_config",H5T_STD_I32LE);
+  hdf5_write_single_val(&Astretch,"Astretch",H5T_IEEE_F64LE);
+  hdf5_write_single_val(&xiboost,"xiboost",H5T_IEEE_F64LE);
+  hdf5_write_single_val(&xiboost_sigma_min,"xiboost_sigma_min",H5T_IEEE_F64LE);
   hdf5_make_directory("units");
   hdf5_set_directory("/header/units/");
   hdf5_write_single_val(&L_unit, "L_unit", H5T_IEEE_F64LE);
@@ -1323,6 +1503,10 @@ void populate_boundary_conditions(int n)
       }
       data[n]->b[0][j][k] = data[n]->b[1][j][k];
       data[n]->b[N1+1][j][k] = data[n]->b[N1][j][k];
+      if (data[n]->sigma_source_valid) {
+        data[n]->sigma[0][j][k] = data[n]->sigma[1][j][k];
+        data[n]->sigma[N1+1][j][k] = data[n]->sigma[N1][j][k];
+      }
     }
   }
 
@@ -1338,6 +1522,10 @@ void populate_boundary_conditions(int n)
         }
         data[n]->b[i][0][k] = data[n]->b[i][1][kflip];
         data[n]->b[i][N2+1][k] = data[n]->b[i][N2][kflip];
+        if (data[n]->sigma_source_valid) {
+          data[n]->sigma[i][0][k] = data[n]->sigma[i][1][kflip];
+          data[n]->sigma[i][N2+1][k] = data[n]->sigma[i][N2][kflip];
+        }
       } else {
         int kflip1 = ( k + (N3/2) ) % N3;
         int kflip2 = ( k + (N3/2) + 1 ) % N3;
@@ -1351,6 +1539,12 @@ void populate_boundary_conditions(int n)
                                  + data[n]->b[i][1][kflip2] ) / 2.;
         data[n]->b[i][N2+1][k] = ( data[n]->b[i][N2][kflip1]
                                  + data[n]->b[i][N2][kflip2] ) / 2.;
+        if (data[n]->sigma_source_valid) {
+          data[n]->sigma[i][0][k] = ( data[n]->sigma[i][1][kflip1]
+                                    + data[n]->sigma[i][1][kflip2] ) / 2.;
+          data[n]->sigma[i][N2+1][k] = ( data[n]->sigma[i][N2][kflip1]
+                                       + data[n]->sigma[i][N2][kflip2] ) / 2.;
+        }
       }
     }
   }
@@ -1365,6 +1559,10 @@ void populate_boundary_conditions(int n)
       }
       data[n]->b[i][j][0] = data[n]->b[i][j][N3];
       data[n]->b[i][j][N3+1] = data[n]->b[i][j][1];
+      if (data[n]->sigma_source_valid) {
+        data[n]->sigma[i][j][0] = data[n]->sigma[i][j][N3];
+        data[n]->sigma[i][j][N3+1] = data[n]->sigma[i][j][1];
+      }
     }
   }
 }
@@ -1384,6 +1582,8 @@ void remap_hamr(double *buffer, double ***memory, int n1, int n2, int n3, int ng
 void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
 {
   double dMact, Ladv;
+  int transform_velocity = (Astretch != 1. || xiboost != 0.);
+  data[n]->sigma_source_valid = transform_velocity;
 
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -1433,9 +1633,10 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_close();
 
   dMact = Ladv = 0.;
+  int invalid_boost_cells = 0;
 
   // construct four-vectors over "real" zones
-#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv)
+#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv,invalid_boost_cells)
   for(int i = 1; i < N1+1; i++) {
     for(int j = 1; j < N2+1; j++) {
 
@@ -1519,6 +1720,28 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_hamr, bcov);
 
+        if (transform_velocity) {
+          double bsq_source = 0.;
+          for (int l=0; l<NDIM; ++l) bsq_source += bcon[l] * bcov[l];
+          data[n]->sigma[i][j][k] = bsq_source/data[n]->p[KRHO][i][j][k];
+        }
+
+        invalid_boost_cells += stretch_fourvelocity_zamo(gcon_hamr, ucon);
+        invalid_boost_cells += boost_fourvelocity_zamo_radial(
+            gcov_hamr, gcon_hamr, data[n]->p[KRHO][i][j][k], ucon, bcon);
+        if (transform_velocity) {
+          flip_index(ucon, gcov_hamr, ucov);
+          udotB = 0.;
+          for (int l = 1; l < NDIM; l++) {
+            udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k] / alpha;
+          }
+          bcon[0] = udotB;
+          for (int l = 1; l < NDIM; l++) {
+            bcon[l] = (data[n]->p[B1+l-1][i][j][k]/alpha + ucon[l]*udotB)/ucon[0];
+          }
+          flip_index(bcon, gcov_hamr, bcov);
+        }
+
         double bsq = 0.;
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
@@ -1583,6 +1806,12 @@ void load_hamr_data(int n, char *fnam, int dumpidx, int verbose)
     }
   }
 
+  if (invalid_boost_cells > 0) {
+    fprintf(stderr, "! Astretch=%g, xiboost=%g encountered invalid ZAMO velocity-transform geometry in %d cells. Exiting.\n",
+            Astretch, xiboost, invalid_boost_cells);
+    exit(7);
+  }
+
   // now copy primitives and four-vectors according to boundary conditions
   populate_boundary_conditions(n);
 
@@ -1635,6 +1864,9 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   // to the n'th copy of data (e.g., for slow light)
 
   double dMact, Ladv;
+  int transform_velocity = (Astretch != 1. || xiboost != 0.);
+  int use_stored_source_sigma = 0;
+  data[n]->sigma_source_valid = transform_velocity;
 
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -1648,6 +1880,14 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
 
   hdf5_set_directory("/");
   hdf5_read_single_val(&(data[n]->t), "t", H5T_IEEE_F64LE);
+
+  // The dump-transform script marks transformed copies and intentionally
+  // leaves sigma_plasma unchanged.  When no additional on-read boost is
+  // requested, that stored dataset is the original sigma mask we want to
+  // retain.
+  hdf5_set_directory("/header/");
+  int has_stored_source_sigma = hdf5_exists("xiboost_zamo_radial")
+                             || hdf5_exists("Astretch_zamo_gamma");
 
   hdf5_set_directory("/quants/");
 
@@ -1682,6 +1922,17 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_read_array(data[n]->p[B3][0][0], "B3", 3, fdims, fstart, fcount, 
                   mdims, mstart, H5T_IEEE_F64LE); 
 
+  if (xiboost == 0. && has_stored_source_sigma
+      && hdf5_exists("sigma_plasma")) {
+    hdf5_read_array(data[n]->sigma[0][0], "sigma_plasma", 3,
+                    fdims, fstart, fcount, mdims, mstart, H5T_IEEE_F64LE);
+    data[n]->sigma_source_valid = 1;
+    use_stored_source_sigma = 1;
+    if (verbose) {
+      fprintf(stderr, "Using stored source sigma_plasma for sigma masks.\n");
+    }
+  }
+
   if (ELECTRONS == 9) {
     hdf5_read_array(data[n]->p[TFLK][0][0], "te", 3, fdims, fstart, fcount, 
                     mdims, mstart, H5T_IEEE_F64LE); 
@@ -1690,14 +1941,15 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_close();
 
   dMact = Ladv = 0.;
+  int invalid_boost_cells = 0;
 
   // construct four-vectors over "real" zones
-#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv)
+#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv,invalid_boost_cells)
   for(int i = 1; i < N1+1; i++) {
     for(int j = 1; j < N2+1; j++) {
 
       double X[NDIM] = { 0. };
-      double gcov[NDIM][NDIM], gcon[NDIM][NDIM], gcov_KS[NDIM][NDIM], gcon_KS[NDIM][NDIM];
+      double gcov[NDIM][NDIM], gcon[NDIM][NDIM], gcov_KS[NDIM][NDIM], gcon_KS[NDIM][NDIM], gcov_BL[NDIM][NDIM], gcon_BL[NDIM][NDIM];
       double g, r, th;
 
       // this assumes axisymmetry in the coordinates
@@ -1712,15 +1964,42 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
       gcov_ks(r, th, gcov_KS);
       gcon_func(gcov_KS, gcon_KS);
 
+      
+      // getBL metric in case we need
+      gcov_bl(r, th, gcov_BL);
+      gcon_func(gcov_BL, gcon_BL);
+
       for(int k = 1; k < N3+1; k++){
 
         ijktoX(i-1,j-1,k,X);
         double UdotU = 0.;
+        double alphalapse = sqrt(-1./gcon_KS[0][0]);
+        double UZAMOdotB = 0.; //tilde{u}.mathcal{B}
+        double BZAMO2 = 0.; //mathcal{B}.mathcal{B}
+        double vperp2 = 0.; //as seen in ZAMO frame
         
-        for(int l = 1; l < NDIM; l++) 
-          for(int m = 1; m < NDIM; m++) 
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
             UdotU += gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[U1+m-1][i][j][k];
+            UZAMOdotB += (gcov_KS[l][m]*data[n]->p[U1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k])*alphalapse;
+            BZAMO2 += (gcov_KS[l][m]*data[n]->p[B1+l-1][i][j][k]*data[n]->p[B1+m-1][i][j][k])*alphalapse*alphalapse;
+          }
+        }
+
         double ufac = sqrt(-1./gcon_KS[0][0]*(1 + fabs(UdotU)));
+        double lorentzfac = sqrt(1+fabs(UdotU)); //Lorentz factor of plasma as seen in ZAMO frame
+
+    
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
+            double uperpL = data[n]->p[U1+l-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+l-1][i][j][k]*alphalapse;
+            double uperpM = data[n]->p[U1+m-1][i][j][k]-UZAMOdotB/BZAMO2*data[n]->p[B1+m-1][i][j][k]*alphalapse;
+            vperp2 += gcov_KS[l][m]*uperpL*uperpM/(lorentzfac*lorentzfac);
+          }
+        }
+
+        // update Poynting flux - KS normal frame
+        // data[n]->poynting[i][j][k] = sqrt(vperp2)*BZAMO2*pow(B_unit, 2.0)/(4.0*M_PI); //S=vperp*BZAMO^2/(4pi) 
 
         double ucon[NDIM] = { 0. };
         ucon[0] = -ufac * gcon_KS[0][0];
@@ -1737,7 +2016,7 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         for (int l = 1; l < NDIM; l++) {
           udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
         }
-      
+
         double bcon[NDIM] = { 0. };
         double bcov[NDIM] = { 0. };
 
@@ -1747,6 +2026,71 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov_KS, bcov);
 
+        if (transform_velocity && !use_stored_source_sigma) {
+          double bsq_source = 0.;
+          for (int l=0; l<NDIM; ++l) bsq_source += bcon[l] * bcov[l];
+          data[n]->sigma[i][j][k] = bsq_source/data[n]->p[KRHO][i][j][k];
+        }
+
+        invalid_boost_cells += stretch_fourvelocity_zamo(gcon_KS, ucon);
+        invalid_boost_cells += boost_fourvelocity_zamo_radial(
+            gcov_KS, gcon_KS, data[n]->p[KRHO][i][j][k], ucon, bcon);
+        if (transform_velocity) {
+          flip_index(ucon, gcov_KS, ucov);
+          udotB = 0.;
+          for (int l = 1; l < NDIM; l++) {
+            udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
+          }
+          bcon[0] = udotB;
+          for (int l = 1; l < NDIM; l++) {
+            bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
+          }
+          flip_index(bcon, gcov_KS, bcov);
+        }
+
+        //translate to BL so we can compute Poynting flux in BL normal frame
+        double bcon_BL[NDIM] = { 0. };
+        double bcov_BL[NDIM] = { 0. };
+        double ucon_BL[NDIM] = { 0. };
+        double ucov_BL[NDIM] = { 0. };
+        ks_to_bl(X, bcon, bcon_BL);
+        flip_index(bcon_BL, gcov_BL, bcov_BL);
+        ks_to_bl(X, ucon, ucon_BL);
+        flip_index(ucon_BL, gcov_BL, ucov_BL);
+        double alphaBL = sqrt(-1. / gcon_BL[0][0]);
+        double UZAMO_BL[3] = { 0. };
+        double B_BL[3] = { 0. };
+        
+        for (int l=0; l<3; l++){
+          UZAMO_BL[l] = (gcon_BL[0][l+1]*alphaBL*alphaBL + ucon_BL[l+1]/ucon_BL[0]) * ucon_BL[0];
+          B_BL[l] = ucon_BL[0] * bcon_BL[l+1] - bcon_BL[0] * ucon_BL[l+1];
+        }
+
+        double UdotU_BL = 0.0;
+        double UZAMOdotB_BL = 0.0;
+        double BZAMO2_BL = 0.0;
+        double vperp2_BL = 0.0;
+
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
+            UdotU_BL += gcov_BL[l][m]*UZAMO_BL[l-1]*UZAMO_BL[m-1];
+            UZAMOdotB_BL += (gcov_BL[l][m]*UZAMO_BL[l-1]*B_BL[m-1])*alphaBL;
+            BZAMO2_BL += (gcov_BL[l][m]*B_BL[l-1]*B_BL[m-1])*alphaBL*alphaBL;
+          }
+        }
+        double lorentzfac_BL = sqrt(1+fabs(UdotU_BL)); //Lorentz factor of plasma as seen in ZAMO frame
+        for(int l = 1; l < NDIM; l++){
+          for(int m = 1; m < NDIM; m++){
+            double uperpL_BL = UZAMO_BL[l-1]-UZAMOdotB_BL/BZAMO2_BL*B_BL[l-1]*alphaBL;
+            double uperpM_BL = UZAMO_BL[m-1]-UZAMOdotB_BL/BZAMO2_BL*B_BL[m-1]*alphaBL;
+            vperp2_BL += gcov_BL[l][m]*uperpL_BL*uperpM_BL/(lorentzfac_BL*lorentzfac_BL);
+          }
+        }
+
+        double poyntingBL = sqrt(vperp2_BL)*BZAMO2_BL*B_unit*B_unit / (4.0*M_PI); //S=vperp*BZAMO^2 
+        data[n]->poynting[i][j][k] = (isnan(poyntingBL) == 1) ? 0.0 : poyntingBL; // can give NaN's inside horizon but that obviously doesn't matter
+
+        //now proceed with ipole
         double bsq = 0.;
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
@@ -1756,8 +2100,6 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         if(i <= 21) Ladv += g * data[n]->p[UU][i][j][k] * ucon[1] * ucov[0];
 
         // trust ...
-        //double udb1 = 0., udu1 = 0., bdb1 = 0.;
-        //MULOOP { udb1 += ucon[mu]*bcov[mu]; udu1 += ucon[mu]*ucov[mu]; bdb1 += bcon[mu]*bcov[mu]; }
 
         // now translate from KS (outcoords) -> MKS:hslope=1
         ucon[1] /= r;
@@ -1782,6 +2124,12 @@ void load_koral_data(int n, char *fnam, int dumpidx, int verbose)
         //fprintf(stderr, "u.u %g %g   u.b %g %g   b.b %g %g\n", udu1,udu2, udb1,udb2, bdb1,bdb2);
       }
     }
+  }
+
+  if (invalid_boost_cells > 0) {
+    fprintf(stderr, "! Astretch=%g, xiboost=%g encountered invalid ZAMO velocity-transform geometry in %d cells. Exiting.\n",
+            Astretch, xiboost, invalid_boost_cells);
+    exit(7);
   }
 
   // now copy primitives and four-vectors according to boundary conditions
@@ -1879,6 +2227,8 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   // to the n'th copy of data (e.g., for slow light)
 
   double dMact, Ladv;
+  int transform_velocity = (Astretch != 1. || xiboost != 0.);
+  data[n]->sigma_source_valid = transform_velocity;
 
   char fname[256];
   snprintf(fname, 255, fnam, dumpidx);
@@ -1949,9 +2299,10 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
   hdf5_close();
 
   dMact = Ladv = 0.;
+  int invalid_boost_cells = 0;
 
   // construct four-vectors over "real" zones
-#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv)
+#pragma omp parallel for collapse(2) reduction(+:dMact,Ladv,invalid_boost_cells)
   for(int i = 1; i < N1+1; i++) {
     for(int j = 1; j < N2+1; j++) {
 
@@ -2005,6 +2356,33 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         }
         flip_index(bcon, gcov, bcov);
 
+        if (transform_velocity) {
+          double bsq_source = 0.;
+          for (int l=0; l<NDIM; ++l) bsq_source += bcon[l] * bcov[l];
+          data[n]->sigma[i][j][k] = bsq_source/data[n]->p[KRHO][i][j][k];
+        }
+
+        invalid_boost_cells += stretch_fourvelocity_zamo(gcon, ucon);
+        invalid_boost_cells += boost_fourvelocity_zamo_radial(
+            gcov, gcon, data[n]->p[KRHO][i][j][k], ucon, bcon);
+        if (transform_velocity) {
+          flip_index(ucon, gcov, ucov);
+          udotB = 0.;
+          for (int l = 1; l < NDIM; l++) {
+            udotB += ucov[l]*data[n]->p[B1+l-1][i][j][k];
+          }
+          bcon[0] = udotB;
+          for (int l = 1; l < NDIM; l++) {
+            bcon[l] = (data[n]->p[B1+l-1][i][j][k] + ucon[l]*udotB)/ucon[0];
+          }
+          flip_index(bcon, gcov, bcov);
+
+          double alpha = sqrt(-1. / gcon[0][0]);
+          data[n]->p[U1][i][j][k] = (gcon[0][1]*alpha*alpha + ucon[1]/ucon[0]) * ucon[0];
+          data[n]->p[U2][i][j][k] = (gcon[0][2]*alpha*alpha + ucon[2]/ucon[0]) * ucon[0];
+          data[n]->p[U3][i][j][k] = (gcon[0][3]*alpha*alpha + ucon[3]/ucon[0]) * ucon[0];
+        }
+
         double bsq = 0.;
         for (int l=0; l<NDIM; ++l) bsq += bcon[l] * bcov[l];
         data[n]->b[i][j][k] = sqrt(bsq) * B_unit;
@@ -2041,6 +2419,12 @@ void load_iharm_data(int n, char *fnam, int dumpidx, int verbose)
         }
       }
     }
+  }
+
+  if (invalid_boost_cells > 0) {
+    fprintf(stderr, "! Astretch=%g, xiboost=%g encountered invalid ZAMO velocity-transform geometry in %d cells. Exiting.\n",
+            Astretch, xiboost, invalid_boost_cells);
+    exit(7);
   }
 
   // now copy primitives and four-vectors according to boundary conditions

@@ -15,4 +15,7 @@ double power_law_I_abs(struct parameters * params);
 double power_law_Q_abs(struct parameters * params);
 double power_law_V_abs(struct parameters * params);
 
+double power_law_rho_Q(struct parameters *params);
+double power_law_rho_V(struct parameters *params);
+
 #endif /* SYMPHONY_POWER_LAW_H_ */

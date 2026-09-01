@@ -50,11 +50,25 @@ void load_simcoord_info_from_file(const char *fname)
     exit(-1);
   }
 
-  size_t n3;
+  // KORAL stores these dimensions as 32-bit integers.  Reading one directly
+  // into size_t only initializes 32 bits of the value on 64-bit systems; in
+  // particular, the uninitialized upper bytes of the stack-local n3 caused
+  // bogus HDF5 hyperslab strides on macOS.
+  int n1_file = 0;
+  int n2_file = 0;
+  int n3_file = 0;
   hdf5_set_directory("/header/");
-  hdf5_read_single_val(&n1, "n1", H5T_STD_I32LE);
-  hdf5_read_single_val(&n2, "n2", H5T_STD_I32LE);
-  hdf5_read_single_val(&n3, "n3", H5T_STD_I32LE);
+  hdf5_read_single_val(&n1_file, "n1", H5T_NATIVE_INT);
+  hdf5_read_single_val(&n2_file, "n2", H5T_NATIVE_INT);
+  hdf5_read_single_val(&n3_file, "n3", H5T_NATIVE_INT);
+  if (n1_file <= 0 || n2_file <= 0 || n3_file <= 0) {
+    fprintf(stderr, "! invalid simulation grid dimensions %d %d %d\n",
+            n1_file, n2_file, n3_file);
+    exit(-1);
+  }
+  n1 = (size_t)n1_file;
+  n2 = (size_t)n2_file;
+  size_t n3 = (size_t)n3_file;
 
   hdf5_set_directory("/header/geom/");
   hdf5_read_single_val(&startx1, "startx1", H5T_IEEE_F64LE);
@@ -156,7 +170,7 @@ void initialize_simgrid(size_t n1, size_t n2, double x1i, double x1f, double x2i
       double eKS[NDIM] = { 0 };
       double gridcoord[NDIM] = { 0 };
 
-      eKS[1] = exp(er0 + der*i);
+      eKS[1] = er0 + der*i;
       eKS[2] = h0 + dh*j;
 
       int rv = 0;
@@ -256,10 +270,10 @@ int simcoord_to_eks(double gridcoord[NDIM], double eKS[NDIM])
 
   eKS[0] = gridcoord[0];
 
-  eKS[1] = ks_r[ n2*ii + jj ] * (1.-di)*(1.-dj)
+  eKS[1] = log(ks_r[ n2*ii + jj ] * (1.-di)*(1.-dj)
          + ks_r[ n2*ii + jj+1 ] * (1.-di)*dj
          + ks_r[ n2*(ii+1) + jj ] * di*(1.-dj)
-         + ks_r[ n2*(ii+1) + jj+1 ] * di*dj;
+	       + ks_r[ n2*(ii+1) + jj+1 ] * di*dj);
 
   eKS[2] = ks_h[ n2*ii + jj ] * (1.-di)*(1.-dj)
          + ks_h[ n2*ii + jj+1 ] * (1.-di)*dj
@@ -294,10 +308,10 @@ void eks_to_simcoord(double eKS[NDIM], double gridcoord[NDIM])
 
   gridcoord[0] = eKS[0];
 
-  gridcoord[1] = simcoords_x1[ ij2oned(ii,jj) ] * (1.-di)*(1.-dj)
+  gridcoord[1] = (ij2oned(ii+1,jj+1)<sc_n1*sc_n2) ? simcoords_x1[ ij2oned(ii,jj) ] * (1.-di)*(1.-dj)
                + simcoords_x1[ ij2oned(ii,jj+1) ] * (1.-di)*dj
                + simcoords_x1[ ij2oned(ii+1,jj) ] * di*(1.-dj)
-               + simcoords_x1[ ij2oned(ii+1,jj+1) ] * di*dj;
+    + simcoords_x1[ ij2oned(ii+1,jj+1) ] * di*dj : simcoords_x1[sc_n1*sc_n2];
 
   gridcoord[2] = simcoords_x2[ ij2oned(ii,jj) ] * (1.-di)*(1.-dj)
                + simcoords_x2[ ij2oned(ii,jj+1) ] * (1.-di)*dj
@@ -319,9 +333,9 @@ static int rev_saved_rh(double *eKS, double *gridcoord)
 
   // here we assume x1 is independent of x2 so we can find i first
   for (int i=0; i<n1-1; ++i) {
-    if (ks_r[n2*i] <= log(r) && log(r) < ks_r[n2*(i+1)]) {
+    if (ks_r[n2*i] <= r && r < ks_r[n2*(i+1)]) {
       gridi = i;
-      griddx1 = ( r - exp(ks_r[n2*i]) ) / ( exp(ks_r[n2*(i+1)]) - exp(ks_r[n2*i]) );
+      griddx1 = ( log(r) - log(ks_r[n2*i]) ) / ( log(ks_r[n2*(i+1)]) - log(ks_r[n2*i]) );
       break;
     }
   }
@@ -390,4 +404,3 @@ static int rev_KORAL_MKS3(double *xKS, double *xMKS)
 
   return 0;
 }
-

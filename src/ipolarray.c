@@ -59,7 +59,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 int integrate_emission(struct of_traj *traj, int nsteps,
                     double *Intensity, double *Tau, double *tauF,
                     double complex N_coord[NDIM][NDIM], Params *params,
-                    int print)
+		       int print, int iind, int jind)
 {
   *tauF = 0.;
   // Unpolarized
@@ -72,6 +72,8 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 
   // Initialize the running cached coefficients js, ks
   get_jkinv(traj[nsteps].X, traj[nsteps].Kcon, &js, &ks, params);
+
+  int countemit = 0;
 
   // Integrate the polarized & unpolarized transfer equations (& parallel transport)
   // 
@@ -122,17 +124,44 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     if (radiating_region(tf.X)) {
       // Conditions to zero just the emission, not all radiative transport
       int zero_emission = 0;
+      double r, th;
+      bl_coord(tf.X, &r, &th);
+
+      //zero out unwanted photon ring emission 
       if (params->target_nturns >= 0 && ti.nturns != params->target_nturns) {
         zero_emission = 1; 
       }
+
+      if (ti.nturns > params->max_nturns && params->max_nturns >= 0){
+	      zero_emission = 1;
+      }
+
+      //zero emission if we cut out the disk
+      if (th*180.0/M_PI > params->diskcut && th*180.0/M_PI < 180.0 - params->diskcut && r > params->rmaxcut && params->rmaxcut > 0.0){
+	      zero_emission = 1;
+      }
+
+      //frontcut dictates whether we cut out foreground or background emission
+      if (params->frontcut == 1 && cos(tf.X[3])>=0) zero_emission = 1; //cuts out foreground (assuming observer at phicam=0)
+      if (params->frontcut == 2 && cos(tf.X[3])<=0) zero_emission = 1; //cuts out background (assuming observer at phicam=0)
+
+
+      //zero out unwanted counter-jet emission
       if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
-        if (tf.X[2] < (cstopx[2] - cstartx[2]) / 2) {
+        if (th > M_PI/2.0){
+          zero_emission = 1;
+        }     
+      } 
+      else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
+        if (th < M_PI/2.0){
           zero_emission = 1;
         }
-      } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
-        if (tf.X[2] > (cstopx[2] - cstartx[2]) / 2) {
-          zero_emission = 1;
-        }
+      }
+
+      //set condition that psi thread (or not) the horizon
+      if (params->usepsi != 0){
+	if (params->usepsi == 1 && params->psigrid[iind][jind][countemit] > params->psibound) zero_emission = 1;
+	else if (params->usepsi == -1 && params->psigrid[iind][jind][countemit] < params->psibound) zero_emission = 1;
       }
 
       // Solve unpolarized transport
@@ -141,10 +170,23 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       double jf, kf;
       //get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
       get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
+      int increase = 0;
+      if (jf != 0){
+	increase = 1;
+	countemit += 1;
+      }
+      
       // End coefficients are next starting coefficients
       js = jf;
       ks = kf;
 
+      
+      /* set condition that psi thread the horizon */
+      /* if (increase){ */
+      /* 	/\* if (psivals[countemit-1] > params->psimax) zero_emission = 1; *\/ */
+      /* 	if (countemit == 1400 && print == 1) printf("rhere %g\n", r0); */
+      /* } */
+      
       double Inew = 0.;
       if (zero_emission) {
         Inew = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
@@ -160,14 +202,9 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       *Intensity = Inew;
 
       //fprintf(stderr, "Unpolarized transport\n");
-      
-      if (print) {
-        double Xg[4] = { 0., 0., 0., 0. };
-        eks_to_simcoord(ti.X, Xg);
-        fprintf(stderr, "INTEGRATION %d %d %g %g %g %g %g %g %g %g %g \n", 
-                print, nstep, ti.X[1], ti.X[2], ti.X[3], Xg[1], Xg[2], Xg[3], 
-                ji, *Intensity, ti.dl);
-      }
+     
+      double r0, th0;
+      bl_coord(tf.X, &r0, &th0);
 
       // Solve polarized transport
       if (!params->only_unpolarized) {
@@ -243,6 +280,10 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 #endif
   }
   // Return the final flag so caller can print
+  if (print) printf("countemit %i\n", countemit);
+  if (print == 1){
+    printf("hi\n");
+  }
   return oddflag;
 }
 
@@ -362,6 +403,13 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     jQ = 0.;
     jU = 0.;
     jV = 0.;
+    aI = 0.;
+    aQ = 0.;
+    aU = 0.;
+    aV = 0.;
+    rQ = 0.; 
+    rU = 0.;
+    rV = 0.;
   }
 
   // get fluid parameters at Xf
@@ -572,7 +620,7 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 #endif
   if (isnan(Ucov[0])) oddflag |= 8;
   return oddflag;
-}
+} 
 
 /* converts tensor N to Stokes parameters detected at the camera*/
 void project_N(double X[NDIM], double Kcon[NDIM],
