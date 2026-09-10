@@ -58,8 +58,8 @@ void lininterp2(double *image, double *imageS, double *taus, size_t i1, size_t j
 // TODO use this more.  Are long=only or upscaled ops faster?
 static inline size_t imgindex(size_t n, size_t i, size_t j, size_t nx, size_t ny) {return (n*nx + i)*ny + j;}
 
-// global variables. TODO scope into main
-static double tf = 0.;
+// global variables. TODO scope into main and pass to/from model
+double tf = 0.;
 
 Params params = { 0 };
 
