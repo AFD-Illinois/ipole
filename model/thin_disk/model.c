@@ -19,7 +19,7 @@ double B_unit;
 double Te_unit;
 
 // Model parameters: public
-double rmax_geo;
+// double rmax_geo;
 // Model parameters: private
 static double Mdot = 0.01;
 static double MBH_solar = 10.;
@@ -51,6 +51,8 @@ void try_set_model_parameter(const char *word, const char *value)
 
   set_by_word_val(word, value, "a", &a, TYPE_DBL);
   set_by_word_val(word, value, "Mdot", &Mdot, TYPE_DBL);
+
+  set_by_word_val(word, value, "Rout", &Rout, TYPE_DBL);
 }
 
 void init_model(double *tA, double *tB)
@@ -75,9 +77,13 @@ void init_model(double *tA, double *tB)
 
 void set_units()
 {
+
   // Convert parameters to consistent CGS units
   MBH = MBH_solar * MSUN;
+
   // Note definition of Mdotedd w/ 10% efficiency
+  double Ledd = 4 * M_PI * GNEWT * MBH * MP * CL / SIGMA_THOMSON;
+  Mdotedd = Ledd / (0.1 * CL * CL);
   Mdotedd = 4. * M_PI * GNEWT * MBH * MP / 0.1 / CL / SIGMA_THOMSON;
   Mdot *= Mdotedd;
 
@@ -97,7 +103,7 @@ void set_units()
   double z2 = sqrt(3. * a * a + z1 * z1);
   r_isco = 3. + z2 - copysign(sqrt((3. - z1) * (3. + z1 + 2. * z2)), a);
   Rin = Rh;
-  Rout = 100.0;
+  //Rout = 100.0;
   rmax_geo = fmin(1000., Rout);
   startx[0] = 0.0;
   startx[1] = log(Rin);
@@ -110,8 +116,8 @@ void set_units()
   MULOOP cstartx[mu] = startx[mu];
   MULOOP cstopx[mu] = stopx[mu];
 
-  // Some precomputation.  TODO should this be Mdot?
-  T0 = pow(3.0 / 8.0 / M_PI * GNEWT * MBH * M_unit / pow(L_unit, 3) / SIG, 1. / 4.);
+  // Some precomputation.  
+  T0 = pow(3.0 / 8.0 / M_PI * GNEWT * MBH * Mdot / pow(L_unit, 3) / SIG, 1. / 4.);
 
   fprintf(stderr, "L,T,M units: %g [cm] %g [s] %g [g]\n", L_unit, T_unit, M_unit);
   fprintf(stderr, "rho,u,B units: %g [g cm^-3] %g [g cm^-1 s^-2] %g [G] \n", RHO_unit, U_unit, B_unit);
@@ -172,13 +178,22 @@ void get_model_i(double X[NDIM], double Kcon[NDIM], double *SI)
   get_model_stokes(X, Kcon, SI, &DQ, &DU, &DV);
 }
 
-int thindisk_region(double Xi[NDIM], double Xf[NDIM])
+int thindisk_region(double Xi[NDIM], double Xh[NDIM])
 {
-  double ri, thi, rf, thf;
+  double ri, thi, rf, thf, Xf[NDIM];
+  int i;
+
+  // thindisk_region is asked to determine whether the step will cross the
+  // disk midplane while providing the initial and midstep coordinates.
+  // extrapolate to find the final position.
+  for(i=0;i<NDIM;i++) Xf[i] = Xi[i] + 2.*(Xh[i] - Xi[i]);
+
   bl_coord(Xi, &ri, &thi);
   bl_coord(Xf, &rf, &thf);
-  // Set the intensity whenever and exactly when we cross the disk, outside horizon
-  int midplane = (sign(thi - M_PI_2) != sign(thf - M_PI_2));
+
+  // we've crossed the midplane and need to set the intensity if
+  // we're between r_isco and Rout.
+  int midplane = (thi - M_PI/2.)*(thf - M_PI/2.) < 0.;
   int em_region = rf > r_isco && rf < Rout;
   return midplane && em_region;
 
@@ -274,7 +289,8 @@ double krolikc(double r, double a)
  */
 void fbbpolemis(double nu, double T, double cosne, double *SI, double *SQ)
 {
-  double f = 1.8;
+
+  double f = 1.8; // this is the color correction.  should be 1 for supermassive BHs
   *SI = pow(f, -4.) * bnu(nu, T * f);
 
   // assumes Chandrasekhar electron scattering from semi-infinite atmosphere

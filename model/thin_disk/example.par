@@ -3,6 +3,7 @@
 rcam 1.e4
 thetacam 75
 phicam 0
+Rout 100.
 
 # Camera FOV in r_g
 dx 40
