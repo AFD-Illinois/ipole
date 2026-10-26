@@ -33,6 +33,12 @@ struct of_traj {
   double Kcon[NDIM];
   double Xhalf[NDIM];
   double Kconhalf[NDIM];
+  /* Connections are saved during tracing so polarized transfer can reuse
+   * the values already computed by the geodesic integrator. */
+  double conn[NDIM][NDIM];
+  double connhalf[NDIM][NDIM];
+  int conn_valid;
+  int connhalf_valid;
 };
 
 // used for slow light

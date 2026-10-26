@@ -13,6 +13,10 @@
 int gcon_func(double gcov[NDIM][NDIM], double gcon[NDIM][NDIM]);
 double gdet_func(double gcov[NDIM][NDIM]);
 void get_connection(double X[NDIM], double lconn[NDIM][NDIM][NDIM]);
+/* Connection contracted with a supplied contravariant vector: out[i][j] =
+ * Gamma^i_{j l} K^l.  Uses stationarity/axisymmetry of implemented metrics. */
+void get_connection_k(double X[NDIM], double Kcon[NDIM],
+                      double out[NDIM][NDIM]);
 
 void flip_index(double ucon[NDIM], double Gcov[NDIM][NDIM], double ucov[NDIM]);
 // Old names aliased

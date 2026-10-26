@@ -44,7 +44,8 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
     complex double Ni[NDIM][NDIM],
     complex double Nm[NDIM][NDIM],
-    complex double Nf[NDIM][NDIM], double dlam);
+    complex double Nf[NDIM][NDIM],
+    const double conn[NDIM][NDIM], double dlam);
 
 /************************PRIMARY FUNCTION*******************************/
 /**
@@ -77,22 +78,26 @@ int integrate_emission(struct of_traj *traj, int nsteps,
   // 
   for (int nstep=nsteps; nstep > 0; --nstep) {
     int sflag = 0;
-    struct of_traj ti = traj[nstep];
-    struct of_traj tf = traj[nstep-1];
+    struct of_traj *ti = &traj[nstep];
+    struct of_traj *tf = &traj[nstep-1];
 
     // Parallel transport polarization vector if necessary
     //fprintf(stderr, "Push Polar\n");
     if (!params->only_unpolarized) {
       double complex Nh[NDIM][NDIM];
-      push_polar(ti.X, ti.X, ti.Xhalf, ti.Kcon, ti.Kcon, ti.Kconhalf, N_coord, N_coord, Nh, 0.5 * ti.dl);
-      push_polar(ti.X, ti.Xhalf, tf.X, ti.Kcon, ti.Kconhalf, tf.Kcon, N_coord, Nh, N_coord, ti.dl);
+      push_polar(ti->X, ti->X, ti->Xhalf, ti->Kcon, ti->Kcon, ti->Kconhalf,
+                 N_coord, N_coord, Nh,
+                 ti->conn_valid ? ti->conn : NULL, 0.5 * ti->dl);
+      push_polar(ti->X, ti->Xhalf, tf->X, ti->Kcon, ti->Kconhalf, tf->Kcon,
+                 N_coord, Nh, N_coord,
+                 ti->connhalf_valid ? ti->connhalf : NULL, ti->dl);
     }
 
 #if THIN_DISK
-    if (thindisk_region(ti.X, tf.X)) {
+    if (thindisk_region(ti->X, tf->X)) {
       // A thin disk problem emits nowhere but uses a boundary condition region defined by thindisk_region
       // There we just get a starting value for intensity with get_model_i
-      get_model_i(ti.X, ti.Kcon, Intensity);
+      get_model_i(ti->X, ti->Kcon, Intensity);
 
       if (!params->only_unpolarized) {
         // For polarized emission, it sets all Stokes parameters according to the function get_model_stokes
@@ -100,15 +105,15 @@ int integrate_emission(struct of_traj *traj, int nsteps,
 
         // Make a tetrad
         double gcov[NDIM][NDIM];
-        gcov_func(tf.X, gcov);
+        gcov_func(tf->X, gcov);
         double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-        get_model_fourv(tf.X, tf.Kcon, Ucon, Ucov, Bcon, Bcov);
+        get_model_fourv(tf->X, tf->Kcon, Ucon, Ucov, Bcon, Bcov);
         double Ecov[NDIM][NDIM], Econ[NDIM][NDIM];
-        sflag |= make_plasma_tetrad(Ucon, tf.Kcon, Bcon, gcov, Econ, Ecov);
+        sflag |= make_plasma_tetrad(Ucon, tf->Kcon, Bcon, gcov, Econ, Ecov);
 
         // Get the Stokes parameters
         double SI, SQ, SU, SV;
-        get_model_stokes(tf.X, tf.Kcon, &SI, &SQ, &SU, &SV);
+        get_model_stokes(tf->X, tf->Kcon, &SI, &SQ, &SU, &SV);
 
         // make N_tetrad, and transform
         double complex N_tetrad[NDIM][NDIM];
@@ -119,18 +124,18 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     }
 #endif
 
-    if (radiating_region(tf.X)) {
+    if (radiating_region(tf->X)) {
       // Conditions to zero just the emission, not all radiative transport
       int zero_emission = 0;
-      if (params->target_nturns >= 0 && ti.nturns != params->target_nturns) {
+      if (params->target_nturns >= 0 && ti->nturns != params->target_nturns) {
         zero_emission = 1; 
       }
       if (params->isolate_counterjet == 1) { // Allow emission from X[2] > midplane only
-        if (tf.X[2] < (cstopx[2] - cstartx[2]) / 2) {
+        if (tf->X[2] < (cstopx[2] - cstartx[2]) / 2) {
           zero_emission = 1;
         }
       } else if (params->isolate_counterjet == 2) { // from X[2] < midplane only
-        if (tf.X[2] > (cstopx[2] - cstartx[2]) / 2) {
+        if (tf->X[2] > (cstopx[2] - cstartx[2]) / 2) {
           zero_emission = 1;
         }
       }
@@ -139,21 +144,21 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       // Cached starting coefficients
       double ji = js, ki = ks;
       double jf, kf;
-      //get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
-      get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
+      //get_jkinv(ti->X, ti->Kcon, &ji, &ki, params);
+      get_jkinv(tf->X, tf->Kcon, &jf, &kf, params);
       // End coefficients are next starting coefficients
       js = jf;
       ks = kf;
 
       double Inew = 0.;
       if (zero_emission) {
-        Inew = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
+        Inew = approximate_solve(*Intensity, 0, ki, 0, kf, ti->dl, Tau);
       } else {
-        Inew = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+        Inew = approximate_solve(*Intensity, ji, ki, jf, kf, ti->dl, Tau);
       }
       if (params->histo && !params->histo_polar) {
         int i, j, k; double del[NDIM];
-        Xtoijk(tf.X, &i, &j, &k, del);
+        Xtoijk(tf->X, &i, &j, &k, del);
         #pragma omp atomic
         visible_emission_histogram[k + j*N3 + i*N2*N3] += Inew - *Intensity; 
       }
@@ -163,18 +168,18 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       
       if (print) {
         double Xg[4] = { 0., 0., 0., 0. };
-        eks_to_simcoord(ti.X, Xg);
+        eks_to_simcoord(ti->X, Xg);
         fprintf(stderr, "INTEGRATION %d %d %g %g %g %g %g %g %g %g %g \n", 
-                print, nstep, ti.X[1], ti.X[2], ti.X[3], Xg[1], Xg[2], Xg[3], 
-                ji, *Intensity, ti.dl);
+                print, nstep, ti->X[1], ti->X[2], ti->X[3], Xg[1], Xg[2], Xg[3],
+                ji, *Intensity, ti->dl);
       }
 
       // Solve polarized transport
       if (!params->only_unpolarized) {
-        sflag |= evolve_N(ti.X, ti.Kcon,
-                        ti.Xhalf, ti.Kconhalf,
-                        tf.X, tf.Kcon,
-                        ti.dl, N_coord, tauF, 
+        sflag |= evolve_N(ti->X, ti->Kcon,
+                        ti->Xhalf, ti->Kconhalf,
+                        tf->X, tf->Kcon,
+                        ti->dl, N_coord, tauF,
                         zero_emission, params);
       }
     }
@@ -186,15 +191,15 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       fprintf(stderr, "that's odd: no orthonormal tetrad found at\n");
       fprintf(stderr, "nstep: %d\n", nstep);
       double r, th;
-      bl_coord(tf.X, &r, &th);
-      fprintf(stderr, "X: %g %g %g %g\n", tf.X[0], tf.X[1], tf.X[2], tf.X[3]);
+      bl_coord(tf->X, &r, &th);
+      fprintf(stderr, "X: %g %g %g %g\n", tf->X[0], tf->X[1], tf->X[2], tf->X[3]);
       fprintf(stderr, "r,th: %g %g\n", r, th);
       double gcov[NDIM][NDIM];
-      gcov_func(tf.X, gcov);
+      gcov_func(tf->X, gcov);
       double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
-      get_model_fourv(tf.X, tf.Kcon, Ucon, Ucov, Bcon, Bcov);
+      get_model_fourv(tf->X, tf->Kcon, Ucon, Ucov, Bcon, Bcov);
       print_vector("Ucon", Ucon);
-      print_vector("Kcon", tf.Kcon);
+      print_vector("Kcon", tf->Kcon);
       print_vector("Bcon", Bcon);
 
       double ucov[4];
@@ -204,10 +209,10 @@ int integrate_emission(struct of_traj *traj, int nsteps,
         bsq += Bcon[mu] * Bcov[mu];
         udotu += Ucon[mu] * ucov[mu];
         udotb += Bcon[mu] * ucov[mu];
-        kdotu += tf.Kcon[mu] * ucov[mu];
-        kdotb += tf.Kcon[mu] * Bcov[mu];
+        kdotu += tf->Kcon[mu] * ucov[mu];
+        kdotb += tf->Kcon[mu] * Bcov[mu];
       }
-      double bsq_reported = get_model_b(tf.X);
+      double bsq_reported = get_model_b(tf->X);
       fprintf(stderr, "If all of the following are nonzero, file a bug:\n");
       fprintf(stderr, "bsq = %g bsq_reported = %g u.u = %g  u.b = %g k.u = %g k.b = %g\n",
                       bsq, bsq_reported, udotu, udotb, kdotu, kdotb);
@@ -219,7 +224,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     }
     // Bad tauF
     if (sflag & 2) {
-      printf("tauF = %e dlam = %e\n", *tauF, ti.dl);
+      printf("tauF = %e dlam = %e\n", *tauF, ti->dl);
       fprintf(stderr, "nstep: %d\n", nstep);
       exit(-1);
     }
@@ -227,10 +232,10 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     if (sflag & 4) {
       fprintf(stderr, "\nNaN in N00!\n");
       fprintf(stderr, "nstep: %d\n", nstep);
-      print_vector("Xi", ti.X);
-      print_vector("Xf", tf.X);
-      print_vector("Kconi", ti.Kcon);
-      print_vector("Kconf", tf.Kcon);
+      print_vector("Xi", ti->X);
+      print_vector("Xf", tf->X);
+      print_vector("Kconi", ti->Kcon);
+      print_vector("Kconf", tf->Kcon);
       //printf("Stokes initial: [%e %e %e %e]\n", SI0, SQ0, SU0, SV0);
       //printf("Stokes final: [%e %e %e %e] dlam: %e\n", SI, SQ, SU, SV, dlam);
       //printf("Coefficients: j: [%e %e %e %e] a: [%e %e %e %e] rho: [%e %e %e]\n", jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
@@ -254,7 +259,8 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     double Ki[NDIM], double Km[NDIM], double Kf[NDIM],
     complex double Ni[NDIM][NDIM],
     complex double Nm[NDIM][NDIM],
-    complex double Nf[NDIM][NDIM], double dlam)
+    complex double Nf[NDIM][NDIM],
+    const double conn[NDIM][NDIM], double dlam)
 {
 #if INTEGRATOR_TEST
   double dl = dlam;
@@ -268,23 +274,21 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
     exit(-1);
   }
 
-  /* find the connection */
-  double lconn[NDIM][NDIM][NDIM];
-  get_connection(Xm, lconn);
-  int i, j, k, l;
+  /* Reuse the geodesic's connection if available. */
+  double lconn[NDIM][NDIM];
+  if (conn == NULL) {
+    get_connection_k(Xm, Km, lconn);
+    conn = lconn;
+  }
 
-  /* push N */
-  for (i = 0; i < 4; i++)
-  for (j = 0; j < 4; j++)
-  Nf[i][j] = Ni[i][j];
-
-  for (i = 0; i < 4; i++)
-  for (j = 0; j < 4; j++)
-  for (k = 0; k < 4; k++)
-  for (l = 0; l < 4; l++)
-  Nf[i][j] += -(lconn[i][k][l] * Nm[k][j] * Km[l] +
-      lconn[j][k][l] * Nm[i][k] * Km[l]
-  ) * dl;
+  /* The cached matrix is already Gamma contracted with Km. */
+  for (int i = 0; i < NDIM; ++i)
+    for (int j = 0; j < NDIM; ++j) {
+      double complex sum = 0.;
+      for (int k = 0; k < NDIM; ++k)
+        sum += conn[i][k] * Nm[k][j] + conn[j][k] * Nm[i][k];
+      Nf[i][j] = Ni[i][j] - sum * dl;
+    }
 
 }
 
@@ -353,10 +357,12 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
 
   int oddflag = 0;
 
-  // evaluate transport coefficients
-  jar_calc(Xf, Kconf,
+  // Evaluate coefficients and retain the fluid state already sampled there.
+  int has_fluid = 0;
+  jar_calc_with_fluid(Xf, Kconf,
       &jI, &jQ, &jU, &jV,
-      &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
+      &aI, &aQ, &aU, &aV, &rQ, &rU, &rV,
+      Ucon, Ucov, Bcon, Bcov, &has_fluid, params);
   if (zero_emission) {
     jI = 0.;
     jQ = 0.;
@@ -364,8 +370,9 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     jV = 0.;
   }
 
-  // get fluid parameters at Xf
-  get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
+  // Reuse the values used to compute the coefficients when available.
+  if (!has_fluid)
+    get_model_fourv(Xf, Kconf, Ucon, Ucov, Bcon, Bcov);
 
   // Guess B if we *absolutely must*
   // Note get_model_b (rightly) returns 0 outside the domain,

@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
         MULOOP Xhalf[mu] = X[mu];
         while (!stop_backward_integration(X, Xhalf, Kcon)) {
           dl = stepsize(X, Kcon, params.eps);
-          push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
+          push_photon(X, Kcon, -dl, Xhalf, Kconhalf, NULL, NULL);
           nstep++;
 
           if (nstep > params.maxnstep - 2) {
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
         MULOOP Xhalf[mu] = X[mu];
         while (!stop_backward_integration(X, Xhalf, Kcon)) {
           dl = stepsize(X, Kcon, params.eps);
-          push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
+          push_photon(X, Kcon, -dl, Xhalf, Kconhalf, NULL, NULL);
           nstep++;
 
           int stepidx = imgindex(nstep,i,j,nx,ny);

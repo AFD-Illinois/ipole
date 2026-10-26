@@ -116,7 +116,10 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
 
     /* move photon one step backwards, the procecure updates X
        and Kcon full step and returns also values in the middle */
-    push_photon(X, Kcon, -dl, Xhalf, Kconhalf);
+    push_photon(X, Kcon, -dl, Xhalf, Kconhalf,
+                traj[nstep-1].conn, traj[nstep].connhalf);
+    traj[nstep-1].conn_valid = 1;
+    traj[nstep].connhalf_valid = 1;
 
     // Set the new position and wavevector
     MULOOP {

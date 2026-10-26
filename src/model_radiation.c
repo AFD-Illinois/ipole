@@ -54,7 +54,9 @@ void get_model_kappa(double X[NDIM], double *kappa, double *kappa_width);
 void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
-    double *rQ, double *rU, double *rV);
+    double *rQ, double *rU, double *rV,
+    double Ucon_out[NDIM], double Ucov_out[NDIM],
+    double Bcon_out[NDIM], double Bcov_out[NDIM], int *has_fluid);
 
 /**
  * Optionally load radiation model parameters
@@ -106,10 +108,23 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
     double *aI, double *aQ, double *aU, double *aV,
     double *rQ, double *rU, double *rV, Params *params)
 {
-  jar_calc_dist(params->emission_type, 1, X, Kcon, jI, jQ, jU, jV, aI, aQ, aU, aV, rQ, rU, rV);
+  jar_calc_dist(params->emission_type, 1, X, Kcon, jI, jQ, jU, jV,
+                aI, aQ, aU, aV, rQ, rU, rV, NULL, NULL, NULL, NULL, NULL);
 
   // This wrapper can be used to call jar_calc_dist differently in e.g. funnel vs jet, or
   // depending on local fluid parameters, whatever
+}
+
+void jar_calc_with_fluid(double X[NDIM], double Kcon[NDIM],
+    double *jI, double *jQ, double *jU, double *jV,
+    double *aI, double *aQ, double *aU, double *aV,
+    double *rQ, double *rU, double *rV,
+    double Ucon[NDIM], double Ucov[NDIM],
+    double Bcon[NDIM], double Bcov[NDIM], int *has_fluid, Params *params)
+{
+  jar_calc_dist(params->emission_type, 1, X, Kcon, jI, jQ, jU, jV,
+                aI, aQ, aU, aV, rQ, rU, rV,
+                Ucon, Ucov, Bcon, Bcov, has_fluid);
 }
 
 /**
@@ -119,7 +134,9 @@ void jar_calc(double X[NDIM], double Kcon[NDIM],
 void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jI, double *aI, Params *params)
 {
   double jQ, jU, jV, aQ, aU, aV, rQ, rU, rV;
-  jar_calc_dist(params->emission_type, 0, X, Kcon, jI, &jQ, &jU, &jV, aI, &aQ, &aU, &aV, &rQ, &rU, &rV);
+  jar_calc_dist(params->emission_type, 0, X, Kcon, jI, &jQ, &jU, &jV,
+                aI, &aQ, &aU, &aV, &rQ, &rU, &rV,
+                NULL, NULL, NULL, NULL, NULL);
 }
 
 /**
@@ -145,8 +162,12 @@ void get_jkinv(double X[NDIM], double Kcon[NDIM], double *jI, double *aI, Params
 void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
     double *jI, double *jQ, double *jU, double *jV,
     double *aI, double *aQ, double *aU, double *aV,
-    double *rQ, double *rU, double *rV)
+    double *rQ, double *rU, double *rV,
+    double Ucon_out[NDIM], double Ucov_out[NDIM],
+    double Bcon_out[NDIM], double Bcov_out[NDIM], int *has_fluid)
 {
+  if (has_fluid) *has_fluid = 0;
+
   // Don't emit where there are no electrons
   // This was also used as shorthand in some models to cut off emission
   // Please use radiating_region instead for model applicability cutoffs,
@@ -170,6 +191,15 @@ void jar_calc_dist(int dist, int pol, double X[NDIM], double Kcon[NDIM],
   // Set the parameters common to all distributions...
   double Ucon[NDIM], Ucov[NDIM], Bcon[NDIM], Bcov[NDIM];
   get_model_fourv(X, Kcon, Ucon, Ucov, Bcon, Bcov);
+  if (has_fluid) {
+    for (int mu = 0; mu < NDIM; ++mu) {
+      Ucon_out[mu] = Ucon[mu];
+      Ucov_out[mu] = Ucov[mu];
+      Bcon_out[mu] = Bcon[mu];
+      Bcov_out[mu] = Bcov[mu];
+    }
+    *has_fluid = 1;
+  }
   double nu    = get_fluid_nu(Kcon, Ucov);
   double nusq = nu*nu;
   double theta = get_bk_angle(X, Kcon, Ucov, Bcon, Bcov);

@@ -4,6 +4,8 @@
 #include "decs.h"
 
 void push_photon(double X[NDIM], double Kcon[NDIM], double dl, double Xhalf[NDIM],
-                 double Kconhalf[NDIM]);
+             double Kconhalf[NDIM],
+             double conn[NDIM][NDIM],
+             double connhalf[NDIM][NDIM]);
 
 #endif // GEODESICS_H

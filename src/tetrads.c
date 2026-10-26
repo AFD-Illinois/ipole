@@ -6,6 +6,31 @@
 #include "decs.h"
 #include "geometry.h"
 
+static inline double determinant3(double a00, double a01, double a02,
+                                  double a10, double a11, double a12,
+                                  double a20, double a21, double a22)
+{
+  return a00 * (a11 * a22 - a12 * a21)
+       - a01 * (a10 * a22 - a12 * a20)
+       + a02 * (a10 * a21 - a11 * a20);
+}
+
+static inline double determinant4(double A[NDIM][NDIM])
+{
+  return A[0][0] * determinant3(A[1][1], A[1][2], A[1][3],
+                                A[2][1], A[2][2], A[2][3],
+                                A[3][1], A[3][2], A[3][3])
+       - A[0][1] * determinant3(A[1][0], A[1][2], A[1][3],
+                                A[2][0], A[2][2], A[2][3],
+                                A[3][0], A[3][2], A[3][3])
+       + A[0][2] * determinant3(A[1][0], A[1][1], A[1][3],
+                                A[2][0], A[2][1], A[2][3],
+                                A[3][0], A[3][1], A[3][3])
+       - A[0][3] * determinant3(A[1][0], A[1][1], A[1][2],
+                                A[2][0], A[2][1], A[2][2],
+                                A[3][0], A[3][1], A[3][2]);
+}
+
 /* input and vectors are contravariant (index up) */
 void coordinate_to_tetrad(double Ecov[NDIM][NDIM], double K[NDIM],
                           double K_tetrad[NDIM])
@@ -63,8 +88,6 @@ void set_Econ_from_trial(double Econ[4], int defdir, double trial[4])
  */
 int check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM], double *dot)
 {
-  int i, j, k, l;
-
   double g = gdet_func(Gcov);
   if(g < 0.) {
 #if DEBUG
@@ -73,15 +96,8 @@ int check_handedness(double Econ[NDIM][NDIM], double Gcov[NDIM][NDIM], double *d
     return 1;
   }
 
-  /* check handedness */
-  *dot = 0.;
-  for (i = 0; i < 4; i++)
-    for (j = 0; j < 4; j++)
-      for (l = 0; l < 4; l++)
-        for (k = 0; k < 4; k++) {
-          *dot += g * levi_civita(i, j, k, l) * Econ[0][i] * Econ[1][j]
-              * Econ[2][k] * Econ[3][l];
-        }
+  /* The Levi-Civita contraction is the determinant of Econ. */
+  *dot = g * determinant4(Econ);
 
   return 0;
 }

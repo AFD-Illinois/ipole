@@ -107,7 +107,16 @@ void get_connection(double X[NDIM], double conn[NDIM][NDIM][NDIM])
     print_matrix("gcov", gcov);
   }
 
-  for (k = 0; k < NDIM; k++) {
+  /* Every metric implemented by gcov_func is stationary and axisymmetric:
+   * derivatives with respect to t (0) and phi (3) vanish exactly.  Only
+   * radial and polar finite differences are needed. */
+  for (i = 0; i < NDIM; ++i)
+    for (j = 0; j < NDIM; ++j) {
+      conn[i][j][0] = 0.;
+      conn[i][j][3] = 0.;
+    }
+
+  for (k = 1; k <= 2; k++) {
     for (l = 0; l < NDIM; l++)
       Xh[l] = X[l];
     for (l = 0; l < NDIM; l++)
@@ -118,8 +127,9 @@ void get_connection(double X[NDIM], double conn[NDIM][NDIM][NDIM])
     gcov_func(Xl, gl);
 
     for (i = 0; i < NDIM; i++) {
-      for (j = 0; j < NDIM; j++) {
+      for (j = i; j < NDIM; j++) {
         conn[i][j][k] = (gh[i][j] - gl[i][j]) / (Xh[k] - Xl[k]);
+        conn[j][i][k] = conn[i][j][k];
       }
     }
   }
@@ -143,6 +153,209 @@ void get_connection(double X[NDIM], double conn[NDIM][NDIM][NDIM])
 
 }
 #undef DEL
+
+/* Small forward-mode dual number used to differentiate the FMKS metric in
+ * the two nontrivial coordinate directions without repeated metric calls. */
+typedef struct { double v, d1, d2; } dual2;
+
+static inline dual2 d2_const(double v) { return (dual2){v, 0., 0.}; }
+static inline dual2 d2_add(dual2 a, dual2 b)
+{ return (dual2){a.v+b.v, a.d1+b.d1, a.d2+b.d2}; }
+static inline dual2 d2_sub(dual2 a, dual2 b)
+{ return (dual2){a.v-b.v, a.d1-b.d1, a.d2-b.d2}; }
+static inline dual2 d2_mul(dual2 a, dual2 b)
+{ return (dual2){a.v*b.v, a.d1*b.v+a.v*b.d1, a.d2*b.v+a.v*b.d2}; }
+static inline dual2 d2_scale(dual2 a, double b)
+{ return (dual2){a.v*b, a.d1*b, a.d2*b}; }
+static inline dual2 d2_div(dual2 a, dual2 b)
+{
+  double inv = 1. / b.v, inv2 = inv * inv;
+  return (dual2){a.v*inv, (a.d1*b.v-a.v*b.d1)*inv2,
+                  (a.d2*b.v-a.v*b.d2)*inv2};
+}
+static inline dual2 d2_exp(dual2 a)
+{
+  double v = exp(a.v);
+  return (dual2){v, v*a.d1, v*a.d2};
+}
+static inline dual2 d2_sin(dual2 a)
+{
+  double s = sin(a.v), c = cos(a.v);
+  return (dual2){s, c*a.d1, c*a.d2};
+}
+static inline dual2 d2_cos(dual2 a)
+{
+  double c = cos(a.v), s = -sin(a.v);
+  return (dual2){c, s*a.d1, s*a.d2};
+}
+static inline dual2 d2_pow(dual2 a, double p)
+{
+  double v = pow(a.v, p), slope = p*pow(a.v, p-1.);
+  return (dual2){v, slope*a.d1, slope*a.d2};
+}
+
+static void fmks_metric_and_derivs(double X[NDIM], double gcov[NDIM][NDIM],
+                                   double gcon[NDIM][NDIM],
+                                   double dg[NDIM][NDIM][NDIM])
+{
+  const dual2 x1 = {X[1], 1., 0.};
+  const dual2 x2 = {X[2], 0., 1.};
+  const dual2 one = d2_const(1.), half = d2_const(0.5);
+  dual2 y = d2_sub(d2_scale(x2, 2.), one);
+  dual2 yp = d2_div(y, d2_const(poly_xt));
+  dual2 yalpha = d2_pow(yp, poly_alpha);
+  dual2 yalpha_m1 = d2_pow(yp, poly_alpha - 1.);
+
+  dual2 thg = d2_add(d2_scale(x2, M_PI),
+      d2_scale(d2_sin(d2_scale(x2, 2.*M_PI)), (1.-hslope)/2.));
+  dual2 thj = d2_add(d2_scale(d2_mul(y, d2_add(one,
+      d2_scale(yalpha, 1./(poly_alpha+1.)))), poly_norm), d2_const(M_PI/2.));
+  dual2 smooth = d2_exp(d2_scale(d2_sub(d2_const(startx[1]), x1), mks_smooth));
+  dual2 th = d2_add(thg, d2_mul(smooth, d2_sub(thj, thg)));
+
+  dual2 j21 = d2_scale(d2_mul(smooth, d2_sub(thj, thg)), -mks_smooth);
+  dual2 c2p = d2_cos(d2_scale(x2, 2.*M_PI));
+  dual2 j22inside = d2_add(d2_const(-M_PI),
+      d2_scale(d2_add(one, d2_scale(yalpha, 1./(poly_alpha+1.))),
+               2.*poly_norm));
+  j22inside = d2_add(j22inside,
+      d2_scale(d2_mul(y, yalpha_m1),
+               2.*poly_alpha*poly_norm/((poly_alpha+1.)*poly_xt)));
+  j22inside = d2_sub(j22inside,
+      d2_scale(c2p, (1.-hslope)*M_PI));
+  dual2 j22 = d2_add(d2_add(d2_const(M_PI),
+                     d2_scale(c2p, (1.-hslope)*M_PI)),
+                     d2_mul(smooth, j22inside));
+
+  dual2 r = d2_exp(x1);
+  dual2 sth = d2_sin(th), cth = d2_cos(th);
+  dual2 s2 = d2_mul(sth, sth);
+  dual2 rho2 = d2_add(d2_mul(r, r),
+                      d2_scale(d2_mul(cth, cth), a*a));
+  dual2 f = d2_div(d2_scale(r, 2.), rho2);
+
+  dual2 g00 = d2_add(d2_const(-1.), f);
+  dual2 g01 = d2_mul(f, r);
+  dual2 g03 = d2_scale(d2_mul(s2, f), -a);
+  dual2 g11 = d2_add(d2_mul(d2_add(one, f), d2_mul(r, r)),
+                     d2_mul(rho2, d2_mul(j21, j21)));
+  dual2 g12 = d2_mul(rho2, d2_mul(j21, j22));
+  dual2 g13 = d2_scale(d2_mul(s2, d2_mul(d2_add(one, f), r)), -a);
+  dual2 g22 = d2_mul(rho2, d2_mul(j22, j22));
+  dual2 g33 = d2_mul(s2, d2_add(rho2,
+      d2_scale(d2_mul(s2, d2_add(one, f)), a*a)));
+
+  /* The inverse Kerr-Schild metric has a closed form.  Transform it back
+   * with the inverse FMKS Jacobian instead of running a generic LU inverse. */
+  double gkscon[NDIM][NDIM] = {{0.}};
+  const double rv = r.v, rho2v = rho2.v, s2v = s2.v, fv = f.v;
+  gkscon[0][0] = -(1. + fv);
+  gkscon[0][1] = gkscon[1][0] = fv;
+  gkscon[1][1] = (rv*rv - 2.*rv + a*a) / rho2v;
+  gkscon[1][3] = gkscon[3][1] = a / rho2v;
+  gkscon[2][2] = 1. / rho2v;
+  gkscon[3][3] = 1. / (rho2v * s2v);
+  double invJ[NDIM][NDIM] = {{0.}};
+  invJ[0][0] = invJ[3][3] = 1.;
+  invJ[1][1] = 1. / rv;
+  invJ[2][1] = -j21.v / (rv * j22.v);
+  invJ[2][2] = 1. / j22.v;
+  for (int i = 0; i < NDIM; ++i)
+    for (int j = 0; j < NDIM; ++j) {
+      double value = 0.;
+      for (int l = 0; l < NDIM; ++l)
+        for (int k = 0; k < NDIM; ++k)
+          value += invJ[i][l] * gkscon[l][k] * invJ[j][k];
+      gcon[i][j] = value;
+    }
+
+  dual2 g[NDIM][NDIM];
+  for (int i = 0; i < NDIM; ++i)
+    for (int j = 0; j < NDIM; ++j)
+      g[i][j] = d2_const(0.);
+  g[0][0] = g00;
+  g[0][1] = g[1][0] = g01;
+  g[0][3] = g[3][0] = g03;
+  g[1][1] = g11;
+  g[1][2] = g[2][1] = g12;
+  g[1][3] = g[3][1] = g13;
+  g[2][2] = g22;
+  g[3][3] = g33;
+
+  for (int i = 0; i < NDIM; ++i)
+    for (int j = 0; j < NDIM; ++j) {
+      gcov[i][j] = g[i][j].v;
+      dg[0][i][j] = 0.;
+      dg[1][i][j] = g[i][j].d1;
+      dg[2][i][j] = g[i][j].d2;
+      dg[3][i][j] = 0.;
+    }
+}
+
+/* Return Gamma^i_{j l} K^l directly.  Geodesic and polarization evolution
+ * only use the connection in this contracted form, so constructing all 64
+ * Christoffel symbols is unnecessary.  The implemented coordinate systems
+ * are stationary and axisymmetric, leaving only r and theta derivatives. */
+void get_connection_k(double X[NDIM], double Kcon[NDIM],
+                      double out[NDIM][NDIM])
+{
+  double gcov[NDIM][NDIM], gcon[NDIM][NDIM];
+  double dg[NDIM][NDIM][NDIM] = {{{0.}}};
+  double Xh[NDIM], Xl[NDIM], gh[NDIM][NDIM], gl[NDIM][NDIM];
+  double contracted[NDIM][NDIM];
+
+  int gcon_ready = 0;
+  if (metric == METRIC_FMKS && !use_eKS_internal) {
+    fmks_metric_and_derivs(X, gcov, gcon, dg);
+    gcon_ready = 1;
+  } else {
+    gcov_func(X, gcov);
+    for (int k = 1; k <= 2; ++k) {
+      for (int l = 0; l < NDIM; ++l) {
+        Xh[l] = X[l];
+        Xl[l] = X[l];
+      }
+      Xh[k] += 1.e-7;
+      Xl[k] -= 1.e-7;
+      gcov_func(Xh, gh);
+      gcov_func(Xl, gl);
+      for (int i = 0; i < NDIM; ++i)
+        for (int j = i; j < NDIM; ++j) {
+          const double d = (gh[i][j] - gl[i][j]) / 2.e-7;
+          dg[k][i][j] = d;
+          dg[k][j][i] = d;
+        }
+    }
+  }
+  if (!gcon_ready && gcon_func(gcov, gcon)) {
+    fprintf(stderr, "Encountered singluar gcov when getting connection!\n");
+    print_vector("X", X);
+    print_matrix("gcov", gcov);
+  }
+
+  /* B[m][j] = (d_j g_ml + d_l g_mj - d_m g_jl) K^l / 2. */
+  for (int m = 0; m < NDIM; ++m)
+    for (int j = 0; j < NDIM; ++j) {
+      double term1 = 0., term2 = 0., term3 = 0.;
+      if (j == 1 || j == 2)
+        for (int l = 0; l < NDIM; ++l)
+          term1 += dg[j][m][l] * Kcon[l];
+      for (int l = 1; l <= 2; ++l)
+        term2 += dg[l][m][j] * Kcon[l];
+      if (m == 1 || m == 2)
+        for (int l = 0; l < NDIM; ++l)
+          term3 += dg[m][j][l] * Kcon[l];
+      contracted[m][j] = 0.5 * (term1 + term2 - term3);
+    }
+
+  for (int i = 0; i < NDIM; ++i)
+    for (int j = 0; j < NDIM; ++j) {
+      double value = 0.;
+      for (int m = 0; m < NDIM; ++m)
+        value += gcon[i][m] * contracted[m][j];
+      out[i][j] = value;
+    }
+}
 
 /*
  * Normalize input vector so that |v . v| = 1

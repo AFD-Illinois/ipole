@@ -7,9 +7,11 @@
  * This is the main photon orbit integrator
  */
 void push_photon (double X[NDIM], double Kcon[NDIM], double dl, double Xhalf[NDIM],
-             double Kconhalf[NDIM])
+             double Kconhalf[NDIM],
+             double conn_out[NDIM][NDIM],
+             double connhalf_out[NDIM][NDIM])
 {
-  double lconn[NDIM][NDIM][NDIM];
+  double lconn[NDIM][NDIM];
   double dKcon[NDIM];
   double Xh[NDIM], Kconh[NDIM];
   int i, j, k;
@@ -19,15 +21,20 @@ void push_photon (double X[NDIM], double Kcon[NDIM], double dl, double Xhalf[NDI
    at half-step. */
 
   /** half-step **/
-  get_connection(X, lconn);
+  get_connection_k(X, Kcon, lconn);
+  if (conn_out)
+    for (i = 0; i < NDIM; ++i)
+      for (j = 0; j < NDIM; ++j)
+        conn_out[i][j] = lconn[i][j];
 
   /* advance K */
   for (k = 0; k < 4; k++)
     dKcon[k] = 0.;
-  for (i = 0; i < 4; i++)
-    for (j = 0; j < 4; j++)
-      for (k = 0; k < 4; k++)
-        dKcon[k] -= 0.5 * dl * lconn[k][i][j] * Kcon[i] * Kcon[j];
+  for (k = 0; k < NDIM; ++k) {
+    dKcon[k] = 0.;
+    for (i = 0; i < NDIM; ++i)
+      dKcon[k] -= 0.5 * dl * lconn[k][i] * Kcon[i];
+  }
   for (k = 0; k < 4; k++)
     Kconh[k] = Kcon[k] + dKcon[k];
 
@@ -43,15 +50,20 @@ void push_photon (double X[NDIM], double Kcon[NDIM], double dl, double Xhalf[NDI
   /********************/
 
   /** full step **/
-  get_connection(Xh, lconn);
+  get_connection_k(Xh, Kconh, lconn);
+  if (connhalf_out)
+    for (i = 0; i < NDIM; ++i)
+      for (j = 0; j < NDIM; ++j)
+        connhalf_out[i][j] = lconn[i][j];
 
   /* advance K */
   for (k = 0; k < 4; k++)
     dKcon[k] = 0.;
-  for (i = 0; i < 4; i++)
-    for (j = 0; j < 4; j++)
-      for (k = 0; k < 4; k++)
-        dKcon[k] -= dl * lconn[k][i][j] * Kconh[i] * Kconh[j];
+  for (k = 0; k < NDIM; ++k) {
+    dKcon[k] = 0.;
+    for (i = 0; i < NDIM; ++i)
+      dKcon[k] -= dl * lconn[k][i] * Kconh[i];
+  }
   for (k = 0; k < 4; k++)
     Kcon[k] += dKcon[k];
 

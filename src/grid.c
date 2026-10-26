@@ -8,6 +8,17 @@
 
 int N1, N2, N3;
 
+/* An interpolation stencil depends only on the sample coordinates.  Radiation
+ * evaluation commonly interpolates several fields at exactly the same point,
+ * so keep the most recent stencil private to each OpenMP thread. */
+static struct {
+  int valid;
+  double X[NDIM];
+  double del[NDIM];
+  int i, j, k;
+} interp_cache;
+#pragma omp threadprivate(interp_cache)
+
 /********************************************************************
         Interpolation routines
  ********************************************************************/
@@ -15,11 +26,26 @@ int N1, N2, N3;
 /* return scalar in cgs units */
 double interp_scalar(double X[NDIM], double ***var)
 {
-  double del[NDIM] = {0}, b1 = 0, b2 = 0, interp = 0;
-  int i = 0, j = 0, k = 0, ip1 = 0, jp1 = 0, kp1 = 0;
+  double b1 = 0, b2 = 0, interp = 0;
+  int ip1 = 0, jp1 = 0, kp1 = 0;
 
-  // zone and offset from X
-  Xtoijk_ghost(X, &i, &j, &k, del);
+  int same_point = interp_cache.valid;
+  for (int mu = 0; mu < NDIM && same_point; ++mu)
+    same_point = (X[mu] == interp_cache.X[mu]);
+
+  if (!same_point) {
+    // zone and offset from X
+    Xtoijk_ghost(X, &interp_cache.i, &interp_cache.j, &interp_cache.k,
+                 interp_cache.del);
+    for (int mu = 0; mu < NDIM; ++mu)
+      interp_cache.X[mu] = X[mu];
+    interp_cache.valid = 1;
+  }
+
+  int i = interp_cache.i;
+  int j = interp_cache.j;
+  int k = interp_cache.k;
+  double *del = interp_cache.del;
 
   ip1 = i+1;
   jp1 = j+1;

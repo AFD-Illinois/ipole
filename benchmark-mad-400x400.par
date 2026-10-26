@@ -1,0 +1,42 @@
+# Reproduces the configuration of the optimized 400x400 timing run.
+# Run from ipole-src with: OMP_NUM_THREADS=14 ./ipole -par benchmark-mad-400x400.par
+
+# Input and output
+dump /Users/gammie/grmhd/mad_data/torus.out0.12439.h5
+outfile /tmp/ipole-400x400.h5
+nx 400
+ny 400
+
+# Emission and M87 normalization (same as model/iharm/example.par)
+emission_type 4
+MBH 6.2e9
+dsource 16.9e6
+freqcgs 230.e9
+M_unit 3e26
+trat_small 1
+trat_large 20
+
+# Camera and field of view
+rcam 1000
+thetacam 17
+phicam 0
+rotcam 0
+fovx_dsource 160
+fovy_dsource 160
+
+# Transfer, image, and diagnostic settings retained from the example file
+refine_abs 2e-2
+refine_rel 1e-2
+refine_cut 0
+qu_conv 0
+quench_output 0
+add_ppm 0
+only_unpolarized 0
+counterjet 0
+xoff 0
+yoff 0
+trace 0
+trace_stride 1
+trace_outf trace.h5
+histo 0
+histo_outf histo.h5
