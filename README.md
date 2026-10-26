@@ -34,6 +34,18 @@ $ brew install llvm gsl hdf5
 these should all be binary packages, no compiling should be required.
 For the clang installation, change the ```HDF5_CC```, ```HDF5_CLINKER``` and ```GSL_DIR``` variables in the makefile. Please raise an issue in the event that neither of these methods work on macOS.
 
+On macOS with Homebrew Open MPI, an upgraded GCC can leave the ```mpicc```
+wrapper pointing at a compiler version that is no longer installed. The
+makefile selects the newest Homebrew ```gcc-N``` automatically when available.
+To select a specific installed version, pass it as ```OMPI_CC```, for example:
+
+```bash
+$ make OMPI_CC=/opt/homebrew/bin/gcc-16
+```
+
+The macOS build omits ```-march=native``` and ```-mtune=native``` because GCC
+does not recognize Apple CPU names as target architectures.
+
 # Building
 
 Then just build by running

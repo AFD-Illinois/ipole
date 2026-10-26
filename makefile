@@ -13,7 +13,13 @@ SYSTEM_LIBDIR =
 # Try pointing this to h5pcc or h5cc on your machine, before hunting down libraries
 CC=h5cc
 # Example CFLAGS for going fast with GCC
-CFLAGS = -std=gnu99 -O3 -march=native -mtune=native -flto -fopenmp -funroll-loops
+CFLAGS = -std=gnu99 -O3 -flto -fopenmp -funroll-loops
+ifneq (,$(findstring Darwin,$(shell uname)))
+  # GCC on Apple Silicon does not accept the Apple CPU name selected by
+  # -march=native, so leave architecture selection to the compiler.
+else
+  CFLAGS += -march=native -mtune=native
+endif
 MATH_LIB = -lm
 # ICC does not like -lm and uses different flags
 #CFLAGS = -xCORE-AVX2 -Ofast -fstrict-aliasing -Wall -Werror -ipo -qopenmp
@@ -28,11 +34,36 @@ ECHO=echo -e
 
 # Overrides of the above for macOS
 ifneq (,$(findstring Darwin,$(shell uname)))
-	export HDF5_CC = /opt/homebrew/bin/gcc-13
-	export HDF5_CLINKER = /opt/homebrew/bin/gcc-13
+  # Homebrew may have upgraded GCC after Open MPI was built.  Point its
+  # compiler wrapper at the newest installed Homebrew GCC when available.
+  BREW_PREFIX := $(shell brew --prefix 2>/dev/null)
+  BREW_GCC := $(shell /bin/ls -1 "$(BREW_PREFIX)"/bin/gcc-[0-9]* 2>/dev/null | /usr/bin/sort -t- -k2,2n | tail -1)
+  ifneq ($(BREW_GCC),)
+    HDF5_CC ?= $(BREW_GCC)
+    HDF5_CLINKER ?= $(BREW_GCC)
+    OMPI_CC ?= $(BREW_GCC)
+  # Replace stale environment settings left behind by a Homebrew GCC upgrade,
+  # but preserve an explicit make command-line selection.
+  ifeq ($(origin HDF5_CC),environment)
+    ifeq ($(wildcard $(HDF5_CC)),)
+      HDF5_CC := $(BREW_GCC)
+    endif
+  endif
+  ifeq ($(origin HDF5_CLINKER),environment)
+    ifeq ($(wildcard $(HDF5_CLINKER)),)
+      HDF5_CLINKER := $(BREW_GCC)
+    endif
+  endif
+  ifeq ($(origin OMPI_CC),environment)
+    ifeq ($(wildcard $(OMPI_CC)),)
+      OMPI_CC := $(BREW_GCC)
+    endif
+  endif
+  endif
+  export HDF5_CC HDF5_CLINKER OMPI_CC
 
-	GSL_DIR=/opt/homebrew/opt/gsl
-	SYSTEM_LIBDIR=
+  GSL_DIR=/opt/homebrew/opt/gsl
+  SYSTEM_LIBDIR=
 
 	MD5=md5
 	ECHO=echo
@@ -152,4 +183,4 @@ $(ARC_DIR)/%: % | $(ARC_DIR)
 	@cp $< $(ARC_DIR)
 
 $(ARC_DIR):
-	@mkdir $(ARC_DIR)
+	@mkdir -p $(ARC_DIR)
